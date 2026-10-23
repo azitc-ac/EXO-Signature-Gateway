@@ -881,6 +881,20 @@ async def api_remote_domain_remove(user: str = Depends(_require_admin)):
     return JSONResponse(result)
 
 
+# ── Empfängerbedingung an der Signatur-Regel (regel_bedingung.py) ────────────
+
+@router.get("/api/setup/regel/empfaengerbedingung")
+async def api_regel_empfaengerbedingung(user: str = Depends(_require_admin)):
+    import regel_bedingung
+    return JSONResponse({"ok": True, **await asyncio.to_thread(regel_bedingung.pruefen)})
+
+
+@router.post("/api/setup/regel/empfaengerbedingung-entfernen")
+async def api_regel_empfaengerbedingung_entfernen(user: str = Depends(_require_admin)):
+    import regel_bedingung
+    return JSONResponse(await asyncio.to_thread(regel_bedingung.entfernen, user))
+
+
 # ── App-Pool API ──────────────────────────────────────────────────────────────
 
 @router.get("/api/setup/app-pool/status")

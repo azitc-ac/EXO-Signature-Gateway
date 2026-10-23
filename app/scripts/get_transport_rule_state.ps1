@@ -24,7 +24,10 @@ try {
 
 try {
     $r = Get-TransportRule -Identity $RuleName -ErrorAction Stop
-    Write-Output (@{ ok = $true; state = [string]$r.State } | ConvertTo-Json -Compress)
+    # SentToScope: leer = keine Empfängerbedingung (Soll). Alt-Installationen
+    # tragen mitunter noch NotInOrganization — dann erreicht interne Post das
+    # Gateway nie (regel_bedingung.py).
+    Write-Output (@{ ok = $true; state = [string]$r.State; sent_to_scope = [string]$r.SentToScope } | ConvertTo-Json -Compress)
 } catch {
     Write-Output (@{ ok = $false; error = "rule: $($_.Exception.Message)" } | ConvertTo-Json -Compress)
 } finally {

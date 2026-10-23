@@ -376,8 +376,30 @@ def _naa() -> dict:
                               "ausgeben, zeigt erst ein Versuch im Client.")
 
 
+def _regel_empfaenger() -> dict:
+    """Signatur-Regel ohne Empfängerbedingung? Installationen vor v1.8.64
+    tragen noch SentToScope=NotInOrganization — interne Post erreicht das
+    Gateway dann nie, gemischte Post nur zum Teil."""
+    import regel_bedingung
+    name = "Transportregel ohne Empfängerbedingung"
+    p = regel_bedingung.pruefen()
+    if p["zustand"] == regel_bedingung.UNBEKANNT:
+        return _punkt(name, UNBEKANNT, f"Regel „{p['regel']}“ ließ sich nicht lesen.",
+                      "Exchange-Zugang prüfen (Einrichtung → Connector).")
+    if p["zustand"] == regel_bedingung.BEDINGUNG:
+        return _punkt(name, OFFEN,
+                      f"Die Regel trägt SentToScope={p['sent_to_scope']} — interne "
+                      "Post erreicht das Gateway nicht, bei gemischten Empfängern "
+                      "geht der interne Teil unsigniert vorbei.",
+                      "Einstellungen → Signatur → Erweiterte Einstellungen → „Empfängerbedingung entfernen“.")
+    return _punkt(name, OK, f"Regel „{p['regel']}“ ohne Empfängerbedingung",
+                  deckt_nicht="Andere empfängerbezogene Bedingungen (z. B. "
+                              "SentTo, RecipientDomainIs) prüft dieser Punkt nicht.")
+
+
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
-              _postfaecher, _signaturvorlage, _rueckweg, _benachrichtigung)
+              _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger,
+              _benachrichtigung)
 
 
 def bericht() -> dict:

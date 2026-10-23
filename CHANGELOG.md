@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.38 — 2026-10-23 — Transportregel: alte Empfängerbedingung erkennen und gezielt entfernen
+
+- **Korrektur: Eine alte Empfängerbedingung an der Signatur-Regel blieb
+  unbemerkt.** Bis v1.8.63 legte die Einrichtung die Transportregel mit
+  *„The recipient is located 'NotInOrganization'“* (`SentToScope`) an. Damit
+  erreicht rein interne Post das Gateway nie, und *Rein interne Mails auch
+  signieren* wirkt nicht. Bei Mails an interne und externe Empfänger spaltet
+  Exchange die Nachricht auf, und der interne Teil läuft unsigniert am Gateway
+  vorbei. Seit v1.8.64 entsteht die Regel ohne diese Bedingung, und *Connector
+  neu einrichten* entfernt sie an bestehenden Regeln. Angezeigt wurde sie aber
+  nirgends. Der Heilweg setzt zudem die Connectoren neu, darunter die
+  TLS-Domäne des ausgehenden Connectors. Hinter einem Proxy mit anderem
+  Zertifikat kann das die Zustellung unterbrechen.
+- **Neu: Prüfung an drei Stellen.** Unter *Einstellungen → Signatur →
+  Erweiterte Einstellungen* steht beim Schalter *Rein interne Mails auch
+  signieren* der zuletzt gelesene Stand, mit dem Knopf *Transportregel prüfen*.
+  Die Abnahme (*Einrichtung → Verbindungstest & Abnahme*) hat den Punkt
+  *Transportregel ohne Empfängerbedingung*. Ist der Bypass-Wächter
+  eingerichtet, warnt zudem die tägliche Regelabfrage im Protokoll.
+- **Neu: Knopf *Empfängerbedingung entfernen*.** Er entfernt an der
+  Signatur-Regel nur `SentToScope` und liest danach nach. Connectoren und alle
+  übrigen Bedingungen bleiben unberührt. Fehlt der Regel die Bedingung *„The
+  sender is a member of …“*, ändert er nichts und meldet das. Ohne diese
+  Bedingung gälte die Regel sonst für jeden Absender des Tenants.
+
+**Zu tun:** Öffne *Einstellungen → Signatur → Erweiterte Einstellungen* und
+tippe auf *Transportregel prüfen*. Meldet die Prüfung eine Empfängerbedingung,
+tippe auf *Empfängerbedingung entfernen*. Nach 5–15 Minuten erreicht auch
+interne Post der aktivierten Postfächer das Gateway. Ob sie signiert wird,
+entscheidet *Rein interne Mails auch signieren*; ist der Schalter aus, geht
+sie unverändert durch.
+
 ## v1.10.37 — 2026-10-23 — Ergebnismeldung neben Knöpfen wieder sichtbar
 
 - **Korrektur: Ergebnisse neben einem Knopf blieben unsichtbar.** Bei Knöpfen
