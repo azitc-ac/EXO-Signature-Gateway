@@ -1,7 +1,42 @@
 import email.message
+import hashlib
+
 import settings_store
 
 _DEFAULT_HEADER = "X-Sig-Applied"
+
+
+def marker_wert() -> str:
+    """Der Wert der Markierung — JE INSTALLATION (genauer: je Tenant) eigen.
+
+    Bis v1.10.43 war er überall `1`. Eine Mail von einem ANDEREN Gateway
+    (anderer Kunde, anderer Tenant) trug deshalb schon die Markierung, und die
+    eingehenden S/MIME-Regeln des Empfängers nahmen sie aus: kein Zertifikat
+    übernommen, verschlüsselte Post nicht entschlüsselt (gemessen 23.10.2026,
+    a-az@azitc.org → alexander@zarenko.net). Jetzt erkennt jedes Gateway nur
+    seine eigene Markierung.
+
+    ⚠️ Beginnt mit `1-`: Regeln vor der Umstellung prüfen das UNVERANKERTE
+    Muster `1` und nehmen die neue Markierung damit weiter aus, bis sie
+    angeglichen sind (regel_kennung.py). Ohne diesen Präfix kreiste nach dem
+    Update jede Mail, bis die Regeln nachgezogen sind.
+
+    Zwei Gateways im selben Tenant (z. B. Test und Betrieb) teilen den Wert —
+    gewollt: Post, die eines bearbeitet hat, soll die Regel des anderen nicht
+    erneut umleiten. Ohne Tenant (frische Anlage, noch keine Regeln): `1`.
+    """
+    import config
+    tenant = (config.TENANT_ID or settings_store.get("TENANT_ID") or "").strip().lower()
+    if not tenant:
+        return "1"
+    return "1-" + hashlib.sha256(("exo-sig-loop:" + tenant).encode()).hexdigest()[:12]
+
+
+def marker_muster() -> str:
+    """Das Muster für die Ausnahme der Transportregeln (EXO wertet es als
+    regulären Ausdruck aus) — VERANKERT, damit eine fremde Markierung nicht
+    zufällig passt. Der Wert enthält nur 0–9, a–f und `-`."""
+    return f"^{marker_wert()}$"
 
 
 def header_name() -> str:
@@ -18,14 +53,15 @@ def _header() -> str:
 
 
 def is_signed(message: email.message.Message) -> bool:
-    return message.get(_header()) == "1"
+    """Trägt die Mail UNSERE Markierung? Eine fremde zählt nicht."""
+    return (message.get(_header()) or "").strip() == marker_wert()
 
 
 def mark_as_signed(message: email.message.Message) -> None:
     h = _header()
     if h in message:
-        del message[h]
-    message[h] = "1"
+        del message[h]               # auch eine fremde Markierung ersetzen
+    message[h] = marker_wert()
 
 
 def mark_as_signed_bytes(raw: bytes) -> bytes:
@@ -47,7 +83,9 @@ def mark_as_signed_bytes(raw: bytes) -> bytes:
 
     Uses the message's own line ending so it never introduces a bare LF
     (which Exchange rejects: 550 5.6.11 BareLinefeedsAreIllegal). Idempotent:
-    skips if a top-level loop header is already present.
+    skips if OUR marker is already present at the top level. A FOREIGN marker
+    (another gateway, other tenant — see marker_wert) is removed and replaced:
+    keeping it would leave the mail unmarked for our own rules -> loop.
     """
     name = _header().encode()
     # Determine the header/body boundary and the message's line ending.
@@ -60,12 +98,25 @@ def mark_as_signed_bytes(raw: bytes) -> bytes:
             eol = b"\n"
     header_block = raw[:boundary] if boundary != -1 else raw
 
-    # Idempotency: don't add a second copy if a top-level line already starts
-    # with the header name (folded continuations start with whitespace, so a
-    # simple line-prefix check is correct here).
+    wert = marker_wert().encode()
+    # Top-level lines of this header (folded continuations start with
+    # whitespace, so a line-prefix check is correct here).
     prefix = name.lower() + b":"
-    for line in header_block.split(eol):
-        if line.lower().startswith(prefix):
-            return raw
+    zeilen = header_block.split(eol)
+    vorhanden = [z for z in zeilen if z.lower().startswith(prefix)]
+    if vorhanden and all(z.split(b":", 1)[1].strip() == wert for z in vorhanden):
+        return raw                                   # schon unsere Markierung
+    if vorhanden:
+        behalten, im_kopf = [], False
+        for z in zeilen:
+            if z.lower().startswith(prefix):
+                im_kopf = True
+                continue
+            if im_kopf and z[:1] in (b" ", b"\t"):
+                continue                             # Fortsetzung der alten Zeile
+            im_kopf = False
+            behalten.append(z)
+        rest = raw[boundary:] if boundary != -1 else b""
+        raw = eol.join(behalten) + rest
 
-    return name + b": 1" + eol + raw
+    return name + b": " + wert + eol + raw

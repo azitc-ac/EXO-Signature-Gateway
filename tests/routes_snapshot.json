@@ -1274,6 +1274,20 @@
     "name": "api_regel_empfaengerbedingung_entfernen"
   },
   {
+    "pfad": "/api/setup/regel/schleifenkennung",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_regel_schleifenkennung"
+  },
+  {
+    "pfad": "/api/setup/regel/schleifenkennung-angleichen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_regel_schleifenkennung_angleichen"
+  },
+  {
     "pfad": "/api/setup/remote-domain-castle",
     "methoden": [
       "DELETE"

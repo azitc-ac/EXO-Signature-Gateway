@@ -590,7 +590,7 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
     # Der Name kommt aus LOOP_HEADER (nicht hartkodiert): Graph ist im
     # Graph++/Azure-Modus der HAUPT-Rückweg, und ein fester Name hier ließe
     # ihn gegenüber der EXO-Regel und dem SMTP-Weg auseinanderlaufen.
-    internet_headers = [{"name": loop_detector.header_name(), "value": "1"}]
+    internet_headers = [{"name": loop_detector.header_name(), "value": loop_detector.marker_wert()}]
 
     # Scope recipients to this transaction's actual SMTP envelope — see
     # _split_recipients_to_envelope() docstring for why this matters.

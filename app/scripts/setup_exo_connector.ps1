@@ -24,6 +24,9 @@ param(
     [Parameter(Mandatory)][string]$SmtpProxyHostname,
     [string]$GatewayName = "EXO Signature Gateway",
     [string]$LoopHeader = "X-Sig-Applied",
+    # Muster der Loop-Ausnahme: je Installation eigen (loop_detector.marker_muster).
+    # Vorgabe "1" nur für Aufrufe ohne Parameter (alte Fassung).
+    [string]$LoopPattern = "1",
     # Name der Signatur-Regel — kommt aus der EINEN Python-Quelle (waechter_regel.regelname()).
     # RuleNameOld = frueherer Name (waechter_regel.basis_regelname()) fuer die einmalige
     # In-place-Umbenennung. Leer = defensiver Rueckfall auf die abgeleitete Form.
@@ -205,7 +208,7 @@ if ($existingRule) {
         -FromMemberOf @($dgName) `
         -SentToScope $null `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
-        -ExceptIfHeaderMatchesPatterns "1" `
+        -ExceptIfHeaderMatchesPatterns $LoopPattern `
         -ExceptIfMessageTypeMatches Calendaring `
         -ExceptIfHeaderContainsMessageHeader "Auto-Submitted" `
         -ExceptIfHeaderContainsWords "auto" | Out-Null
@@ -221,7 +224,7 @@ if ($existingRule) {
         -FromScope InOrganization `
         -FromMemberOf @($dgName) `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
-        -ExceptIfHeaderMatchesPatterns "1" `
+        -ExceptIfHeaderMatchesPatterns $LoopPattern `
         -ExceptIfMessageTypeMatches Calendaring `
         -ExceptIfHeaderContainsMessageHeader "Auto-Submitted" `
         -ExceptIfHeaderContainsWords "auto" `
@@ -248,5 +251,5 @@ if ($SkipInboundConnector) {
     Write-Host "  $SmtpProxyHostname:25 → EXO Smarthost → [$inName] → Delivery"
 }
 Write-Host ""
-Write-Host "Loop prevention: header ${LoopHeader}: 1 (set by proxy before re-inject)"
+Write-Host "Loop prevention: header ${LoopHeader} matching $LoopPattern (set by the gateway before re-inject)"
 Write-Host "Forwarding: FromScope=InOrganization ensures only internally-composed mails are routed"

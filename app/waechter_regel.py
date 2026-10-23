@@ -55,10 +55,13 @@ def regelname() -> str:
     return f"Route via {gw} (Signatur)"
 
 
-def ps_regelskript(skript: Path) -> dict | None:
+def ps_regelskript(skript: Path, regeln: str | None = None,
+                   extra: tuple[str, ...] = ()) -> dict | None:
     """Ein Regel-Skript (Parameter AppId/CertPath/Organization/RuleName, eine
-    JSON-Zeile als Ausgabe) ausführen. None, wenn Konfiguration fehlt oder die
-    Ausgabe nicht lesbar ist; sonst das JSON (mit `ok`). Wirft nie."""
+    JSON-Zeile als Ausgabe) ausführen. `regeln` ersetzt den Regelnamen (auch
+    mehrere, kommagetrennt), `extra` hängt weitere Parameter an. None, wenn
+    Konfiguration fehlt oder die Ausgabe nicht lesbar ist; sonst das JSON
+    (mit `ok`). Wirft nie."""
     app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
     org = settings_store.get("TENANT_DOMAIN") or ""
     if not app_id or not org or not _AUTH_CERT.exists() or not skript.exists():
@@ -67,7 +70,7 @@ def ps_regelskript(skript: Path) -> dict | None:
         proc = subprocess.run(
             ["pwsh", "-NoProfile", "-NonInteractive", "-File", str(skript),
              "-AppId", app_id, "-CertPath", str(_AUTH_CERT),
-             "-Organization", org, "-RuleName", regelname()],
+             "-Organization", org, "-RuleName", regeln or regelname(), *extra],
             capture_output=True, text=True, timeout=120)
         zeilen = [z for z in (proc.stdout or "").splitlines() if z.strip()]
         return json.loads(zeilen[-1]) if zeilen else None

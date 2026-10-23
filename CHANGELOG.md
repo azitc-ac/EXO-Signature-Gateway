@@ -5,6 +5,39 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.44 — 2026-10-23 — Post anderer Gateways umging die eingehenden S/MIME-Regeln
+
+- **Korrektur: Signierte und verschlüsselte Post von einem anderen Gateway
+  erreichte dein Gateway nicht.** Das Gateway markiert bearbeitete Post mit
+  `X-Sig-Applied`, damit die Transportregeln sie nicht noch einmal umleiten.
+  Der Wert war bisher überall `1`, auch bei jeder anderen Installation. Kam
+  eine Mail von einem anderen Gateway, trug sie die Markierung also schon.
+  Die eingehenden S/MIME-Regeln deines Tenants nahmen sie deshalb aus: Das
+  Zertifikat des Absenders wurde nicht übernommen, und verschlüsselte Post
+  wäre nicht entschlüsselt worden. Auch das Gateway selbst hielt solche Post
+  für schon bearbeitet.
+- **Neu: eine eigene Kennung je Installation.** Der Wert ist jetzt aus der
+  Tenant-ID abgeleitet (`1-` und zwölf Hexzeichen). Die Regeln nehmen genau
+  diesen Wert aus. Eine fremde Markierung ersetzt das Gateway durch die
+  eigene. Zwei Gateways im selben Tenant teilen die Kennung.
+- **Neu: Prüfen und Angleichen.** Unter *Einstellungen → Signatur →
+  Erweiterte Einstellungen* zeigt das Feld *Loop-Detection-Header* die
+  Kennung dieser Installation. *Regeln prüfen* liest die Ausnahme aller
+  Gateway-Regeln, *Regeln angleichen* setzt sie auf die eigene Kennung. Dabei
+  ändert sich nur diese Ausnahme; Gruppen, Connectoren und übrige Bedingungen
+  bleiben. Die Abnahme hat dafür den Punkt *Transportregeln mit eigener
+  Loop-Kennung*. Neue Regeln bekommen die Kennung von der Einrichtung.
+- Bis zum Angleichen läuft der Mailfluss wie bisher: Die alten Regeln nehmen
+  auch die neue Kennung aus, weil sie mit `1` beginnt. Erst nach dem
+  Angleichen erreicht Post anderer Gateways deine S/MIME-Regeln. Beim
+  Angleichen kann eine Mail, die gerade unterwegs ist, einmal ein zweites Mal
+  durchs Gateway laufen.
+
+**Zu tun:** Öffne nach dem Update *Einstellungen → Signatur → Erweiterte
+Einstellungen*, tippe beim *Loop-Detection-Header* auf *Regeln prüfen* und
+danach auf *Regeln angleichen*. Betreibst du mehrere Gateways im selben
+Tenant, aktualisiere zuerst alle und gleiche dann an jedem die Regeln an.
+
 ## v1.10.43 — 2026-10-23 — Anmeldeseite: Logo-Animation kürzer
 
 - **Geändert: Der Ablauf dauert rund 2 statt 5 Sekunden.** Der Brief steckt

@@ -32,7 +32,10 @@ param(
     [string]$SigRuleName = "",
     [string]$SigRuleNameOld = "",
     [string]$SmimeRuleName = "",
-    [string]$LoopHeader = "X-Sig-Applied"
+    [string]$LoopHeader = "X-Sig-Applied",
+    # Muster der Loop-Ausnahme: je Installation eigen (loop_detector.marker_muster).
+    # Vorgabe "1" nur für Aufrufe ohne Parameter (alte Fassung).
+    [string]$LoopPattern = "1"
 )
 
 Set-StrictMode -Version Latest
@@ -137,7 +140,7 @@ try {
             -FromScope InOrganization `
             -FromMemberOf @($smimeDg) `
             -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
-            -ExceptIfHeaderMatchesPatterns "1" `
+            -ExceptIfHeaderMatchesPatterns $LoopPattern `
             -ExceptIfMessageTypeMatches Calendaring `
             -ExceptIfHeaderContainsMessageHeader "Auto-Submitted" `
             -ExceptIfHeaderContainsWords "auto" `
