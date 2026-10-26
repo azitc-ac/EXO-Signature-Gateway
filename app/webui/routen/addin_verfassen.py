@@ -204,7 +204,12 @@ def naa_konfiguration() -> dict:
 def _konfiguration(base: str) -> dict:
     # Absolut: Relative Adressen gehen in der JS-only-Laufzeit nicht (MS Learn).
     import sig_thread
-    return {**naa_konfiguration(), "api": base + SIGNATUR_API, "kettenkopf": sig_thread.ADDIN_KOPF}
+    import html as _html
+    # Name der App, wie sie in Outlook unter „Apps“ steht (Teams-Paket name.short) —
+    # für den Hinweis auf dem Handy, wo man die Signatur ändert.
+    app = _html.unescape(_manifest_texte()["knopf"])
+    return {**naa_konfiguration(), "api": base + SIGNATUR_API, "kettenkopf": sig_thread.ADDIN_KOPF,
+            "app": app}
 
 
 @router.get(LAUFZEIT_JS)
@@ -384,7 +389,8 @@ async def verfassen_signatur(request: Request):
             user_data = graph_client.UserData(mail=email)
     sig_html, _txt = signature_engine.render(user_data, vorlage)
     log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s)", vorlage, email, plattform)
-    return JSONResponse({"html": markiert(sig_html) if sig_html else "", "kette": kette},
+    return JSONResponse({"html": markiert(sig_html) if sig_html else "", "kette": kette,
+                         "vorlage": vorlage if sig_html else ""},
                         headers=_CORS)
 
 

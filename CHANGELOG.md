@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.47 — 2026-10-26 — Handy: Hinweis, welche Signatur eingefügt wurde
+
+- **Neu: Hinweiszeile in Outlook für iOS und Android.** Fügt das
+  Verfassen-Add-in eine Signatur ein, steht oben im Entwurf zum Beispiel
+  „Signatur „Standard“ eingefügt – ändern unter Apps → Signatur &
+  Abwesenheit“. Outlook auf dem Handy kennt beim Verfassen keine Add-in-Knöpfe,
+  nur das Start-Ereignis. Die Zeile ist deshalb der einzige Hinweis, welche
+  Vorlage kam und wo man sie ändert. Am PC erscheint sie nicht, dort steht der
+  Knopf bereit.
+- Der Signatur-Abruf des Add-ins liefert dafür zusätzlich den Namen der
+  Vorlage. Der Name der App kommt aus derselben Quelle wie das Teams-Paket.
+
+**Zu tun:** Nichts. Das Manifest bleibt unverändert, die Laufzeit liefert das
+Gateway live aus. Ein neues Hochladen oder eine neue Zustimmung ist nicht
+nötig.
+
+---
+
 ## v1.10.46 — 2026-10-26 — Add-ins: Zuweisung an alle, frische Sitzung zum Testen; Soll-Abgleich prüft die Loop-Kennung
 
 - **Neu: Hinweis auf zwischengespeicherte Add-ins.** Eine schon offene

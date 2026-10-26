@@ -24,6 +24,20 @@
     } catch (e) { /* Hinweis ist Beiwerk */ }
   }
 
+  // Auf dem Handy gibt es keinen Knopf beim Verfassen (Outlook mobil kennt nur
+  // das Start-Ereignis). Die Zeile sagt, welche Signatur eingefügt wurde und wo
+  // man sie ändert: in der App unter „Apps“. Am PC steht dafür der Knopf bereit.
+  function mobil() {
+    var p = plattform();
+    return p === 'iOS' || p === 'Android';
+  }
+
+  function eingefuegtMelden(vorlage) {
+    if (!vorlage || !mobil()) return;
+    hinweis('Signatur \u201e' + vorlage + '\u201c eingef\u00fcgt \u2013 \u00e4ndern unter Apps \u2192 ' +
+            (EXO_VERFASSEN.app || 'Signatur & Abwesenheit'));
+  }
+
   function asynk(fn) {
     return new Promise(function (ok, fehler) {
       fn(function (r) {
@@ -141,16 +155,17 @@
           // vorhanden) — dann prüft es beim Versand nach (ANTWORT_LETZTES_WORT).
           var entschieden = d && typeof d.kette === 'boolean' && antwortArt;
           return (entschieden ? ketteMelden(item, d.kette) : Promise.resolve())
-            .then(function () { return html; });
-        }).then(function (html) {
-          if (!html) return null;
+            .then(function () { return { html: html, vorlage: (d && d.vorlage) || '' }; });
+        }).then(function (sig) {
+          if (!sig.html) return null;
           return asynk(function (cb) { item.disableClientSignatureAsync(cb); })
             .catch(function () { /* ohne Client-Signatur weiter */ })
             .then(function () {
               return asynk(function (cb) {
-                item.body.setSignatureAsync(html, { coercionType: Office.CoercionType.Html }, cb);
+                item.body.setSignatureAsync(sig.html, { coercionType: Office.CoercionType.Html }, cb);
               });
-            });
+            })
+            .then(function () { eingefuegtMelden(sig.vorlage); });
         });
       })
       .catch(function (e) {
