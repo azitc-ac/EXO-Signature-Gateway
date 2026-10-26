@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.45 — 2026-10-26 — Teams-App für alle anheften: Hinweis in Einrichtung und Doku
+
+- **Neu: Hinweis zum zentralen Anheften.** *Einrichtung → Outlook-Add-in →
+  Deployment im Teams Admin Center* und `docs/betrieb.md` beschreiben jetzt
+  den Weg, „Signatur & Abwesenheit“ in Teams für alle anzuheften: über die
+  Einrichtungsrichtlinie *Global (organisationsweiter Standard)* → *Angeheftete
+  Apps*. Die Änderung wirkt laut Microsoft nach einigen Stunden.
+- **Für Outlook gibt es keinen solchen Weg.** Die Einrichtungsrichtlinie gilt
+  nur für Teams. In der linken Leiste von Outlook heftet jeder Nutzer die App
+  selbst an (*Weitere Apps* → Rechtsklick → *Anheften*).
+
+**Zu tun:** Nichts. Wenn du die App in Teams für alle anheften willst, folge
+dem Hinweis unter *Einrichtung → Outlook-Add-in*.
+
+---
+
 ## v1.10.44 — 2026-10-23 — Post anderer Gateways umging die eingehenden S/MIME-Regeln
 
 - **Korrektur: Signierte und verschlüsselte Post von einem anderen Gateway

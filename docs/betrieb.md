@@ -291,7 +291,9 @@ Beides lädst du einmal im Microsoft 365 Admin Center unter *Integrierte Apps* h
 - **Gateway-Updates brauchen kein neues Hochladen.** Was im Bereich bzw. in der App angezeigt wird, liefert das Gateway live aus. Neu hochzuladen ist nur, wenn sich das Paket ändert (neuer Knopf, andere Links) — dann steigt die Versionsnummer, und *Aktualisieren* genügt.
 - **Wo Nutzer die App finden:** in Outlook unter *Weitere Apps → Apps hinzufügen → Für Ihre Organisation erstellt → Öffnen*, in Teams ebenso im Store. Rechtsklick auf das Symbol in der Leiste → *Anheften*.
 - **Bereich anheften:** Im Aufgabenbereich des Add-ins oben auf die Pinnadel klicken — er bleibt dann beim Wechsel der Mail offen bzw. öffnet sich bei der nächsten neuen Mail wieder (getrennt für Lesen und Verfassen). Ohne ausgewählte Mail steht der Knopf nur im klassischen Outlook bereit; in Outlook im Web und im neuen Outlook zeigt Microsoft Add-in-Knöpfe erst an einer ausgewählten Mail.
-- **Teams:** Zeigt das Teams Admin Center danach noch die alte Version, dort *Neue Version hochladen*. Anheften lässt sich die App in Teams zentral über eine Setup-Richtlinie (*Pinned apps*); für Outlook ist keine solche Richtlinie bekannt — dort heftet jeder Nutzer sie selbst über *Weitere Apps* an.
+- **Teams:** Zeigt das Teams Admin Center danach noch die alte Version, dort *Neue Version hochladen*.
+- **In Teams für alle anheften:** Teams Admin Center → *Teams-Apps → Einrichtungsrichtlinien* → *Global (organisationsweiter Standard)* → *Angeheftete Apps → Apps hinzufügen* → „Signatur & Abwesenheit“ → *Hinzufügen*, Reihenfolge festlegen, *Speichern*. Für einzelne Gruppen geht dasselbe mit einer eigenen Richtlinie. Laut Microsoft dauert es einige Stunden, bis die Änderung wirkt ([Doku](https://learn.microsoft.com/microsoftteams/teams-app-setup-policies)).
+- **In Outlook heftet jeder Nutzer selbst an:** Für die linke Leiste von Outlook (Web, neues Outlook) gibt es keine zentrale Richtlinie, die Teams-Einrichtungsrichtlinie gilt dort nicht. Einmal *Weitere Apps* öffnen, Rechtsklick auf „Signatur & Abwesenheit“ → *Anheften*.
 
 ---
 
