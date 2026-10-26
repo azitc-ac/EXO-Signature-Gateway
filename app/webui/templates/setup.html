@@ -2235,7 +2235,8 @@ async function saveKeyvault() {
           </li>
           <li><strong>Apps hochladen</strong> → <em>Office-Add-In</em></li>
           <li><strong>Link zur Manifestdatei</strong> → obige URL einfügen → <strong>Validieren</strong></li>
-          <li>Benutzer/Gruppen zuweisen (z.&nbsp;B. <em>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} – Enabled Mailboxes</em>)</li>
+          <li>Zuweisen: <strong>Alle Benutzer</strong> (empfohlen). Bei Postfächern, die das Gateway nicht betreut, hat
+            das Add-in nichts zu tun — eine engere Zuweisung bringt keinen Vorteil.</li>
           <li>Das Add-in erscheint in Outlook nach <strong>24 bis 72 Stunden</strong> (Angabe von Microsoft).
             Exchange verteilt es Postfach für Postfach; ein Postfach kann früher dran sein als ein anderes.
             <strong>In der Wartezeit nichts entfernen und neu hochladen</strong> — es ist kein Fehler, dass noch nichts zu sehen ist.</li>
@@ -2282,10 +2283,16 @@ async function saveKeyvault() {
           <li><a href="https://admin.microsoft.com" target="_blank" style="color:#0078d4">admin.microsoft.com</a>
             → <strong>Einstellungen → Integrierte Apps</strong> → <strong>Apps hochladen</strong> → <em>Office-Add-In</em></li>
           <li><strong>Link zur Manifestdatei</strong> → die Adresse oben einfügen (nicht die des Knopfs) → <strong>Validieren</strong></li>
-          <li>Benutzer/Gruppen zuweisen. Das Start-Ereignis unterstützt Microsoft für Add-ins, die der
+          <li>Fügt es bei Admins ein, bei anderen Nutzern aber nicht: Im Exchange Admin Center unter
+            <strong>Rollen → Benutzerrollen</strong> muss die Richtlinie der Nutzer <em>My Custom Apps</em>,
+            <em>My Marketplace Apps</em> und <em>My ReadWriteMailbox Apps</em> enthalten. Eine Admin-Rolle hebt die
+            Sperre auf, deshalb fällt das beim Admin nicht auf.</li>
+          <li>Zuweisen: <strong>Alle Benutzer</strong> (empfohlen) — nicht betreute Postfächer bekommen nichts eingefügt. Das Start-Ereignis unterstützt Microsoft für Add-ins, die der
             Administrator so bereitstellt — nicht für eine Installation durch den Nutzer.</li>
           <li>Wie beim Knopf nennt Microsoft <strong>24 bis 72 Stunden</strong>. <code>Get-App</code> meldet
-            dieses Add-in mitunter noch als unbekannt, wenn es schon einfügt.</li>
+            dieses Add-in mitunter noch als unbekannt, wenn es schon einfügt. Eine schon offene
+            Outlook-Sitzung (vor allem im Web) bemerkt die Bereitstellung nicht — zum Testen ab- und neu
+            anmelden. Nachweis ist die Zeile <code>Verfassen-Add-in: Signatur … geliefert</code> im Protokoll.</li>
           <li>Steigt die Fassung: Add-in in <strong>Integrierte Apps</strong> auswählen → <strong>Aktualisieren</strong>
             und der Abfrage zustimmen.</li>
         </ol>
@@ -2345,8 +2352,9 @@ async function saveKeyvault() {
           <ol style="margin:8px 0 0 18px;padding:0;line-height:2.1;font-size:12.5px;color:#374151">
             <li><a href="https://admin.microsoft.com" target="_blank" style="color:#0078d4">admin.microsoft.com</a>
               → <strong>Einstellungen → Integrierte Apps</strong> → <strong>Apps hochladen</strong> → das .zip wählen</li>
-            <li>Benutzer/Gruppen zuweisen und bereitstellen</li>
-            <li>Wie beim Add-in: Microsoft nennt <strong>24 bis 72 Stunden</strong>, bis die App erscheint</li>
+            <li>Zuweisen: <strong>Alle Benutzer</strong> (empfohlen) und bereitstellen</li>
+            <li>Wie beim Add-in: Microsoft nennt <strong>24 bis 72 Stunden</strong>, bis die App erscheint.
+              Eine schon offene Outlook-Sitzung bemerkt das nicht — zum Testen ab- und neu anmelden.</li>
             <li>Hochgeladen wird eine Datei, keine Adresse — eine neue Fassung erscheint hier mit höherer
               Versionsnummer im Dateinamen und muss erneut hochgeladen werden.</li>
             <li>Nutzer finden die App in Outlook unter <strong>Weitere Apps → Apps hinzufügen → Für Ihre

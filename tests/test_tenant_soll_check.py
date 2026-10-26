@@ -20,7 +20,9 @@ INPUTS = {
     "tenant_domain": "zarenko.onmicrosoft.com",
     "reinject_mode": "smtp",
     "loop_header": "X-Sig-Applied",
+    "tenant_id": "75d1ad31-0000-4000-8000-000000000001",
 }
+MUSTER = tsc.muster_fuer(INPUTS["tenant_id"])
 
 
 def gut() -> dict:
@@ -31,7 +33,7 @@ def gut() -> dict:
              "Mode": "Enforce", "FromScope": "InOrganization", "SentToScope": "",
              "FromMemberOf": ["EXOSignatureGateway-EnabledMailboxes@zarenko.onmicrosoft.com"],
              "RouteMessageOutboundConnector": "EXO Signature Gateway - Outbound",
-             "ExceptIfHeaderMatchesMessageHeader": "X-Sig-Applied",
+             "ExceptIfHeaderMatchesMessageHeader": "X-Sig-Applied", "ExceptIfHeaderMatchesPatterns": [MUSTER],
              "ExceptIfHeaderContainsMessageHeader": "Auto-Submitted",
              "ExceptIfHeaderContainsWords": ["auto"],
              "ExceptIfMessageTypeMatches": "Calendaring", "MessageTypeMatches": "",
@@ -39,12 +41,12 @@ def gut() -> dict:
             {"Name": "EXO Signature Gateway - SMIME Signed Inbound", "State": "Enabled", "Priority": 14,
              "Mode": "Enforce", "FromScope": "NotInOrganization", "SentToScope": "",
              "FromMemberOf": [""], "RouteMessageOutboundConnector": "EXO Signature Gateway - Outbound",
-             "ExceptIfHeaderMatchesMessageHeader": "X-Sig-Applied", "ExceptIfMessageTypeMatches": "",
+             "ExceptIfHeaderMatchesMessageHeader": "X-Sig-Applied", "ExceptIfHeaderMatchesPatterns": [MUSTER], "ExceptIfMessageTypeMatches": "",
              "MessageTypeMatches": "Signed", "StopRuleProcessing": True},
             {"Name": "EXO Signature Gateway - SMIME Encrypted Inbound", "State": "Enabled", "Priority": 15,
              "Mode": "Enforce", "FromScope": "NotInOrganization", "SentToScope": "",
              "FromMemberOf": [""], "RouteMessageOutboundConnector": "EXO Signature Gateway - Outbound",
-             "ExceptIfHeaderMatchesMessageHeader": "X-Sig-Applied", "ExceptIfMessageTypeMatches": "",
+             "ExceptIfHeaderMatchesMessageHeader": "X-Sig-Applied", "ExceptIfHeaderMatchesPatterns": [MUSTER], "ExceptIfMessageTypeMatches": "",
              "MessageTypeMatches": "Encrypted", "StopRuleProcessing": True},
         ],
         "outbound_connectoren": [
@@ -127,3 +129,42 @@ def test_fehlende_auto_antwort_ausnahme_ist_warnung():
             r["ExceptIfHeaderContainsWords"] = []
     b = tsc.pruefe(st, INPUTS)
     assert any("Auto-Antwort-Ausnahme" in x["text"] for x in _schweren(b, tsc.WARNUNG)), b
+
+
+def _regel_von(zustand, name):
+    return next(r for r in zustand["transportregeln"] if r["Name"] == name)
+
+
+def test_altes_loop_muster_an_smime_inbound_ist_warnung():
+    """Der Fall vom 23.10.: Muster „1“ nimmt die Markierung JEDES Gateways aus —
+    signierte Post eines fremden Gateways umging die Inbound-Regel."""
+    for name in ("EXO Signature Gateway - SMIME Signed Inbound",
+                 "Route via EXO Signature Gateway (Signatur)"):
+        z = gut()
+        _regel_von(z, name)["ExceptIfHeaderMatchesPatterns"] = ["1"]
+        w = _schweren(tsc.pruefe(z, INPUTS), tsc.WARNUNG)
+        assert any(b["objekt"] == name and "Loop-Muster" in b["text"] for b in w), (name, w)
+
+
+def test_loop_muster_eines_anderen_tenants_ist_warnung():
+    z = gut()
+    _regel_von(z, "EXO Signature Gateway - SMIME Encrypted Inbound")[
+        "ExceptIfHeaderMatchesPatterns"] = [tsc.muster_fuer("anderer-tenant")]
+    w = _schweren(tsc.pruefe(z, INPUTS), tsc.WARNUNG)
+    assert any("Loop-Muster" in b["text"] for b in w)
+
+
+def test_ohne_tenant_id_nur_hinweis():
+    """Ohne TENANT_ID ist kein Soll ableitbar — nicht still grün, aber auch kein Alarm."""
+    ein = dict(INPUTS, tenant_id="")
+    befunde = tsc.pruefe(gut(), ein)
+    assert not [b for b in befunde if "Loop-Muster" in b["text"] and b["schwere"] != tsc.HINWEIS]
+    assert any("Loop-Muster nicht geprüft" in b["text"] for b in befunde)
+
+
+def test_werkzeug_und_gateway_leiten_gleich_ab(monkeypatch):
+    """EINE Ableitung: das Werkzeug muss genau das Muster erwarten, das das
+    Gateway setzt (marker_muster)."""
+    import config, loop_detector
+    monkeypatch.setattr(config, "TENANT_ID", INPUTS["tenant_id"])
+    assert loop_detector.marker_muster() == MUSTER

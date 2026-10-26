@@ -288,12 +288,28 @@ Beides lädst du einmal im Microsoft 365 Admin Center unter *Integrierte Apps* h
 
 - **Vorher die Admin-Rolle aktivieren** (mit PIM: Rolle aktivieren). Ohne aktive Rolle sind *Aktualisieren* und *Entfernen* ausgegraut.
 - **Wartezeit einplanen:** Microsoft nennt 24 bis 72 Stunden, bis Add-in und App in Outlook erscheinen; Exchange verteilt Postfach für Postfach. In der Wartezeit nichts entfernen und neu hochladen.
+- **Benutzerrollen für Add-ins müssen vorhanden sein.** Die Rollenzuweisungsrichtlinie der Nutzer (meist *Default Role Assignment Policy*) muss *My Custom Apps*, *My Marketplace Apps* und *My ReadWriteMailbox Apps* enthalten. Das ist Microsofts Vorgabe ([Doku](https://learn.microsoft.com/en-us/exchange/clients-and-mobile-in-exchange-online/add-ins-for-outlook/specify-who-can-install-and-manage-add-ins)). Fehlen sie, laufen die Add-ins nur bei Admins, denn eine Admin-Rolle hebt die Sperre auf. Normale Nutzer sehen in Outlook „Der Zugriff auf Add-Ins wurde von Ihrer Organisation eingeschränkt“, und das Verfassen-Add-in fügt nichts ein. Die App „Signatur & Abwesenheit“ läuft trotzdem. Prüfen und anhaken: Exchange Admin Center → *Rollen → Benutzerrollen* → die Richtlinie → *Andere Rollen*.
+- **Zum Testen eine frische Sitzung nehmen.** Eine schon offene Outlook-Sitzung (vor allem Outlook im Web) hält die Liste der Add-ins zwischengespeichert und bemerkt eine neue Bereitstellung nicht. Abmelden und neu anmelden, oder ein neues Browserprofil nehmen, bevor du an der Bereitstellung zweifelst. Nachweis, dass das Verfassen-Add-in läuft, ist die Zeile `Verfassen-Add-in: Signatur … geliefert` im Gateway-Protokoll. `Get-App` in Exchange Online zeigt Bereitstellungen über *Integrierte Apps* nicht an.
 - **Gateway-Updates brauchen kein neues Hochladen.** Was im Bereich bzw. in der App angezeigt wird, liefert das Gateway live aus. Neu hochzuladen ist nur, wenn sich das Paket ändert (neuer Knopf, andere Links) — dann steigt die Versionsnummer, und *Aktualisieren* genügt.
 - **Wo Nutzer die App finden:** in Outlook unter *Weitere Apps → Apps hinzufügen → Für Ihre Organisation erstellt → Öffnen*, in Teams ebenso im Store. Rechtsklick auf das Symbol in der Leiste → *Anheften*.
 - **Bereich anheften:** Im Aufgabenbereich des Add-ins oben auf die Pinnadel klicken — er bleibt dann beim Wechsel der Mail offen bzw. öffnet sich bei der nächsten neuen Mail wieder (getrennt für Lesen und Verfassen). Ohne ausgewählte Mail steht der Knopf nur im klassischen Outlook bereit; in Outlook im Web und im neuen Outlook zeigt Microsoft Add-in-Knöpfe erst an einer ausgewählten Mail.
 - **Teams:** Zeigt das Teams Admin Center danach noch die alte Version, dort *Neue Version hochladen*.
 - **In Teams für alle anheften:** Teams Admin Center → *Teams-Apps → Einrichtungsrichtlinien* → *Global (organisationsweiter Standard)* → *Angeheftete Apps → Apps hinzufügen* → „Signatur & Abwesenheit“ → *Hinzufügen*, Reihenfolge festlegen, *Speichern*. Für einzelne Gruppen geht dasselbe mit einer eigenen Richtlinie. Laut Microsoft dauert es einige Stunden, bis die Änderung wirkt ([Doku](https://learn.microsoft.com/microsoftteams/teams-app-setup-policies)).
-- **In Outlook heftet jeder Nutzer selbst an:** Für die linke Leiste von Outlook (Web, neues Outlook) gibt es keine zentrale Richtlinie, die Teams-Einrichtungsrichtlinie gilt dort nicht. Einmal *Weitere Apps* öffnen, Rechtsklick auf „Signatur & Abwesenheit“ → *Anheften*.
+- **In Outlook heftet jeder Nutzer selbst an:** Für die linke Leiste von Outlook gibt es keine zentrale Richtlinie, die Teams-Einrichtungsrichtlinie gilt dort nicht. Jeder Nutzer macht es einmal selbst:
+  1. In der linken Leiste auf *Weitere Apps* klicken (das Kachelsymbol).
+  2. Rechtsklick auf „Signatur & Abwesenheit“.
+  3. *Anheften* wählen.
+
+  <img src="screenshots/outlook-app-anheften.png" width="400" alt="Outlook: Weitere Apps öffnen (1), Rechtsklick auf Signatur & Abwesenheit (2), Anheften (3)">
+
+- **Auf dem Handy (Outlook für iOS, gemessen; Android ist im Manifest vorgesehen, aber nicht getestet):** Die App „Signatur & Abwesenheit“ steht unter *Apps*. Die Signatur fügt das Verfassen-Add-in bei einer neuen Mail selbst ein. Einen Add-in-Knopf beim Lesen gibt es auf dem Handy nicht, das Knopf-Add-in ist nur für Outlook unter Windows und im Web angelegt. Auf dem Handy übernimmt die App diese Aufgabe. Erscheint auf einem frisch eingerichteten Gerät nichts: Fragt Outlook nach dem Standardbrowser, zuerst diese Frage beantworten. Auf einem Testgerät erschien die App erst danach. Sonst Outlook ganz beenden und neu öffnen.
+
+  <p>
+  <img src="screenshots/ios-apps.png" width="200" alt="Outlook iOS: Signatur & Abwesenheit unter Apps">
+  <img src="screenshots/ios-self-abwesenheit.png" width="200" alt="Outlook iOS: eigene Abwesenheit mit Vorschau">
+  <img src="screenshots/ios-self-signatur.png" width="200" alt="Outlook iOS: eigene Signatur mit Vorschau">
+  <img src="screenshots/ios-verfassen.png" width="200" alt="Outlook iOS: neue Mail, Signatur automatisch eingefügt">
+  </p>
 
 ---
 

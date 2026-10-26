@@ -26,10 +26,21 @@ def marker_wert() -> str:
     erneut umleiten. Ohne Tenant (frische Anlage, noch keine Regeln): `1`.
     """
     import config
-    tenant = (config.TENANT_ID or settings_store.get("TENANT_ID") or "").strip().lower()
+    return wert_fuer(config.TENANT_ID or settings_store.get("TENANT_ID") or "")
+
+
+def wert_fuer(tenant: str) -> str:
+    """Die Markierung zu einer Tenant-ID — rein, ohne Einstellungen. Die EINE
+    Ableitung für Gateway und tools/tenant_soll_check.py."""
+    tenant = (tenant or "").strip().lower()
     if not tenant:
         return "1"
     return "1-" + hashlib.sha256(("exo-sig-loop:" + tenant).encode()).hexdigest()[:12]
+
+
+def muster_fuer(tenant: str) -> str:
+    """Das verankerte Regelmuster zu einer Tenant-ID (siehe marker_muster)."""
+    return f"^{wert_fuer(tenant)}$"
 
 
 def marker_muster() -> str:
