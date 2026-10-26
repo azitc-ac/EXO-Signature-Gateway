@@ -131,6 +131,7 @@ def test_signatur_des_token_inhabers_markiert(umgebung, rendern):
     assert code == 200
     assert rendern == ["erika@zarenko.net"]                  # aus dem Token, kleingeschrieben
     assert body["html"] == addin.markiert("<p>SIG erika@zarenko.net default</p>")
+    assert body["vorlage"] == "default"                      # für den Hinweis auf dem Handy
     assert 'id="exo-sig-s"' in body["html"]                  # Gateway erkennt sie wieder
     assert kopf["access-control-allow-origin"] == "*"
 
@@ -238,7 +239,8 @@ def test_laufzeit_skript_ist_eine_datei_mit_msal_konfig_und_handler(umgebung):
                     "authority": "https://login.microsoftonline.com/TID",
                     "scope": "api://CID/access_as_user",
                     "api": "https://sig.example" + av.SIGNATUR_API,
-                    "kettenkopf": "X-Exo-Sig-Kette"}
+                    "kettenkopf": "X-Exo-Sig-Kette",
+                    "app": "Signatur"}          # Abwesenheit aus → App heißt „Signatur“
     assert "\nimport " not in inhalt and "\nexport " not in inhalt   # Classic: keine Importe
 
 
@@ -259,7 +261,7 @@ def test_handler_beendet_immer():
     assert "acquireTokenPopup(" not in js and "loginPopup(" not in js   # kein Fenster im Ereignis
 
 
-def _handler_lauf(item_js: str) -> dict:
+def _handler_lauf(item_js: str, plattform: str = "iOS", antwort: str = "{html: '<p>SIG</p>'}") -> dict:
     """Den echten Handler in Node ausführen, mit nachgebautem Office-Objekt."""
     import shutil
     import subprocess
@@ -275,16 +277,16 @@ globalThis.Office = {
   AsyncResultStatus: {Succeeded: 'succeeded', Failed: 'failed'},
   CoercionType: {Html: 'html'},
   MailboxEnums: {ItemNotificationMessageType: {InformationalMessage: 'info'}},
-  context: {mailbox: {item: item}, diagnostics: {platform: 'iOS'}},
+  context: {mailbox: {item: item}, diagnostics: {platform: PLATTFORM}},
   actions: {associate: function (n, f) { handler = f; }}
 };
 globalThis.msal = {createNestablePublicClientApplication: function () {
   return Promise.resolve({acquireTokenSilent: function () {
     return Promise.resolve({accessToken: 'T'}); }}); }};
-globalThis.EXO_VERFASSEN = {clientId: 'C', authority: 'A', scope: 'S', api: 'https://x/api'};
+globalThis.EXO_VERFASSEN = {clientId: 'C', authority: 'A', scope: 'S', api: 'https://x/api', app: 'Signatur & Abwesenheit'};
 globalThis.fetch = function (url) { protokoll.abrufe++; protokoll.url = url;
-  return Promise.resolve({ok: true, json: function () { return Promise.resolve({html: '<p>SIG</p>'}); }}); };
-""" % item_js + av.HANDLER_DATEI.read_text(encoding="utf-8") + """
+  return Promise.resolve({ok: true, json: function () { return Promise.resolve(ANTWORT); }}); };
+""".replace("PLATTFORM", json.dumps(plattform)).replace("ANTWORT", antwort) % item_js + av.HANDLER_DATEI.read_text(encoding="utf-8") + """
 handler({completed: function () { protokoll.fertig++; }});
 setTimeout(function () { process.stdout.write(JSON.stringify(protokoll)); }, 50);
 """
@@ -389,3 +391,32 @@ def test_tab_nicht_betreutes_postfach_403(umgebung, monkeypatch):
 def test_tab_sitzung_ist_eine_post_route():
     routen = {(r.path, m) for r in av.router.routes for m in getattr(r, "methods", ())}
     assert (av.TAB_SITZUNG_API, "POST") in routen
+
+
+_MIT_VORLAGE = "{html: '<p>SIG</p>', vorlage: 'Kompakt'}"
+
+
+def test_handy_meldet_eingefuegte_signatur_und_wo_man_sie_aendert():
+    """Auf dem Handy gibt es keinen Knopf beim Verfassen — die Zeile ist der
+    einzige Hinweis, welche Signatur kam und wo man sie ändert."""
+    for plattform in ("iOS", "Android"):
+        p = _handler_lauf(_VOLL, plattform, _MIT_VORLAGE)
+        assert p["gesetzt"] == "<p>SIG</p>" and p["fertig"] == 1
+        assert p["hinweise"] == ["Signatur \u201eKompakt\u201c eingef\u00fcgt \u2013 "
+                                 "\u00e4ndern unter Apps \u2192 Signatur & Abwesenheit"], plattform
+
+
+@pytest.mark.parametrize("plattform", ["PC", "OfficeOnline", "Mac"])
+def test_am_pc_kein_hinweis(plattform):
+    """Dort steht der Knopf bereit — keine Zeile bei jeder neuen Mail."""
+    p = _handler_lauf(_VOLL, plattform, _MIT_VORLAGE)
+    assert p["gesetzt"] == "<p>SIG</p>" and p["hinweise"] == []
+
+
+def test_kein_hinweis_ohne_eingefuegte_signatur():
+    leer = _handler_lauf(_VOLL, "iOS", "{html: '', vorlage: ''}")
+    assert leer["gesetzt"] is None and leer["hinweise"] == []
+    fehl = _VOLL.replace("cb({status: 'succeeded'}); }}}", "cb({status: 'failed', error: {message: 'X'}}); }}}")
+    assert fehl != _VOLL
+    p = _handler_lauf(fehl, "iOS", _MIT_VORLAGE)
+    assert len(p["hinweise"]) == 1 and "nicht eingef" in p["hinweise"][0]

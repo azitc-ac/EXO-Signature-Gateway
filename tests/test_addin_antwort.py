@@ -72,14 +72,14 @@ def _abruf(konversation=None):
 
 def test_erste_antwort_bekommt_die_volle_signatur(antwort):
     body = _abruf(KONV)
-    assert body == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False}
+    assert body == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False, "vorlage": "Voll"}
     assert antwort["graph"] == [("erika@zarenko.net", KONV)]
 
 
 def test_verweis_auf_signierte_mail_allein_reicht_nicht(antwort):
     # Echo-Dienst 17.10.2026: verweist auf die signierte Mail, zitiert sie nicht.
     antwort["bekannt"] = {"<b@x>"}
-    assert _abruf(KONV) == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False}
+    assert _abruf(KONV) == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False, "vorlage": "Voll"}
 
 
 def test_antwort_auf_die_eigene_signierte_mail_die_antwort_signatur(antwort, caplog):
@@ -87,7 +87,7 @@ def test_antwort_auf_die_eigene_signierte_mail_die_antwort_signatur(antwort, cap
     import logging
     with caplog.at_level(logging.INFO):
         body = _abruf(KONV)
-    assert body == {"html": addin.markiert("<p>SIG Kurz</p>"), "kette": True}
+    assert body == {"html": addin.markiert("<p>SIG Kurz</p>"), "kette": True, "vorlage": "Kurz"}
     assert any(r.getMessage().startswith("SIG-KETTE: Add-in") for r in caplog.records)
 
 
@@ -109,7 +109,7 @@ def test_unbrauchbare_kennung_geht_nicht_in_den_graph_filter(antwort, roh):
 
 
 def test_neue_mail_unveraendert(antwort):
-    assert _abruf() == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False}
+    assert _abruf() == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False, "vorlage": "Voll"}
     assert antwort["graph"] == []
 
 
@@ -565,7 +565,7 @@ def test_ohne_kennung_findet_die_konversation_ueber_den_betreff(antwort, betreff
     import logging
     with caplog.at_level(logging.INFO):
         body = _abruf_mit(antwort, art="reply", betreff="AW: Angebot", an="Kunde@Extern.de,x")
-    assert body == {"html": addin.markiert("<p>SIG Kurz</p>"), "kette": True}
+    assert body == {"html": addin.markiert("<p>SIG Kurz</p>"), "kette": True, "vorlage": "Kurz"}
     assert betreff_suche == [("erika@zarenko.net", "AW: Angebot", ["kunde@extern.de"])]
     assert antwort["graph"] == [("erika@zarenko.net", "KB")]
     assert any("Kennung nein, Betreff ja, Konversation über Betreff" in r.getMessage()
