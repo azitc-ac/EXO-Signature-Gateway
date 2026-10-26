@@ -32,6 +32,7 @@ try {
         FromMemberOf=@($_.FromMemberOf | ForEach-Object { "$_" });
         RouteMessageOutboundConnector="$($_.RouteMessageOutboundConnector)";
         ExceptIfHeaderMatchesMessageHeader="$($_.ExceptIfHeaderMatchesMessageHeader)";
+        ExceptIfHeaderMatchesPatterns=@($_.ExceptIfHeaderMatchesPatterns | ForEach-Object { "$_" });
         ExceptIfHeaderContainsMessageHeader="$($_.ExceptIfHeaderContainsMessageHeader)";
         ExceptIfHeaderContainsWords=@($_.ExceptIfHeaderContainsWords | ForEach-Object { "$_" });
         ExceptIfMessageTypeMatches="$($_.ExceptIfMessageTypeMatches)";

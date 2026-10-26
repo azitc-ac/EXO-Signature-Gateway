@@ -49,14 +49,17 @@ Zwei Outlook-Add-ins bringen das Gateway dorthin, wo geschrieben wird:
 
 - **Self-Service:** Mitarbeitende setzen ihre Abwesenheit und wählen ihre
   Signatur und Antwort-Signatur selbst, mit Vorschau als Beispiel-Mail. Als
-  Knopf beim Lesen einer Mail und als App in der linken Leiste von Outlook
-  (Web, Windows, iOS, Android) und Teams. Die Anmeldung läuft still über das
-  Outlook- bzw. Teams-Konto.
+  App in Outlook (Web, Windows, iOS, Android) und Teams, in Outlook unter
+  Windows und im Web zusätzlich als Knopf beim Lesen einer Mail. Die Anmeldung
+  läuft still über das Outlook- bzw. Teams-Konto.
 - **Signatur automatisch beim Verfassen:** Die Signatur steht schon beim
   Schreiben im Entwurf, in Outlook im Web, unter Windows und auf iOS und
   Android. Bei Antworten gilt dieselbe Regel wie beim Versand: die volle
   Signatur, solange deine noch nicht in der beantworteten Mail steht, danach
   die kürzere Antwort-Signatur.
+
+Bereitstellen, in Teams für alle anheften und in Outlook selbst anheften:
+[Betrieb → Outlook-Add-in und App bereitstellen](docs/betrieb.md#outlook-add-in-und-app-bereitstellen).
 
 <p>
 <img src="docs/screenshots/self-abwesenheit.png" width="270" alt="Self-Service am Handy: eigene Abwesenheit mit Zeitraum und Vorlage">

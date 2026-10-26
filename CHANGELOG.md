@@ -5,6 +5,50 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.46 — 2026-10-26 — Add-ins: Zuweisung an alle, frische Sitzung zum Testen; Soll-Abgleich prüft die Loop-Kennung
+
+- **Neu: Hinweis auf zwischengespeicherte Add-ins.** Eine schon offene
+  Outlook-Sitzung, vor allem Outlook im Web, merkt eine neue Bereitstellung
+  über *Integrierte Apps* nicht. Das Verfassen-Add-in fügt dort dann nichts
+  ein, obwohl es richtig bereitgestellt ist. *Einrichtung → Outlook-Add-in*
+  und `docs/betrieb.md` sagen jetzt: zum Testen ab- und neu anmelden. Als
+  Nachweis gilt die Zeile `Verfassen-Add-in: Signatur … geliefert` im
+  Protokoll. `Get-App` zeigt Bereitstellungen über *Integrierte Apps* nicht.
+- **Neu: Anheften in Outlook Schritt für Schritt mit Bild, dazu Bilder aus Outlook für iOS** in
+  `docs/betrieb.md`, um die Anleitung an die Nutzer weiterzugeben.
+- **Geändert: Add-ins und App für alle Benutzer zuweisen.** *Einrichtung →
+  Outlook-Add-in* empfiehlt jetzt an allen drei Stellen (Knopf, Verfassen,
+  App) die Zuweisung *Alle Benutzer* statt der Verteilerliste. Bei Postfächern,
+  die das Gateway nicht betreut, hat das Add-in nichts zu tun. Eine engere
+  Zuweisung bringt also keinen Vorteil.
+- **Neu: Die README verweist auf die Anleitung** zum Bereitstellen und
+  Anheften.
+- **Neu: Hinweis auf die Benutzerrollen für Add-ins.** Ohne *My Custom Apps*,
+  *My Marketplace Apps* und *My ReadWriteMailbox Apps* in der
+  Rollenzuweisungsrichtlinie laufen die Add-ins nur bei Admins. Eine Admin-Rolle
+  hebt die Sperre auf, deshalb fällt es beim Einrichten nicht auf. Normale
+  Nutzer sehen „Der Zugriff auf Add-Ins wurde von Ihrer Organisation
+  eingeschränkt“, und das Verfassen-Add-in fügt nichts ein. Die App „Signatur &
+  Abwesenheit“ läuft trotzdem.
+- **Neu: Die Abnahme prüft die Benutzerrollen für Add-ins.** Der neue Punkt
+  „Add-ins für alle Nutzer erlaubt“ liest die Standard-Rollenzuweisungsrichtlinie
+  und `AppsForOfficeEnabled`, nur lesend. Er meldet fehlende Rollen mit dem Weg
+  im Exchange Admin Center. Das Gateway ändert die Richtlinie nicht, sie ist
+  eine Entscheidung im Tenant. Postfächer mit einer eigenen Richtlinie prüft
+  der Punkt nicht.
+- **Neu: `tools/tenant_soll_check.py` prüft das Muster der Loop-Ausnahme.**
+  Bisher prüfte es nur den Namen der Kopfzeile, nicht das Muster aus v1.10.44.
+  Ein altes `1` oder die Kennung eines anderen Tenants fiel so nicht auf. Jetzt
+  prüft es die Route-Regel und die eingehenden S/MIME-Regeln gegen dieselbe
+  Ableitung, die das Gateway setzt (`loop_detector.muster_fuer`). Ohne
+  `TENANT_ID` meldet es einen Hinweis statt still grün.
+
+**Zu tun:** Öffne die Abnahme und sieh dir den Punkt „Add-ins für alle Nutzer
+erlaubt“ an. Meldet er fehlende Rollen, hake sie im Exchange Admin Center
+unter *Rollen → Benutzerrollen* an.
+
+---
+
 ## v1.10.45 — 2026-10-26 — Teams-App für alle anheften: Hinweis in Einrichtung und Doku
 
 - **Neu: Hinweis zum zentralen Anheften.** *Einrichtung → Outlook-Add-in →

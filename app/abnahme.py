@@ -421,9 +421,35 @@ def _regel_kennung() -> dict:
                               "der Betrieb (Kopfzeile der zugestellten Mail).")
 
 
+def _addin_rollen() -> dict:
+    """Dürfen normale Nutzer Add-ins benutzen? Fehlen die Benutzerrollen in der
+    Standard-Rollenzuweisungsrichtlinie, laufen die Add-ins nur bei Admins —
+    beim Einrichten fällt das nicht auf (26.10.2026: leere Richtlinie im Tenant,
+    Verfassen-Add-in bei Nutzern nie gestartet)."""
+    import addin_rollen
+    import settings_store
+    name = "Add-ins für alle Nutzer erlaubt (Benutzerrollen)"
+    if not settings_store.get("ADDIN_ENABLED"):
+        return _punkt(name, ENTFAELLT, "Add-in nicht eingeschaltet")
+    p = addin_rollen.pruefen()
+    if p["zustand"] == addin_rollen.UNBEKANNT:
+        return _punkt(name, UNBEKANNT, "Rollenzuweisungsrichtlinie ließ sich nicht lesen.",
+                      "Exchange-Zugang prüfen (Einrichtung → Connector).")
+    if p["zustand"] == addin_rollen.FEHLT:
+        return _punkt(name, OFFEN,
+                      f"In „{p['richtlinie']}“ fehlt: {', '.join(p['fehlt'])}. Die Add-ins "
+                      "laufen dann nur bei Admins; Nutzer sehen „Der Zugriff auf Add-Ins "
+                      "wurde von Ihrer Organisation eingeschränkt“.",
+                      "Exchange Admin Center → Rollen → Benutzerrollen → "
+                      f"„{p['richtlinie']}“ → Andere Rollen: die fehlenden anhaken.")
+    return _punkt(name, OK, f"„{p['richtlinie']}“ enthält die Rollen für Add-ins",
+                  deckt_nicht="Nur die Standardrichtlinie. Postfächer mit einer eigenen "
+                              "Rollenzuweisungsrichtlinie prüft dieser Punkt nicht.")
+
+
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
-              _benachrichtigung)
+              _addin_rollen, _benachrichtigung)
 
 
 def bericht() -> dict:

@@ -27,6 +27,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from loop_detector import muster_fuer  # noqa: E402 — dieselbe Ableitung wie das Gateway
+
 KRITISCH = "KRITISCH"
 WARNUNG = "WARNUNG"
 HINWEIS = "HINWEIS"
@@ -47,6 +50,29 @@ def ableiten(inputs: dict) -> dict:
     }
 
 
+def _loop_pruefen(add, obj: str, r: dict, inputs: dict) -> None:
+    """Loop-Ausnahme einer Gateway-Regel: Header-Name UND verankertes Muster.
+
+    Das Muster ist seit v1.10.44 je Tenant eigen (`loop_detector.muster_fuer`).
+    Mit dem alten `1` nehmen die Regeln die Markierung JEDES Gateways aus —
+    signierte Post eines fremden Gateways umgeht dann die S/MIME-Inbound-Regeln
+    (23.10.2026 gemessen). Ohne Tenant-ID ist kein Soll ableitbar: Hinweis."""
+    loop = inputs.get("loop_header", "X-Sig-Applied")
+    if r.get("ExceptIfHeaderMatchesMessageHeader") != loop:
+        add(WARNUNG, obj,
+            f"Loop-Header={r.get('ExceptIfHeaderMatchesMessageHeader')} (Soll: {loop}).")
+    tenant = (inputs.get("tenant_id") or "").strip()
+    if not tenant:
+        add(HINWEIS, obj, "Loop-Muster nicht geprüft — TENANT_ID unbekannt.")
+        return
+    soll = muster_fuer(tenant)
+    ist = list(r.get("ExceptIfHeaderMatchesPatterns") or [])
+    if ist != [soll]:
+        add(WARNUNG, obj,
+            f"Loop-Muster={ist} (Soll: [{soll}]) — Einstellungen → Signatur → "
+            "Loop-Detection-Header → Regeln angleichen.")
+
+
 def _gate_leer(from_member_of) -> bool:
     """FromMemberOf gilt als leer, wenn keine nicht-leere Kennung enthalten ist.
     (Die PS-Serialisierung liefert für ein leeres Gate [""], nicht [].)"""
@@ -65,7 +91,6 @@ def pruefe(state: dict, inputs: dict) -> list[dict]:
     """Vergleicht IST (state) gegen SOLL(inputs). Liefert Befundliste."""
     ab = ableiten(inputs)
     mode = inputs.get("reinject_mode", "smtp")
-    loop = inputs.get("loop_header", "X-Sig-Applied")
     f: list[dict] = []
 
     def add(schwere, objekt, text):
@@ -99,9 +124,7 @@ def pruefe(state: dict, inputs: dict) -> list[dict]:
         if r.get("RouteMessageOutboundConnector") != ab["connector_out"]:
             add(WARNUNG, obj,
                 f"Connector={r.get('RouteMessageOutboundConnector')} (Soll: {ab['connector_out']}).")
-        if r.get("ExceptIfHeaderMatchesMessageHeader") != loop:
-            add(WARNUNG, obj,
-                f"Loop-Header={r.get('ExceptIfHeaderMatchesMessageHeader')} (Soll: {loop}).")
+        _loop_pruefen(add, obj, r, inputs)
         if r.get("ExceptIfMessageTypeMatches") != "Calendaring":
             add(HINWEIS, obj, "Kalender-Ausnahme (ExceptIfMessageTypeMatches=Calendaring) fehlt.")
         # Auto-Antwort-Ausnahme: ohne sie läuft die OOF eines DL-Postfachs durchs
@@ -123,6 +146,7 @@ def pruefe(state: dict, inputs: dict) -> list[dict]:
         sr = _regel(state, name)
         if not sr:
             continue  # S/MIME optional
+        _loop_pruefen(add, name, sr, inputs)
         if sr.get("FromScope") != "NotInOrganization":
             add(WARNUNG, name, f"FromScope={sr.get('FromScope')} (Soll: NotInOrganization).")
         if sr.get("MessageTypeMatches") != typ:
@@ -236,6 +260,7 @@ def main() -> int:
         "reinject_mode":   args.reinject_mode   or s.get("REINJECT_MODE") or "smtp",
         "loop_header":     args.loop_header     or s.get("LOOP_HEADER") or "X-Sig-Applied",
         "client_id":       s.get("CLIENT_ID") or "",
+        "tenant_id":       s.get("TENANT_ID") or "",
     }
 
     if args.state:
