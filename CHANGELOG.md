@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.48 — 2026-10-30 — Outlook Classic: Trennlinie zum Zitat wieder sichtbar
+
+- **Behoben: Bei Antworten aus Outlook Desktop fehlte in Outlook Classic die
+  Linie zwischen Signatur bzw. Banner und dem zitierten Text.** Outlook Desktop
+  hängt seinen Antworttrenner als oberen Rand an den „Von:“-Block. Das Gateway
+  setzt Signatur und Banner unmittelbar davor, und beide enden mit einer
+  Tabelle. Outlook Classic zeichnet den Rand eines Blocks, der direkt auf eine
+  Tabelle folgt, nicht. Im Browser war die Linie zu sehen, in Outlook Classic
+  nicht. Im HTML der Mail stand sie in jedem Fall.
+- Jetzt steht zwischen eingefügtem Block und Trenner ein leerer Absatz, wie
+  ihn Outlook dort selbst setzt. In Outlook Classic geprüft: dieselbe Antwort
+  ohne Absatz ohne Linie, mit Absatz mit Linie. Der Absatz liegt innerhalb der
+  Gateway-Markierungen und vermehrt sich bei weiteren Durchläufen nicht.
+- Antworten aus Outlook für iOS, Outlook im Web, Apple Mail und Gmail sind
+  nicht betroffen. Dort ist die Linie ein eigenes Element oder wird vom
+  Gateway selbst gesetzt.
+
+**Zu tun:** Nichts. Die Änderung gilt für alle Mails, die nach dem Update
+verarbeitet werden. Bereits versendete Mails bleiben, wie sie sind.
+
+---
+
 ## v1.10.47 — 2026-10-26 — Handy: Hinweis, welche Signatur eingefügt wurde
 
 - **Neu: Hinweiszeile in Outlook für iOS und Android.** Fügt das

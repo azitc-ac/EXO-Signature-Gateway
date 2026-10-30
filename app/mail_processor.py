@@ -1055,6 +1055,16 @@ _ZUSATZ_CLASS = "exo-gateway-zusatz"
 # und hat in einer versendeten Nachricht keine Bedeutung.
 _SIG_TRENNER = '<hr style="display:inline-block; width:98%">'
 
+# Leerabsatz zwischen eingefügtem Block und Outlook-Desktop-Trenner.
+#
+# Outlook Classic (Word-Engine) zeichnet den `border-top` des Trenner-Divs NICHT,
+# wenn unmittelbar davor eine Tabelle endet — und Signatur wie Banner enden mit
+# einer. Im Browser ist der Strich da, in Outlook Classic fehlt er (Antwort vom
+# 30.10.2026, in Outlook Classic gegengeprüft: dieselbe Mail ohne Absatz ohne
+# Strich, mit Absatz mit Strich). Outlook selbst setzt an dieser Stelle immer
+# einen leeren Absatz; genau den stellt das Gateway wieder her.
+_DESKTOP_ABSTAND = '<p class="MsoNormal">&nbsp;</p>'
+
 
 def _find_first_quote_wrapper_pos(html: str) -> int | None:
     """Return the start position of the first quote-wrapper div in *html*, or None."""
@@ -1277,7 +1287,8 @@ def _trennstelle(html: str, idx: int) -> tuple[int, str, str]:
 
     * **Outlook Desktop** hängt ihn als `border-top` an das Zitat-Div SELBST.
       Wer davor einfügt, schiebt den Strich mit nach unten — er trennt weiterhin
-      Signatur und Zitat. Nichts zu tun.
+      Signatur und Zitat. Keine eigene Linie, aber ein Leerabsatz davor: Direkt
+      nach einer Tabelle zeichnet Outlook Classic den Strich nicht.
     * **Outlook für iOS / OWA** setzen ein eigenständiges `<hr>` DAVOR. Wer vor
       dem Zitat einfügt, landet dahinter: Der Strich trennt dann den eigenen
       Text von der Signatur, und zwischen Signatur und Zitat klafft nichts.
@@ -1302,11 +1313,13 @@ def _trennstelle(html: str, idx: int) -> tuple[int, str, str]:
     if vorher:
         return vorher.start(), "", "vor vorhandenem <hr> des Clients"
 
-    # b) Strich am Zitatelement selbst (Outlook Desktop) → nichts einfügen.
+    # b) Strich am Zitatelement selbst (Outlook Desktop) → keine eigene Linie,
+    #    aber ein Leerabsatz davor — sonst zeichnet Outlook Classic den Strich
+    #    nicht (siehe `_DESKTOP_ABSTAND`).
     tag_ende = html.find(">", idx)
     tag = html[idx:tag_ende + 1] if tag_ende != -1 else html[idx:idx + 400]
     if re.search(r'border-top\s*:\s*solid', tag, re.IGNORECASE):
-        return idx, "", "Zitatelement traegt den Strich selbst"
+        return idx, _DESKTOP_ABSTAND, "Zitatelement traegt den Strich selbst (Leerabsatz davor)"
 
     # b2) Der Strich steht INNEN, gleich zu Beginn des Zitatblocks (Outlook für
     #     iOS mit `mail-editor-reference-message-container`: der Container öffnet,

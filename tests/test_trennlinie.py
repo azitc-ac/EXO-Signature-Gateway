@@ -130,6 +130,43 @@ def test_outlook_desktop_bekommt_keine_linie():
         "Signatur muss vor dem Trenner-Div stehen, damit der Strich sie vom Zitat trennt"
 
 
+def _vor_dem_trenner(html: str) -> str:
+    """Das Element unmittelbar vor dem Trenner-Div — Kommentare und Leerraum übergangen."""
+    davor = html[:_pos(html, r'<div style="border:none; border-top:solid')]
+    # Kommentar ohne `-->` im Inneren — `<!--.*?-->` spannte sich sonst vom
+    # Start- bis zum End-Marker und schnitte die ganze Signatur mit weg.
+    davor = re.sub(r'(?:\s|<!--(?:(?!-->).)*-->)+$', '', davor, flags=re.S)
+    return davor[-60:]
+
+
+@pytest.mark.parametrize("zusatz", [False, True], ids=["Signatur", "Banner"])
+def test_outlook_desktop_leerabsatz_vor_dem_trenner(zusatz):
+    """Outlook Classic zeichnet den Strich nicht, wenn direkt davor eine Tabelle endet.
+
+    Signatur und Banner enden mit einer. Gegengeprüft am 30.10.2026 in Outlook
+    Classic an einer echten Antwort (Banner vor dem Desktop-Trenner): ohne
+    Leerabsatz kein Strich, mit Leerabsatz Strich. Outlook selbst setzt dort
+    immer einen leeren Absatz.
+    """
+    aus = mp._append_html_sig(OUTLOOK_DESKTOP, SIG, zusatz=zusatz)
+    assert _vor_dem_trenner(aus).endswith(mp._DESKTOP_ABSTAND), (
+        "Direkt vor Outlooks Trenner muss ein Leerabsatz stehen, sonst fehlt der "
+        "Strich in Outlook Classic: …" + _vor_dem_trenner(aus))
+    ende = mp._ZUSATZ_MARKER_END if zusatz else mp._SIG_MARKER_END
+    assert aus.index(mp._DESKTOP_ABSTAND) < aus.index(ende), \
+        "Der Leerabsatz muss innerhalb der Marker stehen, sonst vermehrt er sich"
+
+
+def test_outlook_desktop_zweiter_durchlauf_kein_zweiter_leerabsatz(monkeypatch):
+    """Einfügen, entfernen, wieder einfügen — der Absatz geht mit den Markern."""
+    monkeypatch.setattr(mp.settings_store, "get", lambda k, *a, **kw:
+                        None if k == "STRIP_CLIENT_SIGS_MOBILE" else False)
+    vorher = OUTLOOK_DESKTOP.count(mp._DESKTOP_ABSTAND)
+    zurueck = mp._strip_client_sig_divs(_einfuegen(OUTLOOK_DESKTOP), SIG)
+    assert zurueck.count(mp._DESKTOP_ABSTAND) == vorher
+    assert _einfuegen(zurueck).count(mp._DESKTOP_ABSTAND) == vorher + 1
+
+
 # ── Apple Mail: eigene Linie setzen ──────────────────────────────────────────
 
 def test_apple_mail_bekommt_eine_linie():
