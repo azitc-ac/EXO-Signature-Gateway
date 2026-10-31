@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.54 — 2026-10-31 — Azure-Vorlage: Marketplace-Paket, Microsofts Vorlagenprüfung in der CI
+
+- **Neu: Paket für den Azure Marketplace.** `python3 tools/azure-vorlage.py
+  --paket ZIEL.zip` erzeugt das Paket für ein Solution Template
+  (`mainTemplate.json` und `createUiDefinition.json`) aus denselben Daten wie
+  der „Deploy to Azure“-Knopf.
+- **Microsofts Prüfwerkzeug für Vorlagen (ARM-TTK) läuft in der CI** und
+  besteht ohne Fehler und Warnungen. Die Marketplace-Zertifizierung prüft
+  nach denselben Regeln. Dafür geändert:
+  - API-Versionen auf `2025-04-01` (VM) und `2025-05-01` (Netzwerk); die
+    bisherigen waren älter als zwei Jahre. Eine Testbereitstellung damit legt
+    die VM unverändert an: Sicherheitstyp „Standard“, Datenträger über SCSI.
+  - Im Assistenten haben alle Felder einen Hinweistext, der SSH-Benutzer hat
+    keine Vorbelegung mehr, und der SSH-Schlüssel hat eine Längengrenze.
+- Die Testbereitstellung hat auch den Weg geprüft, auf dem cloud-init den
+  Update-Watcher über `install-update-watcher.sh` einrichtet (seit v1.10.49):
+  Dienst aktiv und beim Start eingeschaltet, Gateway nach etwa drei Minuten
+  bereit.
+
+**Zu tun:** Nichts. Betrifft nur das Anlegen neuer VMs.
+
+---
+
 ## v1.10.53 — 2026-10-31 — Azure-Assistent: Größenauswahl kennzeichnet statt filtert
 
 - **Korrektur zu v1.10.52.** Die Größenauswahl des Assistenten blendet nicht

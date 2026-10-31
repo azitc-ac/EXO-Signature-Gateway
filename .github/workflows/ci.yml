@@ -133,6 +133,23 @@ jobs:
       - name: Begriffe einheitlich
         run: python tools/begriffecheck.py
 
+      # Microsofts Prüfwerkzeug für Vorlagen (ARM-TTK) über Deploy-Knopf und
+      # Marketplace-Paket (beide aus tools/azure-vorlage.py). Die Zertifizierung
+      # im Marketplace fährt dieselben Regeln; hier fällt ein Verstoß auf, bevor
+      # ein Paket hochgeladen wird. Release fest, damit ein neues ARM-TTK nicht
+      # ohne Änderung bei uns rot wird — beim Anheben bewusst neu prüfen.
+      - name: Azure-Vorlage (ARM-TTK)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Azure/arm-ttk/releases/download/20260213/arm-ttk.zip -OutFile $env:RUNNER_TEMP/arm-ttk.zip
+          Expand-Archive $env:RUNNER_TEMP/arm-ttk.zip -DestinationPath $env:RUNNER_TEMP/arm-ttk
+          Import-Module $env:RUNNER_TEMP/arm-ttk/arm-ttk/arm-ttk.psd1
+          $r = Test-AzTemplate -TemplatePath deploy/azure
+          $r | Where-Object { -not $_.Passed -or $_.Warnings } | ForEach-Object {
+            "$($_.File.Name) :: $($_.Name)"; $_.Errors | ForEach-Object { "  " + $_.Exception.Message }; $_.Warnings | ForEach-Object { "  " + $_.Message } }
+          "Gesamt: $($r.Count), bestanden: $(($r | Where-Object Passed).Count)"
+          if (($r | Where-Object { -not $_.Passed -or $_.Warnings }).Count -gt 0 -or $r.Count -eq 0) { exit 1 }
+
   build:
     name: Container baut
     runs-on: ubuntu-latest

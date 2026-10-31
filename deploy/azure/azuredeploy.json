@@ -79,7 +79,7 @@
   "resources": [
     {
       "type": "Microsoft.Network/publicIPAddresses",
-      "apiVersion": "2023-09-01",
+      "apiVersion": "2025-05-01",
       "name": "[variables('ipName')]",
       "location": "[parameters('location')]",
       "sku": {
@@ -91,7 +91,7 @@
     },
     {
       "type": "Microsoft.Network/networkSecurityGroups",
-      "apiVersion": "2023-09-01",
+      "apiVersion": "2025-05-01",
       "name": "[variables('nsgName')]",
       "location": "[parameters('location')]",
       "properties": {
@@ -171,7 +171,7 @@
     },
     {
       "type": "Microsoft.Network/virtualNetworks",
-      "apiVersion": "2023-09-01",
+      "apiVersion": "2025-05-01",
       "name": "[variables('vnetName')]",
       "location": "[parameters('location')]",
       "dependsOn": [
@@ -198,7 +198,7 @@
     },
     {
       "type": "Microsoft.Network/networkInterfaces",
-      "apiVersion": "2023-09-01",
+      "apiVersion": "2025-05-01",
       "name": "[variables('nicName')]",
       "location": "[parameters('location')]",
       "dependsOn": [
@@ -224,7 +224,7 @@
     },
     {
       "type": "Microsoft.Compute/virtualMachines",
-      "apiVersion": "2023-09-01",
+      "apiVersion": "2025-04-01",
       "name": "[parameters('vmName')]",
       "location": "[parameters('location')]",
       "dependsOn": [

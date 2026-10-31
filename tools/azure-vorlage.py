@@ -11,6 +11,10 @@ es genau eine Quelle, und diese Datei bettet sie ein.
 Aufruf aus dem Gateway-Repo:
     python3 tools/azure-vorlage.py          # prüfen (Exit 1 bei Abweichung, CI)
     python3 tools/azure-vorlage.py --fix    # azuredeploy.json neu schreiben
+    python3 tools/azure-vorlage.py --paket ZIEL.zip
+        # Marketplace-Paket (Solution Template): mainTemplate.json +
+        # createUiDefinition.json im Wurzelverzeichnis des ZIP. Wird nicht
+        # eingecheckt — es entsteht aus denselben Daten wie der Deploy-Knopf.
 """
 import json
 import sys
@@ -22,7 +26,7 @@ ZIEL = GATEWAY / "deploy" / "azure" / "azuredeploy.json"
 ZIEL_UI = GATEWAY / "deploy" / "azure" / "createUiDefinition.json"
 
 # Öffentlicher SSH-Schlüssel in einer Zeile (OpenSSH-Format).
-SSH_MUSTER = r"^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( .*)?$"
+SSH_MUSTER = r"^(?=.{60,16384}$)(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( .*)?$"
 
 REPO_URL = "https://github.com/azitc-ac/EXO-Signature-Gateway.git"
 
@@ -54,8 +58,12 @@ PORTS = [
     ("Submission", 587, 140, "Sende-Identitäten: authentifizierte Einlieferung"),
 ]
 
-NET = "2023-09-01"
-COMPUTE = "2023-09-01"
+# ARM-TTK verlangt API-Versionen jünger als zwei Jahre (apiVersions-Should-Be-Recent)
+# und kennt nur Versionen aus seinem eigenen Zwischenspeicher (Release 20260213).
+# Gewählt am 31.10.2026: in beiden enthalten, nicht preview. Jüngere (2026-03-01)
+# nimmt Azure an, ARM-TTK meldet sie aber als unbekannt.
+NET = "2025-05-01"
+COMPUTE = "2025-04-01"
 
 
 def p(name: str) -> str:
@@ -208,6 +216,7 @@ def assistent() -> dict:
                 "elements": [
                     {"name": "vmName", "type": "Microsoft.Common.TextBox", "label": "Name der VM",
                      "defaultValue": "exo-gateway",
+                     "toolTip": "Name der VM in Azure; daraus abgeleitet die Namen von IP, Netz und Firewall.",
                      "constraints": {"required": True, "regex": "^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$",
                                      "validationMessage": "Kleinbuchstaben, Ziffern und Bindestrich, 2–50 Zeichen."}},
                     {"name": "vmSize", "type": "Microsoft.Compute.SizeSelector", "label": "Größe",
@@ -218,7 +227,8 @@ def assistent() -> dict:
                      "constraints": {"allowedSizes": GROESSEN_ARM64 + GROESSEN_X64},
                      "osPlatform": "Linux", "count": 1, "visible": True},
                     {"name": "adminUsername", "type": "Microsoft.Compute.UserNameTextBox",
-                     "label": "SSH-Benutzer", "defaultValue": "azureuser", "osPlatform": "Linux",
+                     "label": "SSH-Benutzer", "osPlatform": "Linux",
+                     "toolTip": "Benutzer für die Anmeldung per SSH, z. B. azureuser.",
                      "constraints": {"required": True}},
                     {"name": "adminSshPublicKey", "type": "Microsoft.Common.TextBox",
                      "label": "Öffentlicher SSH-Schlüssel",
@@ -257,7 +267,18 @@ def erzeugen_ui() -> str:
     return json.dumps(assistent(), ensure_ascii=False, indent=2) + "\n"
 
 
+def paket(ziel: Path) -> None:
+    import zipfile
+    with zipfile.ZipFile(ziel, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("mainTemplate.json", erzeugen())
+        z.writestr("createUiDefinition.json", erzeugen_ui())
+    print(f"++ Marketplace-Paket: {ziel}")
+
+
 def main(argv: list[str]) -> int:
+    if "--paket" in argv:
+        paket(Path(argv[argv.index("--paket") + 1]))
+        return 0
     fehler = 0
     for ziel, soll in ((ZIEL, erzeugen()), (ZIEL_UI, erzeugen_ui())):
         ist = ziel.read_text(encoding="utf-8") if ziel.exists() else ""

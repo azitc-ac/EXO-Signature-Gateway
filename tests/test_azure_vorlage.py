@@ -91,3 +91,14 @@ def test_knopf_nimmt_den_assistenten_mit():
         assert "createUIDefinitionUri%2F" not in text  # Trenner bleibt unkodiert
         assert "/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com" in text, datei.name
         assert "createUiDefinition.json" in text, datei.name
+
+
+def test_marketplace_paket_enthaelt_genau_die_erzeugten_dateien(tmp_path):
+    import zipfile
+    w = _werkzeug()
+    ziel = tmp_path / "paket.zip"
+    w.paket(ziel)
+    with zipfile.ZipFile(ziel) as z:
+        assert sorted(z.namelist()) == ["createUiDefinition.json", "mainTemplate.json"]
+        assert z.read("mainTemplate.json").decode() == VORLAGE.read_text(encoding="utf-8")
+        assert z.read("createUiDefinition.json").decode() == UI.read_text(encoding="utf-8")
