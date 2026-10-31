@@ -23,23 +23,14 @@
     "vmSize": {
       "type": "string",
       "defaultValue": "Standard_B2pls_v2",
-      "allowedValues": [
-        "Standard_B2pls_v2",
-        "Standard_B2ps_v2",
-        "Standard_B2als_v2",
-        "Standard_B2as_v2",
-        "Standard_B2s",
-        "Standard_B2ms"
-      ],
       "metadata": {
-        "description": "VM-Größe. 2 vCPU / 4 GB reichen; *p*-Größen sind ARM64."
+        "description": "VM-Größe. 2 vCPU / 4 GB reichen. ARM64-Größen: Standard_B2pls_v2, Standard_B2ps_v2; alle anderen gelten als x64."
       }
     },
     "adminUsername": {
       "type": "string",
-      "defaultValue": "azureuser",
       "metadata": {
-        "description": "SSH-Benutzer auf der VM."
+        "description": "SSH-Benutzer auf der VM, z. B. azureuser."
       }
     },
     "adminSshPublicKey": {

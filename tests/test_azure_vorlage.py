@@ -81,8 +81,19 @@ def test_assistent_ist_erzeugt_und_passt_zur_vorlage():
     pflicht = {n for n, p in params.items() if "defaultValue" not in p}
     assert pflicht <= ausgaben, pflicht - ausgaben
     groesse = next(e for e in ui["steps"][0]["elements"] if e["type"] == "Microsoft.Compute.SizeSelector")
-    assert groesse["constraints"]["allowedSizes"] == params["vmSize"]["allowedValues"]
+    w = _werkzeug()
+    assert groesse["constraints"]["allowedSizes"] == w.GROESSEN_ARM64 + w.GROESSEN_X64
     assert groesse["recommendedSizes"][0] == params["vmSize"]["defaultValue"]
+
+
+def test_marketplace_richtlinie_300_4_4():
+    """Keine Vorbelegung für Benutzernamen, keine einschließende Größenliste,
+    location mit resourceGroup().location und ohne allowedValues."""
+    params = json.loads(VORLAGE.read_text(encoding="utf-8"))["parameters"]
+    assert "defaultValue" not in params["adminUsername"]
+    assert "allowedValues" not in params["vmSize"]
+    assert params["location"]["defaultValue"] == "[resourceGroup().location]"
+    assert "allowedValues" not in params["location"]
 
 
 def test_knopf_nimmt_den_assistenten_mit():
