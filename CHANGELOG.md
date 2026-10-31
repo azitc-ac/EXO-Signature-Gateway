@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.56 — 2026-10-31 — Azure-Vorlage nach Marketplace-Richtlinie 300.4.4
+
+- Die Vorlage belegt den SSH-Benutzer nicht mehr mit `azureuser` vor. Die
+  Zertifizierungsrichtlinie verbietet Vorbelegungen für Benutzernamen; der
+  Assistent fragt den Namen ab.
+- Die Liste zulässiger VM-Größen steht nicht mehr in der Vorlage, sondern nur
+  noch im Assistenten. Die Richtlinie verbietet einschließende Größenlisten in
+  der Vorlage. Wer die Vorlage ohne Assistent aufruft, kann jede Größe angeben;
+  `Standard_B2pls_v2` und `Standard_B2ps_v2` bekommen das ARM64-Image, alle
+  anderen das x64-Image.
+- Ein Test prüft diese Punkte und den Parameter `location`.
+
+**Zu tun:** Nichts. Betrifft nur das Anlegen neuer VMs.
+
+---
+
 ## v1.10.55 — 2026-10-31 — CI: ARM-TTK-Schritt findet das Modul
 
 - Der mit v1.10.54 eingeführte CI-Schritt für Microsofts Vorlagenprüfung

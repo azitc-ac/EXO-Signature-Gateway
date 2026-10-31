@@ -95,11 +95,16 @@ def vorlage(cloud_init: str) -> dict:
                          "metadata": {"description": "Region (Vorgabe: die der Ressourcengruppe)."}},
             "vmName": {"type": "string", "defaultValue": "exo-gateway", "maxLength": 50,
                        "metadata": {"description": "Name der VM; davon abgeleitet die Namen von IP, NSG, Netz."}},
+            # Kein allowedValues: Marketplace-Richtlinie 300.4.4 verbietet
+            # einschließende Größenlisten in der Vorlage. Die Auswahl begrenzt
+            # der Assistent (SizeSelector.allowedSizes). Eine Größe außerhalb
+            # von GROESSEN_ARM64 bekommt das x64-Image.
             "vmSize": {"type": "string", "defaultValue": GROESSEN_ARM64[0],
-                       "allowedValues": GROESSEN_ARM64 + GROESSEN_X64,
-                       "metadata": {"description": "VM-Größe. 2 vCPU / 4 GB reichen; *p*-Größen sind ARM64."}},
-            "adminUsername": {"type": "string", "defaultValue": "azureuser",
-                              "metadata": {"description": "SSH-Benutzer auf der VM."}},
+                       "metadata": {"description": "VM-Größe. 2 vCPU / 4 GB reichen. ARM64-Größen: "
+                                                   + ", ".join(GROESSEN_ARM64) + "; alle anderen gelten als x64."}},
+            # Keine Vorbelegung: 300.4.4 „Do not provide default values for usernames“.
+            "adminUsername": {"type": "string",
+                              "metadata": {"description": "SSH-Benutzer auf der VM, z. B. azureuser."}},
             "adminSshPublicKey": {"type": "string",
                                   "metadata": {"description": "Öffentlicher SSH-Schlüssel (Inhalt von ~/.ssh/id_ed25519.pub o. ä.)."}},
             "sshQuelle": {"type": "string", "defaultValue": "*",
