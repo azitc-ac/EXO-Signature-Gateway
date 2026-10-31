@@ -11,9 +11,59 @@ Organizations exceeding 100 mailboxes require a separate, paid Commercial
 License from the licensor. Contact alexander@zarenko.net to obtain one.
 
 This limit is in addition to, and does not relax, the restrictions in the
-PolyForm Internal Use License below — redistribution and operating the
-software as a service for third parties remain prohibited regardless of
-mailbox count.
+PolyForm Internal Use License below — redistribution remains prohibited
+regardless of mailbox count. Who may operate the software for an
+organization is governed by the Operation section below.
+
+## Nonprofit Edition — Field of Use
+
+Notwithstanding the 100-mailbox limit above, eligible nonprofit
+organizations may use the software **free of charge and without a mailbox
+limit**, on the following terms:
+
+1. **Eligibility.** The organization is recognized as a nonprofit by
+   Microsoft (Microsoft for Nonprofits), or holds a current confirmation of
+   tax-exempt charitable status (in Germany: Freistellungsbescheid or
+   Feststellungsbescheid under § 60a AO) or an equivalent recognition in its
+   country of establishment. Size and legal form do not matter.
+
+2. **Nonprofit License.** Use above 100 mailboxes requires a Nonprofit
+   License, which the licensor issues at no charge on proof of eligibility.
+   Request it at alexander@zarenko.net. It is valid for twelve months and is
+   renewed on renewed proof of eligibility.
+
+3. **Scope.** The Nonprofit License covers all functions of the software.
+   It does not cover services of third parties obtained through the
+   software, in particular S/MIME certificates; these are charged according
+   to the price list.
+
+4. **Operation.** The Operation section below applies.
+
+5. **End of eligibility.** If the organization ceases to be eligible, the
+   Nonprofit License is not renewed and ends with its current term. From
+   then on, the Community Edition limit applies; use above it requires a
+   Commercial License. No charges are made for the time before.
+
+## Operation — all editions
+
+The software may be operated for an organization in one of two ways, in
+each case solely for that organization's internal use and within the field
+of use of its edition:
+
+1. **In the organization's own environment** — infrastructure the
+   organization controls, such as its own servers or a cloud subscription
+   held in its name — by the organization itself or by a service provider
+   acting on its behalf. Such operation is use by the organization for the
+   purposes of the PolyForm Internal Use License below.
+
+2. **As a managed service** — in an environment controlled by someone other
+   than the organization — only by the licensor or by a partner the
+   licensor has authorized in writing.
+
+The license is held by the organization, not by the operator. Any other
+operation of the software as a service for third parties, in particular a
+managed service without the licensor's written authorization, remains
+prohibited.
 
 ---
 

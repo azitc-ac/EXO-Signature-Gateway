@@ -1,6 +1,6 @@
 # Zahlungsbedingungen für den Rechnungskauf
 
-**Version 1.0 — Stand 24. Juli 2026**
+**Version 1.1 — Stand 31. Oktober 2026**
 
 Ergänzend zu den Nutzungsbedingungen für den EXO Signature Hub. Bei Widersprüchen gehen
 diese Zahlungsbedingungen für Fragen der Zahlungsabwicklung vor.
@@ -9,12 +9,22 @@ Anbieter: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 
 ---
 
+## Änderungen gegenüber früheren Fassungen
+
+- **1.1 (31. Oktober 2026)** — Ziffer 1.2: Der Geltungsbereich umfasst neben
+  Unternehmern ausdrücklich juristische Personen und rechtsfähige
+  Personengesellschaften, etwa gemeinnützige Vereine.
+
+---
+
 ## 1. Geltungsbereich
 
 1.1 Diese Bedingungen gelten, wenn der Anbieter dem Kunden die Zahlung per
 Rechnung gestattet hat.
 
-1.2 Sie gelten ausschließlich gegenüber Unternehmern i.S.d. § 14 BGB.
+1.2 Sie gelten gegenüber Unternehmern i.S.d. § 14 BGB, juristischen Personen und
+rechtsfähigen Personengesellschaften. Ein Vertragsschluss mit Verbrauchern
+i.S.d. § 13 BGB erfolgt nicht.
 
 ---
 
@@ -172,4 +182,4 @@ der Information.
 
 ---
 
-*Version 1.0 — 24. Juli 2026*
+*Version 1.1 — 31. Oktober 2026*

@@ -5,6 +5,44 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.51 — 2026-10-31 — Nonprofit Edition, Betrieb nach Umgebung, neue Vertragsfassungen
+
+- **Neu: Nonprofit Edition (LICENSE.md).** Gemeinnützige Organisationen nutzen
+  das Gateway kostenlos und ohne Postfach-Obergrenze. Voraussetzung ist die
+  Anerkennung bei Microsoft for Nonprofits, ein Freistellungsbescheid oder
+  Feststellungsbescheid nach § 60a AO oder eine gleichwertige Anerkennung im
+  eigenen Land; Größe und Rechtsform spielen keine Rolle. Ab dem 101. Postfach
+  gibt es dafür eine kostenlose Nonprofit-Lizenz mit zwölf Monaten Laufzeit,
+  die auf neuen Nachweis verlängert wird. Sie umfasst alle Funktionen;
+  S/MIME-Zertifikate bleiben nach Preisliste kostenpflichtig. Entfällt die
+  Gemeinnützigkeit, endet die Lizenz mit ihrer Laufzeit, ohne Nachberechnung.
+  Dashboard und Postfach-Seite weisen bei der Lizenzangabe darauf hin.
+- **Neu: Betrieb nach Umgebung, für alle Editionen.** In der eigenen Umgebung
+  der Organisation (eigene Server oder ein Cloud-Abonnement auf ihren Namen)
+  betreibt sie das Gateway selbst oder durch einen Dienstleister ihrer Wahl.
+  Als Managed Service in einer fremden Umgebung betreiben es nur der
+  Lizenzgeber oder ein von ihm schriftlich autorisierter Partner. Bisher war
+  nur der Betrieb durch den Lizenznehmer in eigener Infrastruktur vorgesehen.
+- **Geltungsbereich.** Die Bedingungen gelten ausdrücklich auch gegenüber
+  juristischen Personen und rechtsfähigen Personengesellschaften, etwa
+  gemeinnützigen Vereinen, die nicht in jedem Fall Unternehmer nach § 14 BGB
+  sind. Verträge mit Verbrauchern werden weiterhin nicht geschlossen.
+- **Neue Fassungen:** Hub-Nutzungsbedingungen 2.4, Lizenzbedingungen-Ergänzung
+  3.0, Preisliste 1.4, Produkt-Datenschutzhinweise 1.2, Auftragsverarbeitung
+  1.1, Zahlungsbedingungen Rechnungskauf 1.1. Jede Fassung führt oben ihre
+  Änderungen gegenüber der vorigen auf. Ein Managed Service bedarf einer
+  gesonderten Vereinbarung samt Auftragsverarbeitungsvertrag.
+- `tools/legal-sync-check.py --fix` entfernt in der Betreiber-Kopie jetzt auch
+  abgelöste Fassungen, statt sie liegen zu lassen.
+
+**Zu tun:** Stimme den neuen Fassungen zu: Die Leiste „Geänderte
+Vertragsbedingungen liegen zur Zustimmung bereit“ oben in der Oberfläche →
+*Ansehen und zustimmen*. Bis dahin gilt die bisherige Fassung fort, neue
+kostenpflichtige Vorgänge (Lizenzkauf, Guthaben, Rechnungskauf,
+Diagnosepaket) sind gesperrt. Der Mailfluss läuft unverändert weiter.
+
+---
+
 ## v1.10.50 — 2026-10-31 — Azure-Vorlage: nur tatsächlich angebotene VM-Größen
 
 - Die Auswahl der VM-Größe in der Vorlage enthielt drei x64-Größen

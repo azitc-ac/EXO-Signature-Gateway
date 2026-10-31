@@ -3,7 +3,8 @@
 **Automatische Signaturen, Abwesenheit und S/MIME für Exchange Online: zentral
 verwaltet, mit Add-ins für Outlook auf PC und Handy – bei Bedarf mit SMTP-Relay
 samt Lernmodus als Ersatz für den lokalen Exchange-Server. Das alles bietet das
-EXO Signature Gateway in einem Produkt – für bis zu 100 Postfächer kostenlos.**
+EXO Signature Gateway in einem Produkt – für bis zu 100 Postfächer kostenlos,
+für gemeinnützige Organisationen ohne Obergrenze.**
 
 Das Gateway hängt sich serverseitig in den Mailfluss von Exchange Online. Jede
 Mail bekommt die richtige Signatur mit aktuellen Daten aus Entra ID, gleich
@@ -16,8 +17,8 @@ Selbst gehostet auf jedem Linux-Host (auch Raspberry Pi) oder vollständig in
 Azure, ohne ausgehenden Port 25. Alle Daten bleiben in deinem Tenant und auf
 deinem Host.
 
-> Frei für eigene Zwecke bis 100 Postfächer, darüber mit kommerzieller Lizenz,
-> siehe [Lizenz](#lizenz).
+> Frei für eigene Zwecke bis 100 Postfächer, darüber mit kommerzieller Lizenz;
+> gemeinnützige Organisationen ohne Obergrenze kostenlos, siehe [Lizenz](#lizenz).
 
 ---
 
@@ -169,5 +170,18 @@ Voraussetzungen, Azure-VM per Vorlage oder Skript, Betrieb vor Ort und Berechtig
 nutzbar für eigene und interne Zwecke, auch im Unternehmen, für **bis zu 100
 Postfächer**. Darüber hinaus ist eine kostenpflichtige kommerzielle Lizenz
 erforderlich, Kontakt: alexander@zarenko.net. Unabhängig von der Größe nicht
-erlaubt: Weiterverteilung, Betrieb als Dienstleistung für Dritte oder
-Verkauf und Anbieten als Service durch andere als den Lizenzgeber.
+erlaubt ist die Weiterverteilung.
+
+**Betrieb:** In der eigenen Umgebung der Organisation (eigene Server oder ein
+Cloud-Abonnement auf ihren Namen) betreibt sie das Gateway selbst oder lässt es
+von einem Dienstleister ihrer Wahl betreiben. Als Managed Service in einer
+fremden Umgebung betreiben es nur der Lizenzgeber oder ein von ihm schriftlich
+autorisierter Partner. Das gilt für alle Editionen.
+
+**Gemeinnützige Organisationen** nutzen das Gateway kostenlos und ohne
+Postfach-Obergrenze (Nonprofit Edition). Voraussetzung ist die Anerkennung bei
+Microsoft for Nonprofits, ein Freistellungsbescheid oder eine gleichwertige
+Anerkennung im eigenen Land, unabhängig von Größe und Rechtsform. Ab dem 101.
+Postfach gibt es dafür eine kostenlose Nonprofit-Lizenz mit zwölf Monaten
+Laufzeit, die mit neuem Nachweis verlängert wird. S/MIME-Zertifikate bleiben
+kostenpflichtig. Einzelheiten in [LICENSE.md](LICENSE.md).

@@ -1,6 +1,6 @@
 # Nutzungsbedingungen für den EXO Signature Hub
 
-**Version 2.3 — Stand 29. Juli 2026**
+**Version 2.4 — Stand 30. Oktober 2026**
 
 Anbieter: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 (nachfolgend „Anbieter")
@@ -9,6 +9,13 @@ Anbieter: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 
 ## Änderungen gegenüber früheren Fassungen
 
+- **2.4 (30. Oktober 2026)** — Ziffer 1.3 und 2.1: Das Gateway kann in der
+  eigenen Umgebung des Kunden auch durch einen beauftragten Dienstleister oder
+  als Managed Service durch den Anbieter oder einen autorisierten Partner
+  betrieben werden. Zuvor war nur der Betrieb durch den Kunden in eigener
+  Infrastruktur vorgesehen. Ziffer 1.5: Der Geltungsbereich umfasst neben
+  Unternehmern ausdrücklich juristische Personen und rechtsfähige
+  Personengesellschaften, etwa gemeinnützige Vereine.
 - **2.3 (29. Juli 2026)** — Ziffer 10.3: Die Abrechnung wird nach Leistungsart
   unterschieden. Zertifikate laufen weiter über das im Voraus aufgeladene
   Guthaben; Lizenzen werden als Abonnement über das hinterlegte Zahlungsmittel
@@ -44,15 +51,19 @@ Anbieter: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 - die Verwaltung erworbener Lizenzen.
 
 1.3 **Der Hub umfasst ausdrücklich nicht den Betrieb des Gateways.** Das
-Gateway wird vom Kunden in eigener Verantwortung und in eigener Infrastruktur
-betrieben.
+Gateway wird in der Verantwortung des Kunden betrieben, entweder in seiner
+eigenen Umgebung — durch ihn selbst oder einen von ihm beauftragten
+Dienstleister — oder als Managed Service durch den Anbieter oder einen von ihm
+schriftlich autorisierten Partner. Ein Managed Service bedarf einer gesonderten
+Vereinbarung.
 
 1.4 Die Nutzung des Hub setzt ein wirksames Nutzungsrecht am Gateway nach der
 PolyForm Internal Use License 1.0.0 bzw. einer erworbenen kommerziellen Lizenz
 voraus.
 
-1.5 Diese Bedingungen gelten ausschließlich gegenüber Unternehmern i.S.d. § 14
-BGB. Ein Vertragsschluss mit Verbrauchern erfolgt nicht.
+1.5 Diese Bedingungen gelten gegenüber Unternehmern i.S.d. § 14
+BGB, juristischen Personen und rechtsfähigen Personengesellschaften. Ein
+Vertragsschluss mit Verbrauchern i.S.d. § 13 BGB erfolgt nicht.
 
 1.6 Abweichende Bedingungen des Kunden werden nicht Vertragsbestandteil, auch
 wenn der Anbieter ihnen nicht ausdrücklich widerspricht.
@@ -63,7 +74,10 @@ wenn der Anbieter ihnen nicht ausdrücklich widerspricht.
 
 2.1 Der Kunde betreibt das Gateway eigenverantwortlich. Ihm obliegen
 insbesondere Bereitstellung und Absicherung der Infrastruktur, Installation und
-Aktualisierung, Konfiguration, Verfügbarkeit sowie Datensicherung.
+Aktualisierung, Konfiguration, Verfügbarkeit sowie Datensicherung. Beauftragt er
+damit einen Dienstleister oder nutzt er einen Managed Service, bleibt er
+gegenüber dem Anbieter verantwortlich; die Aufgabenteilung mit dem Betreiber
+regelt der Kunde mit diesem.
 
 2.2 Der Kunde ist datenschutzrechtlich Verantwortlicher i.S.d. Art. 4 Nr. 7
 DSGVO für sämtliche über das Gateway verarbeiteten Daten, insbesondere für
@@ -503,4 +517,4 @@ der Information.
 
 ---
 
-*Version 2.3 — 29. Juli 2026*
+*Version 2.4 — 30. Oktober 2026*

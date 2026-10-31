@@ -1,6 +1,6 @@
 # Lizenzbedingungen für die kommerzielle Nutzung des EXO Signature Gateway
 
-**Version 2.1 — Stand 28. Juli 2026**
+**Version 3.0 — Stand 30. Oktober 2026**
 
 Lizenzgeber: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 (nachfolgend „Lizenzgeber")
@@ -9,6 +9,14 @@ Lizenzgeber: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 
 ## Änderungen gegenüber früheren Fassungen
 
+- **3.0 (30. Oktober 2026)** — Betrieb nach Umgebung (Ziffer 2.3): In der
+  eigenen Umgebung betreibt der Lizenznehmer das Gateway selbst oder durch einen
+  beauftragten Dienstleister; als Managed Service betreiben es nur der
+  Lizenzgeber oder ein von ihm schriftlich autorisierter Partner. Zuvor war nur
+  der Betrieb in eigener Infrastruktur vorgesehen. Klargestellt, dass ein solcher
+  Betrieb keine Bereitstellung an Dritte ist (Ziffer 7.3). Der Geltungsbereich
+  umfasst neben Unternehmern ausdrücklich juristische Personen und rechtsfähige
+  Personengesellschaften, etwa gemeinnützige Vereine (Ziffer 1.4).
 - **2.1 (28. Juli 2026)** — Lizenz als Abonnement. Die Beendigung wirkt sofort
   statt zum Laufzeitende, und der bezahlte, nicht genutzte Anteil wird taggenau
   zurückgezahlt (Ziffer 3). Diese Rückzahlung gilt jetzt für **beide**
@@ -39,8 +47,9 @@ Nutzungsvolumen. Im Übrigen gilt die Basislizenz unverändert fort.
 diese Bedingungen vor, soweit sie das zulässige Nutzungsvolumen und die
 Vergütung betreffen.
 
-1.4 Diese Bedingungen gelten ausschließlich gegenüber Unternehmern i.S.d. § 14
-BGB.
+1.4 Diese Bedingungen gelten gegenüber Unternehmern i.S.d. § 14
+BGB, juristischen Personen und rechtsfähigen Personengesellschaften. Ein
+Vertragsschluss mit Verbrauchern i.S.d. § 13 BGB erfolgt nicht.
 
 ---
 
@@ -54,8 +63,14 @@ erworbenen Lizenzen abgedeckt ist.
 2.2 Die Nutzung erfolgt ausschließlich für eigene interne Geschäftszwecke des
 Lizenznehmers im Sinne der Basislizenz.
 
-2.3 Der Lizenznehmer betreibt das Gateway eigenverantwortlich in eigener
-Infrastruktur. Der Lizenzgeber schuldet keinen Betrieb.
+2.3 Der Lizenznehmer betreibt das Gateway eigenverantwortlich, und zwar
+entweder in seiner eigenen Umgebung — Infrastruktur, die er kontrolliert, etwa
+eigene Server oder ein Cloud-Abonnement auf seinen Namen — selbst oder durch
+einen von ihm beauftragten Dienstleister, oder als Managed Service in einer
+fremden Umgebung, betrieben durch den Lizenzgeber oder einen von ihm schriftlich
+autorisierten Partner (Abschnitt „Operation" der Basislizenz). Aus diesen
+Bedingungen schuldet der Lizenzgeber keinen Betrieb; ein Managed Service bedarf
+einer gesonderten Vereinbarung.
 
 2.4 Die Zahl der Lizenzen, die Freigrenze sowie die Zählung aktivierter
 Postfächer richten sich nach Ziffer 6 der Nutzungsbedingungen für den EXO
@@ -181,7 +196,8 @@ Herkunftshinweise aus der Software.
 
 7.3 Eine Weitergabe, Unterlizenzierung, Vermietung oder Bereitstellung der
 Software an Dritte ist nicht gestattet. Die Basislizenz bleibt insoweit
-maßgeblich.
+maßgeblich. Der Betrieb nach Ziffer 2.3 gilt nicht als Bereitstellung an
+Dritte.
 
 7.4 Der Lizenznehmer darf Rechte aus diesem Vertrag nur mit vorheriger
 Zustimmung des Lizenzgebers übertragen.
@@ -262,4 +278,4 @@ der Information.
 
 ---
 
-*Version 2.1 — 28. Juli 2026*
+*Version 3.0 — 30. Oktober 2026*

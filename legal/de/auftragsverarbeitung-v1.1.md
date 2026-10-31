@@ -1,6 +1,6 @@
 # Vereinbarung zur Auftragsverarbeitung (AVV)
 
-**Version 1.0 — Stand 25. Juli 2026**
+**Version 1.1 — Stand 30. Oktober 2026**
 
 Zwischen dem **Kunden** (nachfolgend „Verantwortlicher") und
 
@@ -18,10 +18,12 @@ Verantwortliche freiwillig aus seinem EXO Signature Gateway an den
 Auftragsverarbeiter übermittelt, um eine Supportanfrage bearbeiten zu lassen.
 
 1.2 **Sie gilt nicht für den laufenden Betrieb des Gateways.** Das Gateway wird
-vom Verantwortlichen in eigener Infrastruktur betrieben; der Auftragsverarbeiter
-hat auf den dortigen E-Mail-Verkehr keinen Zugriff. Insoweit findet keine
-Auftragsverarbeitung statt (Ziffer 2.5 der Nutzungsbedingungen für den EXO
-Signature Hub).
+in der Umgebung des Verantwortlichen betrieben, durch ihn selbst oder einen von
+ihm beauftragten Dienstleister; der Auftragsverarbeiter hat auf den dortigen
+E-Mail-Verkehr keinen Zugriff. Insoweit findet keine Auftragsverarbeitung statt
+(Ziffer 2.5 der Nutzungsbedingungen für den EXO Signature Hub). Betreibt der
+Auftragsverarbeiter oder ein von ihm autorisierter Partner das Gateway als
+Managed Service, gilt dafür ein gesonderter Vertrag zur Auftragsverarbeitung.
 
 1.3 Sie gilt ebenfalls nicht für Daten, die der Auftragsverarbeiter als eigener
 Verantwortlicher verarbeitet — etwa Stammdaten des Kundenkontos,
@@ -237,4 +239,4 @@ der Information.
 
 ---
 
-*Version 1.0 — 25. Juli 2026*
+*Version 1.1 — 30. Oktober 2026*
