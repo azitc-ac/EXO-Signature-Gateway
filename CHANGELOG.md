@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.49 — 2026-10-31 — Azure: Gateway per Vorlage aus dem Portal ausrollen
+
+- **Neu: „Deploy to Azure“.** README und `docs/installation.md` haben einen
+  Knopf, der die Vorlage `deploy/azure/azuredeploy.json` im Azure-Portal öffnet.
+  Sie legt eine Debian-12-VM an (Vorgabe `Standard_B2pls_v2`, ARM64, 2 vCPU,
+  4 GB; wahlweise x64), dazu statische IP, Netzwerk-Sicherheitsgruppe mit 22,
+  80, 443, 25 und 587, und ein eigenes virtuelles Netz. Beim ersten Start
+  installiert cloud-init Docker und das Gateway und richtet den Update-Watcher
+  ein. Eine Kommandozeile ist dafür nicht nötig. SSH lässt sich in der Vorlage
+  auf eine Quelladresse beschränken.
+- **Eine Quelle für die Erstinstallation.** Die cloud-init-Konfiguration steht
+  jetzt in `deploy/azure/cloud-init.yaml`. `azure-vm-setup.ps1` liest sie, statt
+  eine eigene Fassung mitzuführen, und die Vorlage bettet sie ein
+  (`tools/azure-vorlage.py`). Ein Test hält Vorlage, Skript und Quelle
+  gleich, einschließlich der geöffneten Ports. Den Update-Watcher richtet
+  cloud-init über `install-update-watcher.sh` ein, wie auf jedem anderen
+  Host. Die systemd-Unit stand vorher zweimal im Repository.
+- `azure-vm-setup.ps1`: Vorgabegröße `Standard_B2pls_v2` statt
+  `Standard_B2ps_v2` (gleiche Leistung, halber Preis, im Betrieb erprobt).
+  Die `.env` enthält nur noch den Sitzungsschlüssel der Oberfläche; die
+  leeren Platzhalter für Tenant, App und Smarthost entfallen, weil der
+  Einrichtungsassistent diese Werte setzt. Die cloud-init-Datei wird ohne
+  Byte-Order-Mark geschrieben.
+
+**Zu tun:** Nichts. Bestehende Installationen sind nicht betroffen; die
+Vorlage und das geänderte Skript wirken nur beim Anlegen einer neuen VM.
+
+---
+
 ## v1.10.48 — 2026-10-30 — Outlook Classic: Trennlinie zum Zitat wieder sichtbar
 
 - **Behoben: Bei Antworten aus Outlook Desktop fehlte in Outlook Classic die

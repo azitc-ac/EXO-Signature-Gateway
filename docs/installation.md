@@ -118,10 +118,31 @@ Der Setup-Wizard führt durch die Erstkonfiguration:
 
 Für den Azure-Betrieb `REINJECT_MODE=graph` (Graph-only) oder `graph_plus` (Graph++) wählen (die Vorgabe `smtp` braucht ausgehenden Port 25, den Azure-VMs sperren). Beide Azure-Modi benötigen nur ausgehend Port 443 (HTTPS); Graph++ ergänzt dies um IMAPS Port 993 für einen speziellen Anwendungsfall (siehe unten).
 
+### Azure VM anlegen (Vorlage im Portal)
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json)
+
+Der Knopf öffnet die Vorlage `deploy/azure/azuredeploy.json` im Azure-Portal. Du
+wählst Abo, Ressourcengruppe und Region und trägst deinen öffentlichen
+SSH-Schlüssel ein. Die Vorlage legt an:
+
+- eine Debian-12-VM, Vorgabe `Standard_B2pls_v2` (ARM64, 2 vCPU, 4 GB), wahlweise eine x64-Größe,
+- eine statische öffentliche IP,
+- eine Netzwerk-Sicherheitsgruppe mit 22, 80, 443, 25 und 587 eingehend (SSH auf Wunsch nur von deiner IP, Feld *Ssh Quelle*),
+- ein eigenes virtuelles Netz.
+
+Beim ersten Start installiert cloud-init Docker, holt das Gateway aus GitHub, baut
+es und richtet den Update-Watcher ein. Das dauert nach dem Anlegen noch einige
+Minuten. Unter *Ausgaben* der Bereitstellung stehen IP-Adresse und
+Einrichtungsadresse; weiter geht es mit Schritt 1 des Schnellstarts
+(`http://<IP>`).
+
 ### Azure VM anlegen (PowerShell-Skript)
 
-Das mitgelieferte Skript `azure-vm-setup.ps1` legt eine Debian-12-VM (arm64,
-`Standard_B2ps_v2`) mit statischer IP und vorkonfigurierter Firewall an und installiert Docker + das Gateway:
+Das mitgelieferte Skript `azure-vm-setup.ps1` legt dieselbe VM von der Kommandozeile
+an (Debian 12, arm64, `Standard_B2pls_v2`, statische IP, Firewall) und installiert
+Docker + das Gateway. Es benutzt dieselbe cloud-init-Konfiguration wie die Vorlage
+(`deploy/azure/cloud-init.yaml`):
 
 ```powershell
 .\azure-vm-setup.ps1 `

@@ -1,0 +1,296 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "EXO Signature Gateway: Debian-12-VM mit statischer IP, Firewall-Regeln, Docker und Gateway (cloud-init). Erzeugt von tools/azure-vorlage.py aus deploy/azure/cloud-init.yaml — nicht von Hand ändern."
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Region (Vorgabe: die der Ressourcengruppe)."
+      }
+    },
+    "vmName": {
+      "type": "string",
+      "defaultValue": "exo-gateway",
+      "maxLength": 50,
+      "metadata": {
+        "description": "Name der VM; davon abgeleitet die Namen von IP, NSG, Netz."
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_B2pls_v2",
+      "allowedValues": [
+        "Standard_B2pls_v2",
+        "Standard_B2ps_v2",
+        "Standard_B4pls_v2",
+        "Standard_D2pls_v5",
+        "Standard_B2als_v2",
+        "Standard_B2s",
+        "Standard_B2ms",
+        "Standard_D2als_v6"
+      ],
+      "metadata": {
+        "description": "VM-Größe. 2 vCPU / 4 GB reichen; *p*-Größen sind ARM64."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "azureuser",
+      "metadata": {
+        "description": "SSH-Benutzer auf der VM."
+      }
+    },
+    "adminSshPublicKey": {
+      "type": "string",
+      "metadata": {
+        "description": "Öffentlicher SSH-Schlüssel (Inhalt von ~/.ssh/id_ed25519.pub o. ä.)."
+      }
+    },
+    "sshQuelle": {
+      "type": "string",
+      "defaultValue": "*",
+      "metadata": {
+        "description": "Von wo SSH erlaubt ist: '*' oder eine eigene IP/CIDR, z. B. 203.0.113.7/32."
+      }
+    },
+    "repoUrl": {
+      "type": "string",
+      "defaultValue": "https://github.com/azitc-ac/EXO-Signature-Gateway.git",
+      "metadata": {
+        "description": "Git-Repository des Gateways."
+      }
+    }
+  },
+  "variables": {
+    "armGroessen": [
+      "Standard_B2pls_v2",
+      "Standard_B2ps_v2",
+      "Standard_B4pls_v2",
+      "Standard_D2pls_v5"
+    ],
+    "imageSku": "[if(contains(variables('armGroessen'), parameters('vmSize')), '12-arm64', '12-gen2')]",
+    "ipName": "[concat(parameters('vmName'), '-ip')]",
+    "nsgName": "[concat(parameters('vmName'), '-nsg')]",
+    "vnetName": "[concat(parameters('vmName'), '-vnet')]",
+    "nicName": "[concat(parameters('vmName'), '-nic')]",
+    "cloudInit": "#cloud-config\n# EXO Signature Gateway — Erstinstallation auf einer frischen Debian-12-VM.\n#\n# ⚠️ EINZIGE QUELLE. Diese Datei wird benutzt von\n#   - azure-vm-setup.ps1 (liest sie und übergibt sie als --custom-data) und\n#   - deploy/azure/azuredeploy.json (eingebettet, erzeugt von\n#     tools/azure-vorlage.py — nicht von Hand ändern).\n# Nach einer Änderung hier: python3 tools/azure-vorlage.py --fix\n# Platzhalter: __ADMIN_USER__ (SSH-Benutzer), __REPO_URL__ (Git-Repository).\npackage_update: true\npackage_upgrade: false\npackages:\n  - ca-certificates\n  - curl\n  - git\n  - openssl\n\nruncmd:\n  # Docker installieren\n  - install -m 0755 -d /etc/apt/keyrings\n  - curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc\n  - chmod a+r /etc/apt/keyrings/docker.asc\n  - echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable\" > /etc/apt/sources.list.d/docker.list\n  - apt-get update -qq\n  - apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin\n  - usermod -aG docker __ADMIN_USER__\n  - systemctl enable docker\n  # Repository klonen\n  - git clone __REPO_URL__ /opt/exo-gateway\n  - chown -R __ADMIN_USER__:__ADMIN_USER__ /opt/exo-gateway\n  # .env: nur der Sitzungsschlüssel der Oberfläche. Alles Weitere setzt der\n  # Einrichtungsassistent in data/settings.json.\n  - |\n    cat > /opt/exo-gateway/.env << ENVEOF\n    WEBUI_SECRET_KEY=$(openssl rand -hex 32)\n    ENVEOF\n  - chown __ADMIN_USER__:__ADMIN_USER__ /opt/exo-gateway/.env\n  - chmod 600 /opt/exo-gateway/.env\n  # Bind-Mount-Verzeichnisse dem Container-User (appuser, UID 1000) übereignen.\n  # Sonst legt der Docker-Daemon sie beim ersten Mount als root an, und der als\n  # appuser laufende Container crasht mit PermissionError.\n  - mkdir -p /opt/exo-gateway/data /opt/exo-gateway/certs /opt/exo-gateway/templates\n  - chown -R 1000:1000 /opt/exo-gateway/data /opt/exo-gateway/certs /opt/exo-gateway/templates\n  # Gateway bauen und starten (es gibt kein vorgebautes Image)\n  - cd /opt/exo-gateway && docker compose up -d --build\n  # Update-Watcher (Update-Knopf in der Oberfläche) — dasselbe Skript wie auf\n  # jedem anderen Host, keine eigene Fassung der systemd-Unit.\n  - bash /opt/exo-gateway/install-update-watcher.sh\n",
+    "customData": "[base64(replace(replace(variables('cloudInit'), '__ADMIN_USER__', parameters('adminUsername')), '__REPO_URL__', parameters('repoUrl')))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('ipName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static"
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nsgName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "SSH",
+            "properties": {
+              "priority": 100,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "[parameters('sshQuelle')]",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "22",
+              "description": "SSH-Zugang (Verwaltung)"
+            }
+          },
+          {
+            "name": "HTTP",
+            "properties": {
+              "priority": 110,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "80",
+              "description": "Let's Encrypt HTTP-01 + Einrichtung"
+            }
+          },
+          {
+            "name": "HTTPS",
+            "properties": {
+              "priority": 120,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "443",
+              "description": "Weboberfläche + Outlook-Add-ins"
+            }
+          },
+          {
+            "name": "SMTP",
+            "properties": {
+              "priority": 130,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "25",
+              "description": "Exchange Online: ausgehender Connector zum Gateway"
+            }
+          },
+          {
+            "name": "Submission",
+            "properties": {
+              "priority": 140,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "587",
+              "description": "Sende-Identitäten: authentifizierte Einlieferung"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+      ],
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.20.0.0/24"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "default",
+            "properties": {
+              "addressPrefix": "10.20.0.0/26",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nicName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))]"
+              },
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), 'default')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2023-09-01",
+      "name": "[parameters('vmName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "Debian",
+            "offer": "debian-12",
+            "sku": "[variables('imageSku')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage",
+            "diskSizeGB": 32,
+            "managedDisk": {
+              "storageAccountType": "StandardSSD_LRS"
+            }
+          }
+        },
+        "osProfile": {
+          "computerName": "[parameters('vmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "customData": "[variables('customData')]",
+          "linuxConfiguration": {
+            "disablePasswordAuthentication": true,
+            "ssh": {
+              "publicKeys": [
+                {
+                  "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+                  "keyData": "[parameters('adminSshPublicKey')]"
+                }
+              ]
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "publicIp": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))).ipAddress]"
+    },
+    "einrichtung": {
+      "type": "string",
+      "value": "[concat('http://', reference(resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))).ipAddress)]"
+    },
+    "ssh": {
+      "type": "string",
+      "value": "[concat('ssh ', parameters('adminUsername'), '@', reference(resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))).ipAddress)]"
+    }
+  }
+}

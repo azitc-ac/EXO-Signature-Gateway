@@ -1,0 +1,48 @@
+#cloud-config
+# EXO Signature Gateway — Erstinstallation auf einer frischen Debian-12-VM.
+#
+# ⚠️ EINZIGE QUELLE. Diese Datei wird benutzt von
+#   - azure-vm-setup.ps1 (liest sie und übergibt sie als --custom-data) und
+#   - deploy/azure/azuredeploy.json (eingebettet, erzeugt von
+#     tools/azure-vorlage.py — nicht von Hand ändern).
+# Nach einer Änderung hier: python3 tools/azure-vorlage.py --fix
+# Platzhalter: __ADMIN_USER__ (SSH-Benutzer), __REPO_URL__ (Git-Repository).
+package_update: true
+package_upgrade: false
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - openssl
+
+runcmd:
+  # Docker installieren
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update -qq
+  - apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  - usermod -aG docker __ADMIN_USER__
+  - systemctl enable docker
+  # Repository klonen
+  - git clone __REPO_URL__ /opt/exo-gateway
+  - chown -R __ADMIN_USER__:__ADMIN_USER__ /opt/exo-gateway
+  # .env: nur der Sitzungsschlüssel der Oberfläche. Alles Weitere setzt der
+  # Einrichtungsassistent in data/settings.json.
+  - |
+    cat > /opt/exo-gateway/.env << ENVEOF
+    WEBUI_SECRET_KEY=$(openssl rand -hex 32)
+    ENVEOF
+  - chown __ADMIN_USER__:__ADMIN_USER__ /opt/exo-gateway/.env
+  - chmod 600 /opt/exo-gateway/.env
+  # Bind-Mount-Verzeichnisse dem Container-User (appuser, UID 1000) übereignen.
+  # Sonst legt der Docker-Daemon sie beim ersten Mount als root an, und der als
+  # appuser laufende Container crasht mit PermissionError.
+  - mkdir -p /opt/exo-gateway/data /opt/exo-gateway/certs /opt/exo-gateway/templates
+  - chown -R 1000:1000 /opt/exo-gateway/data /opt/exo-gateway/certs /opt/exo-gateway/templates
+  # Gateway bauen und starten (es gibt kein vorgebautes Image)
+  - cd /opt/exo-gateway && docker compose up -d --build
+  # Update-Watcher (Update-Knopf in der Oberfläche) — dasselbe Skript wie auf
+  # jedem anderen Host, keine eigene Fassung der systemd-Unit.
+  - bash /opt/exo-gateway/install-update-watcher.sh

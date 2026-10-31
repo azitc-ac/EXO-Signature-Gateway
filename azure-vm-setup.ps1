@@ -4,7 +4,7 @@
     Erstellt eine Azure VM für den EXO Signature Gateway.
 
 .DESCRIPTION
-    Legt eine Debian 12 Bookworm-VM (Standard_B2s) mit statischer öffentlicher IP an,
+    Legt eine Debian 12 Bookworm-VM (Standard_B2pls_v2, ARM64) mit statischer öffentlicher IP an,
     öffnet die benötigten Ports (22, 80, 443, 25, 587) und installiert Docker + das Gateway.
 
 .PARAMETER ResourceGroup
@@ -23,8 +23,8 @@
     Pfad zur lokalen SSH-Public-Key-Datei (z.B. ~/.ssh/id_rsa.pub).
 
 .PARAMETER VmSize
-    Azure-VM-Groesse (Standard_B2s ist breit verfuegbar; Standard_B1ms kann je nach
-    Region/Kapazitaet nicht verfuegbar sein).
+    Azure-VM-Groesse. Vorgabe Standard_B2pls_v2 (ARM64, 2 vCPU, 4 GB). Eine x64-Groesse
+    braucht ein passendes Image: -VmImage "Debian:debian-12:12-gen2:latest".
 
 .PARAMETER RepoUrl
     Git-Repository-URL des Gateways.
@@ -34,7 +34,7 @@
         -SshPublicKeyFile "~/.ssh/id_rsa.pub"
 
 .EXAMPLE
-    .\azure-vm-setup.ps1 -Location "northeurope" -VmSize "Standard_B2ps_v2" `
+    .\azure-vm-setup.ps1 -Location "northeurope" -VmSize "Standard_B2als_v2" -VmImage "Debian:debian-12:12-gen2:latest" `
         -SshPublicKeyFile "~/.ssh/id_rsa.pub"
 #>
 
@@ -43,7 +43,7 @@ param(
     [string]$Location       = "northeurope",
     [string]$VmName         = "exo-gateway",
     [string]$AdminUser      = "azureuser",
-    [string]$VmSize         = "Standard_B2ps_v2",
+    [string]$VmSize         = "Standard_B2pls_v2",
     [string]$VmImage        = "Debian:debian-12:12-arm64:latest",
     [string]$SshPublicKeyFile = "~/.ssh/id_rsa.pub",
     [string]$RepoUrl        = "https://github.com/azitc-ac/EXO-Signature-Gateway.git"
@@ -141,70 +141,23 @@ Write-Ok "Öffentliche IP: $publicIp"
 # — der Prozess meldet trotzdem Exit 0, also grün und real leer.
 Write-Step "cloud-init vorbereiten (Docker + EXO Gateway)"
 
-# Kein here-string: PS 5.x auf Windows hat Probleme mit @'...'@ bei LF-Zeilenenden.
-# Array + -join ist auf allen PS-Versionen und Zeilenendungen zuverlässig.
-$cloudInit = @(
-    '#cloud-config',
-    'package_update: true',
-    'package_upgrade: false',
-    'packages:',
-    '  - ca-certificates',
-    '  - curl',
-    '  - git',
-    '',
-    'runcmd:',
-    '  # Docker installieren',
-    '  - install -m 0755 -d /etc/apt/keyrings',
-    '  - curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc',
-    '  - chmod a+r /etc/apt/keyrings/docker.asc',
-    '  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list',
-    '  - apt-get update -qq',
-    '  - apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin',
-    "  - usermod -aG docker $AdminUser",
-    '  - systemctl enable docker',
-    '  # Repository klonen',
-    "  - git clone $RepoUrl /opt/exo-gateway",
-    "  - chown -R ${AdminUser}:${AdminUser} /opt/exo-gateway",
-    '  # .env anlegen (Platzhalter)',
-    '  - |',
-    '    cat > /opt/exo-gateway/.env << ENVEOF',
-    '    WEBUI_SECRET_KEY=$(openssl rand -hex 32)',
-    '    TENANT_ID=',
-    '    CLIENT_ID=',
-    '    CLIENT_SECRET=',
-    '    EXO_SMARTHOST=',
-    '    ENVEOF',
-    "  - chown ${AdminUser}:${AdminUser} /opt/exo-gateway/.env",
-    '  - chmod 600 /opt/exo-gateway/.env',
-    '  # Bind-Mount-Verzeichnisse dem Container-User (appuser, UID 1000) uebereignen.',
-    '  # Sonst legt der Docker-Daemon sie beim ersten Mount als root an und der als',
-    '  # appuser laufende Container crasht mit PermissionError (Restart-Loop / Backup-Restore).',
-    '  - mkdir -p /opt/exo-gateway/data /opt/exo-gateway/certs /opt/exo-gateway/templates',
-    '  - chown -R 1000:1000 /opt/exo-gateway/data /opt/exo-gateway/certs /opt/exo-gateway/templates',
-    '  # Gateway starten',
-    '  - cd /opt/exo-gateway && docker compose up -d',
-    '  # Update-Watcher: Script liegt im Repo, wird via git clone bereits platziert.',
-    '  - chmod 755 /opt/exo-gateway/update-watcher.sh',
-    '  - |',
-    '    cat > /etc/systemd/system/exo-gateway-updater.service << UNITEOF',
-    '    [Unit]',
-    '    Description=EXO Gateway Update Watcher',
-    '    After=docker.service',
-    '    Requires=docker.service',
-    '    [Service]',
-    '    ExecStart=/bin/bash /opt/exo-gateway/update-watcher.sh',
-    '    Restart=always',
-    '    RestartSec=10',
-    '    User=root',
-    '    [Install]',
-    '    WantedBy=multi-user.target',
-    '    UNITEOF',
-    '  - systemctl daemon-reload',
-    '  - systemctl enable --now exo-gateway-updater'
-) -join "`n"
+# Die Konfiguration steht in EINER Datei, die auch die Azure-Vorlage
+# (deploy/azure/azuredeploy.json, „Deploy to Azure“) einbettet. Liegt das Skript
+# allein vor (nur die .ps1 heruntergeladen), kommt sie aus dem Repository.
+$cloudInitPfad = Join-Path $PSScriptRoot "deploy/azure/cloud-init.yaml"
+if (Test-Path $cloudInitPfad) {
+    $cloudInit = Get-Content $cloudInitPfad -Raw -Encoding UTF8
+} else {
+    $rawUrl = ($RepoUrl -replace '\.git$', '' -replace '^https://github\.com/', 'https://raw.githubusercontent.com/') +
+              '/main/deploy/azure/cloud-init.yaml'
+    Write-Info "cloud-init.yaml nicht neben dem Skript — lade $rawUrl"
+    $cloudInit = (Invoke-WebRequest -Uri $rawUrl -UseBasicParsing).Content
+}
+# Zeilenenden auf LF: cloud-init verträgt CRLF aus einem Windows-Checkout nicht.
+$cloudInit = ($cloudInit -replace "`r`n", "`n").Replace('__ADMIN_USER__', $AdminUser).Replace('__REPO_URL__', $RepoUrl)
 
 $cloudInitFile = [System.IO.Path]::GetTempFileName()
-$cloudInit | Set-Content $cloudInitFile -Encoding UTF8
+[System.IO.File]::WriteAllText($cloudInitFile, $cloudInit, (New-Object System.Text.UTF8Encoding $false))
 Write-Ok "cloud-init-Datei vorbereitet"
 
 # ── Netzwerk-Sicherheitsgruppe explizit anlegen ───────────────────────────────
@@ -319,10 +272,6 @@ Write-Host "    → docker compose restart (auf der VM)"
 Write-Host ""
 Write-Host " 4. HTTPS-Setup-Wizard:" -ForegroundColor Cyan
 Write-Host "    https://sig.example.com"
-Write-Host ""
-Write-Host " 5. .env auf der VM ergänzen:" -ForegroundColor Cyan
-Write-Host "    ssh $AdminUser@$publicIp"
-Write-Host "    nano /opt/exo-gateway/.env"
 Write-Host ""
 Write-Host " SSH:" -ForegroundColor Gray
 Write-Host "    ssh $AdminUser@$publicIp"
