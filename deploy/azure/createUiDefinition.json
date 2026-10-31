@@ -1,0 +1,100 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "basics": [],
+    "steps": [
+      {
+        "name": "vm",
+        "label": "Gateway-VM",
+        "subLabel": {
+          "preValidation": "VM konfigurieren",
+          "postValidation": "Fertig"
+        },
+        "bladeTitle": "Gateway-VM",
+        "elements": [
+          {
+            "name": "vmName",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Name der VM",
+            "defaultValue": "exo-gateway",
+            "constraints": {
+              "required": true,
+              "regex": "^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$",
+              "validationMessage": "Kleinbuchstaben, Ziffern und Bindestrich, 2–50 Zeichen."
+            }
+          },
+          {
+            "name": "vmSize",
+            "type": "Microsoft.Compute.SizeSelector",
+            "label": "Größe",
+            "toolTip": "Angezeigt werden nur Größen, die in deinem Abo und deiner Region verfügbar sind. 2 vCPU und 4 GB reichen.",
+            "recommendedSizes": [
+              "Standard_B2pls_v2",
+              "Standard_B2ps_v2",
+              "Standard_B2als_v2",
+              "Standard_B2as_v2",
+              "Standard_B2s",
+              "Standard_B2ms"
+            ],
+            "constraints": {
+              "allowedSizes": [
+                "Standard_B2pls_v2",
+                "Standard_B2ps_v2",
+                "Standard_B2als_v2",
+                "Standard_B2as_v2",
+                "Standard_B2s",
+                "Standard_B2ms"
+              ]
+            },
+            "osPlatform": "Linux",
+            "count": 1,
+            "visible": true
+          },
+          {
+            "name": "adminUsername",
+            "type": "Microsoft.Compute.UserNameTextBox",
+            "label": "SSH-Benutzer",
+            "defaultValue": "azureuser",
+            "osPlatform": "Linux",
+            "constraints": {
+              "required": true
+            }
+          },
+          {
+            "name": "adminSshPublicKey",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Öffentlicher SSH-Schlüssel",
+            "toolTip": "Inhalt von ~/.ssh/id_ed25519.pub o. ä., eine Zeile.",
+            "constraints": {
+              "required": true,
+              "regex": "^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( .*)?$",
+              "validationMessage": "Erwartet wird ein öffentlicher Schlüssel, z. B. „ssh-ed25519 AAAA… name“."
+            }
+          },
+          {
+            "name": "sshQuelle",
+            "type": "Microsoft.Common.TextBox",
+            "label": "SSH erlaubt von",
+            "defaultValue": "*",
+            "toolTip": "„*“ für überall oder deine IP bzw. dein Netz, z. B. 203.0.113.7/32.",
+            "constraints": {
+              "required": true,
+              "regex": "^(\\*|(\\d{1,3}\\.){3}\\d{1,3}(/\\d{1,2})?)$",
+              "validationMessage": "„*“ oder eine IPv4-Adresse, optional mit /Präfix."
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "location": "[location()]",
+      "vmName": "[steps('vm').vmName]",
+      "vmSize": "[steps('vm').vmSize]",
+      "adminUsername": "[steps('vm').adminUsername]",
+      "adminSshPublicKey": "[steps('vm').adminSshPublicKey]",
+      "sshQuelle": "[steps('vm').sshQuelle]"
+    }
+  }
+}

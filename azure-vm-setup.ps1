@@ -34,7 +34,7 @@
         -SshPublicKeyFile "~/.ssh/id_rsa.pub"
 
 .EXAMPLE
-    .\azure-vm-setup.ps1 -Location "northeurope" -VmSize "Standard_D2als_v6" -VmImage "Debian:debian-12:12-gen2:latest" `
+    .\azure-vm-setup.ps1 -Location "northeurope" -VmSize "Standard_B2als_v2" -VmImage "Debian:debian-12:12-gen2:latest" `
         -SshPublicKeyFile "~/.ssh/id_rsa.pub"
 #>
 
