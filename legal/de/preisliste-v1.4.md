@@ -1,14 +1,19 @@
 # Preisliste EXO Signature Gateway und EXO Signature Hub
 
-**Version 1.3 — Stand 9. September 2026**
+**Version 1.4 — Stand 30. Oktober 2026**
 
 Alle Preise verstehen sich in Euro zuzüglich der gesetzlichen Umsatzsteuer und
-gelten gegenüber Unternehmern i.S.d. § 14 BGB.
+gelten gegenüber Unternehmern i.S.d. § 14 BGB, juristischen Personen und
+rechtsfähigen Personengesellschaften.
 
 ---
 
 ## Änderungen gegenüber früheren Fassungen
 
+- **1.4 (30. Oktober 2026)** — Nonprofit Edition: gemeinnützige Organisationen
+  nutzen das Gateway kostenlos und ohne Postfach-Obergrenze (Abschnitt 1).
+  Die Preise gelten ausdrücklich auch gegenüber juristischen Personen und
+  rechtsfähigen Personengesellschaften, etwa gemeinnützigen Vereinen.
 - **1.3 (9. September 2026)** — Rechenbeispiel für das 101. Postfach korrigiert
   (eine Lizenz, nicht zehn — es gibt keine Mindestabnahme). Individuelle
   Konditionen bereits ab 250 Lizenzen auf Anfrage. Zertifikats-Richtpreise:
@@ -62,6 +67,26 @@ Beispiele:
 
 Ab 250 Lizenzen (350 aktivierte Postfächer) sind individuelle Konditionen auf
 Anfrage möglich; die obige Staffel gilt als Listenpreis.
+
+### Nonprofit Edition
+
+| Umfang | Preis |
+|---|---|
+| Gemeinnützige Organisationen, beliebig viele Postfächer | kostenfrei |
+
+Voraussetzung ist die Anerkennung als gemeinnützige Organisation bei Microsoft
+for Nonprofits, ein Freistellungsbescheid (bzw. Feststellungsbescheid nach
+§ 60a AO) oder eine gleichwertige Anerkennung im Staat des Sitzes —
+unabhängig von Größe und Rechtsform. Ab dem 101. Postfach stellt der
+Lizenzgeber auf Nachweis eine kostenfreie Nonprofit-Lizenz mit zwölf Monaten
+Laufzeit aus; sie wird mit erneutem Nachweis verlängert. Entfällt die
+Voraussetzung, endet die Nonprofit-Lizenz mit ihrer laufenden Laufzeit;
+danach gelten die Community Edition und die kommerzielle Lizenz. Für die Zeit
+davor wird nichts nachberechnet.
+
+S/MIME-Zertifikate
+(Abschnitt 2) sind von der Nonprofit Edition nicht umfasst. Maßgeblich ist
+LICENSE.md des Gateways.
 
 ---
 
@@ -200,4 +225,4 @@ Lizenzbedingungen der jeweils genutzten Edition.
 Alexander Zarenko - IT Consulting
 Triebelsstraße 4, 52066 Aachen
 
-*Version 1.1 — 28. Juli 2026*
+*Version 1.4 — 30. Oktober 2026*

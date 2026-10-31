@@ -22,24 +22,24 @@ _DB_PATH = Path(config.DATA_DIR) / "legal_consent.db"
 # ── Document registry ────────────────────────────────────────────────────────
 CURRENT_DOCUMENTS: dict[str, dict] = {
     "hub-terms": {
-        "version": "2.3",
+        "version": "2.4",
         "label_de": "Hub-Nutzungsbedingungen",
-        "path_de": "de/hub-nutzungsbedingungen-v2.3.md",
+        "path_de": "de/hub-nutzungsbedingungen-v2.4.md",
     },
     "license-supplement": {
-        "version": "2.1",
+        "version": "3.0",
         "label_de": "Lizenzbedingungen-Ergänzung",
-        "path_de": "de/lizenzbedingungen-ergaenzung-v2.1.md",
+        "path_de": "de/lizenzbedingungen-ergaenzung-v3.0.md",
     },
     "payment-invoice": {
-        "version": "1.0",
+        "version": "1.1",
         "label_de": "Zahlungsbedingungen Rechnungskauf",
-        "path_de": "de/zahlungsbedingungen-rechnung-v1.0.md",
+        "path_de": "de/zahlungsbedingungen-rechnung-v1.1.md",
     },
     "price-list": {
-        "version": "1.3",
+        "version": "1.4",
         "label_de": "Preisliste",
-        "path_de": "de/preisliste-v1.3.md",
+        "path_de": "de/preisliste-v1.4.md",
         "no_consent_required": True,
     },
     # Eine Datenschutzerklärung ist eine INFORMATION nach Art. 13/14 DSGVO, keine
@@ -47,9 +47,9 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
     # no_consent_required: sie erscheint in der Dokumentenliste und ist lesbar,
     # taucht aber in keinem Consent-Gate auf.
     "product-privacy": {
-        "version": "1.1",
+        "version": "1.2",
         "label_de": "Datenschutzerklärung (Gateway & Hub)",
-        "path_de": "de/produkt-datenschutz-v1.1.md",
+        "path_de": "de/produkt-datenschutz-v1.2.md",
         "no_consent_required": True,
     },
     # Art. 28 Abs. 3 DSGVO verlangt, dass die Verarbeitung durch einen Vertrag
@@ -57,9 +57,9 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
     # Deshalb echte Zustimmung (kein no_consent_required) und ein eigenes Gate
     # auf dem Support-Upload (CONTEXT_DOCUMENTS["support_upload"]).
     "dpa": {
-        "version": "1.0",
+        "version": "1.1",
         "label_de": "Auftragsverarbeitungsvertrag (Diagnosepakete)",
-        "path_de": "de/auftragsverarbeitung-v1.0.md",
+        "path_de": "de/auftragsverarbeitung-v1.1.md",
     },
 }
 

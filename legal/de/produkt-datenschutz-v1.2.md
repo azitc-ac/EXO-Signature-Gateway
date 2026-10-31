@@ -1,6 +1,6 @@
 # Datenschutzerklärung für EXO Signature Gateway und EXO Signature Hub
 
-**Version 1.1 — Stand 9. September 2026**
+**Version 1.2 — Stand 30. Oktober 2026**
 
 Diese Erklärung informiert nach Art. 13 und 14 DSGVO über die Verarbeitung
 personenbezogener Daten im Zusammenhang mit der Software **EXO Signature
@@ -23,10 +23,16 @@ E-Mail: alexander@zarenko.net
 
 ## 2. Rollenverteilung und Abgrenzung
 
-2.1 Das Gateway wird **vom Kunden in eigener Infrastruktur betrieben**. Für die
-dabei verarbeiteten E-Mail-Inhalte und Verkehrsdaten ist ausschließlich der
-Kunde Verantwortlicher im Sinne des Art. 4 Nr. 7 DSGVO. Wir haben auf diese
-Daten keinen Zugriff.
+2.1 Das Gateway wird **in der Umgebung des Kunden betrieben**, durch ihn
+selbst oder einen von ihm beauftragten Dienstleister. Für die dabei
+verarbeiteten E-Mail-Inhalte und Verkehrsdaten ist ausschließlich der Kunde
+Verantwortlicher im Sinne des Art. 4 Nr. 7 DSGVO. Wir haben auf diese Daten
+keinen Zugriff.
+
+2.1a Betreiben wir oder ein von uns autorisierter Partner das Gateway als
+Managed Service, gilt dafür eine gesonderte Vereinbarung einschließlich eines
+Vertrags zur Auftragsverarbeitung. Ziffer 2.1 Satz 3 und Ziffer 2.3 gelten in
+diesem Fall nicht; maßgeblich ist die gesonderte Vereinbarung.
 
 2.2 Verantwortlicher sind wir nur für diejenigen Daten, die uns über den Hub
 erreichen. Diese sind in Ziffer 4 abschließend beschrieben.
@@ -229,4 +235,4 @@ oben genannte Version.
 
 ---
 
-*Version 1.0 — 25. Juli 2026*
+*Version 1.2 — 30. Oktober 2026*

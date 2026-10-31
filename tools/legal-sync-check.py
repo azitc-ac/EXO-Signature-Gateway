@@ -130,6 +130,23 @@ def main(argv: list[str]) -> int:
             print(f"      Gateway {a[:12]} != Hub {b[:12]}  → mit --fix angleichen")
             probleme += 1
 
+    # Abgelöste Fassungen: Beim Anheben einer Version entsteht im Gateway eine
+    # neue Datei, die alte verschwindet (git mv). Ohne diesen Schritt blieb die
+    # alte Fassung im Hub liegen, und dessen Test „Gateway und Hub haben
+    # denselben Text" schlug fehl — bis 30.10.2026 wurde das von Hand nachgezogen.
+    # Die alte Fassung bleibt über die Git-Historie des Hubs zugänglich.
+    soll_pfade = {hub_rel for _, hub_rel in paare}
+    for hub_datei in sorted((HUB / "legal").rglob("*.md")):
+        rel = str(hub_datei.relative_to(HUB))
+        if rel in soll_pfade or hub_datei.name == "README.md":
+            continue
+        if fix:
+            hub_datei.unlink()
+            print(f"-- aus dem Hub entfernt (abgelöst): {rel}")
+        else:
+            print(f"!! abgelöste Fassung liegt noch im Hub: {rel}  → mit --fix entfernen")
+            probleme += 1
+
     print(f"\n{len(paare)} Datei(en) geprüft, {probleme} Abweichung(en).")
     return 1 if probleme else 0
 
