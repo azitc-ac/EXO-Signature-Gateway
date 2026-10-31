@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Erzeugt deploy/azure/azuredeploy.json („Deploy to Azure“) aus cloud-init.yaml.
+"""Erzeugt deploy/azure/azuredeploy.json („Deploy to Azure“) aus cloud-init.yaml,
+dazu den Portal-Assistenten deploy/azure/createUiDefinition.json.
 
 Warum erzeugt und nicht geschrieben: Eine ARM-Vorlage kann beim Ausrollen keine
 Datei nachladen, cloud-init muss also als Text in ihr stehen. Von Hand gepflegt
@@ -18,16 +19,26 @@ from pathlib import Path
 GATEWAY = Path(__file__).resolve().parent.parent
 QUELLE = GATEWAY / "deploy" / "azure" / "cloud-init.yaml"
 ZIEL = GATEWAY / "deploy" / "azure" / "azuredeploy.json"
+ZIEL_UI = GATEWAY / "deploy" / "azure" / "createUiDefinition.json"
+
+# Öffentlicher SSH-Schlüssel in einer Zeile (OpenSSH-Format).
+SSH_MUSTER = r"^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( .*)?$"
 
 REPO_URL = "https://github.com/azitc-ac/EXO-Signature-Gateway.git"
 
+# KANDIDATEN, keine Verfügbarkeitsliste. Welche Größe ein Kunde wirklich
+# bekommt, entscheidet Azure je Abo, Region und Zone — unser eigenes Abo sagt
+# darüber nichts. Der Assistent (createUiDefinition, Microsoft.Compute.SizeSelector)
+# zeigt aus dieser Liste nur, was im Abo des Kunden verfügbar ist.
+#
+# Aufnahmekriterien: 2 vCPU, 4–8 GB, SCSI-Datenträger zulässig und beschleunigte
+# Netzwerkanbindung NICHT Pflicht — die Vorlage setzt beides nicht. Ausgeschlossen
+# deshalb z. B. Dalsv6/Dasv6 (nur NVMe, Accelerated Networking Pflicht).
+#
 # ARM64 ist die Vorgabe (günstiger, im Betrieb erprobt). Das Image muss zur
 # Architektur der Größe passen — Debian veröffentlicht je Architektur eine SKU.
-GROESSEN_ARM64 = ["Standard_B2pls_v2", "Standard_B2ps_v2", "Standard_B4pls_v2", "Standard_D2pls_v5"]
-# Nur Größen, die `az vm list-skus` in northeurope tatsächlich führt (31.10.2026;
-# Einschränkung dort nur „Zone“, die Vorlage setzt keine). B2als_v2, B2s und B2ms
-# fehlten in dieser Liste und sind deshalb nicht angeboten.
-GROESSEN_X64 = ["Standard_D2als_v6"]
+GROESSEN_ARM64 = ["Standard_B2pls_v2", "Standard_B2ps_v2"]
+GROESSEN_X64 = ["Standard_B2als_v2", "Standard_B2as_v2", "Standard_B2s", "Standard_B2ms"]
 
 # Eingehende Ports — dieselben wie in azure-vm-setup.ps1.
 PORTS = [
@@ -171,6 +182,64 @@ def vorlage(cloud_init: str) -> dict:
     }
 
 
+def assistent() -> dict:
+    """Portal-Assistent. Die Ausgaben heissen wie die Parameter der Vorlage.
+
+    SSH-Schlüssel bewusst als Textfeld, nicht als Microsoft.Compute.CredentialsCombo:
+    Dessen Option „Neues Schlüsselpaar erzeugen“ lässt sich nicht ausblenden und
+    liefert dann einen LEEREN Schlüssel (die Vorlage müsste selbst ein
+    sshPublicKeys-Objekt anlegen).
+    """
+    return {
+        "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+        "handler": "Microsoft.Azure.CreateUIDef",
+        "version": "0.1.2-preview",
+        "parameters": {
+            "basics": [],
+            "steps": [{
+                "name": "vm", "label": "Gateway-VM",
+                "subLabel": {"preValidation": "VM konfigurieren", "postValidation": "Fertig"},
+                "bladeTitle": "Gateway-VM",
+                "elements": [
+                    {"name": "vmName", "type": "Microsoft.Common.TextBox", "label": "Name der VM",
+                     "defaultValue": "exo-gateway",
+                     "constraints": {"required": True, "regex": "^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$",
+                                     "validationMessage": "Kleinbuchstaben, Ziffern und Bindestrich, 2–50 Zeichen."}},
+                    {"name": "vmSize", "type": "Microsoft.Compute.SizeSelector", "label": "Größe",
+                     "toolTip": "Angezeigt werden nur Größen, die in deinem Abo und deiner Region verfügbar sind. "
+                                "2 vCPU und 4 GB reichen.",
+                     "recommendedSizes": GROESSEN_ARM64 + GROESSEN_X64,
+                     "constraints": {"allowedSizes": GROESSEN_ARM64 + GROESSEN_X64},
+                     "osPlatform": "Linux", "count": 1, "visible": True},
+                    {"name": "adminUsername", "type": "Microsoft.Compute.UserNameTextBox",
+                     "label": "SSH-Benutzer", "defaultValue": "azureuser", "osPlatform": "Linux",
+                     "constraints": {"required": True}},
+                    {"name": "adminSshPublicKey", "type": "Microsoft.Common.TextBox",
+                     "label": "Öffentlicher SSH-Schlüssel",
+                     "toolTip": "Inhalt von ~/.ssh/id_ed25519.pub o. ä., eine Zeile.",
+                     "constraints": {"required": True, "regex": SSH_MUSTER,
+                                     "validationMessage": "Erwartet wird ein öffentlicher Schlüssel, "
+                                                          "z. B. „ssh-ed25519 AAAA… name“."}},
+                    {"name": "sshQuelle", "type": "Microsoft.Common.TextBox", "label": "SSH erlaubt von",
+                     "defaultValue": "*",
+                     "toolTip": "„*“ für überall oder deine IP bzw. dein Netz, z. B. 203.0.113.7/32.",
+                     "constraints": {"required": True,
+                                     "regex": r"^(\*|(\d{1,3}\.){3}\d{1,3}(/\d{1,2})?)$",
+                                     "validationMessage": "„*“ oder eine IPv4-Adresse, optional mit /Präfix."}},
+                ],
+            }],
+            "outputs": {
+                "location": "[location()]",
+                "vmName": "[steps('vm').vmName]",
+                "vmSize": "[steps('vm').vmSize]",
+                "adminUsername": "[steps('vm').adminUsername]",
+                "adminSshPublicKey": "[steps('vm').adminSshPublicKey]",
+                "sshQuelle": "[steps('vm').sshQuelle]",
+            },
+        },
+    }
+
+
 def erzeugen() -> str:
     text = QUELLE.read_text(encoding="utf-8")
     # Ein ARM-String, der mit "[" beginnt, wäre ein Ausdruck.
@@ -178,18 +247,23 @@ def erzeugen() -> str:
     return json.dumps(vorlage(text), ensure_ascii=False, indent=2) + "\n"
 
 
+def erzeugen_ui() -> str:
+    return json.dumps(assistent(), ensure_ascii=False, indent=2) + "\n"
+
+
 def main(argv: list[str]) -> int:
-    soll = erzeugen()
-    ist = ZIEL.read_text(encoding="utf-8") if ZIEL.exists() else ""
-    if ist == soll:
-        print(f"ok  {ZIEL.relative_to(GATEWAY)} ist auf dem Stand von {QUELLE.name}")
-        return 0
-    if "--fix" in argv:
-        ZIEL.write_text(soll, encoding="utf-8")
-        print(f"++ erzeugt: {ZIEL.relative_to(GATEWAY)}")
-        return 0
-    print(f"!! {ZIEL.relative_to(GATEWAY)} weicht von {QUELLE.name} ab  → python3 tools/azure-vorlage.py --fix")
-    return 1
+    fehler = 0
+    for ziel, soll in ((ZIEL, erzeugen()), (ZIEL_UI, erzeugen_ui())):
+        ist = ziel.read_text(encoding="utf-8") if ziel.exists() else ""
+        if ist == soll:
+            print(f"ok  {ziel.relative_to(GATEWAY)}")
+        elif "--fix" in argv:
+            ziel.write_text(soll, encoding="utf-8")
+            print(f"++ erzeugt: {ziel.relative_to(GATEWAY)}")
+        else:
+            print(f"!! {ziel.relative_to(GATEWAY)} veraltet  → python3 tools/azure-vorlage.py --fix")
+            fehler += 1
+    return 1 if fehler else 0
 
 
 if __name__ == "__main__":

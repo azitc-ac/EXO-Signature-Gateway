@@ -63,3 +63,31 @@ def test_image_passt_zur_architektur():
     vorlage = json.loads(VORLAGE.read_text(encoding="utf-8"))
     assert vorlage["variables"]["armGroessen"] == w.GROESSEN_ARM64
     assert "'12-arm64', '12-gen2'" in vorlage["variables"]["imageSku"]
+
+
+UI = ROOT / "deploy" / "azure" / "createUiDefinition.json"
+
+
+def test_assistent_ist_erzeugt_und_passt_zur_vorlage():
+    """Der Portal-Assistent muss jeden Pflichtparameter liefern, keinen
+    unbekannten, und dieselben Größen anbieten, die die Vorlage annimmt."""
+    assert UI.read_text(encoding="utf-8") == _werkzeug().erzeugen_ui(), \
+        "createUiDefinition.json veraltet → python3 tools/azure-vorlage.py --fix"
+    ui = json.loads(UI.read_text(encoding="utf-8"))["parameters"]
+    vorlage = json.loads(VORLAGE.read_text(encoding="utf-8"))
+    params = vorlage["parameters"]
+    ausgaben = set(ui["outputs"])
+    assert ausgaben <= set(params), ausgaben - set(params)
+    pflicht = {n for n, p in params.items() if "defaultValue" not in p}
+    assert pflicht <= ausgaben, pflicht - ausgaben
+    groesse = next(e for e in ui["steps"][0]["elements"] if e["type"] == "Microsoft.Compute.SizeSelector")
+    assert groesse["constraints"]["allowedSizes"] == params["vmSize"]["allowedValues"]
+    assert groesse["recommendedSizes"][0] == params["vmSize"]["defaultValue"]
+
+
+def test_knopf_nimmt_den_assistenten_mit():
+    for datei in (ROOT / "README.md", ROOT / "docs" / "installation.md"):
+        text = datei.read_text(encoding="utf-8")
+        assert "createUIDefinitionUri%2F" not in text  # Trenner bleibt unkodiert
+        assert "/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com" in text, datei.name
+        assert "createUiDefinition.json" in text, datei.name

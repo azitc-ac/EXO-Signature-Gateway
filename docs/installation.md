@@ -120,13 +120,14 @@ Für den Azure-Betrieb `REINJECT_MODE=graph` (Graph-only) oder `graph_plus` (Gra
 
 ### Azure VM anlegen (Vorlage im Portal)
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2FcreateUiDefinition.json)
 
 Der Knopf öffnet die Vorlage `deploy/azure/azuredeploy.json` im Azure-Portal. Du
 wählst Abo, Ressourcengruppe und Region und trägst deinen öffentlichen
 SSH-Schlüssel ein. Die Vorlage legt an:
 
-- eine Debian-12-VM, Vorgabe `Standard_B2pls_v2` (ARM64, 2 vCPU, 4 GB), wahlweise eine x64-Größe,
+- eine Debian-12-VM, Vorgabe `Standard_B2pls_v2` (ARM64, 2 vCPU, 4 GB), wahlweise eine x64-Größe.
+  Die Größenauswahl zeigt nur, was in deinem Abo und deiner Region verfügbar ist,
 - eine statische öffentliche IP,
 - eine Netzwerk-Sicherheitsgruppe mit 22, 80, 443, 25 und 587 eingehend (SSH auf Wunsch nur von deiner IP, Feld *Ssh Quelle*),
 - ein eigenes virtuelles Netz.

@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.52 — 2026-10-31 — Azure-Vorlage: Größenauswahl im eigenen Abo, Assistent im Portal
+
+- **Neu: Assistent beim „Deploy to Azure“-Knopf** (`deploy/azure/createUiDefinition.json`).
+  Er fragt VM-Name, Größe, SSH-Benutzer, öffentlichen SSH-Schlüssel und die
+  erlaubte SSH-Quelle ab und prüft die Eingaben schon im Portal. Die
+  Größenauswahl zeigt nur Größen, die in deinem Abo und in der gewählten
+  Region verfügbar sind; vorgeschlagen wird `Standard_B2pls_v2`.
+- **Korrektur zu v1.10.50.** Welche VM-Größen verfügbar sind, legt Azure je
+  Abo, Region und Zone fest. Die Liste aus v1.10.50 beruhte auf der
+  Verfügbarkeit in einem einzigen Abo und sagte über andere Abos nichts aus.
+  Auch die Begründung dort stimmte nicht: Eine nicht verfügbare Größe lässt
+  die Prüfung der Vorlage scheitern, bevor etwas angelegt wird, nicht erst das
+  Anlegen der VM. Die Vorlage führt jetzt eine Kandidatenliste, aus der der
+  Assistent filtert: ARM64 `Standard_B2pls_v2`, `Standard_B2ps_v2`, x64
+  `Standard_B2als_v2`, `Standard_B2as_v2`, `Standard_B2s`, `Standard_B2ms`.
+- `Standard_D2als_v6` ist nicht mehr dabei. Die Reihe läuft nur mit
+  NVMe-Datenträgern und verlangt beschleunigte Netzwerkanbindung; beides setzt
+  die Vorlage nicht, die Bereitstellung wäre gescheitert. Das Beispiel in
+  `azure-vm-setup.ps1` nennt jetzt `Standard_B2als_v2`.
+- Ein Test prüft, dass der Assistent jeden Pflichtparameter der Vorlage
+  liefert und dieselben Größen anbietet, die die Vorlage annimmt.
+
+**Zu tun:** Nichts. Betrifft nur das Anlegen neuer VMs.
+
+---
+
 ## v1.10.51 — 2026-10-31 — Nonprofit Edition, Betrieb nach Umgebung, neue Vertragsfassungen
 
 - **Neu: Nonprofit Edition (LICENSE.md).** Gemeinnützige Organisationen nutzen
