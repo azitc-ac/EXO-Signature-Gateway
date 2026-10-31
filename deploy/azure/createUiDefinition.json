@@ -29,7 +29,7 @@
             "name": "vmSize",
             "type": "Microsoft.Compute.SizeSelector",
             "label": "Größe",
-            "toolTip": "Angezeigt werden nur Größen, die in deinem Abo und deiner Region verfügbar sind. 2 vCPU und 4 GB reichen.",
+            "toolTip": "Größen, die in deinem Abo und deiner Region nicht verfügbar sind, trägt die Liste mit einem Hinweis (i). Wähle eine ohne Hinweis. 2 vCPU und 4 GB reichen.",
             "recommendedSizes": [
               "Standard_B2pls_v2",
               "Standard_B2ps_v2",

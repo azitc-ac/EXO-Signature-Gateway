@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.53 — 2026-10-31 — Azure-Assistent: Größenauswahl kennzeichnet statt filtert
+
+- **Korrektur zu v1.10.52.** Die Größenauswahl des Assistenten blendet nicht
+  verfügbare Größen nicht aus, wie dort beschrieben. Sie listet alle
+  Kandidaten und kennzeichnet die im Abo und in der Region gesperrten mit
+  einem Hinweis (i): „Größe nicht verfügbar … NotAvailableForSubscription“.
+  Im Portal geprüft; die Kennzeichnung stimmte mit der Verfügbarkeitsabfrage
+  des Abos überein. Tooltip und `docs/installation.md` sagen jetzt, dass du
+  eine Größe ohne Hinweis wählst. Wählst du trotzdem eine gesperrte, lehnt
+  Azure sie bei der Prüfung ab, bevor etwas angelegt wird.
+- `docs/installation.md` nennt das Feld für die SSH-Quelle mit seiner
+  Beschriftung im Assistenten (*SSH erlaubt von*).
+
+**Zu tun:** Nichts. Betrifft nur das Anlegen neuer VMs.
+
+---
+
 ## v1.10.52 — 2026-10-31 — Azure-Vorlage: Größenauswahl im eigenen Abo, Assistent im Portal
 
 - **Neu: Assistent beim „Deploy to Azure“-Knopf** (`deploy/azure/createUiDefinition.json`).

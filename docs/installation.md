@@ -127,9 +127,9 @@ wählst Abo, Ressourcengruppe und Region und trägst deinen öffentlichen
 SSH-Schlüssel ein. Die Vorlage legt an:
 
 - eine Debian-12-VM, Vorgabe `Standard_B2pls_v2` (ARM64, 2 vCPU, 4 GB), wahlweise eine x64-Größe.
-  Die Größenauswahl zeigt nur, was in deinem Abo und deiner Region verfügbar ist,
+  In der Größenauswahl sind Größen, die in deinem Abo und deiner Region nicht verfügbar sind, mit einem Hinweis (i) gekennzeichnet.
 - eine statische öffentliche IP,
-- eine Netzwerk-Sicherheitsgruppe mit 22, 80, 443, 25 und 587 eingehend (SSH auf Wunsch nur von deiner IP, Feld *Ssh Quelle*),
+- eine Netzwerk-Sicherheitsgruppe mit 22, 80, 443, 25 und 587 eingehend (SSH auf Wunsch nur von deiner IP, Feld *SSH erlaubt von*),
 - ein eigenes virtuelles Netz.
 
 Beim ersten Start installiert cloud-init Docker, holt das Gateway aus GitHub, baut

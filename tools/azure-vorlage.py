@@ -29,7 +29,12 @@ REPO_URL = "https://github.com/azitc-ac/EXO-Signature-Gateway.git"
 # KANDIDATEN, keine Verfügbarkeitsliste. Welche Größe ein Kunde wirklich
 # bekommt, entscheidet Azure je Abo, Region und Zone — unser eigenes Abo sagt
 # darüber nichts. Der Assistent (createUiDefinition, Microsoft.Compute.SizeSelector)
-# zeigt aus dieser Liste nur, was im Abo des Kunden verfügbar ist.
+# zeigt diese Liste im Abo des Kunden an und KENNZEICHNET, was dort nicht
+# verfügbar ist („Größe nicht verfügbar … NotAvailableForSubscription“) — er
+# blendet es NICHT aus (Portal-Test 31.10.2026, devProgram-Abo, East US: 6 von 6
+# gelistet, B2s/B2ms markiert, deckungsgleich mit `az vm list-skus --all`).
+# Wählt jemand trotzdem eine gesperrte Größe, verwirft Azure sie bei der
+# Validierung, bevor etwas angelegt wird.
 #
 # Aufnahmekriterien: 2 vCPU, 4–8 GB, SCSI-Datenträger zulässig und beschleunigte
 # Netzwerkanbindung NICHT Pflicht — die Vorlage setzt beides nicht. Ausgeschlossen
@@ -206,7 +211,8 @@ def assistent() -> dict:
                      "constraints": {"required": True, "regex": "^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$",
                                      "validationMessage": "Kleinbuchstaben, Ziffern und Bindestrich, 2–50 Zeichen."}},
                     {"name": "vmSize", "type": "Microsoft.Compute.SizeSelector", "label": "Größe",
-                     "toolTip": "Angezeigt werden nur Größen, die in deinem Abo und deiner Region verfügbar sind. "
+                     "toolTip": "Größen, die in deinem Abo und deiner Region nicht verfügbar sind, trägt die Liste "
+                                "mit einem Hinweis (i). Wähle eine ohne Hinweis. "
                                 "2 vCPU und 4 GB reichen.",
                      "recommendedSizes": GROESSEN_ARM64 + GROESSEN_X64,
                      "constraints": {"allowedSizes": GROESSEN_ARM64 + GROESSEN_X64},
