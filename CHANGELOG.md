@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.55 — 2026-10-31 — CI: ARM-TTK-Schritt findet das Modul
+
+- Der mit v1.10.54 eingeführte CI-Schritt für Microsofts Vorlagenprüfung
+  (ARM-TTK) brach ab, bevor er prüfte: Das Release-Archiv legt das Modul eine
+  Verzeichnisebene tiefer ab als angenommen. Der Schritt sucht es jetzt im
+  entpackten Archiv. Lokal nachgestellt: 49 von 49 Prüfungen bestanden; mit
+  absichtlich eingebautem Fehler wird der Schritt rot.
+
+**Zu tun:** Nichts. Betrifft nur die Prüfungen im Repository.
+
+---
+
 ## v1.10.54 — 2026-10-31 — Azure-Vorlage: Marketplace-Paket, Microsofts Vorlagenprüfung in der CI
 
 - **Neu: Paket für den Azure Marketplace.** `python3 tools/azure-vorlage.py

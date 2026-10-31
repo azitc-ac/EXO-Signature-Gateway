@@ -143,7 +143,10 @@ jobs:
         run: |
           Invoke-WebRequest https://github.com/Azure/arm-ttk/releases/download/20260213/arm-ttk.zip -OutFile $env:RUNNER_TEMP/arm-ttk.zip
           Expand-Archive $env:RUNNER_TEMP/arm-ttk.zip -DestinationPath $env:RUNNER_TEMP/arm-ttk
-          Import-Module $env:RUNNER_TEMP/arm-ttk/arm-ttk/arm-ttk.psd1
+          # Das ZIP verschachtelt arm-ttk/arm-ttk/arm-ttk.psd1 — Pfad suchen, nicht raten.
+          $modul = Get-ChildItem $env:RUNNER_TEMP/arm-ttk -Recurse -Filter arm-ttk.psd1 | Select-Object -First 1
+          if (-not $modul) { "arm-ttk.psd1 nicht gefunden"; exit 1 }
+          Import-Module $modul.FullName
           $r = Test-AzTemplate -TemplatePath deploy/azure
           $r | Where-Object { -not $_.Passed -or $_.Warnings } | ForEach-Object {
             "$($_.File.Name) :: $($_.Name)"; $_.Errors | ForEach-Object { "  " + $_.Exception.Message }; $_.Warnings | ForEach-Object { "  " + $_.Message } }
