@@ -143,7 +143,10 @@ docker compose up -d --build
 3. Der Einrichtungsassistent legt die App-Registrierung in Entra ID an und
    richtet Connector, Transportregel und Verteilerliste in Exchange Online ein.
 
-Voraussetzungen, Azure-VM per Skript, Betrieb vor Ort und Berechtigungen:
+In Azure geht es ohne Kommandozeile: [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json)
+legt VM, statische IP und Firewall an und installiert das Gateway.
+
+Voraussetzungen, Azure-VM per Vorlage oder Skript, Betrieb vor Ort und Berechtigungen:
 **[docs/installation.md](docs/installation.md)**
 
 ---
