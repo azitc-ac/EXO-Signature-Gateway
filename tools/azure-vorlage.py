@@ -24,7 +24,10 @@ REPO_URL = "https://github.com/azitc-ac/EXO-Signature-Gateway.git"
 # ARM64 ist die Vorgabe (günstiger, im Betrieb erprobt). Das Image muss zur
 # Architektur der Größe passen — Debian veröffentlicht je Architektur eine SKU.
 GROESSEN_ARM64 = ["Standard_B2pls_v2", "Standard_B2ps_v2", "Standard_B4pls_v2", "Standard_D2pls_v5"]
-GROESSEN_X64 = ["Standard_B2als_v2", "Standard_B2s", "Standard_B2ms", "Standard_D2als_v6"]
+# Nur Größen, die `az vm list-skus` in northeurope tatsächlich führt (31.10.2026;
+# Einschränkung dort nur „Zone“, die Vorlage setzt keine). B2als_v2, B2s und B2ms
+# fehlten in dieser Liste und sind deshalb nicht angeboten.
+GROESSEN_X64 = ["Standard_D2als_v6"]
 
 # Eingehende Ports — dieselben wie in azure-vm-setup.ps1.
 PORTS = [

@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.50 — 2026-10-31 — Azure-Vorlage: nur tatsächlich angebotene VM-Größen
+
+- Die Auswahl der VM-Größe in der Vorlage enthielt drei x64-Größen
+  (`Standard_B2als_v2`, `Standard_B2s`, `Standard_B2ms`), die Azure in
+  northeurope nicht führt. Die Bereitstellung wäre erst beim Anlegen der VM
+  gescheitert. Angeboten werden jetzt die vier ARM64-Größen und als x64-Größe
+  `Standard_D2als_v6` (2 vCPU, 4 GB). Das Beispiel in `azure-vm-setup.ps1`
+  nennt dieselbe Größe.
+
+**Zu tun:** Nichts. Betrifft nur das Anlegen neuer VMs.
+
+---
+
 ## v1.10.49 — 2026-10-31 — Azure: Gateway per Vorlage aus dem Portal ausrollen
 
 - **Neu: „Deploy to Azure“.** README und `docs/installation.md` haben einen
