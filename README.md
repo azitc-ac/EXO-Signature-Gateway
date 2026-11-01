@@ -95,8 +95,16 @@ Hat ein Empfänger kein Zertifikat, geht die Mail über ein sicheres Web-Portal.
 ### SMTP-Relay statt lokalem Exchange
 
 Drucker, Scanner und Fachanwendungen senden über das Gateway wie über einen
-lokalen Exchange-Server, mit Geräteliste und Lernmodus oder mit eigenem Login
-auf Port 587. Das nimmt einem Exchange-Umzug den häufigsten Blocker.
+lokalen Exchange-Server. Das nimmt einem Exchange-Umzug den häufigsten Blocker.
+Gedacht ist das für ein Gateway im eigenen Netz: Es erkennt die Geräte an ihrer
+Adresse (Geräteliste mit Lernmodus), die Geräte bleiben unverändert, und auch
+Altgeräte ohne STARTTLS oder nur mit TLS 1.0 werden angenommen.
+
+Läuft das Gateway in Azure, sieht es nur die öffentliche Adresse deines Netzes,
+nicht die einzelnen Geräte. Dann bleibt die Einlieferung mit eigenem Login auf
+Port 587, und dafür muss jedes Gerät umgestellt werden. Gegenüber der direkten
+Anbindung an Exchange Online gewinnst du damit wenig, außer der Annahme älterer
+TLS-Versionen.
 
 ### Betrieb
 

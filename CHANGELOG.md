@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.57 — 2026-11-01 — README: Einsatzfall des SMTP-Relays
+
+- Die Beschreibung des SMTP-Relays nannte die Geräteliste und den Login auf
+  Port 587 als gleichwertige Wege. Das Relay erkennt Geräte auf Port 25 an
+  ihrer Quell-IP; das geht nur, wenn Gateway und Geräte im selben Netz
+  stehen. Ein Gateway in Azure sieht nur die öffentliche Adresse des
+  Kundennetzes, dort bleibt der Login auf 587, für den jedes Gerät umgestellt
+  werden muss. Die README nennt jetzt den Betrieb im eigenen Netz als
+  Einsatzfall und ordnet 587 entsprechend ein. Am Verhalten ändert sich nichts.
+
+**Zu tun:** Nichts.
+
+---
+
 ## v1.10.56 — 2026-10-31 — Azure-Vorlage nach Marketplace-Richtlinie 300.4.4
 
 - Die Vorlage belegt den SSH-Benutzer nicht mehr mit `azureuser` vor. Die
