@@ -29,8 +29,8 @@ deinem Host.
 Die Abwesenheitsnotiz ist zentral verwaltet und bleibt trotzdem die normale
 Exchange-Abwesenheit. Der Text kommt aus einer Vorlage mit Zeitraum,
 Vertretung und Signatur. Ein- und ausgeschaltet wird automatisch durch
-längere, als „Abwesend“ markierte Kalendertermine, wie gewohnt in Outlook,
-im Self-Service oder zentral durch den Admin.
+längere, als „Abwesend“ markierte Kalendertermine, manuell im Self-Service
+oder zentral durch den Admin.
 
 - **Live-Übersicht:** wer gerade abwesend ist, mit Vorlage und Zeitraum, auch
   wenn jemand die Abwesenheit selbst in Outlook gesetzt hat.
