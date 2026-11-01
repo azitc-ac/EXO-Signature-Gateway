@@ -29,7 +29,7 @@ Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abw
 
 - **Einheitlicher Abwesenheitstext** — eine Vorlage der Art *Abwesenheit* (Baukasten wie bei Signaturen, mit Zeitraum-Platzhaltern und der Signatur darunter) wird per Graph in die native Exchange-Abwesenheit geschrieben. Ein- und ausgeschaltet wird wie gewohnt in Outlook oder im Self-Service; Exchange verschickt die Antwort selbst.
 - **Zuweisung** global, je Gruppe oder je Postfach — wie bei Signaturen.
-- **Aus dem Kalender** (opt-in, je Postfach übersteuerbar) — ein Termin „Abwesend“ schaltet die Abwesenheit für seinen Zeitraum ein.
+- **Aus dem Kalender** (opt-in, je Postfach übersteuerbar) — ein mehrstündiger, als „Abwesend“ markierter Termin schaltet die Abwesenheit für seinen Zeitraum ein und danach wieder aus. Die Mindestdauer ist einstellbar: 4, 6, 8, 12 Stunden oder ganztägig, Vorgabe 8 (`OOO_CALENDAR_MIN_HOURS`).
 - **Ankündigung künftiger Abwesenheiten** — `{{ oof.ankuendigung }}` / `{{ oof.announcement }}` setzt die nächsten geplanten Abwesenheiten aus dem Kalender in den Text, wahlweise nur für interne Empfänger.
 - **Übersicht für Admins** — Seite *Abwesenheit*: wer gerade abwesend ist, mit Vorlage, Zeitraum und Kalenderstatus; je Postfach zentral bearbeitbar.
 - **Auch für abgelegte Post** — im Modus Graph++ antwortet das Gateway selbst auf Post von außen, die per IMAP abgelegt wird (siehe [Graph++](installation.md#betrieb-auf-azure-kein-ausgehender-port-25)).
