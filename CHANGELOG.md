@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.58 — 2026-11-02 — README: Abwesenheit aus dem Kalender genauer beschrieben
+
+- README und Funktionsübersicht beschreiben die Kalender-Automatik jetzt
+  vollständig: Ein mehrstündiger, als „Abwesend“ markierter Termin schaltet
+  die Abwesenheit für seinen Zeitraum ein und danach wieder aus. Die
+  Mindestdauer ist einstellbar (4, 6, 8, 12 Stunden oder ganztägig, Vorgabe 8).
+  Die Automatik ist opt-in und je Postfach übersteuerbar. Am Verhalten ändert
+  sich nichts.
+
+**Zu tun:** Nichts.
+
+---
+
 ## v1.10.57 — 2026-11-01 — README: Einsatzfall des SMTP-Relays
 
 - Die Beschreibung des SMTP-Relays nannte die Geräteliste und den Login auf

@@ -28,13 +28,17 @@ deinem Host.
 
 Die Abwesenheitsnotiz ist zentral verwaltet und bleibt trotzdem die normale
 Exchange-Abwesenheit. Der Text kommt aus einer Vorlage mit Zeitraum,
-Vertretung und Signatur. Ein- und ausgeschaltet wird wie gewohnt in Outlook,
+Vertretung und Signatur. Ein- und ausgeschaltet wird automatisch durch
+längere, als „Abwesend“ markierte Kalendertermine, wie gewohnt in Outlook,
 im Self-Service oder zentral durch den Admin.
 
 - **Live-Übersicht:** wer gerade abwesend ist, mit Vorlage und Zeitraum, auch
   wenn jemand die Abwesenheit selbst in Outlook gesetzt hat.
-- **Aus dem Kalender:** Ein Termin „Abwesend“ schaltet die Abwesenheit für
-  seinen Zeitraum ein. Abschaltbar bis hin zu „Kalender gar nicht lesen“.
+- **Aus dem Kalender:** Ein mehrstündiger, als „Abwesend“ markierter Termin
+  schaltet die Abwesenheit für seinen Zeitraum ein und danach wieder aus.
+  Bequem bei gepflegtem Kalender. Ab welcher Dauer, stellst du ein (4, 6, 8,
+  12 Stunden oder ganztägig, Vorgabe 8). Opt-in, je Postfach übersteuerbar,
+  abschaltbar bis hin zu „Kalender gar nicht lesen“.
 - **Ankündigung:** Die nächsten geplanten Abwesenheiten stehen auf Wunsch im
   Text, etwa nur für interne Empfänger.
 
