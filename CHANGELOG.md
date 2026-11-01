@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.59 — 2026-11-02 — README: Wege zum Ein- und Ausschalten der Abwesenheit
+
+- Als Wege zum Ein- und Ausschalten der Abwesenheit nennen README und
+  Funktionsübersicht jetzt Kalendertermine, den Self-Service mit Vorschau und
+  den Admin. Eine selbst in Outlook gesetzte Abwesenheit funktioniert
+  weiterhin und erscheint in der Live-Übersicht.
+
+**Zu tun:** Nichts.
+
+---
+
 ## v1.10.58 — 2026-11-02 — README: Abwesenheit aus dem Kalender genauer beschrieben
 
 - README und Funktionsübersicht beschreiben die Kalender-Automatik jetzt
