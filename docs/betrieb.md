@@ -145,6 +145,45 @@ bleibt Exchange Online das Ziel.
 > Connector heißt `Inbound from <Gateway> (Coexistence)`; die Parameter werden
 > gemerkt, sodass sich derselbe Weg jederzeit abreißen und wieder aufbauen lässt.
 
+#### Direktversand (externe Post über den eigenen Postfix)
+
+Das eingebaute Weiterleitungsziel `direkt` übergibt Post an einen eigenen
+Postfix-Container (`mta`, immer im Compose). Postfix stellt per **MX** oder
+über einen **Smarthost** zu. Gedacht ist das vor allem für Massenversand aus
+Fachanwendungen, die über das SMTP-Relay einliefern: Die Post verlässt das
+Netz mit der eigenen IP, und Exchange Online ist nicht beteiligt.
+
+Einrichten:
+
+1. *Einstellungen → Erweitert*: Domänen-Routing einschalten.
+2. *Relay → Direktversand*: *Port 25 prüfen*. Der Test verbindet sich mit dem
+   MX großer Anbieter, ohne eine Mail zu senden. Per MX lässt sich der
+   Direktversand nur nach bestandenem Test einschalten. In Azure bleibt nur
+   die Betriebsart Smarthost.
+3. Je Absenderdomäne unter *DKIM-Schlüssel* einen Schlüssel erzeugen und den
+   angezeigten TXT-Eintrag ins DNS setzen.
+4. *DNS prüfen*: Die Prüfung wertet SPF wie ein Empfänger aus (pyspf,
+   RFC 7208) und zeigt den DKIM-Eintrag, PTR und HELO-Namen sowie die
+   DMARC-Richtlinie. Fehlt etwas, nennt sie den passenden Eintrag. Ein eigener
+   PTR für die Ausgangsadresse, der zum HELO-Namen passt, verbessert die
+   Zustellbarkeit deutlich.
+5. *Domänen-Routing*: die Route *Externe Empfänger* (oder einzelne Domänen)
+   auf `direkt` stellen.
+
+- Solange der Direktversand aus ist, weist Postfix alles ab. Der Container
+  lauscht nur im internen Docker-Netz.
+- Ohne DKIM-Schlüssel geht die Mail unsigniert hinaus, mit Warnung im
+  Protokoll. Einen vorhandenen Schlüssel ersetzt das Gateway nicht
+  stillschweigend.
+- Ohne Postfachliste gilt kein Empfänger als extern, und alles geht an
+  Exchange Online.
+- ⚠️ **Empfänger in Microsoft 365:** Steht die Ausgangsadresse im
+  Inbound-Connector deines Tenants (für den Rückweg im Modus `smtp` nötig),
+  ordnet Microsoft die Post diesem Tenant zu. Sie läuft dann über dein
+  Exchange Online und dessen Ausgang zum Empfänger, mit dessen Ruf und
+  Grenzen. Gemessen 10/2026. Empfänger außerhalb von Microsoft 365 bekommen
+  die Post direkt.
+
 ### Port 587 — kein Modus, sondern ein Sonderweg
 
 ⚠️ Häufiges Missverständnis: Einen „587-Modus" gibt es nicht. Port 587 kommt
