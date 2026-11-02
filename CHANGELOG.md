@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.67 — 2026-11-02 — Assistent: SMTP-Relay in jedem Modus wählbar, damit Port 587 auch in Azure erreichbar ist
+
+- Die Seite *SMTP-Relay* enthält neben der Geräteliste auch die Einlieferung
+  mit Login auf Port 587 (Sende-Identitäten), die in jedem Rückweg-Modus
+  läuft. Ihr Menüpunkt erscheint nur bei eingeschaltetem Relay. Der Assistent
+  ließ den Haken aber nur im Modus *SMTP Port 25* zu. In Graph-only und
+  Graph++, also auch in jeder Azure-Installation, war der Weg für Geräte
+  damit nicht zu erreichen.
+- Jetzt ist der Haken *SMTP-Relay für eigene Geräte* in jedem Modus wählbar.
+  Gedacht ist das Relay weiterhin für ein Gateway im eigenen Netz mit
+  *SMTP Port 25*: Nur dort werden Geräte an ihrer Adresse erkannt, ohne dass
+  sie umgestellt werden müssen. In anderen Modi lehnt das Gateway das
+  weiterhin mit `451 4.3.2` ab, und der Hinweis im Assistenten sagt, dass dort
+  nur die Einlieferung mit Login über Port 587 bleibt.
+
+**Zu tun:** Willst du Geräte in Graph-only oder Graph++ (etwa in Azure)
+einliefern lassen: *Einrichtung → Modus & Funktionen*, Haken *SMTP-Relay für
+eigene Geräte* setzen, speichern. Danach unter *SMTP-Relay → Sende-Identitäten*
+die Einlieferung über 587 einschalten und Identitäten anlegen.
+
 ## v1.10.66 — 2026-11-02 — Doku: SMTP-Relay nach Rückweg-Modus und in Azure eingeordnet
 
 - README, Funktionsübersicht und Betrieb sagen jetzt ausdrücklich: Das Relay
