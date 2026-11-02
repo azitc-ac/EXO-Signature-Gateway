@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.68 — 2026-11-02 — Doku: Direktversand in README, Funktionsübersicht und Betrieb
+
+- Der Direktversand (seit v1.10.20) stand bisher nur im Changelog. README und
+  Funktionsübersicht stellen ihn jetzt als Weg für Massenversand vor: von der
+  eigenen IP, mit eigenem Ruf und ohne die Sendegrenzen von Exchange Online.
+  Beschrieben sind DKIM im Gateway, die DNS-Prüfung (SPF, DKIM, PTR/HELO,
+  DMARC) und die Voraussetzungen: ausgehender Port 25 und der Rückweg-Modus
+  *SMTP Port 25*.
+- *Betrieb → Domänen-Routing* hat einen eigenen Abschnitt mit den
+  Einrichtungsschritten.
+- Neu dokumentiert ist eine Grenze: An Empfänger in Microsoft 365 läuft die
+  Post über Exchange Online des eigenen Tenants. Microsoft ordnet die
+  Ausgangsadresse dem Inbound-Connector zu, den der Rückweg braucht.
+
+**Zu tun:** Nichts.
+
 ## v1.10.67 — 2026-11-02 — Assistent: SMTP-Relay in jedem Modus wählbar, damit Port 587 auch in Azure erreichbar ist
 
 - Die Seite *SMTP-Relay* enthält neben der Geräteliste auch die Einlieferung

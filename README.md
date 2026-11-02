@@ -129,6 +129,41 @@ Einlieferung mit eigenem Login auf Port 587 (Sende-Identitäten), dafür muss
 jedes Gerät umgestellt werden. Gegenüber der direkten Anbindung an Exchange
 Online gewinnst du damit wenig, außer der Annahme älterer TLS-Versionen.
 
+### Direktversand: Massenmail mit eigener IP und eigenem Ruf
+
+Mit dem lokalen Exchange fällt auch der Weg weg, auf dem Fachanwendungen
+Rundschreiben, Rechnungsläufe oder Benachrichtigungen in großer Zahl nach
+außen schicken. Exchange Online ist dafür nicht gedacht: Microsoft begrenzt
+die Empfänger je Tag und verweist für Massenversand auf
+[Drittanbieter](https://learn.microsoft.com/en-us/office365/servicedescriptions/exchange-online-service-description/exchange-online-limits).
+Der eigene Dienst dafür, Azure Communication Services Email, nimmt seit dem
+23.10.2026 keine neuen Kunden mehr an und endet am 30.09.2028.
+
+Das Gateway stellt Post an externe Empfänger auf Wunsch selbst zu, über einen
+eigenen Postfix: von deiner IP, mit deinem Ruf, zu deinen Bedingungen und ohne
+Microsofts Sendegrenzen. Zusammen mit dem SMTP-Relay ersetzt es den lokalen
+Exchange-Server auch hier. Die Anwendung liefert im eigenen Netz beim Gateway
+ein, und Exchange Online ist am Versand nicht beteiligt.
+
+- **DKIM im Gateway:** je Absenderdomäne ein Schlüssel, der DNS-Eintrag zum
+  Kopieren. Signiert wird mit der Domäne im `From:`, auf die DMARC achtet.
+- **DNS-Prüfung wie beim Empfänger:** SPF vollständig ausgewertet (auch über
+  `include`), DKIM-Eintrag, PTR und HELO-Name, DMARC-Richtlinie. Wo etwas
+  fehlt, steht der passende Eintrag zum Kopieren daneben.
+- **Postfix erledigt den Zustellbetrieb:** MX mit Ausweichen, Warteschlange,
+  Wiederholung bis zu fünf Tage, Unzustellbarkeitsberichte. Die Relay-Seite
+  zeigt Zustellungen, Rückstellungen und die letzten Zustellprobleme.
+- **Was hinausgeht, bestimmst du:** alle externen Empfänger oder einzelne
+  Domänen. Interne Post bleibt bei Exchange Online.
+
+Voraussetzungen: Betrieb im eigenen Netz oder bei einem Hoster mit offenem
+ausgehendem Port 25 (in Azure ist er gesperrt), Rückweg-Modus *SMTP Port 25*
+und am besten ein eigener PTR-Eintrag für die Ausgangsadresse. Abmeldelinks
+und die Auswertung von Rückläufern bleiben Sache der versendenden Anwendung.
+An Empfänger, die selbst in Microsoft 365 sind, läuft die Post derzeit doch
+über Exchange Online deines Tenants: Microsoft ordnet die Ausgangsadresse dem
+Inbound-Connector zu, den der Rückweg braucht (gemessen 10/2026).
+
 ### Betrieb
 
 Einrichtungsassistent mit automatischer App-Registrierung, Abnahme der ganzen
