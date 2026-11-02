@@ -177,12 +177,17 @@ Einrichten:
   stillschweigend.
 - Ohne Postfachliste gilt kein Empfänger als extern, und alles geht an
   Exchange Online.
-- ⚠️ **Empfänger in Microsoft 365:** Steht die Ausgangsadresse im
-  Inbound-Connector deines Tenants (für den Rückweg im Modus `smtp` nötig),
-  ordnet Microsoft die Post diesem Tenant zu. Sie läuft dann über dein
-  Exchange Online und dessen Ausgang zum Empfänger, mit dessen Ruf und
-  Grenzen. Gemessen 10/2026. Empfänger außerhalb von Microsoft 365 bekommen
-  die Post direkt.
+- ⚠️ **Empfänger in Microsoft 365 und IP-gebundene Connectoren:** Erkennt ein
+  Inbound-Connector deines Tenants die Ausgangsadresse an der IP
+  (`SenderIPAddresses`, etwa der Connector eines separaten Relays auf
+  derselben Adresse), ordnet Microsoft die Post diesem Tenant zu. Sie läuft
+  dann über dein Exchange Online und dessen Ausgang zum Empfänger, mit dessen
+  Ruf und Grenzen (gemessen 10/2026 mit einem solchen Connector). Der
+  Inbound-Connector des Gateways prüft dagegen das Zertifikat
+  (`TlsSenderCertificateName`), und Postfix legt beim Direktversand keines
+  vor. Er löst diese Zuordnung deshalb nicht aus. Abhilfe bei einem
+  IP-gebundenen Connector: ihn auf ein Zertifikat umstellen oder den
+  Direktversand über eine andere Ausgangsadresse schicken.
 
 ### Port 587 — kein Modus, sondern ein Sonderweg
 
