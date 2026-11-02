@@ -54,6 +54,7 @@ async def abwesenheit_page(request: Request, _user: str = Depends(_require_admin
             "ooo_calendar_refresh_hours": int(settings_store.get("OOO_CALENDAR_REFRESH_HOURS") or 6),
             "ooo_append_signature": bool(settings_store.get("OOO_APPEND_SIGNATURE")),
             "ooo_append_banner": bool(settings_store.get("OOO_APPEND_BANNER")),
+            "ooo_append_disclaimer": bool(settings_store.get("OOO_APPEND_DISCLAIMER")),
             # Betreiberweite Vorgaben für die Ankündigung (je Postfach übersteuerbar).
             "ann_mode": settings_store.get("OOO_ANNOUNCE_MODE") or "anzahl",
             "ann_x": int(settings_store.get("OOO_ANNOUNCE_X") or 3),

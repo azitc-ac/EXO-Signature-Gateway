@@ -26,7 +26,7 @@ Die Antwort geht über Graph sendMail ALS der Empfänger. ⚠️ Gemessen am
 
 * `X-Sig-Applied: 1` — die Transportregel nimmt die Antwort damit aus; ohne
   ihn lief sie durchs Gateway und wurde wie normale Post signiert, obwohl der
-  Abwesenheitstext Signatur und Banner schon enthält (v1.9.140). Die
+  Abwesenheitstext Signatur, Banner bzw. Disclaimer schon enthält (v1.9.140). Die
   Regel-Ausnahme für `Auto-Submitted` greift nicht, der Kopf ist bei der
   Regelprüfung schon fort.
 * `X-Auto-Response-Suppress: All` — kommt an; Exchange und Outlook antworten

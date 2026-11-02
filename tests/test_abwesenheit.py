@@ -193,6 +193,24 @@ def test_oof_anhang_signatur_und_banner(monkeypatch):
     monkeypatch.setattr(signature_engine, "render", fake_render)
     h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"use_policy": True})
     assert "<sig:Sig>" in h and "<sig:Ban>" in h
+    assert "Disc" not in h          # ohne OOO_APPEND_DISCLAIMER kein Disclaimer
+
+
+def test_oof_anhang_disclaimer_nach_banner(monkeypatch):
+    """OOO_APPEND_DISCLAIMER hängt den zugewiesenen Disclaimer an — nach dem
+    Banner, wie im Mailweg; auch allein, ohne Signatur und Banner."""
+    store = {"OOO_APPEND_SIGNATURE": True, "OOO_APPEND_BANNER": True, "OOO_APPEND_DISCLAIMER": True,
+             "TEMPLATE_POLICIES": {"sig": "Sig", "banner": "Ban", "disclaimer": "Disc"},
+             "CUSTOM_POLICIES": [], "INTERNAL_GROUPS": {}}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, template_name=None, extra=None: (f"<{template_name}>", template_name))
+    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"use_policy": True})
+    assert h == "<Sig><Ban><Disc>"
+    assert t == "Sig\nBan\nDisc"
+    store.update(OOO_APPEND_SIGNATURE=False, OOO_APPEND_BANNER=False)
+    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"use_policy": True})
+    assert h == "<Disc>"
 
 
 def test_oof_anhang_aus_wenn_schalter_aus(monkeypatch):

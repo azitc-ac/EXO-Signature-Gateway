@@ -302,6 +302,15 @@ Beides lädst du einmal im Microsoft 365 Admin Center unter *Integrierte Apps* h
 
   <img src="screenshots/outlook-app-anheften.png" width="400" alt="Outlook: Weitere Apps öffnen (1), Rechtsklick auf Signatur & Abwesenheit (2), Anheften (3)">
 
+  **Klassisches Outlook ohne linke App-Leiste:** Auf manchen Clients zeigt das klassische Outlook gar keine linke App-Leiste, und unter *Datei → Optionen → Erweitert* fehlt die Option „Apps in Outlook anzeigen“. Dann gibt es nichts zum Anheften. Beobachtet auf Microsoft 365 Apps for Enterprise mit eingeschalteten verbundenen Erfahrungen, ohne Gruppenrichtlinie und ohne Registry-Eintrag zur App-Leiste. Abhilfe ist dieser Eintrag beim betroffenen Benutzer:
+
+  ```powershell
+  New-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\16.0\Outlook\Preferences' `
+      -Name 'EnableAppsInOutlook' -PropertyType DWord -Value 1 -Force
+  ```
+
+  Danach Outlook ganz beenden und neu starten. Die App-Leiste erscheint, und die Option „Apps in Outlook anzeigen“ ist da und aktiviert. Für viele Rechner lässt sich derselbe Wert per Intune oder Gruppenrichtlinie (Registry-Einstellung) verteilen.
+
 - **Auf dem Handy (Outlook für iOS, gemessen; Android ist im Manifest vorgesehen, aber nicht getestet):** Die App „Signatur & Abwesenheit“ steht unter *Apps*. Die Signatur fügt das Verfassen-Add-in bei einer neuen Mail selbst ein. Einen Add-in-Knopf beim Lesen gibt es auf dem Handy nicht, das Knopf-Add-in ist nur für Outlook unter Windows und im Web angelegt. Auf dem Handy übernimmt die App diese Aufgabe. Erscheint auf einem frisch eingerichteten Gerät nichts: Fragt Outlook nach dem Standardbrowser, zuerst diese Frage beantworten. Auf einem Testgerät erschien die App erst danach. Sonst Outlook ganz beenden und neu öffnen.
 
   <p>

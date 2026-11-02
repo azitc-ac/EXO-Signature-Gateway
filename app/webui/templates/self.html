@@ -614,12 +614,13 @@
         if (!r.ok) return;
         var d = await r.json();
         var anhang = (d.banner_html || '') + (d.disclaimer_html || '');
-        // Abwesenheitsnotiz wie in Exchange: Signatur und Banner nur, wenn das
-        // Gateway sie anhängt, nie ein Disclaimer (abwesenheit._oof_anhang).
+        // Abwesenheitsnotiz wie in Exchange: Signatur, Banner und Disclaimer
+        // nur, wenn das Gateway sie anhängt (abwesenheit._oof_anhang).
         // Bis v1.9.161 hing die Vorschau immer alles an.
         el('vorschau').innerHTML = (d.oof_html || '')
           + (ctx.oof_mit_signatur ? (d.sig_html || '') : '')
           + (ctx.oof_mit_banner ? (d.banner_html || '') : '')
+          + (ctx.oof_mit_disclaimer ? (d.disclaimer_html || '') : '')
           || '<p class="keine-sig">— nichts ausgewählt —</p>';
         el('sig-vorschau').innerHTML = (d.sig_html || '') + anhang;
         // Ohne Antwort-Signatur hängt das Gateway gar nichts an — auch Banner

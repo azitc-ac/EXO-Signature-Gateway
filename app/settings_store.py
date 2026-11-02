@@ -62,6 +62,7 @@ DEFAULTS: dict = {
     # anhängen (statischer Schnappschuss; Bilder als data:-URI — Gmail blendet sie aus).
     "OOO_APPEND_SIGNATURE": False,
     "OOO_APPEND_BANNER": False,
+    "OOO_APPEND_DISCLAIMER": False,
     # Betreiberweite Vorgabe für die Ankündigungs-Variable ({{ oof.ankuendigung }}):
     # Umfang (mode "anzahl"=die nächsten X Abwesenheiten / "tage"=X Tage Vorausschau),
     # ob private Termine mitzählen, ob die Zeile auch externen Absendern gezeigt wird.

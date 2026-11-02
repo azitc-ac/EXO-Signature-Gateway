@@ -849,7 +849,7 @@ def _self_seite(browser, server, kontext, breite, gesendet):
             "oof_html": "<p>OOF</p>",
             "sig_html": f'<p class="sig-test">SIG {(q.get("sig") or [""])[0]}</p>',
             "min_html": f'<p class="min-test">MIN {mn}</p>' if mn else "",
-            "banner_html": "", "disclaimer_html": ""}))
+            "banner_html": "<p>BAN</p>", "disclaimer_html": "<p>DISC</p>"}))
     ctx.route("**/api/self/preview*", vorschau)
 
     def save(r):
@@ -927,13 +927,19 @@ def test_self_reiter_vorschau_und_speichern_je_reiter(browser, server, breite):
     ctx.close()
 
 
-@pytest.mark.parametrize("mit_sig", [True, False])
-def test_self_abwesenheits_vorschau_wie_in_exchange(browser, server, mit_sig):
-    """Die Vorschau der Abwesenheitsnotiz trägt die Signatur nur, wenn das
-    Gateway sie anhängt (OOO_APPEND_SIGNATURE) — bis v1.9.161 immer."""
-    ctx, pg = _self_seite(browser, server, _self_kontext(oof_mit_signatur=mit_sig), 393, [])
+@pytest.mark.parametrize("mit_sig,mit_ban,mit_disc",
+                         [(True, False, True), (False, True, False), (False, False, False)])
+def test_self_abwesenheits_vorschau_wie_in_exchange(browser, server, mit_sig, mit_ban, mit_disc):
+    """Die Vorschau der Abwesenheitsnotiz trägt Signatur, Banner und Disclaimer
+    nur, wenn das Gateway sie anhängt (OOO_APPEND_SIGNATURE/_BANNER/_DISCLAIMER)
+    — bis v1.9.161 immer alles, danach bis v1.10.60 nie den Disclaimer."""
+    ctx, pg = _self_seite(browser, server, _self_kontext(
+        oof_mit_signatur=mit_sig, oof_mit_banner=mit_ban, oof_mit_disclaimer=mit_disc), 393, [])
     pg.wait_for_function("document.querySelector('#vorschau').textContent.includes('OOF')")
-    assert ("SIG" in pg.text_content("#vorschau")) is mit_sig
+    text = pg.text_content("#vorschau")
+    assert ("SIG" in text) is mit_sig
+    assert ("BAN" in text) is mit_ban
+    assert ("DISC" in text) is mit_disc
     assert pg.is_visible("#abw-mit-sig") is mit_sig
     ctx.close()
 
