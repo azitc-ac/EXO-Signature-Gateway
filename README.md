@@ -93,10 +93,21 @@ im selben Abschnitt.
 
 ### S/MIME, automatisch
 
-Signieren und verschlüsseln je Absender. Zertifikate werden automatisch
-bestellt und erneuert. Private Schlüssel können im Azure Key Vault (HSM)
-liegen. Zertifikate externer Partner sammelt das Gateway aus eingehender Post.
-Hat ein Empfänger kein Zertifikat, geht die Mail über ein sicheres Web-Portal.
+Signieren und verschlüsseln je Absender. Private Schlüssel können im Azure
+Key Vault (HSM) liegen. Zertifikate externer Partner sammelt das Gateway aus
+eingehender Post. Hat ein Empfänger kein Zertifikat, geht die Mail über ein
+sicheres Web-Portal.
+
+Woher die Zertifikate kommen:
+
+- **Kostenlos und automatisch:** Ausstellung und Erneuerung über CASTLE ACME
+  (RFC 8823), ohne Zutun der Nutzer.
+- **Vorhandene Zertifikate:** bestehende PFX/P12-Zertifikate importieren,
+  auch mehrere je Adresse.
+- **Eigenes DigiCert-Konto:** Mit einem CertCentral-API-Schlüssel bestellt und
+  erneuert das Gateway selbst, abgerechnet wird direkt mit DigiCert.
+- **Kostenpflichtige Zertifikate über den Signature Hub:** in Vorbereitung.
+  Certum und SwissSign sind als Anbieter in Vorbereitung.
 
 <img src="docs/screenshots/smime-zertifikate.png" width="820" alt="S/MIME: Signaturzertifikate je Postfach mit Aussteller und Ablauf">
 
