@@ -227,8 +227,8 @@ Untergrenze**.
 
 | Umgebung | Postfächer / Aufkommen | RAM | vCPU | Disk | Beispiel |
 |---|---|---|---|---|---|
-| **Klein** | bis ~100, geringes Aufkommen | 2 GB | 2 | 32 GB | Azure `B2ps_v2`/`B2s`, Raspberry Pi 4/5 |
-| **Mittel** | ~100–500 | 2–4 GB | 2 | 32–64 GB | Azure `B2ps_v2`, kleiner Linux-Server |
+| **Klein** | bis ~100, geringes Aufkommen | 2 GB | 2 | 32 GB | Azure `B2pls_v2` (x64: `B1ms`, 1 vCPU), Raspberry Pi 4/5 |
+| **Mittel** | ~100–500 | 2–4 GB | 2 | 32–64 GB | Azure `B2pls_v2` (x64: `B2s`), kleiner Linux-Server |
 | **Groß** | 500+, hohes Aufkommen | 4 GB | 2–4 | 64+ GB | + App-Pool (siehe Hinweis) |
 
 - **Der begrenzende Faktor bei hohem Aufkommen ist nicht der Host, sondern die
