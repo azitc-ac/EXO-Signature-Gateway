@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.65 — 2026-11-02 — Betrieb: Größentabelle an die empfohlene Azure-VM angeglichen
+
+- Die Größentabelle in *Betrieb → Dimensionierung* nannte für „Klein“ und
+  „Mittel“ noch `B2ps_v2`. Die empfohlene Größe ist aber `B2pls_v2` (4 GB),
+  und `B2ps_v2` hat 8 GB, passte also nicht zu „2 GB“. Jetzt steht dort
+  `B2pls_v2`, als x64-Alternative `B1ms` bzw. `B2s`.
+
+**Zu tun:** Nichts.
+
 ## v1.10.64 — 2026-11-02 — README: Hinweis zur Vertrauenswürdigkeit der CASTLE-Zertifikate
 
 - README und Funktionsübersicht sagen jetzt dazu, dass die CASTLE-PKI bei
