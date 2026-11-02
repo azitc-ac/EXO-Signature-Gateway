@@ -164,6 +164,11 @@ TLS) am Submission-Port **587** anmelden. Das öffnet die Einlieferung für Ger�
 ohne OAuth (ältere Drucker, Scanner, Fachanwendungen wie SAP) und für Gateways
 ohne feste Absender-IP.
 
+Anders als das Relay nach IP, das nur im Rückweg-Modus `smtp` arbeitet (die
+anderen Modi lehnen es mit `451 4.3.2` ab), läuft die Einlieferung über 587 in
+**jedem** Modus: Die Post geht über Graph als Shared Mailbox der Identität. In
+Azure, wo ausgehender Port 25 gesperrt ist, ist das der Weg für Geräte.
+
 Eine *Sende-Identität* besteht aus **Anzeigename**, **Login** und **Domäne** sowie
 einem Passwort. Der Login ist zugleich der EXO-Alias; mit der Domäne ergibt er die
 Adresse der Shared Mailbox (`login@domäne`), die beim Anlegen automatisch als

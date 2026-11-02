@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.66 — 2026-11-02 — Doku: SMTP-Relay nach Rückweg-Modus und in Azure eingeordnet
+
+- README, Funktionsübersicht und Betrieb sagen jetzt ausdrücklich: Das Relay
+  nach Geräteadresse arbeitet nur im Rückweg-Modus *SMTP Port 25*. Die Modi
+  Graph-only und Graph++ lehnen es mit `451 4.3.2` ab, weil Graph immer als
+  ein Postfach sendet und ein Gerät keines hat. In Azure ist ausgehender
+  Port 25 gesperrt, dort gibt es deshalb kein Relay nach Adresse.
+- Die Einlieferung mit eigenem Login auf Port 587 (Sende-Identitäten) läuft
+  dagegen in jedem Modus, auch in Azure.
+
+**Zu tun:** Nichts.
+
 ## v1.10.65 — 2026-11-02 — Betrieb: Größentabelle an die empfohlene Azure-VM angeglichen
 
 - Die Größentabelle in *Betrieb → Dimensionierung* nannte für „Klein“ und
