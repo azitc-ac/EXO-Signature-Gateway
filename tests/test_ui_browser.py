@@ -1410,3 +1410,33 @@ def test_zeile_ohne_laufende_bestellung_laedt_nicht_neu(seite):
                           window.__markiert = true; _startAcmePolling('ruhig@x.de'); }""")
     pg.wait_for_timeout(1500)
     assert pg.evaluate("() => window.__markiert") is True, "keine Ladeschleife"
+
+
+@pytest.mark.parametrize("modus", ["graph", "graph_plus"])
+def test_assistent_relay_auch_ausserhalb_von_smtp_waehlbar(seite, modus):
+    """Die Seite „SMTP-Relay“ trägt auch die Einlieferung mit Login auf 587
+    (Sende-Identitäten), die in JEDEM Modus läuft. Ihr Menüpunkt hängt an
+    SMTP_RELAY_ENABLED. Bis v1.10.66 sperrte der Assistent den Haken ausser im
+    Modus smtp und schrieb ihn dort als false — in Azure gab es damit keinen
+    Weg für Geräte. Jetzt: wählbar, mit Hinweis, und er wird gespeichert."""
+    import json
+    pg = seite("/setup", breite=1100)
+    gesendet = []
+
+    def abfangen(r):
+        if r.request.method == "POST":
+            gesendet.append(json.loads(r.request.post_data))
+            r.fulfill(status=200, content_type="application/json", body='{"ok": false, "error": "Test"}')
+        else:
+            r.continue_()
+    pg.route("**/settings", abfangen)
+    pg.check(f'input[name="reinject-mode-wizard"][value="{modus}"]', force=True)
+    pg.evaluate("updateModeSelection()")
+    assert pg.is_enabled("#relay-enabled-wizard")
+    assert pg.is_visible("#relay-nur-smtp")
+    assert "587" in pg.text_content("#relay-nur-smtp")
+    pg.check("#relay-enabled-wizard", force=True)
+    pg.evaluate("saveModeSelection()")
+    pg.wait_for_timeout(500)
+    assert gesendet and gesendet[-1]["SMTP_RELAY_ENABLED"] is True, gesendet
+    pg.context.close()

@@ -370,11 +370,11 @@
     </div>
 
     <!-- ── SMTP-Relay für eigene Geräte ──────────────────────────────────────
-         Gehört an DIESE Stelle, weil es nur im Modus „SMTP Port 25" möglich
-         ist: Nur der Smarthost-Weg reicht eine Nachricht mit fremdem Absender
-         unverändert weiter. Die Sperre ist zusätzlich im Gateway verankert
-         (smtp_relay.pruefe) — die Oberfläche allein hielte eine spätere
-         Modusumstellung nicht auf. -->
+         Gehört an DIESE Stelle, weil der Modus bestimmt, was es kann: Nur der
+         Smarthost-Weg („SMTP Port 25") reicht eine Nachricht mit fremdem
+         Absender unverändert weiter — die Geräteerkennung nach Adresse gibt es
+         nur dort, durchgesetzt in smtp_relay.pruefe. Die Einlieferung mit
+         Login auf 587 (Sende-Identitäten) geht in jedem Modus. -->
     <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px" id="relay-block">
       <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
         <input type="checkbox" id="relay-enabled-wizard" style="margin-top:3px;flex-shrink:0"
@@ -398,8 +398,11 @@
       </div>
 
       <p class="hint" id="relay-nur-smtp" style="margin:6px 0 0 26px;display:none">
-        Das Relay setzt <strong>SMTP Port 25</strong> voraus. Die anderen Rückwege liefern
-        immer „als" ein Postfach — ein Gerät hat keines.
+        Gedacht ist das Relay für ein Gateway im eigenen Netz mit
+        <strong>SMTP Port 25</strong>: Geräte werden an ihrer Adresse erkannt und bleiben
+        unverändert. In diesem Modus geht das nicht (die anderen Rückwege liefern immer
+        „als" ein Postfach, ein Gerät hat keines) — es bleibt nur die Einlieferung mit
+        <strong>eigenem Login über Port 587</strong>, für die jedes Gerät umgestellt wird.
       </p>
     </div>
 
@@ -1528,12 +1531,15 @@ function updateModeSelection() {
   const showSmime = (mode !== 'graph') && smimeCb.checked;
   if (stepSmime) stepSmime.style.display = showSmime ? '' : 'none';
 
-  // Relay: nur im Modus smtp. Das Gateway lehnt es sonst ohnehin ab
-  // (smtp_relay.pruefe) — hier wird nur sichtbar, warum.
+  // Relay: in JEDEM Modus wählbar. Die Geräteerkennung nach Adresse (Port 25)
+  // wirkt nur im Modus smtp — das Gateway lehnt sie sonst ab (smtp_relay.pruefe).
+  // Die Einlieferung mit Login auf 587 (Sende-Identitäten) läuft dagegen in
+  // jedem Modus und liegt auf derselben Seite. Bis v1.10.66 war der Haken hier
+  // ausserhalb von smtp gesperrt; damit fehlte in Azure der Menüpunkt und mit
+  // ihm der einzige Weg für Geräte.
   const relayCb = document.getElementById('relay-enabled-wizard');
   if (relayCb) {
-    if (mode !== 'smtp') { relayCb.checked = false; relayCb.disabled = true; }
-    else relayCb.disabled = false;
+    relayCb.disabled = false;
     document.getElementById('relay-nur-smtp').style.display = (mode !== 'smtp') ? '' : 'none';
     document.getElementById('relay-fields').style.display   = relayCb.checked ? '' : 'none';
   }
@@ -1548,7 +1554,7 @@ async function saveModeSelection() {
   // darf nicht getrennt davon speicherbar sein (Speichern-Regel 1). Welche
   // Geräte einliefern dürfen, steht dagegen in der Geräteliste unter /relay.
   const relayCb = document.getElementById('relay-enabled-wizard');
-  const relayAn = !!(relayCb && relayCb.checked && mode === 'smtp');
+  const relayAn = !!(relayCb && relayCb.checked);
 
   // S/MIME ist Opt-in (Default aus). Der Haken MUSS mitgeschrieben werden —
   // sonst bliebe S/MIME dauerhaft aus und liesse sich nicht aktivieren. In

@@ -194,7 +194,9 @@ Anmeldung erfolgt am **Gateway**, nicht an Exchange.
 - **Anmelde-Bremse** — wiederholte Fehlanmeldungen einer Quell-IP werden
   gedrosselt (exponentielles Backoff), bevor überhaupt ein Passwort geprüft wird.
 
-**Einrichten:** Auf der Relay-Seite die Rubrik *Sende-Identitäten* öffnen,
+**Einrichten:** Die Relay-Seite erscheint, sobald im Einrichtungsassistenten unter
+*Modus & Funktionen* der Haken *SMTP-Relay für eigene Geräte* gesetzt ist — in
+jedem Modus, auch in Azure. Dort die Rubrik *Sende-Identitäten* öffnen,
 *Authentifizierte Einlieferung (587) aktivieren* einschalten und eine Identität
 anlegen (Anzeigename, Login, Domäne, Passwort). Beim Speichern legt das Gateway
 die zugehörige Shared Mailbox automatisch an; die abgeleitete Adresse wird vorab
