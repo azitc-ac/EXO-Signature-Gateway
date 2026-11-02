@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.64 — 2026-11-02 — README: Hinweis zur Vertrauenswürdigkeit der CASTLE-Zertifikate
+
+- README und Funktionsübersicht sagen jetzt dazu, dass die CASTLE-PKI bei
+  Empfängern nicht von Haus aus als vertrauenswürdig gilt. Stimme dich vorher
+  mit den Empfängern ab, oder nimm gleich kostenpflichtige Zertifikate.
+
+**Zu tun:** Nichts.
+
 ## v1.10.63 — 2026-11-02 — Add-in beim Verfassen: „Fehler beim Laden: HTTP 403“ für Nutzer ohne Verwaltungsrolle behoben
 
 - Der Bereich des Add-ins beim Verfassen (Signatur-Vorschau und
