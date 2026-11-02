@@ -203,3 +203,21 @@ def test_schnittstellenbeschreibung_ist_abgeschaltet():
     assert app.openapi_url is None
     pfade = {getattr(r, "path", "") for r in app.routes}
     assert not ({"/openapi.json", "/docs", "/redoc"} & pfade)
+
+
+def test_self_sitzung_erreicht_die_verfassen_taskpane(self_sitzung):
+    """Die Verfassen-Taskpane (/addin/compose) meldet Postfach-Nutzer mit
+    ROLE_SELF an. Bis v1.10.62 wiesen /api/addin/signature und
+    /api/addin/templates diese Rolle mit 403 ab — jeder Nutzer ohne
+    Verwaltungsrolle sah „Fehler beim Laden: HTTP 403“."""
+    antwort = self_sitzung.get("/api/addin/templates", params={"email": "MIG3@azitc.eu"})
+    assert antwort.status_code == 200, antwort.text[:200]
+    assert "templates" in antwort.json()
+
+
+@pytest.mark.parametrize("adresse", ["/api/addin/templates", "/api/addin/signature"])
+def test_self_sitzung_bekommt_nur_das_eigene_postfach(self_sitzung, adresse):
+    """Gegenstück zur Öffnung: Eine Self-Sitzung darf über die Taskpane-
+    Endpunkte kein FREMDES Postfach abfragen."""
+    antwort = self_sitzung.get(adresse, params={"email": "chefin@azitc.eu"})
+    assert antwort.status_code == 403, f"{adresse} → {antwort.status_code}"

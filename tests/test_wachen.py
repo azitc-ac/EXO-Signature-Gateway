@@ -237,8 +237,6 @@ EDITOR_DARF: dict[str, str] = {
     "/api/mailboxes/namen":             ("NUR Adresse und Name — Auswahlfeld der "
                                          "Vorschau. Bewusst nicht /api/mailboxes: "
                                          "das liefert die Betriebssicht"),
-    "/api/addin/signature":             "Signatur für das Add-in",
-    "/api/addin/templates":             "Vorlagenliste für das Add-in",
     "/":                                "Startseite — leitet Editoren selbst auf /template um",
 }
 

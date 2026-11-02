@@ -35,7 +35,8 @@ import signature_engine
 import sso as sso_mod
 
 from webui.deps import (
-    templates, log, _gateway_name, _check_auth, _require_admin,
+    templates, log, _gateway_name, _check_auth, _require_admin, _require_self,
+    _get_session_role,
 )
 # Liegt in `hilfen.py`, weil die Einstellungsseite in `app.py` die Adresse
 # ebenfalls anzeigt. Vorher holte `app.py` sie von HIER — das lief, war aber
@@ -43,6 +44,22 @@ from webui.deps import (
 from webui.hilfen import _addin_base_url
 
 router = APIRouter()
+
+
+def _addin_postfach(request: Request, email: str, user: str) -> str:
+    """Postfach, für das die Verfassen-Taskpane Signatur/Vorlagen abfragt.
+
+    Die Taskpane meldet Postfach-Nutzer mit der Self-Service-Rolle an. Bis
+    v1.10.62 hingen beide Endpunkte an `_check_auth`, das ROLE_SELF mit 403
+    abweist — die Taskpane zeigte jedem Nutzer ohne Verwaltungsrolle
+    „Fehler beim Laden: HTTP 403“. Jetzt genügt jede gültige Sitzung; eine
+    Self-Sitzung bekommt aber ausschliesslich das EIGENE Postfach, nie das
+    eines anderen (sonst läse Nutzer A die Daten von Nutzer B).
+    """
+    email = (email or "").strip().lower()
+    if _get_session_role(request) == sso_mod.ROLE_SELF and email and email != user:
+        raise HTTPException(403, "Nur das eigene Postfach.")
+    return email
 
 
 def _addin_cfg(email: str) -> dict:
@@ -704,9 +721,10 @@ async def addin_function(request: Request):
 
 
 @router.get("/api/addin/signature")
-async def api_addin_signature(email: str, template: str = "", user: str = Depends(_check_auth)):
+async def api_addin_signature(request: Request, email: str, template: str = "",
+                              user: str = Depends(_require_self)):
     """Return the rendered (marked) signature HTML for the add-in taskpane."""
-    email = (email or "").strip().lower()
+    email = _addin_postfach(request, email, user)
     if not email:
         return JSONResponse({"marked_html": "", "preview_html": ""})
 
@@ -759,9 +777,10 @@ def markiert(sig_html: str) -> str:
 
 
 @router.get("/api/addin/templates")
-async def api_addin_templates(email: str, user: str = Depends(_check_auth)):
+async def api_addin_templates(request: Request, email: str,
+                              user: str = Depends(_require_self)):
     """Return list of templates available for this user in the add-in."""
-    email = (email or "").strip().lower()
+    email = _addin_postfach(request, email, user)
     mailbox_cfg = _addin_cfg(email)
     allowed = _addin_allowed_templates(email, mailbox_cfg)
     default_template = mailbox_cfg["template"]
