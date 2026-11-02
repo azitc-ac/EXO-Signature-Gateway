@@ -59,7 +59,7 @@ Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abw
 - **Signieren und/oder Verschlüsseln je Absender**, in jedem Reinject-Modus.
 - **Eigene Zertifikate** — bestehende PFX-Zertifikate importieren (mehrere je Adresse möglich).
 - **Azure Key Vault (HSM)** — private Schlüssel können im Key Vault liegen; signiert wird über die Key-Vault-Sign-API, der Schlüssel verlässt das HSM nie.
-- **Automatischer Zertifikats-Lebenszyklus** — vollautomatische Ausstellung und Erneuerung über CASTLE ACME (RFC 8823), ohne Nutzerinteraktion. Mit eigenem DigiCert-CertCentral-Konto bestellt und erneuert das Gateway ebenfalls selbst. *Kostenpflichtige Zertifikate über den Signature Hub sind in Vorbereitung, Certum und SwissSign als Anbieter ebenso.*
+- **Automatischer Zertifikats-Lebenszyklus** — vollautomatische Ausstellung und Erneuerung über CASTLE ACME (RFC 8823), ohne Nutzerinteraktion. Mit eigenem DigiCert-CertCentral-Konto bestellt und erneuert das Gateway ebenfalls selbst (verfügbar, noch nicht im Betrieb erprobt). *Kostenpflichtige Zertifikate über den Signature Hub sind in Vorbereitung, Certum und SwissSign als Anbieter ebenso.*
 - **Empfänger-Zertifikate einsammeln** — öffentliche Zertifikate externer Korrespondenten werden aus eingehender signierter Post gewonnen, sodass sich später ohne manuellen Import an sie verschlüsseln lässt.
 - **Secure Message Portal** — hat ein Empfänger kein Zertifikat, kann verschlüsselte Post über ein sicheres Web-Portal (mit E-Mail-Einmalcode) zugestellt werden, statt zu scheitern oder im Klartext zu gehen.
 

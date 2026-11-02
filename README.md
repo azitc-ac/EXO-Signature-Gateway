@@ -105,7 +105,8 @@ Woher die Zertifikate kommen:
 - **Vorhandene Zertifikate:** bestehende PFX/P12-Zertifikate importieren,
   auch mehrere je Adresse.
 - **Eigenes DigiCert-Konto:** Mit einem CertCentral-API-Schlüssel bestellt und
-  erneuert das Gateway selbst, abgerechnet wird direkt mit DigiCert.
+  erneuert das Gateway selbst, abgerechnet wird direkt mit DigiCert. Verfügbar,
+  noch nicht im Betrieb erprobt.
 - **Kostenpflichtige Zertifikate über den Signature Hub:** in Vorbereitung.
   Certum und SwissSign sind als Anbieter in Vorbereitung.
 

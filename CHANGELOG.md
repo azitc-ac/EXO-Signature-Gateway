@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.62 — 2026-11-02 — README: DigiCert-Direktanbindung als noch nicht im Betrieb erprobt kennzeichnen
+
+- Die Bestellung über das eigene DigiCert-CertCentral-Konto ist vorhanden,
+  wurde aber noch nicht gegen ein echtes Konto im Betrieb erprobt. README und
+  Funktionsübersicht sagen das jetzt dazu.
+
+**Zu tun:** Nichts.
+
 ## v1.10.61 — 2026-11-02 — README: Bezugswege für S/MIME-Zertifikate
 
 - README und Funktionsübersicht nennen die Wege, auf denen das Gateway
