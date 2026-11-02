@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.63 — 2026-11-02 — Add-in beim Verfassen: „Fehler beim Laden: HTTP 403“ für Nutzer ohne Verwaltungsrolle behoben
+
+- Der Bereich des Add-ins beim Verfassen (Signatur-Vorschau und
+  Vorlagenwahl) zeigte jedem Postfach-Nutzer ohne Verwaltungsrolle „Fehler
+  beim Laden: HTTP 403“. Der Link zum Self-Service darunter funktionierte.
+  Ursache: Das Add-in meldet Postfach-Nutzer mit der Self-Service-Rolle an,
+  die beiden Abrufe für Signatur und Vorlagenliste verlangten aber eine
+  Verwaltungs- oder Bearbeitersitzung. Jetzt genügt jede gültige Sitzung.
+  Eine Self-Service-Sitzung bekommt dabei nur das eigene Postfach, ein
+  fremdes wird weiterhin mit 403 abgewiesen.
+- Nicht betroffen: das automatische Einfügen der Signatur beim Verfassen und
+  der Self-Service.
+
+**Zu tun:** Nichts. Nach dem Update lädt der Bereich die Signatur.
+
 ## v1.10.62 — 2026-11-02 — README: DigiCert-Direktanbindung als noch nicht im Betrieb erprobt kennzeichnen
 
 - Die Bestellung über das eigene DigiCert-CertCentral-Konto ist vorhanden,
