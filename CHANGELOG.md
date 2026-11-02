@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.69 — 2026-11-02 — Doku: Direktversand an Empfänger in Microsoft 365 richtig eingegrenzt
+
+- v1.10.68 beschrieb, Post an Empfänger in Microsoft 365 laufe beim
+  Direktversand immer über Exchange Online des eigenen Tenants, weil der
+  Inbound-Connector des Rückwegs die Ausgangsadresse erkenne. Das stimmt nur
+  für einen Inbound-Connector, der Absender an der IP erkennt
+  (`SenderIPAddresses`), etwa den eines separaten Relays auf derselben
+  Adresse. Der Inbound-Connector, den das Gateway anlegt, prüft das
+  Zertifikat (`TlsSenderCertificateName`). Postfix legt beim Direktversand
+  keines vor, und die Zuordnung zum eigenen Tenant entfällt.
+- README, Funktionsübersicht und Betrieb nennen jetzt diese Bedingung und die
+  Abhilfe: den IP-gebundenen Connector auf ein Zertifikat umstellen oder den
+  Direktversand über eine andere Ausgangsadresse schicken.
+
+**Zu tun:** Nutzt du den Direktversand, prüfe im Exchange Admin Center unter
+*Nachrichtenfluss → Connectors*, ob ein Inbound-Connector die Ausgangsadresse
+des Gateways als IP führt.
+
 ## v1.10.68 — 2026-11-02 — Doku: Direktversand in README, Funktionsübersicht und Betrieb
 
 - Der Direktversand (seit v1.10.20) stand bisher nur im Changelog. README und
@@ -15,9 +33,8 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
   *SMTP Port 25*.
 - *Betrieb → Domänen-Routing* hat einen eigenen Abschnitt mit den
   Einrichtungsschritten.
-- Neu dokumentiert ist eine Grenze: An Empfänger in Microsoft 365 läuft die
-  Post über Exchange Online des eigenen Tenants. Microsoft ordnet die
-  Ausgangsadresse dem Inbound-Connector zu, den der Rückweg braucht.
+- Neu dokumentiert ist eine Grenze bei Empfängern in Microsoft 365 und
+  IP-gebundenen Inbound-Connectoren (in v1.10.69 genauer gefasst).
 
 **Zu tun:** Nichts.
 

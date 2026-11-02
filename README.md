@@ -160,9 +160,10 @@ Voraussetzungen: Betrieb im eigenen Netz oder bei einem Hoster mit offenem
 ausgehendem Port 25 (in Azure ist er gesperrt), Rückweg-Modus *SMTP Port 25*
 und am besten ein eigener PTR-Eintrag für die Ausgangsadresse. Abmeldelinks
 und die Auswertung von Rückläufern bleiben Sache der versendenden Anwendung.
-An Empfänger, die selbst in Microsoft 365 sind, läuft die Post derzeit doch
-über Exchange Online deines Tenants: Microsoft ordnet die Ausgangsadresse dem
-Inbound-Connector zu, den der Rückweg braucht (gemessen 10/2026).
+Erkennt ein Inbound-Connector deines Tenants die Ausgangsadresse an der IP
+(etwa der eines separaten Relays), ordnet Microsoft Post an Empfänger in
+Microsoft 365 deinem Tenant zu und schickt sie über dein Exchange Online. Der
+Connector des Gateways prüft das Zertifikat und ist davon nicht betroffen.
 
 ### Betrieb
 
