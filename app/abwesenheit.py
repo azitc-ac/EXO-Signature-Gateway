@@ -402,9 +402,10 @@ def render_oof(user_data, template_name: str, zeitraum: str,
 
 
 def _oof_anhang(user_data, sender: str, mailbox_cfg: dict, sender_cfg: dict) -> tuple[str, str]:
-    """(html, txt) der optional unter die Abwesenheit gehängten Signatur (+ Banner).
+    """(html, txt) der optional unter die Abwesenheit gehängten Signatur, Banner
+    und Disclaimer — in dieser Reihenfolge, wie im Mailweg.
 
-    Gesteuert über OOO_APPEND_SIGNATURE / OOO_APPEND_BANNER. Nutzt dieselbe
+    Gesteuert über OOO_APPEND_SIGNATURE / OOO_APPEND_BANNER / OOO_APPEND_DISCLAIMER. Nutzt dieselbe
     Richtlinien-/Postfach-Auflösung wie der normale Mailweg, damit dieselbe
     Signatur erscheint, die der Absender sonst trägt.
 
@@ -416,7 +417,8 @@ def _oof_anhang(user_data, sender: str, mailbox_cfg: dict, sender_cfg: dict) -> 
     """
     append_sig = settings_store.get("OOO_APPEND_SIGNATURE")
     append_banner = settings_store.get("OOO_APPEND_BANNER")
-    if not append_sig and not append_banner:
+    append_disclaimer = settings_store.get("OOO_APPEND_DISCLAIMER")
+    if not append_sig and not append_banner and not append_disclaimer:
         return "", ""       # nichts anzuhängen — Richtlinien-Auflösung gar nicht nötig
     parts_html: list[str] = []
     parts_txt: list[str] = []
@@ -428,10 +430,10 @@ def _oof_anhang(user_data, sender: str, mailbox_cfg: dict, sender_cfg: dict) -> 
             parts_html.append(h)
         if t.strip():
             parts_txt.append(t)
-    if append_banner:
-        banner_tpl = vorlagen["banner"]
-        if banner_tpl:
-            h, t = signature_engine.render(user_data, template_name=banner_tpl)
+    for schalter, slot in ((append_banner, "banner"), (append_disclaimer, "disclaimer")):
+        tpl = vorlagen[slot] if schalter else ""
+        if tpl:
+            h, t = signature_engine.render(user_data, template_name=tpl)
             if h.strip():
                 parts_html.append(h)
             if t.strip():
@@ -816,14 +818,14 @@ async def render_intern_extern(user_data, upn: str, token: str, template: str,
                                mit_anhang: bool = True, sender: str = "",
                                period: str | None = None) -> tuple[str, str]:
     """(html_intern, html_extern) der Abwesenheit inkl. Ankündigung und — nach
-    OOO_APPEND_SIGNATURE/OOO_APPEND_BANNER — Signatur und Banner darunter.
+    OOO_APPEND_SIGNATURE/_BANNER/_DISCLAIMER — Signatur, Banner, Disclaimer darunter.
 
     Den Anhang berechnet DIESE Funktion, nicht der Aufrufer. Bis v1.9.139 tat
     das nur der Poll; Self-Service und Admin-Dashboard riefen ohne ihn auf und
     setzten den Text ohne Signatur. Der nächste Poll fand ihn abweichend und
     schrieb ihn neu — und jedes Neuschreiben setzt bei Exchange „einmal je
-    Absender" zurück. `mit_anhang=False` nur für eine Vorschau, die Signatur
-    und Banner selbst darunter setzt.
+    Absender" zurück. `mit_anhang=False` nur für eine Vorschau, die Signatur,
+    Banner und Disclaimer selbst darunter setzt.
 
     Die Ankündigung steht standardmäßig NUR im internen Text; ist nichts
     anzukündigen oder „auch extern" gesetzt, sind beide Fassungen gleich (ein

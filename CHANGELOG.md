@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.60 — 2026-11-02 — Abwesenheit: Disclaimer wahlweise unter der Notiz; Hinweis zur App-Leiste im klassischen Outlook
+
+- **Disclaimer unter der Abwesenheit:** Neuer Schalter *Abwesenheit →
+  „Zugewiesenen Disclaimer unter die Abwesenheit hängen“*
+  (`OOO_APPEND_DISCLAIMER`, Vorgabe aus). Bisher ließen sich unter die
+  Abwesenheitsnotiz nur Signatur und Banner hängen, der Disclaimer mit den
+  Pflichtangaben nie. Die Reihenfolge ist wie im Mailweg: Signatur, Banner,
+  Disclaimer. Die Vorschau im Self-Service zeigt den Disclaimer, sobald der
+  Schalter an ist.
+- **Dokumentation:** Zeigt das klassische Outlook keine linke App-Leiste (und
+  fehlt „Apps in Outlook anzeigen“ unter *Datei → Optionen → Erweitert*), lässt
+  sich die App nicht anheften. Abhilfe ist der Registry-Wert
+  `EnableAppsInOutlook = 1` unter
+  `HKCU\Software\Microsoft\Office\16.0\Outlook\Preferences`, beschrieben in
+  *Betrieb → Outlook-Add-in und App bereitstellen*.
+
+**Zu tun:** Nichts. Willst du den Disclaimer unter der Abwesenheit, schalte ihn
+unter *Abwesenheit* ein.
+
 ## v1.10.59 — 2026-11-02 — README: Wege zum Ein- und Ausschalten der Abwesenheit
 
 - Als Wege zum Ein- und Ausschalten der Abwesenheit nennen README und

@@ -65,6 +65,10 @@ Zwei Outlook-Add-ins bringen das Gateway dorthin, wo geschrieben wird:
 
 Bereitstellen, in Teams für alle anheften und in Outlook selbst anheften:
 [Betrieb → Outlook-Add-in und App bereitstellen](docs/betrieb.md#outlook-add-in-und-app-bereitstellen).
+Fehlt im klassischen Outlook die linke App-Leiste und damit die Möglichkeit
+zum Anheften, hilft der Registry-Wert `EnableAppsInOutlook = 1` unter
+`HKCU\Software\Microsoft\Office\16.0\Outlook\Preferences`. Details stehen
+im selben Abschnitt.
 
 <p>
 <img src="docs/screenshots/self-abwesenheit.png" width="270" alt="Self-Service am Handy: eigene Abwesenheit mit Zeitraum und Vorlage">

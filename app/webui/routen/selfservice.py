@@ -214,10 +214,12 @@ async def self_context(email: str = Depends(_require_self)):
         # die Signaturwahl auch dort — die Seite sagt es dazu.
         "oof_mit_signatur": bool(abwesenheit.funktion_aktiv()
                                  and settings_store.get("OOO_APPEND_SIGNATURE")),
-        # Ebenso das Banner (OOO_APPEND_BANNER). Einen Disclaimer trägt die
-        # Abwesenheitsnotiz nie (abwesenheit._oof_anhang).
+        # Ebenso Banner und Disclaimer (OOO_APPEND_BANNER/_DISCLAIMER,
+        # abwesenheit._oof_anhang).
         "oof_mit_banner": bool(abwesenheit.funktion_aktiv()
                                and settings_store.get("OOO_APPEND_BANNER")),
+        "oof_mit_disclaimer": bool(abwesenheit.funktion_aktiv()
+                                   and settings_store.get("OOO_APPEND_DISCLAIMER")),
         "darf_vorlagen": any(waehlbar.values()),
         "waehlbar": waehlbar,            # {sig, min, oof: bool}
         "oof_template": oof_eff,         # wirksam (für Vorschau/Anzeige)

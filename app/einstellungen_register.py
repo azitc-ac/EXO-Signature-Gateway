@@ -186,6 +186,7 @@ REGISTER: dict[str, E] = {
     "OOO_CALENDAR_REFRESH_HOURS": E(art=OPTION, ort="abwesenheit.html"),  # Kalender-Cache-Refresh
     "OOO_APPEND_SIGNATURE": E(art=OPTION, ort="abwesenheit.html"),  # Signatur unter OOF
     "OOO_APPEND_BANNER": E(art=OPTION, ort="abwesenheit.html"),     # Banner unter OOF
+    "OOO_APPEND_DISCLAIMER": E(art=OPTION, ort="abwesenheit.html"), # Disclaimer unter OOF
     "OOO_ANNOUNCE_MODE": E(art=OPTION, ort="abwesenheit.html"),   # Ankündigung: Umfang-Modus
     "OOO_ANNOUNCE_X": E(art=OPTION, ort="abwesenheit.html"),      # Ankündigung: Zahl
     "OOO_ANNOUNCE_PRIVAT": E(art=OPTION, ort="abwesenheit.html"), # Ankündigung: privat mitzählen
