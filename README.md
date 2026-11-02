@@ -101,7 +101,9 @@ sicheres Web-Portal.
 Woher die Zertifikate kommen:
 
 - **Kostenlos und automatisch:** Ausstellung und Erneuerung über CASTLE ACME
-  (RFC 8823), ohne Zutun der Nutzer.
+  (RFC 8823), ohne Zutun der Nutzer. Die CASTLE-PKI gilt bei Empfängern
+  allerdings nicht von Haus aus als vertrauenswürdig: Stimme dich vorher mit
+  ihnen ab, oder nimm gleich kostenpflichtige Zertifikate.
 - **Vorhandene Zertifikate:** bestehende PFX/P12-Zertifikate importieren,
   auch mehrere je Adresse.
 - **Eigenes DigiCert-Konto:** Mit einem CertCentral-API-Schlüssel bestellt und
