@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.61 — 2026-11-02 — README: Bezugswege für S/MIME-Zertifikate
+
+- README und Funktionsübersicht nennen die Wege, auf denen das Gateway
+  S/MIME-Zertifikate bekommt: kostenlos und automatisch über CASTLE ACME,
+  Import vorhandener PFX/P12-Zertifikate, Bestellung über das eigene
+  DigiCert-CertCentral-Konto. Kostenpflichtige Zertifikate über den Signature
+  Hub sind in Vorbereitung, mit Certum und SwissSign als Anbietern.
+
+**Zu tun:** Nichts.
+
 ## v1.10.60 — 2026-11-02 — Abwesenheit: Disclaimer wahlweise unter der Notiz; Hinweis zur App-Leiste im klassischen Outlook
 
 - **Disclaimer unter der Abwesenheit:** Neuer Schalter *Abwesenheit →
