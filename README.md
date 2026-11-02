@@ -122,11 +122,12 @@ Gedacht ist das für ein Gateway im eigenen Netz: Es erkennt die Geräte an ihre
 Adresse (Geräteliste mit Lernmodus), die Geräte bleiben unverändert, und auch
 Altgeräte ohne STARTTLS oder nur mit TLS 1.0 werden angenommen.
 
-Läuft das Gateway in Azure, sieht es nur die öffentliche Adresse deines Netzes,
-nicht die einzelnen Geräte. Dann bleibt die Einlieferung mit eigenem Login auf
-Port 587, und dafür muss jedes Gerät umgestellt werden. Gegenüber der direkten
-Anbindung an Exchange Online gewinnst du damit wenig, außer der Annahme älterer
-TLS-Versionen.
+In Azure gibt es kein Relay nach Adresse: Es setzt den Rückweg über Port 25
+voraus, und den sperrt Azure ausgehend. Außerdem sähe das Gateway dort nur die
+öffentliche Adresse deines Netzes, nicht die einzelnen Geräte. Es bleibt die
+Einlieferung mit eigenem Login auf Port 587 (Sende-Identitäten), dafür muss
+jedes Gerät umgestellt werden. Gegenüber der direkten Anbindung an Exchange
+Online gewinnst du damit wenig, außer der Annahme älterer TLS-Versionen.
 
 ### Betrieb
 

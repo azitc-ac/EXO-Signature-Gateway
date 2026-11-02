@@ -69,7 +69,7 @@ Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abw
 
 ## Betrieb
 - **Massenoperationen** — viele Postfächer auf einmal aktivieren und Zertifikate für viele zugleich bestellen/ausrollen (mit Vorschau und Kontingentprüfung).
-- **SMTP-Relay** — Geräte im eigenen Netz (Drucker, Scanner, Fachanwendungen) senden über das Gateway wie über einen lokalen Exchange-Server.
+- **SMTP-Relay** — Geräte im eigenen Netz (Drucker, Scanner, Fachanwendungen) senden über das Gateway wie über einen lokalen Exchange-Server. Nur im Rückweg-Modus *SMTP Port 25*, also nicht in Azure; dort liefern Geräte mit eigenem Login auf Port 587 ein (Sende-Identitäten).
 - **Outlook-Add-in** — Signatur direkt im Outlook-Verfassenfenster vorschauen und auswählen; beim Lesen öffnet es den Self-Service. Der Bereich lässt sich anheften; im klassischen Outlook steht der Knopf auch ohne ausgewählte Mail bereit.
 - **Signatur automatisch beim Verfassen** — ein zweites Add-in fügt die Gateway-Signatur ein, sobald eine Mail beginnt: in Outlook im Web, unter Windows (klassisch und neu) sowie in Outlook für iOS und Android (ab Version 4.2433). Bei Antworten und Weiterleitungen gilt dieselbe Regel wie im Gateway: volle Signatur beim ersten eigenen Beitrag, danach die Antwort-Signatur. Die Anmeldung läuft still, ohne Fenster.
 - **Abnahme** — *Einrichtung → Verbindungstest & Abnahme* prüft die Anlage als Ganzes (Außenadresse, TLS, Anmeldung, Exchange-Rechte, Postfächer, Rückweg, Vorlagen, Benachrichtigung, Add-in-Anmeldung) und nennt bei jeder Lücke, was zu tun ist.
