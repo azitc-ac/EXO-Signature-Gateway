@@ -7,6 +7,7 @@ Kernverträge:
   * Erste passende Kampagne in Listenreihenfolge gewinnt.
   * Verwaltung validiert VOR dem Schreiben und schreibt via settings_store.
 """
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -154,3 +155,65 @@ def test_loeschen(store):
     assert bc.loeschen(r["id"]) is True
     assert store["BANNER_CAMPAIGNS"] == []
     assert bc.loeschen(r["id"]) is False            # zweites Mal: weg
+
+
+# ── banner_fuer: die EINE Auswahl für Mailweg und Vorschauen ─────────────────
+# Anlass: Bis v1.10.71 wählte nur handler.py den Kampagnen-Banner. Die
+# Vorschauen (Self-Service, Vorlagen-Editor) zeigten während einer Kampagne den
+# regulären Banner — also nicht das, was die Mail trug.
+
+def test_banner_fuer_kampagne_vor_regulaerem(store):
+    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer")]
+    assert bc.banner_fuer("a@x.de", "regulaer", NOW) == "sommer"
+
+
+def test_banner_fuer_ohne_kampagne_regulaer(store):
+    assert bc.banner_fuer("a@x.de", "regulaer", NOW) == "regulaer"
+    store["BANNER_CAMPAIGNS"] = [_kmp(end=_iso(NOW - timedelta(days=1)))]
+    assert bc.banner_fuer("a@x.de", "regulaer", NOW) == "regulaer"
+
+
+def test_banner_fuer_kampagne_auch_ohne_regulaeren_banner(store):
+    # Wie bisher im Handler: Eine Kampagne gilt auch für Postfächer ohne Banner.
+    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer")]
+    assert bc.banner_fuer("a@x.de", "", NOW) == "sommer"
+
+
+def test_banner_fuer_gruppe_ueber_postfachschluessel(store):
+    store["MAILBOX_CONFIG"] = {"guid-a": {"primary": "a@x.de"}, "guid-b": {"primary": "b@x.de"}}
+    store["INTERNAL_GROUPS"] = {"Vertrieb": ["guid-a"]}
+    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer", group="Vertrieb")]
+    assert bc.banner_fuer("A@x.de", "regulaer", NOW) == "sommer"
+    assert bc.banner_fuer("b@x.de", "regulaer", NOW) == "regulaer"
+
+
+# Jede Stelle, die den Banner eines Postfachs aus policies.aufloesen() liest,
+# muss über banner_fuer gehen. Ausnahmen nur mit Grund.
+_BANNER_OHNE_KAMPAGNE = {
+    "abwesenheit.py": "Der Banner unter der Abwesenheitsnotiz ist ein Schnappschuss "
+                      "beim Setzen der Notiz; eine Kampagne endete darin nicht mit "
+                      "ihrem Zeitfenster",
+}
+
+
+def test_jede_bannerauflosung_geht_ueber_banner_fuer():
+    from pathlib import Path
+    app = Path(__file__).resolve().parents[1] / "app"
+    funde = []
+    for p in sorted(app.rglob("*.py")):
+        text = p.read_text(encoding="utf-8")
+        if "aufloesen(" not in text or p.name in _BANNER_OHNE_KAMPAGNE:
+            continue
+        if re.search(r'\[\s*"banner"\s*\]', text) and "banner_fuer(" not in text:
+            funde.append(str(p.relative_to(app)))
+    assert not funde, ("Banner aus policies.aufloesen() ohne banner_campaigns.banner_fuer — "
+                       "eine laufende Kampagne fehlt dort:\n" + "\n".join(funde))
+
+
+def test_aktive_kampagne_nur_ueber_banner_fuer():
+    from pathlib import Path
+    app = Path(__file__).resolve().parents[1] / "app"
+    funde = [str(p.relative_to(app)) for p in sorted(app.rglob("*.py"))
+             if p.name != "banner_campaigns.py"
+             and "aktive_kampagne(" in p.read_text(encoding="utf-8")]
+    assert not funde, "aktive_kampagne direkt gerufen — banner_fuer nutzen:\n" + "\n".join(funde)

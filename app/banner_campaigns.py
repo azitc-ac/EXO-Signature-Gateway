@@ -79,6 +79,30 @@ def aktive_kampagne(campaigns, now: datetime, sender_key: str | None,
     return None
 
 
+def banner_fuer(sender: str, regulaer: str, now: datetime | None = None) -> str:
+    """Banner, das `sender` zum Zeitpunkt `now` bekommt: das einer aktiven,
+    passenden Kampagne, sonst `regulaer` (Richtlinie bzw. Postfach).
+
+    Die EINE Stelle, an der Kampagnen den Banner bestimmen — für den Mailweg
+    UND für jede Vorschau. Bis v1.10.71 stand die Auswahl nur in handler.py;
+    die Vorschauen zeigten während einer Kampagne den regulären Banner, also
+    nicht das, was die Mail tatsächlich trug. tests/test_banner_campaigns.py
+    verlangt, dass jede Stelle, die den Banner eines Postfachs auflöst, hier
+    durchgeht.
+
+    Lesend wie aktive_kampagne: kein Schreiben, auch im Mailpfad sicher.
+    """
+    kampagnen = settings_store.get(KEY) or []
+    if not kampagnen:
+        return regulaer
+    import gruppen
+    import mailbox_match
+    schluessel = mailbox_match.match_sender_key(
+        settings_store.get("MAILBOX_CONFIG") or {}, sender)
+    return aktive_kampagne(kampagnen, now or datetime.now(timezone.utc),
+                           schluessel, gruppen.interne_gruppen()) or regulaer
+
+
 # ── Verwaltung (nur Web-Prozess) ──────────────────────────────────────────────
 _ID_RE = re.compile(r"^kmp_[a-z0-9]{6,}$")
 

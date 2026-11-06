@@ -714,10 +714,13 @@ async def api_preview_data(
     # stand hier das rohe Postfach-Feld; bei use_policy=true fehlte der Banner der
     # Richtlinie dann in der Vorschau.
     if not explizit and email and (not banner or not disclaimer):
+        import banner_campaigns
         import policies as _pol
         _v = _pol.aufloesen(email)
         if not banner:
-            banner = _v["banner"]
+            # Eine laufende Kampagne geht vor — wie im Mailweg. Ein ausdrücklich
+            # übergebener Banner (Parameter) bleibt dagegen, was er ist.
+            banner = banner_campaigns.banner_fuer(email, _v["banner"])
         if not disclaimer:
             disclaimer = _v["disclaimer"]
     banner_html = ""

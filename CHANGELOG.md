@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.72 — 2026-11-06 — Vorschau zeigt den Banner einer laufenden Kampagne
+
+- Läuft eine Banner-Kampagne, trägt die Mail deren Banner statt des Banners
+  aus Richtlinie oder Postfach. Die Vorschauen zeigten trotzdem den regulären
+  Banner, also nicht, was tatsächlich hinausging. Betroffen waren die Vorschau
+  im Self-Service und im Outlook-Add-in sowie die Vorschau im Vorlagen-Editor.
+- Die Auswahl steht jetzt an einer Stelle, die Mailweg und Vorschauen
+  gemeinsam nutzen. Zeitfenster und Zielgruppe gelten in der Vorschau also
+  genauso wie beim Versand.
+- Unverändert: Auf der Seite *Vorschau* wählst du Banner und Disclaimer selbst
+  aus; dort gilt deine Auswahl. Der Banner, der optional unter der
+  Abwesenheitsnotiz steht, berücksichtigt keine Kampagne. Er wird beim Setzen
+  der Notiz eingefügt und endete sonst nicht mit dem Zeitfenster der Kampagne.
+
+**Zu tun:** nichts.
+
 ## v1.10.71 — 2026-11-06 — Symbol des Gateways ohne Farbverläufe
 
 - Das Zeichen des Gateways (Umschlag, Signaturschwung, Siegel, Schloss) hat

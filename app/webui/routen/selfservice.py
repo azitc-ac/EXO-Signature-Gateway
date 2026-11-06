@@ -269,10 +269,13 @@ _datum_zeit = abwesenheit.datum_zeit   # EINE Quelle in abwesenheit.py
 
 async def _banner_disclaimer_html(email: str) -> tuple[str, str]:
     """(banner_html, disclaimer_html), die das Postfach TATSÄCHLICH bekäme — wie im
-    Betrieb aufgelöst (Richtlinie bzw. Postfach-eigene Felder). Nicht nutzerwählbar;
-    gehört aber in die Vorschau, damit sie vollständig ist."""
+    Betrieb aufgelöst (Richtlinie bzw. Postfach-eigene Felder, eine laufende
+    Banner-Kampagne geht vor). Nicht nutzerwählbar; gehört aber in die Vorschau,
+    damit sie vollständig ist."""
+    import banner_campaigns
     v = _policies.aufloesen(email)
-    banner, disclaimer = v["banner"], v["disclaimer"]
+    banner = banner_campaigns.banner_fuer(email, v["banner"])
+    disclaimer = v["disclaimer"]
     if not banner and not disclaimer:
         return "", ""
     user_data = await graph_client.get_user(email)

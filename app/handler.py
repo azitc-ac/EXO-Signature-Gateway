@@ -1173,18 +1173,10 @@ class SignatureHandler:
             # Banner über das der Richtlinie/des Postfachs. Unabhängig von
             # use_policy — eine Kampagne ist ein Marketing-Vorgang, kein
             # Postfach-Attribut. Rein additiv, kein Mailfluss-Eingriff.
-            _campaigns = settings_store.get("BANNER_CAMPAIGNS") or []
-            if _campaigns and "banner" in _zusatz:
+            # Auswahl in banner_campaigns.banner_fuer — dieselbe wie in den Vorschauen.
+            if "banner" in _zusatz:
                 import banner_campaigns
-                import mailbox_match as _mmk
-                from datetime import datetime as _dtk, timezone as _tzk
-                _ck = _mmk.match_sender_key(
-                    settings_store.get("MAILBOX_CONFIG") or {}, sender)
-                _kmp = banner_campaigns.aktive_kampagne(
-                    _campaigns, _dtk.now(_tzk.utc), _ck,
-                    __import__("gruppen").interne_gruppen())
-                if _kmp:
-                    _banner_tpl = _kmp
+                _banner_tpl = banner_campaigns.banner_fuer(sender, _banner_tpl)
             # Banner und Disclaimer in BEIDE Teile — HTML und Text. Bis
             # v1.9.141 nur ins HTML: Bei S/MIME-signierter Post, deren
             # Textteil Exchange nicht mehr anfassen kann, fehlten sie Lesern
