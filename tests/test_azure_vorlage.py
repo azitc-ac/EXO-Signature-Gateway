@@ -229,3 +229,41 @@ def test_cloud_init_ohne_wartezeit_laeuft_weiter(tmp_path):
               + "echo GESTARTET\n")
     r = subprocess.run(["bash", "-c", skript], capture_output=True, text=True, timeout=10)
     assert r.returncode == 0 and "GESTARTET" in r.stdout
+
+
+# ── SSH-Schlüssel ─────────────────────────────────────────────────────────────
+# Bis 1.10.74 ein Textfeld: Wer keinen öffentlichen Schlüssel zur Hand hatte,
+# kam im Assistenten nicht weiter. Jetzt Microsoft.Compute.CredentialsCombo mit
+# „Neues Schlüsselpaar generieren“. Dann ist sshPublicKey LEER und nur
+# sshKeyName gesetzt (Learn, CredentialsCombo „Sample output“) — die Vorlage
+# muss beide Wege annehmen.
+
+def _ssh_element():
+    ui = json.loads(UI.read_text(encoding="utf-8"))["parameters"]
+    return ui, next(e for e in ui["steps"][0]["elements"] if e["name"] == "sshZugang")
+
+
+def test_assistent_bietet_schluesselpaar_an_und_kein_kennwort():
+    ui, el = _ssh_element()
+    assert el["type"] == "Microsoft.Compute.CredentialsCombo" and el["osPlatform"] == "Linux"
+    assert el["options"]["hidePassword"] is True, "Kennwort-Anmeldung per SSH ist abgeschaltet"
+    assert ui["outputs"]["adminSshPublicKey"] == "[steps('vm').sshZugang.sshPublicKey]"
+    assert ui["outputs"]["sshKeyName"] == "[steps('vm').sshZugang.sshKeyName]"
+    # Kein zweites, freies Schlüsselfeld daneben.
+    assert not [e for e in ui["steps"][0]["elements"]
+                if "ssh" in e["name"].lower() and e["type"] == "Microsoft.Common.TextBox"
+                and e["name"] != "sshQuelle"]
+
+
+def test_vorlage_nimmt_schluessel_als_text_oder_aus_azure():
+    v = _vorlage()
+    vm = next(r for r in v["resources"] if r["type"] == "Microsoft.Compute/virtualMachines")
+    linux = vm["properties"]["osProfile"]["linuxConfiguration"]
+    assert linux["disablePasswordAuthentication"] is True
+    key = linux["ssh"]["publicKeys"][0]["keyData"]
+    assert key.startswith("[if(empty(parameters('adminSshPublicKey')), "), key
+    assert "reference(resourceId('Microsoft.Compute/sshPublicKeys', parameters('sshKeyName'))" in key
+    assert key.endswith(", parameters('adminSshPublicKey'))]"), key
+    # Beide dürfen fehlen — der Assistent liefert je nach Wahl nur einen.
+    assert v["parameters"]["adminSshPublicKey"]["defaultValue"] == ""
+    assert v["parameters"]["sshKeyName"]["defaultValue"] == ""

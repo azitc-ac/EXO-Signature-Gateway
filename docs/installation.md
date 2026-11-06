@@ -130,8 +130,11 @@ Für den Azure-Betrieb `REINJECT_MODE=graph` (Graph-only) oder `graph_plus` (Gra
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2FcreateUiDefinition.json)
 
 Der Knopf öffnet die Vorlage `deploy/azure/azuredeploy.json` im Azure-Portal. Du
-wählst Abo, Ressourcengruppe und Region und trägst deinen öffentlichen
-SSH-Schlüssel und ein Anfangskennwort für die Weboberfläche ein. Das Kennwort
+wählst Abo, Ressourcengruppe und Region, gibst einen SSH-Schlüssel an und
+trägst ein Anfangskennwort für die Weboberfläche ein. Als SSH-Schlüssel nimmst du
+einen vorhandenen öffentlichen Schlüssel, einen in Azure gespeicherten, oder du
+lässt das Portal ein neues Paar generieren; den privaten Schlüssel lädst du dann
+beim Erstellen herunter. Er wird nur für die Wartung per SSH gebraucht. Das Kennwort
 geht verschlüsselt an die VM (Custom-Script-Erweiterung) und gilt für den
 Benutzer `admin`; das Gateway startet erst, wenn es angekommen ist. Eine VM aus
 der Vorlage ist also nie mit `admin` / `admin` erreichbar. Die Vorlage legt an:

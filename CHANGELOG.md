@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.75 — 2026-11-06 — Azure-Vorlage: SSH-Schlüssel auch neu erzeugen
+
+- Der Portal-Assistent der Azure-Vorlage (Deploy to Azure und Marketplace)
+  verlangte einen öffentlichen SSH-Schlüssel als Text. Wer keinen zur Hand
+  hatte, kam an dieser Stelle nicht weiter.
+- Das Feld ist jetzt das Azure-Element für Anmeldedaten: vorhandener
+  öffentlicher Schlüssel, ein in Azure gespeicherter Schlüssel, oder ein neues
+  Schlüsselpaar, das das Portal erzeugt. Den privaten Schlüssel lädst du dann
+  beim Erstellen herunter. Anmeldung per Kennwort bleibt für SSH abgeschaltet.
+- Die Vorlage nimmt den Schlüssel als Text (`adminSshPublicKey`) oder, wenn der
+  leer ist, aus dem Azure-Schlüsselobjekt in der Ressourcengruppe
+  (`sshKeyName`). Alle drei Wege sind in Azure ausgerollt und geprüft.
+
+**Zu tun:** nichts. Bestehende VMs sind nicht betroffen; die Änderung gilt nur
+für neue Bereitstellungen.
+
 ## v1.10.74 — 2026-11-06 — Einrichtungsseite auf Port 80 verlangt die Anmeldung
 
 - Vor dem ersten TLS-Zertifikat zeigt das Gateway auf Port 80 eine schlanke

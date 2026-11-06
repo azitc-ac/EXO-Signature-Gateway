@@ -64,15 +64,26 @@
             }
           },
           {
-            "name": "adminSshPublicKey",
-            "type": "Microsoft.Common.TextBox",
-            "label": "Öffentlicher SSH-Schlüssel",
-            "toolTip": "Inhalt von ~/.ssh/id_ed25519.pub o. ä., eine Zeile.",
+            "name": "sshZugang",
+            "type": "Microsoft.Compute.CredentialsCombo",
+            "label": {
+              "authenticationType": "Authentifizierung",
+              "password": "Kennwort",
+              "confirmPassword": "Kennwort bestätigen",
+              "sshPublicKey": "Öffentlicher SSH-Schlüssel"
+            },
+            "toolTip": {
+              "sshPublicKey": "Kein Schlüssel zur Hand? „Neues Schlüsselpaar generieren“ wählen; den privaten Schlüssel lädst du beim Erstellen herunter."
+            },
             "constraints": {
-              "required": true,
-              "regex": "^(?=.{60,16384}$)(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( .*)?$",
-              "validationMessage": "Erwartet wird ein öffentlicher Schlüssel, z. B. „ssh-ed25519 AAAA… name“."
-            }
+              "required": true
+            },
+            "options": {
+              "hideConfirmation": false,
+              "hidePassword": true
+            },
+            "osPlatform": "Linux",
+            "visible": true
           },
           {
             "name": "sshQuelle",
@@ -111,7 +122,8 @@
       "vmName": "[steps('vm').vmName]",
       "vmSize": "[steps('vm').vmSize]",
       "adminUsername": "[steps('vm').adminUsername]",
-      "adminSshPublicKey": "[steps('vm').adminSshPublicKey]",
+      "adminSshPublicKey": "[steps('vm').sshZugang.sshPublicKey]",
+      "sshKeyName": "[steps('vm').sshZugang.sshKeyName]",
       "sshQuelle": "[steps('vm').sshQuelle]",
       "webuiPassword": "[steps('vm').webuiPassword]"
     }
