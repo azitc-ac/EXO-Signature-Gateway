@@ -11,6 +11,7 @@ Token-Hash (Geheimnis) und die Konfiguration.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import secrets
@@ -114,6 +115,21 @@ async def watchdog_status(user: str = Depends(_require_admin)):
         "token_set": len(watchers) > 0 or bool(settings_store.get("WATCHDOG_TOKEN_HASH")),
         "exo_error": exo_err,
     })
+
+
+@router.post("/api/watchdog/regel-pruefen")
+async def watchdog_regel_pruefen(user: str = Depends(_require_admin)):
+    """„Erneut prüfen“ im Bypass-Banner: Signatur-Regel live aus Exchange lesen
+    (nur lesend) und den gemerkten Zustand erneuern. Danach entscheidet dasselbe
+    _bypass_gemeldet() wie beim Rendern, ob das Banner bleibt — ein Fehlalarm
+    verschwindet, ein echter Bypass nicht. Ausblenden gibt es bewusst nicht."""
+    import waechter_regel
+    from webui.deps import _bypass_gemeldet
+    erg = await asyncio.to_thread(waechter_regel.regel_lesen)
+    if erg is None:
+        return JSONResponse({"ok": False, "error": "Regel ließ sich nicht lesen — Exchange-Zugang prüfen."})
+    return JSONResponse({"ok": True, "rule_state": erg["state"],
+                         "bypass": _bypass_gemeldet() is not None})
 
 
 @router.post("/api/watchdog/config")

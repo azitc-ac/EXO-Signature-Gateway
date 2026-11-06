@@ -2092,8 +2092,8 @@ async function saveKeyvault() {
 <!-- ── Update-Watcher-Service ────────────────────────────────────────────── -->
 <div class="wizard-step {% if e.watcher_ok %}done{% endif %}" id="step-watcher" style="border-color:#0369a133">
   <div class="step-header">
-    <span class="step-badge" style="background:#0369a1;width:auto;padding:0 10px;border-radius:10px;font-size:12px">WATCHER</span>
-    <span class="step-title">Update-Watcher-Service</span>
+    <span class="step-badge" style="background:#0369a1;width:auto;padding:0 10px;border-radius:10px;font-size:12px">UPDATE</span>
+    <span class="step-title">Update-Dienst</span>
     {% if e.watcher_ok %}
     <span class="step-status done">Aktiv</span>
     {% else %}
@@ -2102,7 +2102,7 @@ async function saveKeyvault() {
   </div>
   <div class="step-body">
     <p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.6">
-      Der Update-Watcher ist ein systemd-Dienst auf dem Host, der Aktualisierungen
+      Der Update-Dienst ist ein systemd-Dienst auf dem Host, der Aktualisierungen
       aus dem Web UI (<em>Erweitert → Gateway aktualisieren</em>) entgegennimmt.
       Bei einer Azure-Neuinstallation (<code>azure-vm-setup.ps1</code>) wird er
       automatisch eingerichtet; auf anderen Wegen (selbst gehostet – z.&nbsp;B.

@@ -570,8 +570,22 @@
                 font-size:13px;color:#991b1b;display:flex;gap:10px;
                 align-items:center;flex-wrap:wrap">
       <strong>Ausfallsicherung aktiv (Bypass)</strong>
-      <span>Ausgehende Post wird derzeit <strong>ohne Signatur</strong> zugestellt{% if _bypass.seit %} — gemeldet seit {{ _bypass.seit }}{% endif %}.</span>
+      <span>Ausgehende Post wird derzeit <strong>ohne Signatur</strong> zugestellt{% if _bypass.seit %} — gemeldet seit {{ _bypass.seit }}{% endif %}.{% if _bypass.geprueft %} Regel zuletzt geprüft: {{ _bypass.geprueft }}.{% endif %}</span>
+      <button type="button" class="btn secondary btn-sm" id="bypass-pruefen-btn"
+              style="margin-left:auto" onclick="bypassPruefen()">Erneut prüfen</button>
+      <span id="bypass-pruefen-msg" class="field-msg" style="margin:0"></span>
     </div>
+    <script>
+      // Liest die Regel live aus Exchange (10–20 s). Stimmt die Meldung nicht
+      // mehr, verschwindet das Banner; ein echter Bypass bleibt stehen.
+      async function bypassPruefen() {
+        const d = await knopfAktion('bypass-pruefen-btn', 'Prüfe…',
+                                    () => postJSON('/api/watchdog/regel-pruefen', {}));
+        if (d.ok && !d.bypass) { location.reload(); return; }
+        showMsg('bypass-pruefen-msg', d.ok ? 'Geprüft: Die Regel ist weiterhin abgeschaltet.'
+                                           : (d.error || errText(d)), false);
+      }
+    </script>
     {% endif %}
 
     {# `weit` fuer Seiten, die Daten NEBENEINANDER zeigen (Postfachtabelle,
@@ -580,5 +594,27 @@
     <main class="{% block main_klasse %}{% endblock %}">
         {% block content %}{% endblock %}
     </main>
+    <script>
+      // Hinweise mit data-ausblendbar="<kennung>" bekommen „Nicht mehr anzeigen“.
+      // Gemerkt je Browser (localStorage) — reine Bequemlichkeit, deshalb nur für
+      // Hinweise, nie für Alarme wie das Bypass-Banner.
+      (function () {
+        const PRAEFIX = 'hinweis-aus:';
+        function gemerkt(k) { try { return localStorage.getItem(PRAEFIX + k) === '1'; } catch (e) { return false; } }
+        function merken(k) { try { localStorage.setItem(PRAEFIX + k, '1'); } catch (e) { /* privat: dann eben nur jetzt */ } }
+        document.querySelectorAll('[data-ausblendbar]').forEach(function (el) {
+          const k = el.dataset.ausblendbar;
+          if (gemerkt(k)) { el.hidden = true; return; }
+          const knopf = document.createElement('button');
+          knopf.type = 'button';
+          knopf.className = 'btn secondary btn-sm';
+          knopf.style.marginTop = '8px';
+          knopf.textContent = 'Nicht mehr anzeigen';
+          knopf.addEventListener('click', function () { merken(k); el.hidden = true; });
+          el.appendChild(document.createElement('br'));
+          el.appendChild(knopf);
+        });
+      })();
+    </script>
 </body>
 </html>

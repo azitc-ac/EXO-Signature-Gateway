@@ -114,6 +114,15 @@ def _abwesenheit_aktiv() -> bool:
 templates.env.globals["abwesenheit_aktiv"] = _abwesenheit_aktiv
 
 
+def _utc_anzeige(iso: str) -> str:
+    """„2026-11-06T23:03:59Z“ → „06.11.2026 23:03 UTC“; Unlesbares unverändert."""
+    from datetime import datetime
+    try:
+        return datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").strftime("%d.%m.%Y %H:%M UTC")
+    except ValueError:
+        return iso
+
+
 def _bypass_gemeldet() -> dict | None:
     """Fürs Banner: geht ausgehende Post gerade ohne Signatur raus? Zwei Quellen —
     der Heartbeat des Wächters (`bypass_active`) UND die unabhängige EXO-
@@ -136,7 +145,8 @@ def _bypass_gemeldet() -> dict | None:
             seit = st.get("rule_checked") or ""
             juengster = max((w.get("last_seen") or "" for w in waechter_register.liste()),
                             default="")
-            return {"seit": juengster or seit or st.get("last_seen") or ""}
+            return {"seit": juengster or seit or st.get("last_seen") or "",
+                    "geprueft": _utc_anzeige(st.get("rule_checked") or "")}
     except Exception:                                       # noqa: BLE001
         pass
     return None
