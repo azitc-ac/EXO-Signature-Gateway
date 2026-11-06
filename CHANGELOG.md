@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.71 — 2026-11-06 — Symbol des Gateways ohne Farbverläufe
+
+- Das Zeichen des Gateways (Umschlag, Signaturschwung, Siegel, Schloss) hat
+  jetzt volle Farben statt der vier Farbverläufe. Der Azure Marketplace lehnt
+  Logos mit Verlauf ab, und das Angebots-Logo entsteht aus derselben Datei.
+- Der weiße Ring um das Schloss war am rechten Rand um eine Viertel-Einheit
+  abgeschnitten. Das Bildfeld hat jetzt einen Rand, der Ring ist vollständig.
+- Neu gerendert sind Favicon, das Symbol für den iOS-Home-Bildschirm, die
+  Symbole beider Outlook-Add-ins und die der Teams-App.
+- Die Anmeldeseite behält ihre eigene, animierte Zeichnung.
+
+**Zu tun:** Weil sich das Symbol geändert hat, steigt die Fassung beider
+Outlook-Add-ins und der Teams-App. Aktualisiere die Add-ins im Admin Center:
+*Einstellungen → Integrierte Apps* → jeweils das Add-in öffnen →
+**Aktualisieren**. Bis dahin meldet der Postfach-Status die Add-in-Fassung als
+veraltet. Für das neue Symbol der Teams-App lade das App-Paket neu herunter
+(*Einrichtung → Outlook Add-in → App-Paket herunterladen (.zip)*) und lade es
+unter *Integrierte Apps* hoch. Das ist optional, die App funktioniert auch mit
+dem alten Symbol.
+
 ## v1.10.70 — 2026-11-06 — Baukasten: Tausch eines eingebetteten Logos gibt den Speichern-Knopf frei
 
 - Wer im Signatur-Baukasten ein eingebettetes Logo gegen ein anderes tauschte,
