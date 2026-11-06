@@ -144,7 +144,7 @@ erreichbar. Die Vorlage legt an:
 - ein eigenes virtuelles Netz.
 
 Beim ersten Start installiert cloud-init Docker, holt das Gateway aus GitHub, baut
-es und richtet den Update-Watcher ein. Das dauert nach dem Anlegen noch einige
+es und richtet den Update-Dienst ein. Das dauert nach dem Anlegen noch einige
 Minuten. Unter *Ausgaben* der Bereitstellung stehen IP-Adresse und
 Einrichtungsadresse; weiter geht es mit Schritt 3 des Schnellstarts
 (`http://<IP>`).

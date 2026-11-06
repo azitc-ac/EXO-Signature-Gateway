@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.78 — 2026-11-07 — Bypass-Banner „Erneut prüfen“; Update-Dienst; ausblendbare Hinweise
+
+- Das Bypass-Banner hat einen Knopf **Erneut prüfen**. Er liest die
+  Signatur-Transportregel live aus Exchange (nur lesend, etwa 10–20 s). Ist sie
+  aktiv, verschwindet das Banner; ist sie wirklich abgeschaltet, bleibt es
+  stehen. Das Banner nennt außerdem, wann die Regel zuletzt geprüft wurde.
+  Wegklicken lässt es sich bewusst nicht: Ein vergessener Bypass soll auf jeder
+  Seite auffallen.
+- Der Dienst auf dem Host, der Updates und Neustarts aus der Oberfläche
+  ausführt, heißt in der Oberfläche jetzt **Update-Dienst** statt
+  „Update-Watcher“. „Wächter“ meint damit nur noch die Ausfallsicherung
+  (Bypass-Wächter). Der Dienstname auf dem Host
+  (`exo-gateway-updater.service`) bleibt.
+- Hinweise lassen sich mit **Nicht mehr anzeigen** ausblenden, zuerst der
+  Hinweis „Noch nicht im Betrieb erprobt“ bei den S/MIME-Regeln. Gemerkt wird
+  das je Browser.
+
+**Zu tun:** nichts.
+
 ## v1.10.77 — 2026-11-07 — Örtliche Anmeldung nur mit Kennwort
 
 - Die örtliche Anmeldung (Notfall-Zugang auf der Anmeldeseite, Einrichtungsseite

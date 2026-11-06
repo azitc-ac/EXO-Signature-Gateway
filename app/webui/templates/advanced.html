@@ -1643,7 +1643,7 @@ async function saveLogging() {
         <div style="font-weight:600;font-size:13px;margin-bottom:4px">Container neu starten</div>
         <p style="font-size:12px;color:#64748b;margin:0 0 12px">
           Führt <code>docker compose restart</code> auf dem Host aus (~15 s). Nötig nach Umgebungsvariablen-Änderungen.
-          Erfordert den Watcher-Service.
+          Erfordert den Update-Dienst.
         </p>
         <button class="btn secondary" id="restart-container-btn" onclick="restartContainer()">Container neu starten</button>
       </div>
@@ -1687,7 +1687,7 @@ async function restartContainer() {
   if (!confirm('Container jetzt neu starten? Die Seite ist ca. 15 Sekunden nicht erreichbar.')) return;
   const status = 'restart-container-status';
   // Bei Erfolg gesperrt lassen: Pfeil und Hinweis bleiben bis zum Neuladen.
-  const d = await knopfAktion('restart-container-btn', 'Neustart-Befehl wird an Watcher übergeben…',
+  const d = await knopfAktion('restart-container-btn', 'Neustart-Befehl wird an den Update-Dienst übergeben…',
                               () => postJSON('/api/system/restart-container'),
                               {anzeige: status, gesperrtLassen: true});
   if (!d.ok) { showMsg(status, 'Fehler: ' + errText(d), false); return; }
