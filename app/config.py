@@ -62,7 +62,6 @@ _ENV_SEEDS: dict = {
     "EXO_PORT": int(_optional("EXO_PORT", "25")),
     "FALLBACK_ON_ERROR": _optional("FALLBACK_ON_ERROR", "true").lower() == "true",
     "LOG_LEVEL": _optional("LOG_LEVEL", "INFO").upper(),
-    "WEBUI_USERNAME": _optional("WEBUI_USERNAME", "admin"),
     "USER_WEBSITES": json.loads(_optional("USER_WEBSITES", "{}")),
     "USER_BOOKINGS": json.loads(_optional("USER_BOOKINGS", "{}")),
     "SENT_ITEMS_UPDATE": _optional("SENT_ITEMS_UPDATE", "false").lower() == "true",

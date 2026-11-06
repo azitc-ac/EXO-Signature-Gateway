@@ -14,7 +14,6 @@ DEFAULTS: dict = {
     "EXO_PORT": 25,
     "FALLBACK_ON_ERROR": True,
     "LOG_LEVEL": "INFO",
-    "WEBUI_USERNAME": "admin",
     "LOOP_HEADER": "X-Sig-Applied",
     "SENT_ITEMS_UPDATE": False,
     "USER_WEBSITES": {},
@@ -458,6 +457,7 @@ INTERNAL_KEYS = frozenset({
 # Oberfläche, um sie zu löschen. Wer vorher Sectigo oder SwissSign konfiguriert
 # hatte, dessen Zugangsdaten lagen weiter in der Datei.
 OBSOLETE_KEYS = {
+    "WEBUI_USERNAME":              "örtliche Anmeldung nur mit Kennwort (v1.10.77) — es gibt genau ein örtliches Konto",
     "STRIP_CLIENT_SIGS":           "in STRIP_CLIENT_SIGS_MOBILE (sicher, an) und _DESKTOP (experimentell, aus) aufgeteilt (v1.8.56); Migration v2→v3 übernimmt den Wert nach _DESKTOP",
     "SMTP_ACL_EXTRA_CIDRS":        "Zusatzliste erlaubter Quellnetze — durch das SMTP-Relay ersetzt (v1.8.15), das Absender und Ziel mitprüft",
     "SMTP_RELAY_NETWORKS":         "Netz ist keine Freigabe mehr — die Geräteliste ist es (v1.8.4); Lernbereich: SMTP_RELAY_LERN_NETZE",

@@ -31,6 +31,7 @@ import sso as sso_mod
 from webui.deps import (
     templates, log, _gateway_name, _check_auth, _require_admin,
     _get_session_user, _get_session_role, self_service_rolle,
+    LOKALER_ADMIN,
     admin_anmeldung,
 )
 from webui.hilfen import _build_redirect_uri
@@ -672,28 +673,27 @@ async def auth_local(request: Request):
     """Local admin login — creates session cookie."""
     ip = request.client.host if request.client else "unbekannt"
     data = await request.json()
-    username_in = (data.get("username") or "").strip()
     password_in = (data.get("password") or "")
     # Brute-Force-Bremse und Vergleich: admin_anmeldung (deps.py), dieselbe
     # Prüfung wie HTTP-Basic und die Einrichtungsseite auf Port 80.
-    ok, warte = admin_anmeldung(username_in, password_in, ip, "Formular-Login")
+    ok, warte = admin_anmeldung(password_in, ip, "Formular-Login")
     if warte > 0:
         raise HTTPException(429, "Zu viele Fehlversuche — bitte kurz warten.",
                             headers={"Retry-After": str(int(warte) + 1)})
     if ok:
-        cookie_val = sso_mod.create_session_cookie(username_in, local=True)
+        cookie_val = sso_mod.create_session_cookie(LOKALER_ADMIN, local=True)
         resp = JSONResponse({"ok": True})
         resp.set_cookie(
             sso_mod.SESSION_COOKIE, cookie_val,
             max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=_cookie_secure(),
         )
-        log.info("Local admin login: %s", username_in)
+        log.info("Local admin login")
         # Send notification about local admin login (fire-and-forget)
         import notification as _notif
         ua = request.headers.get("user-agent", "unbekannt")
-        asyncio.get_event_loop().run_in_executor(None, _notif.send_local_admin_login, ip, ua, username_in)
+        asyncio.get_event_loop().run_in_executor(None, _notif.send_local_admin_login, ip, ua)
         return resp
-    raise HTTPException(401, "Benutzername oder Passwort falsch")
+    raise HTTPException(401, "Kennwort falsch")
 
 @router.post("/auth/logout")
 async def auth_logout(request: Request):

@@ -829,7 +829,7 @@ def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "",
     )
 
 
-def send_local_admin_login(ip: str, user_agent: str, username: str) -> bool:
+def send_local_admin_login(ip: str, user_agent: str) -> bool:
     """Notify about local admin login (emergency use indicator)."""
     if not _should_notify("NOTIFY_LOCAL_ADMIN_LOGIN"):
         return False
@@ -840,7 +840,6 @@ def send_local_admin_login(ip: str, user_agent: str, username: str) -> bool:
     body = (
         f'<p>Es wurde eine Anmeldung mit dem lokalen Admin-Konto am EXO Signature Gateway erkannt.</p>'
         f'<table>'
-        f'{_row("Benutzername", username)}'
         f'{_row("IP-Adresse", ip)}'
         f'{_row("Browser/Client", user_agent)}'
         f'{_row("Zeitpunkt", now)}'

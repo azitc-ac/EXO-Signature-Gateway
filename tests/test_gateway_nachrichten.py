@@ -250,7 +250,7 @@ BOESE = '<script>alert(1)</script>'
     lambda: notification.send_cert_renewal_failure(BOESE, BOESE),
     lambda: notification.send_hub_cert_issued(BOESE, BOESE),
     lambda: notification.send_hub_cert_rejected(BOESE, BOESE, BOESE),
-    lambda: notification.send_local_admin_login(BOESE, BOESE, BOESE),
+    lambda: notification.send_local_admin_login(BOESE, BOESE),
     lambda: notification.send_cert_expiry_alert({"email": BOESE, "expiry": BOESE}),
     lambda: notification.send_portal_reply(
         {"sender_email": "e@x.de", "recipient_email": BOESE, "subject": BOESE},

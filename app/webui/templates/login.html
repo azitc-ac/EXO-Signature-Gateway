@@ -56,12 +56,8 @@
         {% if sso_host_matches %}Notfall-Zugang{% else %}Lokaler Zugang{% endif %}
       </summary>
       <div style="margin-top:14px">
-        <div class="settings-row" style="margin-bottom:8px">
-          <label for="local-user">Benutzername</label>
-          <input type="text" id="local-user" style="width:200px" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
-        </div>
         <div class="settings-row" style="margin-bottom:12px">
-          <label for="local-pw">Passwort</label>
+          <label for="local-pw">Kennwort</label>
           <div class="pw-wrap"><input type="password" id="local-pw" style="width:200px" autocomplete="current-password" onkeydown="if(event.key==='Enter')localLogin()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('local-pw')" onmouseup="hidePw('local-pw')" onmouseleave="hidePw('local-pw')" ontouchstart="event.preventDefault();showPw('local-pw')" ontouchend="hidePw('local-pw')">&#128065;</button></div>
         </div>
         <div id="local-error" class="alert error" style="display:none;margin-bottom:8px"></div>
@@ -102,11 +98,10 @@ async function submitSsoPaste() {
 }
 
 async function localLogin() {
-  var u = document.getElementById('local-user').value;
   var p = document.getElementById('local-pw').value;
   var errEl = document.getElementById('local-error');
   errEl.style.display = 'none';
-  var d = await postJSON('/auth/local', {username: u, password: p});
+  var d = await postJSON('/auth/local', {password: p});
   if (d.ok) {
     window.location.href = ANMELDE_ZIEL;
   } else {

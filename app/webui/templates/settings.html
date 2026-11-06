@@ -73,16 +73,7 @@
 
   <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
   <h3 style="margin-bottom:12px">Lokaler Admin</h3>
-  <div class="settings-row">
-    <label for="webui-username">Benutzername</label>
-    <div class="settings-control">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}" style="width:220px">
-        <button class="btn secondary btn-sm" id="zugangsdaten-btn" data-wache-hinweis="zugangsdaten-result" data-wache="webui-username" onclick="saveZugangsdaten()">Speichern</button>
-        <span id="zugangsdaten-result" style="font-size:12px"></span>
-      </div>
-    </div>
-  </div>
+  <p class="hint" style="margin:0 0 4px">Notfall-Zugang ohne Entra: Anmeldung nur mit dem Kennwort.</p>
   <div style="border-top:1px solid #f0f0f0;margin:12px 0;padding-top:12px">
     <div id="pw-change-btn-wrap">
       <button type="button" class="btn secondary" onclick="showPwChangeForm()">Passwort ändern</button>
@@ -316,11 +307,6 @@
 
 // savePartial() steht in common.js — eine Fassung fuer alle Seiten.
 
-
-async function saveZugangsdaten() {
-  const _ok = await savePartial({ WEBUI_USERNAME: feldWert('webui-username') }, 'zugangsdaten-result');
-  wacheFertig('zugangsdaten-btn', _ok);
-}
 
 function showPwChangeForm() {
   document.getElementById('pw-change-btn-wrap').style.display = 'none';
