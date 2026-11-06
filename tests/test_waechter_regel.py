@@ -77,6 +77,8 @@ def test_banner_bei_disabled_regel(monkeypatch, tmp_path):
     Regelprüfung heraus — nicht nur aus dem Heartbeat."""
     from webui import deps
     monkeypatch.setattr(waechter_state, "PFAD", tmp_path / "s.json")
+    monkeypatch.setattr(deps.settings_store, "get",
+                        lambda k, *a, **kw: True if k == "WATCHDOG_ENABLED" else None)
     waechter_state.merge(rule_state="Disabled", rule_checked="2026-09-03T00:00:00Z")
     b = deps._bypass_gemeldet()
     assert b and b["seit"], "Disabled-Regel muss das Banner auslösen"
@@ -93,3 +95,36 @@ def test_ohne_konfiguration_kein_aufruf(monkeypatch, tmp_path):
         raise AssertionError("pwsh darf ohne Konfiguration nicht aufgerufen werden")
     monkeypatch.setattr(wr.subprocess, "run", _boom)
     assert wr.pruefe_und_merke() is None
+
+
+def test_ohne_waechter_ist_abgeschaltete_regel_kein_bypass(monkeypatch, tmp_path):
+    """Nach dem Assistenten ist die Regel aus, solange kein Postfach aktiviert
+    ist. Ohne eingerichteten Wächter gibt es keinen Bypass — kein Banner."""
+    from webui import deps
+    monkeypatch.setattr(waechter_state, "PFAD", tmp_path / "s.json")
+    monkeypatch.setattr(deps.settings_store, "get", lambda k, *a, **kw: False if k == "WATCHDOG_ENABLED" else None)
+    waechter_state.merge(rule_state="Disabled", rule_checked="2026-11-06T23:03:59Z")
+    assert deps._bypass_gemeldet() is None
+
+
+def test_umschalten_verwirft_gemerkten_zustand(monkeypatch, tmp_path):
+    from webui import deps
+    monkeypatch.setattr(waechter_state, "PFAD", tmp_path / "s.json")
+    monkeypatch.setattr(deps.settings_store, "get", lambda k, *a, **kw: True if k == "WATCHDOG_ENABLED" else None)
+    waechter_state.merge(rule_state="Disabled", rule_checked="2026-11-06T23:03:59Z")
+    assert deps._bypass_gemeldet()
+    wr.regel_umgeschaltet()
+    assert waechter_state.lesen()["rule_state"] == ""
+    assert deps._bypass_gemeldet() is None
+
+
+def test_jeder_regel_schalter_verwirft_den_zustand():
+    """Die Einrichtungswege, die die Signatur-Regel anlegen oder an-/abschalten,
+    rufen im Erfolgszweig regel_umgeschaltet()."""
+    import ast
+    quelle = (Path(__file__).resolve().parent.parent / "app" / "setup_wizard.py").read_text(encoding="utf-8")
+    baum = ast.parse(quelle)
+    funktionen = {f.name: ast.get_source_segment(quelle, f) for f in baum.body
+                  if isinstance(f, ast.FunctionDef)}
+    for name in ("run_exo_connector_setup", "run_mailbox_dg_update", "run_rule_split_setup"):
+        assert "waechter_regel.regel_umgeschaltet()" in funktionen[name], name

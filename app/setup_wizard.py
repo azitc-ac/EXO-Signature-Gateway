@@ -925,6 +925,8 @@ def run_exo_connector_setup(
         if proc.returncode == 0:
             settings_store.update({"EXO_CONNECTOR_CREATED": True})
             log.info("EXO connector setup succeeded")
+            import waechter_regel
+            waechter_regel.regel_umgeschaltet()
             return {"ok": True, "output": output}
         else:
             log.error("EXO connector setup failed rc=%d: %s", proc.returncode, output)
@@ -1107,6 +1109,8 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
         output = (proc.stdout + "\n" + proc.stderr).strip()
         if proc.returncode == 0:
             log.info("Mailbox DG update succeeded (%d members)", len(members))
+            import waechter_regel
+            waechter_regel.regel_umgeschaltet()
             return {"ok": True, "output": output}
         log.error("Mailbox DG update failed rc=%d: %s", proc.returncode, output)
         return {"ok": False, "output": output}
@@ -1149,6 +1153,8 @@ def run_rule_split_setup(app_id: str, tenant_domain: str,
         output = (proc.stdout + "\n" + proc.stderr).strip()
         if proc.returncode == 0:
             log.info("Rule split ok (sig=%d, smime=%d)", len(sig_members), len(smime_members))
+            import waechter_regel
+            waechter_regel.regel_umgeschaltet()
             return {"ok": True, "output": output}
         log.error("Rule split failed rc=%d: %s", proc.returncode, output)
         return {"ok": False, "output": output}
