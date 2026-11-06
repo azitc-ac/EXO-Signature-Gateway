@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.70 — 2026-11-06 — Baukasten: Tausch eines eingebetteten Logos gibt den Speichern-Knopf frei
+
+- Wer im Signatur-Baukasten ein eingebettetes Logo gegen ein anderes tauschte,
+  bekam keinen Speichern-Knopf. Die Speichern-Wache vergleicht die Werte der
+  Eingabefelder; ein eingebettetes Bild steht in keinem, weil das URL-Feld
+  dann entfällt. „Logo A eingebettet“ und „Logo B eingebettet“ ergaben so
+  denselben Stand. Erkannt wurde nur der Wechsel zwischen URL und Einbettung.
+- Das Logo-Formular trägt jetzt ein verstecktes Feld mit einer Kennung des
+  Bildes (Länge und Prüfsumme der Data-URI). Ein Bildtausch gilt damit als
+  Änderung.
+
+**Zu tun:** nichts. Hast du ein Logo getauscht und die Vorlage danach nur über
+eine zweite, künstliche Änderung speichern können, ist sie richtig gespeichert.
+
 ## v1.10.69 — 2026-11-02 — Doku: Direktversand an Empfänger in Microsoft 365 richtig eingegrenzt
 
 - v1.10.68 beschrieb, Post an Empfänger in Microsoft 365 laufe beim

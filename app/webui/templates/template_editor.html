@@ -968,6 +968,7 @@ function buildBlockForm(b) {
           data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)"
           style="padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;width:100%;box-sizing:border-box">`}
         ${previewImg}
+        ${isEmbed ? `<input type="hidden" data-bild-kennung value="${escAttr(_bildKennung(b.url))}">` : ''}
         ${isEmbed ? `<button type="button" onclick="logoClear('${escJsAttr(b.id)}')"
           style="margin-top:6px;font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;padding:0">✕ Einbettung entfernen</button>` : ''}
       </div>
@@ -1293,6 +1294,19 @@ function findBlock(id, list) {
 }
 
 // ── Logo: file upload → base64 ────────────────────────────────────────────────
+// Die Speichern-Wache vergleicht nur Feldwerte. Ein eingebettetes Bild steht in
+// keinem Feld (das URL-Feld entfällt dann), also sah der Tausch eines
+// eingebetteten Logos gegen ein anderes für sie wie „unverändert“ aus, und der
+// Knopf blieb gesperrt. Das versteckte Feld trägt eine Kennung des Bildes —
+// Länge und Prüfsumme statt der ganzen Data-URI, die bis ~700 KB groß sein kann
+// und sonst bei jedem Tastendruck mitverglichen würde.
+function _bildKennung(url) {
+  const s = String(url || '');
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return s.length + ':' + h.toString(16);
+}
+
 window.logoFileUpload = function(input) {
   const bid = input.dataset.bid;
   const b = findBlock(bid);
