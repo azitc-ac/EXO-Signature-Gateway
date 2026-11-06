@@ -345,8 +345,6 @@ def _favicon_data_uri() -> str:
 # Geprüft wird über webui.deps.admin_anmeldung, dieselbe Stelle wie die
 # Anmeldung der Oberfläche (Drossel, Protokoll).
 _ANMELDE_FELDER = """\
-    <label>Benutzer der Weboberfläche</label>
-    <input name="admin_user" type="text" value="admin" autocomplete="username" required>
     <label>Kennwort der Weboberfläche</label>
     <input name="admin_pass" type="password" autocomplete="current-password" required>
 """
@@ -394,11 +392,10 @@ def _bootstrap_post(ctype: str, raw: bytes, ip: str, webroot) -> bytes:
     email = felder.get("email", "").strip()
 
     from webui.deps import admin_anmeldung
-    ok, warte = admin_anmeldung(felder.get("admin_user", ""), felder.get("admin_pass", ""),
-                                ip, "Einrichtungsseite")
+    ok, warte = admin_anmeldung(felder.get("admin_pass", ""), ip, "Einrichtungsseite")
     if not ok:
         text = (f"Zu viele Fehlversuche — bitte {int(warte) + 1} Sekunden warten."
-                if warte > 0 else "Benutzer oder Kennwort der Weboberfläche falsch. Nichts geändert.")
+                if warte > 0 else "Kennwort der Weboberfläche falsch. Nichts geändert.")
         return _setup_page(hostname=hostname, email=email, pfx_open=pfx_weg,
                            message=f'<div class="err">{_html_escape(text)}</div>')
 

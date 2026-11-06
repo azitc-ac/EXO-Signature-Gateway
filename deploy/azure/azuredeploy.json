@@ -66,7 +66,7 @@
       "minLength": 12,
       "maxLength": 128,
       "metadata": {
-        "description": "Anfangskennwort der Weboberfläche (Benutzer admin). Mindestens 12 Zeichen, ohne Leerzeichen und ohne ' \" ` \\ $ #."
+        "description": "Anfangskennwort der Weboberfläche (örtliche Anmeldung). Mindestens 12 Zeichen, ohne Leerzeichen und ohne ' \" ` \\ $ #."
       }
     }
   },

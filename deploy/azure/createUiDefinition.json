@@ -104,7 +104,7 @@
               "password": "Anfangskennwort der Weboberfläche",
               "confirmPassword": "Kennwort bestätigen"
             },
-            "toolTip": "Kennwort für die erste Anmeldung an der Weboberfläche (Benutzer admin). Es wird verschlüsselt an die VM übergeben.",
+            "toolTip": "Kennwort für die erste Anmeldung an der Weboberfläche (ohne Benutzernamen). Es wird verschlüsselt an die VM übergeben.",
             "constraints": {
               "required": true,
               "regex": "^[A-Za-z0-9!%&()*+,\\-./:;<=>?@\\[\\]^_{|}~]{12,128}$",

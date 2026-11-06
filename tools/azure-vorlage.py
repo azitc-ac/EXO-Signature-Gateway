@@ -134,7 +134,7 @@ def vorlage(cloud_init: str) -> dict:
             "repoUrl": {"type": "string", "defaultValue": REPO_URL,
                         "metadata": {"description": "Git-Repository des Gateways."}},
             "webuiPassword": {"type": "securestring", "minLength": 12, "maxLength": 128,
-                              "metadata": {"description": "Anfangskennwort der Weboberfläche (Benutzer admin). "
+                              "metadata": {"description": "Anfangskennwort der Weboberfläche (örtliche Anmeldung). "
                                                           "Mindestens 12 Zeichen, ohne Leerzeichen und ohne ' \" ` \\ $ #."}},
         },
         "variables": {
@@ -302,7 +302,7 @@ def assistent() -> dict:
                     {"name": "webuiPassword", "type": "Microsoft.Common.PasswordBox",
                      "label": {"password": "Anfangskennwort der Weboberfläche",
                                "confirmPassword": "Kennwort bestätigen"},
-                     "toolTip": "Kennwort für die erste Anmeldung an der Weboberfläche (Benutzer admin). "
+                     "toolTip": "Kennwort für die erste Anmeldung an der Weboberfläche (ohne Benutzernamen). "
                                 "Es wird verschlüsselt an die VM übergeben.",
                      "constraints": {"required": True, "regex": KENNWORT_MUSTER,
                                      "validationMessage": "12–128 Zeichen, ohne Leerzeichen und ohne "

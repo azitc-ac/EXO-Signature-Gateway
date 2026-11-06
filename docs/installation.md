@@ -84,9 +84,9 @@ Der Wizard bietet drei Wege zum Zertifikat:
   für NAT/rein interne Hosts. ⚠️ Erneuerung ~alle 90 Tage manuell.
 - **PFX-Import**: eigenes Zertifikat hochladen (auch Wildcard oder interne CA).
 
-Jeder Weg verlangt die Anmeldung der Weboberfläche: Benutzer `admin` und das
-Kennwort `admin`, auf einer VM aus der Azure-Vorlage das Anfangskennwort aus dem
-Portal. Ohne sie ändert die Seite nichts. Die Seite läuft noch ohne TLS, das
+Jeder Weg verlangt das Kennwort der Weboberfläche: `admin`, auf einer VM aus der
+Azure-Vorlage das Anfangskennwort aus dem Portal. Einen Benutzernamen gibt es
+nicht. Ohne sie ändert die Seite nichts. Die Seite läuft noch ohne TLS, das
 Kennwort geht hier also unverschlüsselt über das Netz; ändere es im ersten Schritt
 des Setup-Wizards.
 
@@ -105,7 +105,7 @@ Ab jetzt ist die Web-UI über HTTPS erreichbar:
 https://sig.example.com
 ```
 
-> **Standard-Login:** Benutzer `admin`, Passwort `admin`, auch auf VMs aus
+> **Standard-Login:** Kennwort `admin` (ohne Benutzernamen), auch auf VMs aus
 > `azure-vm-setup.ps1`. Der erste Schritt des Setup-Wizards erzwingt das Setzen
 > eines neuen Passworts. Auf einer VM aus der Azure-Vorlage (Knopf oben, Marketplace)
 > gilt stattdessen das Anfangskennwort, das du im Portal vergeben hast.
@@ -132,9 +132,10 @@ trägst ein Anfangskennwort für die Weboberfläche ein. Als SSH-Schlüssel nimm
 einen vorhandenen öffentlichen Schlüssel, einen in Azure gespeicherten, oder du
 lässt das Portal ein neues Paar generieren; den privaten Schlüssel lädst du dann
 beim Erstellen herunter. Er wird nur für die Wartung per SSH gebraucht. Das Kennwort
-geht verschlüsselt an die VM (Custom-Script-Erweiterung) und gilt für den
-Benutzer `admin`; das Gateway startet erst, wenn es angekommen ist. Eine VM aus
-der Vorlage ist also nie mit `admin` / `admin` erreichbar. Die Vorlage legt an:
+geht verschlüsselt an die VM (Custom-Script-Erweiterung) und gilt für die
+örtliche Anmeldung der Weboberfläche; das Gateway startet erst, wenn es
+angekommen ist. Eine VM aus der Vorlage ist also nie mit dem Kennwort `admin`
+erreichbar. Die Vorlage legt an:
 
 - eine Debian-12-VM, Vorgabe `Standard_B2pls_v2` (ARM64, 2 vCPU, 4 GB), wahlweise eine x64-Größe.
   In der Größenauswahl sind Größen, die in deinem Abo und deiner Region nicht verfügbar sind, mit einem Hinweis (i) gekennzeichnet.

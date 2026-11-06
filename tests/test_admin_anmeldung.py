@@ -56,16 +56,15 @@ def test_kennwort_wird_nur_in_admin_anmeldung_geprueft():
 # ── 2. admin_anmeldung ────────────────────────────────────────────────────────
 
 def test_richtig_und_falsch(umgebung):
-    assert deps.admin_anmeldung("admin", "richtig-12345", "198.51.100.1", "Test") == (True, 0.0)
-    assert deps.admin_anmeldung("admin", "admin", "198.51.100.1", "Test") == (False, 0.0)
-    assert deps.admin_anmeldung("fremd", "richtig-12345", "198.51.100.1", "Test") == (False, 0.0)
-    assert deps.admin_anmeldung("admin", "", "198.51.100.1", "Test") == (False, 0.0)
+    assert deps.admin_anmeldung("richtig-12345", "198.51.100.1", "Test") == (True, 0.0)
+    assert deps.admin_anmeldung("admin", "198.51.100.1", "Test") == (False, 0.0)
+    assert deps.admin_anmeldung("", "198.51.100.1", "Test") == (False, 0.0)
 
 
 def test_drossel_greift_nach_fehlversuchen(umgebung):
     for _ in range(login_drossel._FREI + 1):
-        deps.admin_anmeldung("admin", "falsch", "198.51.100.2", "Test")
-    ok, warte = deps.admin_anmeldung("admin", "richtig-12345", "198.51.100.2", "Test")
+        deps.admin_anmeldung("falsch", "198.51.100.2", "Test")
+    ok, warte = deps.admin_anmeldung("richtig-12345", "198.51.100.2", "Test")
     assert not ok and warte > 0, "gedrosselt muss auch das richtige Kennwort warten lassen"
 
 
@@ -100,7 +99,7 @@ FORM = "application/x-www-form-urlencoded"
 
 
 @pytest.mark.parametrize("aktion", ["letsencrypt", "dns01-start", "dns01-finish"])
-@pytest.mark.parametrize("anmeldung", [{}, {"admin_user": "admin", "admin_pass": "admin"}])
+@pytest.mark.parametrize("anmeldung", [{}, {"admin_pass": "admin"}])
 def test_ohne_gueltige_anmeldung_aendert_nichts(umgebung, bestellungen, aktion, anmeldung):
     seite = main._bootstrap_post(FORM, _formular(action=aktion, hostname="boese.example",
                                                  email="x@boese.example", **anmeldung),
@@ -118,13 +117,12 @@ def test_pfx_ohne_anmeldung_aendert_nichts(umgebung, bestellungen):
 
 def test_mit_anmeldung_wird_bestellt(umgebung, bestellungen):
     main._bootstrap_post(FORM, _formular(action="letsencrypt", hostname="sig.example",
-                                         email="a@example.org", admin_user="admin",
-                                         admin_pass="richtig-12345"),
+                                         email="a@example.org", admin_pass="richtig-12345"),
                          "203.0.113.10", Path("/tmp"))
     assert bestellungen == ["le"]
     assert umgebung["PUBLIC_HOSTNAME"] == "sig.example"
     ctype, rumpf = _multipart({"action": "pfx", "hostname": "sig.example",
-                               "admin_user": "admin", "admin_pass": "richtig-12345"})
+                               "admin_pass": "richtig-12345"})
     main._bootstrap_post(ctype, rumpf, "203.0.113.10", Path("/tmp"))
     assert bestellungen == ["le", "pfx"]
 
@@ -137,10 +135,34 @@ def test_jedes_formular_hat_anmeldefelder():
     formulare = re.findall(r"<form\b.*?</form>", html, re.S)
     assert len(formulare) == 5, len(formulare)
     for f in formulare:
-        assert 'name="admin_user"' in f and 'name="admin_pass"' in f, f[:120]
+        assert 'name="admin_pass"' in f, f[:120]
+        assert 'name="admin_user"' not in f, "kein Benutzerfeld — es gibt genau ein örtliches Konto"
 
 
 def test_anonymer_aufruf_zeigt_keine_gespeicherte_email():
     quelle = (WURZEL / "app/main.py").read_text(encoding="utf-8")
     get = quelle[quelle.index("def do_GET"):quelle.index("def do_POST")]
     assert "LE_EMAIL" not in get and "PUBLIC_HOSTNAME" not in get
+
+
+# ── 5. Kein Benutzername ───────────────────────────────────────────────────────
+# Seit v1.10.77: Das Benutzerfeld verleitete dazu, den SSH-Benutzer der VM
+# einzutragen. Es gibt genau ein örtliches Konto.
+
+def test_drossel_bremst_auch_ueber_viele_adressen(umgebung):
+    for i in range(login_drossel._FREI + 1):
+        deps.admin_anmeldung("falsch", f"198.51.100.{10 + i}", "Test")
+    ok, warte = deps.admin_anmeldung("richtig-12345", "203.0.113.200", "Test")
+    assert not ok and warte > 0
+
+
+def test_anmeldeseite_ohne_benutzerfeld():
+    html = (WURZEL / "app/webui/templates/login.html").read_text(encoding="utf-8")
+    assert 'id="local-user"' not in html and "username:" not in html
+    assert "postJSON('/auth/local', {password: p})" in html
+
+
+def test_benutzername_ist_keine_einstellung_mehr():
+    import settings_store
+    assert "WEBUI_USERNAME" not in settings_store.DEFAULTS
+    assert "WEBUI_USERNAME" in settings_store.OBSOLETE_KEYS

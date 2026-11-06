@@ -190,7 +190,14 @@ def _check_password(password: str) -> bool:
     return secrets.compare_digest(password.encode(), config.WEBUI_PASSWORD.encode())
 
 
-def admin_anmeldung(username_in: str, password_in: str, ip: str, art: str) -> tuple[bool, float]:
+# Kennung der örtlichen Verwaltung in Sitzung und Protokoll. Einen
+# Benutzernamen fragt die Anmeldung seit v1.10.77 nicht mehr ab: Es gibt genau
+# ein örtliches Konto, und das Feld verleitete dazu, den SSH-Benutzer der VM
+# einzutragen.
+LOKALER_ADMIN = "admin"
+
+
+def admin_anmeldung(password_in: str, ip: str, art: str) -> tuple[bool, float]:
     """Die EINE Prüfung der örtlichen Admin-Anmeldung: Drossel, Vergleich, Buchung.
 
     Rückgabe `(ok, warte)`. `warte > 0`: gedrosselt, nicht geprüft — der
@@ -207,16 +214,15 @@ def admin_anmeldung(username_in: str, password_in: str, ip: str, art: str) -> tu
         import anmelde_ereignisse
     except Exception:                                           # noqa: BLE001
         anmelde_ereignisse = None
-    schluessel = [ip or "?", f"u:{(username_in or '').strip().lower()}"]
+    # Zweiter Schlüssel fest: bremst auch verteilte Versuche über viele Adressen.
+    schluessel = [ip or "?", f"u:{LOKALER_ADMIN}"]
     warte = max((login_drossel.sperr_sekunden(k) for k in schluessel), default=0.0)
     if warte > 0:
         log.warning("Anmeldung gedrosselt (%s): %s (noch %.0fs)", art, ip, warte)
         if anmelde_ereignisse:
             anmelde_ereignisse.merke("web", ip, "gedrosselt")
         return False, warte
-    username = settings_store.get("WEBUI_USERNAME") or "admin"
-    if (secrets.compare_digest((username_in or "").strip().encode(), username.encode())
-            and _check_password(password_in or "")):
+    if _check_password(password_in or ""):
         for k in schluessel:
             login_drossel.erfolg(k)
         return True, 0.0
@@ -224,7 +230,7 @@ def admin_anmeldung(username_in: str, password_in: str, ip: str, art: str) -> tu
         login_drossel.fehlversuch(k)
     if anmelde_ereignisse:
         anmelde_ereignisse.merke("web", ip, f"{art} abgewiesen")
-    log.warning("Fehlgeschlagene Anmeldung (%s): Benutzer %r von %s", art, username_in, ip)
+    log.warning("Fehlgeschlagene Anmeldung (%s) von %s", art, ip)
     return False, 0.0
 
 
@@ -285,13 +291,14 @@ def _check_auth(request: Request,
             raise HTTPException(403, "Nur Self-Service verfügbar (/self).")
         return user
     # Örtliche Verwaltung als Notzugang — bleibt immer erreichbar.
-    if credentials and credentials.username and credentials.password:
+    # Der Benutzername der Basic-Anmeldung zählt nicht (LOKALER_ADMIN).
+    if credentials and credentials.password:
         ip = request.client.host if request.client else "?"
-        ok, warte = admin_anmeldung(credentials.username, credentials.password, ip, "HTTP-Basic")
+        ok, warte = admin_anmeldung(credentials.password, ip, "HTTP-Basic")
         if warte > 0:
             raise HTTPException(429, "Zu viele Fehlversuche — bitte kurz warten.")
         if ok:
-            return credentials.username
+            return LOKALER_ADMIN
     path = request.url.path
     is_api = path.startswith("/api/") or path.startswith("/log/")
     raise _NotAuthenticated(is_api=is_api)

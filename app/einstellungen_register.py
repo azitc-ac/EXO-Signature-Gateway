@@ -286,7 +286,6 @@ REGISTER: dict[str, E] = {
     "USER_OVERRIDES": E(art=STRUKTUR, ort="settings_signature.html"),
     "USER_WEBSITES": E(art=STRUKTUR, ort="settings_signature.html"),
     "WEBSITE_URL": E(art=OPTION, ort="settings_signature.html"),
-    "WEBUI_USERNAME": E(art=OPTION, ort="settings.html"),
 }
 
 

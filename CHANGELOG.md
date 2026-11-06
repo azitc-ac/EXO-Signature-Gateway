@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.77 — 2026-11-07 — Örtliche Anmeldung nur mit Kennwort
+
+- Die örtliche Anmeldung (Notfall-Zugang auf der Anmeldeseite, Einrichtungsseite
+  auf Port 80, HTTP-Basic) fragt keinen Benutzernamen mehr ab, nur das
+  Kennwort. Es gibt genau ein örtliches Konto; das Feld verleitete dazu, den
+  SSH-Benutzer der VM einzutragen.
+- Die Einstellung *Lokaler Admin → Benutzername* entfällt (`WEBUI_USERNAME`
+  wird beim Start aus der Konfiguration entfernt). Bei HTTP-Basic zählt der
+  eingegebene Benutzername nicht.
+- Die Bremse gegen Fehlversuche wirkt weiter je Adresse und zusätzlich über
+  alle Adressen hinweg.
+- Azure-Vorlage: Die Hinweise am Anfangskennwort nennen keinen Benutzer mehr.
+
+**Zu tun:** nichts. Hattest du einen eigenen Benutzernamen gesetzt, meldest du
+dich ab jetzt nur mit dem Kennwort an.
+
 ## v1.10.76 — 2026-11-07 — Kein falscher Bypass-Hinweis nach dem Assistenten; Gateway-Name lädt neu
 
 - Nach dem Einrichtungsassistenten meldete die Weboberfläche „Ausfallsicherung

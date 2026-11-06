@@ -84,10 +84,10 @@ async def setup_wizard(
     """Setup wizard. Anonymous only while Step 1 (initial password) is not yet set."""
     # Determine auth state: session cookie takes precedence, Basic-Auth as fallback
     authed = bool(_get_session_user(request))
-    if not authed and credentials and credentials.username and credentials.password:
+    if not authed and credentials and credentials.password:
         from webui.deps import admin_anmeldung
         ip = request.client.host if request.client else "?"
-        authed, _warte = admin_anmeldung(credentials.username, credentials.password, ip, "HTTP-Basic /setup")
+        authed, _warte = admin_anmeldung(credentials.password, ip, "HTTP-Basic /setup")
 
     # Nichtangemeldete zur Anmeldung — kein anonym gerenderter, aber beim
     # Speichern scheiternder Wizard mehr. admin/admin greift auf einem frischen
