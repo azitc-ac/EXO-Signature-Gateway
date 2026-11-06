@@ -84,6 +84,12 @@ Der Wizard bietet drei Wege zum Zertifikat:
   für NAT/rein interne Hosts. ⚠️ Erneuerung ~alle 90 Tage manuell.
 - **PFX-Import**: eigenes Zertifikat hochladen (auch Wildcard oder interne CA).
 
+Jeder Weg verlangt die Anmeldung der Weboberfläche: Benutzer `admin` und das
+Kennwort `admin`, auf einer VM aus der Azure-Vorlage das Anfangskennwort aus dem
+Portal. Ohne sie ändert die Seite nichts. Die Seite läuft noch ohne TLS, das
+Kennwort geht hier also unverschlüsselt über das Netz; ändere es im ersten Schritt
+des Setup-Wizards.
+
 Hostname (`sig.example.com`) und — bei Let's Encrypt — die ACME-E-Mail eintragen, Weg
 wählen, Zertifikat beziehen. Hinweise für NAT/rein interne Hosts im Abschnitt
 **Betrieb on-prem**.

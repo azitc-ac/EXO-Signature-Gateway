@@ -33,7 +33,6 @@ gerenderter, aber beim Speichern scheiternder Wizard entfaellt.
 from __future__ import annotations
 
 import asyncio
-import secrets
 import subprocess
 import urllib.parse
 from pathlib import Path
@@ -49,7 +48,7 @@ import settings_store
 
 from webui.deps import (
     templates, log, security, _gateway_name, _require_admin,
-    _check_password, _hash_password, _verify_password, _get_session_user,
+    _hash_password, _verify_password, _get_session_user,
 )
 from webui.hilfen import (
     _addin_base_url, _build_redirect_uri, _password_change_required,
@@ -86,11 +85,9 @@ async def setup_wizard(
     # Determine auth state: session cookie takes precedence, Basic-Auth as fallback
     authed = bool(_get_session_user(request))
     if not authed and credentials and credentials.username and credentials.password:
-        username = settings_store.get("WEBUI_USERNAME") or "admin"
-        authed = (
-            secrets.compare_digest(credentials.username.encode(), username.encode())
-            and _check_password(credentials.password)
-        )
+        from webui.deps import admin_anmeldung
+        ip = request.client.host if request.client else "?"
+        authed, _warte = admin_anmeldung(credentials.username, credentials.password, ip, "HTTP-Basic /setup")
 
     # Nichtangemeldete zur Anmeldung — kein anonym gerenderter, aber beim
     # Speichern scheiternder Wizard mehr. admin/admin greift auf einem frischen

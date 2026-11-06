@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.74 — 2026-11-06 — Einrichtungsseite auf Port 80 verlangt die Anmeldung
+
+- Vor dem ersten TLS-Zertifikat zeigt das Gateway auf Port 80 eine schlanke
+  Einrichtungsseite: Hostname, Let's Encrypt (HTTP-01 oder DNS-01) oder
+  PFX-Import. Diese Seite nahm alles ohne Anmeldung an. Wer die IP einer frischen
+  Installation vor dem Betreiber fand, konnte einen fremden Hostnamen oder ein
+  eigenes Zertifikat setzen. An die Weboberfläche kam er damit nicht, die
+  Einrichtung musste aber neu gemacht werden.
+- Jedes Formular der Seite fragt jetzt Benutzer und Kennwort der Weboberfläche
+  ab. Ohne gültige Anmeldung ändert die Seite keine Einstellung und bestellt
+  nichts. Ohne Anmeldung zeigt sie auch die gespeicherte E-Mail für Let's
+  Encrypt nicht mehr an.
+- Die Prüfung der örtlichen Admin-Anmeldung stand bisher dreimal im Code, mit
+  unterschiedlicher Bremse gegen Fehlversuche: Das Formular bremste nach
+  Adresse und Benutzer, HTTP-Basic nur nach Adresse, die Anmeldung an
+  `/setup` gar nicht. Alle vier Stellen nutzen jetzt dieselbe Prüfung mit
+  derselben Bremse und demselben Eintrag im Anmeldeprotokoll.
+- Die Seite läuft vor TLS; das Kennwort geht dort unverschlüsselt über das
+  Netz. Der erste Schritt des Einrichtungsassistenten verlangt ohnehin ein
+  neues Kennwort.
+
+**Zu tun:** nichts. Ein Gateway mit TLS-Zertifikat zeigt die Seite nicht mehr
+und leitet Port 80 auf HTTPS um. Bei einer neuen Installation meldest du dich
+auf der Seite mit `admin` und `admin` an, auf einer VM aus der Azure-Vorlage
+mit dem Anfangskennwort aus dem Portal.
+
 ## v1.10.73 — 2026-11-06 — Azure-Vorlage: Anfangskennwort statt admin/admin
 
 - Eine VM aus der Azure-Vorlage (Knopf *Deploy to Azure*, künftig auch der
