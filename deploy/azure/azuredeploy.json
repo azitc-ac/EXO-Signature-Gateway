@@ -35,8 +35,16 @@
     },
     "adminSshPublicKey": {
       "type": "string",
+      "defaultValue": "",
       "metadata": {
-        "description": "Öffentlicher SSH-Schlüssel (Inhalt von ~/.ssh/id_ed25519.pub o. ä.)."
+        "description": "Öffentlicher SSH-Schlüssel (Inhalt von ~/.ssh/id_ed25519.pub o. ä.). Leer lassen, wenn sshKeyName gesetzt ist."
+      }
+    },
+    "sshKeyName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name eines SSH-Schlüssels in Azure (Microsoft.Compute/sshPublicKeys) in dieser Ressourcengruppe; nur gelesen, wenn adminSshPublicKey leer ist."
       }
     },
     "sshQuelle": {
@@ -258,7 +266,7 @@
               "publicKeys": [
                 {
                   "path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
-                  "keyData": "[parameters('adminSshPublicKey')]"
+                  "keyData": "[if(empty(parameters('adminSshPublicKey')), reference(resourceId('Microsoft.Compute/sshPublicKeys', parameters('sshKeyName')), '2025-04-01').publicKey, parameters('adminSshPublicKey'))]"
                 }
               ]
             }

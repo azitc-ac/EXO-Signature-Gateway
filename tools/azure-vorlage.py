@@ -25,9 +25,6 @@ QUELLE = GATEWAY / "deploy" / "azure" / "cloud-init.yaml"
 ZIEL = GATEWAY / "deploy" / "azure" / "azuredeploy.json"
 ZIEL_UI = GATEWAY / "deploy" / "azure" / "createUiDefinition.json"
 
-# Öffentlicher SSH-Schlüssel in einer Zeile (OpenSSH-Format).
-SSH_MUSTER = r"^(?=.{60,16384}$)(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( .*)?$"
-
 REPO_URL = "https://github.com/azitc-ac/EXO-Signature-Gateway.git"
 
 # Anfangskennwort der Weboberfläche (WEBUI_PASSWORD). Ohne es wäre eine frisch
@@ -124,8 +121,14 @@ def vorlage(cloud_init: str) -> dict:
             # Keine Vorbelegung: 300.4.4 „Do not provide default values for usernames“.
             "adminUsername": {"type": "string",
                               "metadata": {"description": "SSH-Benutzer auf der VM, z. B. azureuser."}},
-            "adminSshPublicKey": {"type": "string",
-                                  "metadata": {"description": "Öffentlicher SSH-Schlüssel (Inhalt von ~/.ssh/id_ed25519.pub o. ä.)."}},
+            # Leer, wenn der Assistent ein neues Schlüsselpaar erzeugt
+            # (CredentialsCombo „Neues Schlüsselpaar generieren“) — dann gilt sshKeyName.
+            "adminSshPublicKey": {"type": "string", "defaultValue": "",
+                                  "metadata": {"description": "Öffentlicher SSH-Schlüssel (Inhalt von ~/.ssh/id_ed25519.pub o. ä.). "
+                                                              "Leer lassen, wenn sshKeyName gesetzt ist."}},
+            "sshKeyName": {"type": "string", "defaultValue": "",
+                           "metadata": {"description": "Name eines SSH-Schlüssels in Azure (Microsoft.Compute/sshPublicKeys) "
+                                                       "in dieser Ressourcengruppe; nur gelesen, wenn adminSshPublicKey leer ist."}},
             "sshQuelle": {"type": "string", "defaultValue": "*",
                           "metadata": {"description": "Von wo SSH erlaubt ist: '*' oder eine eigene IP/CIDR, z. B. 203.0.113.7/32."}},
             "repoUrl": {"type": "string", "defaultValue": REPO_URL,
@@ -203,7 +206,11 @@ def vorlage(cloud_init: str) -> dict:
                             "disablePasswordAuthentication": True,
                             "ssh": {"publicKeys": [{
                                 "path": f"[concat('/home/', {p('adminUsername')}, '/.ssh/authorized_keys')]",
-                                "keyData": f"[{p('adminSshPublicKey')}]",
+                                # if() wertet nur den zutreffenden Zweig aus: reference()
+                                # greift also nur, wenn kein Schlüssel als Text kam.
+                                "keyData": (f"[if(empty({p('adminSshPublicKey')}), "
+                                            f"reference(resourceId('Microsoft.Compute/sshPublicKeys', {p('sshKeyName')}), "
+                                            f"'{COMPUTE}').publicKey, {p('adminSshPublicKey')})]"),
                             }]},
                         },
                     },
@@ -243,10 +250,12 @@ def vorlage(cloud_init: str) -> dict:
 def assistent() -> dict:
     """Portal-Assistent. Die Ausgaben heissen wie die Parameter der Vorlage.
 
-    SSH-Schlüssel bewusst als Textfeld, nicht als Microsoft.Compute.CredentialsCombo:
-    Dessen Option „Neues Schlüsselpaar erzeugen“ lässt sich nicht ausblenden und
-    liefert dann einen LEEREN Schlüssel (die Vorlage müsste selbst ein
-    sshPublicKeys-Objekt anlegen).
+    SSH-Schlüssel über Microsoft.Compute.CredentialsCombo (nur Schlüssel, kein
+    Kennwort): Wer keinen Schlüssel hat, lässt das Portal eines erzeugen und lädt
+    den privaten Teil beim Erstellen herunter. In dem Fall ist sshPublicKey LEER
+    und nur sshKeyName gesetzt (learn.microsoft.com, CredentialsCombo, „Sample
+    output“); die Vorlage liest den Schlüssel dann aus dem Azure-Objekt dieses
+    Namens. Bis 1.10.74 ein Textfeld — wer keinen Schlüssel kannte, blieb hängen.
     """
     return {
         "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
@@ -275,12 +284,15 @@ def assistent() -> dict:
                      "label": "SSH-Benutzer", "osPlatform": "Linux",
                      "toolTip": "Benutzer für die Anmeldung per SSH, z. B. azureuser.",
                      "constraints": {"required": True}},
-                    {"name": "adminSshPublicKey", "type": "Microsoft.Common.TextBox",
-                     "label": "Öffentlicher SSH-Schlüssel",
-                     "toolTip": "Inhalt von ~/.ssh/id_ed25519.pub o. ä., eine Zeile.",
-                     "constraints": {"required": True, "regex": SSH_MUSTER,
-                                     "validationMessage": "Erwartet wird ein öffentlicher Schlüssel, "
-                                                          "z. B. „ssh-ed25519 AAAA… name“."}},
+                    {"name": "sshZugang", "type": "Microsoft.Compute.CredentialsCombo",
+                     "label": {"authenticationType": "Authentifizierung",
+                               "password": "Kennwort", "confirmPassword": "Kennwort bestätigen",
+                               "sshPublicKey": "Öffentlicher SSH-Schlüssel"},
+                     "toolTip": {"sshPublicKey": "Kein Schlüssel zur Hand? „Neues Schlüsselpaar generieren“ "
+                                                 "wählen; den privaten Schlüssel lädst du beim Erstellen herunter."},
+                     "constraints": {"required": True},
+                     "options": {"hideConfirmation": False, "hidePassword": True},
+                     "osPlatform": "Linux", "visible": True},
                     {"name": "sshQuelle", "type": "Microsoft.Common.TextBox", "label": "SSH erlaubt von",
                      "defaultValue": "*",
                      "toolTip": "„*“ für überall oder deine IP bzw. dein Netz, z. B. 203.0.113.7/32.",
@@ -303,7 +315,8 @@ def assistent() -> dict:
                 "vmName": "[steps('vm').vmName]",
                 "vmSize": "[steps('vm').vmSize]",
                 "adminUsername": "[steps('vm').adminUsername]",
-                "adminSshPublicKey": "[steps('vm').adminSshPublicKey]",
+                "adminSshPublicKey": "[steps('vm').sshZugang.sshPublicKey]",
+                "sshKeyName": "[steps('vm').sshZugang.sshKeyName]",
                 "sshQuelle": "[steps('vm').sshQuelle]",
                 "webuiPassword": "[steps('vm').webuiPassword]",
             },
