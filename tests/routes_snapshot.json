@@ -1932,6 +1932,13 @@
     "name": "watchdog_heartbeat"
   },
   {
+    "pfad": "/api/watchdog/regel-pruefen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "watchdog_regel_pruefen"
+  },
+  {
     "pfad": "/api/watchdog/remove",
     "methoden": [
       "POST"

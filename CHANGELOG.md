@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.79 — 2026-11-07 — Routenverzeichnis nachgezogen
+
+- Die Momentaufnahme der Routen kennt den Endpunkt von „Erneut prüfen“ (v1.10.78).
+
+**Zu tun:** nichts.
+
 ## v1.10.78 — 2026-11-07 — Bypass-Banner „Erneut prüfen“; Update-Dienst; ausblendbare Hinweise
 
 - Das Bypass-Banner hat einen Knopf **Erneut prüfen**. Er liest die
