@@ -127,7 +127,12 @@ def _bypass_gemeldet() -> dict | None:
         st = waechter_state.lesen()
         # rule_state (global, vom Scheduler) fängt einen Bypass auch dann, wenn
         # ALLE Wächter tot sind; die Wächter-Heartbeats fangen ihn früher.
-        if st.get("rule_state") == "Disabled" or waechter_register.irgendein_bypass_aktiv():
+        # Eine abgeschaltete Regel ist nur dann ein Bypass, wenn ein Wächter
+        # eingerichtet ist. Ohne ihn ist sie aus, solange kein Postfach
+        # aktiviert ist — das ist der Normalfall nach dem Assistenten.
+        regel_aus = (settings_store.get("WATCHDOG_ENABLED") is True
+                     and st.get("rule_state") == "Disabled")
+        if regel_aus or waechter_register.irgendein_bypass_aktiv():
             seit = st.get("rule_checked") or ""
             juengster = max((w.get("last_seen") or "" for w in waechter_register.liste()),
                             default="")

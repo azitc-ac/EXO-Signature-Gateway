@@ -95,6 +95,20 @@ def regel_lesen() -> dict | None:
     return erg
 
 
+def regel_umgeschaltet() -> None:
+    """Gemerkten Regelzustand verwerfen, weil ein Einrichtungsweg die Regel
+    gerade angelegt oder an-/abgeschaltet hat (Connector-Einrichtung,
+    Verteilerlisten-Abgleich, Regel-Split). Sonst bleibt ein „Disabled“ aus
+    der Zeit vor dem ersten aktivierten Postfach stehen, und das Banner meldet
+    einen Bypass, den es nicht gibt (Vorschau-VM 06.11.2026: Abnahme las die
+    Regel um 23:03 aus, das erste Postfach kam um 00:09). Die nächste echte
+    Abfrage trägt den Zustand neu ein. Wirft nie."""
+    try:
+        waechter_state.merge(rule_state="", rule_checked="")
+    except Exception as exc:                                # noqa: BLE001
+        log.warning("Regelzustand nicht zurückgesetzt: %s", exc)
+
+
 def pruefe_und_merke() -> str | None:
     """Regelzustand in EXO abfragen und in watchdog_state.json ablegen.
 

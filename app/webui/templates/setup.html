@@ -1053,10 +1053,10 @@
     </p>
     <ul style="margin:0 0 14px 16px;line-height:1.9;font-size:13px">
       <li><strong>Signierte Mails</strong>: Externe signierte Eingangs-Mails werden über das Gateway geleitet.
-        Das Gateway entfernt S/MIME-Signatur, sammelt Public Key des Absenders und ergänzt den Betreff
+        Das Gateway entfernt die S/MIME-Signatur, sammelt den öffentlichen Schlüssel des Absenders und ergänzt den Betreff
         (<code>[signiert von Max Mustermann]</code>).</li>
       <li><strong>Verschlüsselte Mails</strong>: Das Gateway entschlüsselt mit dem privaten Schlüssel des
-        internen Empfängers und ergänzt Betreff (<code>[verschlüsselt]</code> oder
+        internen Empfängers und ergänzt den Betreff (<code>[verschlüsselt]</code> oder
         <code>[verschlüsselt, signiert von …]</code>).<br>
         Voraussetzung: privater Schlüssel unter <a href="/smime">S/MIME → Signatur-Zertifikate</a> importiert.</li>
     </ul>
@@ -1396,8 +1396,12 @@ async function sendTestMail() {
 
 async function saveWizardGatewayName() {
   const val = feldWert('wizard-gateway-name') || 'EXO Signature Gateway';
-  wacheFertig('wizard-gateway-name-btn',
-              await savePartial({GATEWAY_NAME: val}, 'wizard-gateway-name-result', 'setup:gatewayName'));
+  const ok = await savePartial({GATEWAY_NAME: val}, 'wizard-gateway-name-result', 'setup:gatewayName');
+  wacheFertig('wizard-gateway-name-btn', ok);
+  // Der Name steht serverseitig gerendert in den folgenden Schritten (z. B.
+  // „<Name> Login“ zum Kopieren in Entra). Ohne Neuladen legt man dort Objekte
+  // unter dem alten Namen an.
+  if (ok) setTimeout(() => location.reload(), 1200);
 }
 
 async function saveBootstrapClientId() {

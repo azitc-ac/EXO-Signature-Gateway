@@ -94,11 +94,8 @@ Hostname (`sig.example.com`) und — bei Let's Encrypt — die ACME-E-Mail eintr
 wählen, Zertifikat beziehen. Hinweise für NAT/rein interne Hosts im Abschnitt
 **Betrieb on-prem**.
 
-Nach Erfolg:
-
-```bash
-docker compose restart
-```
+Nach Erfolg startet das Gateway von selbst neu und ist kurz darauf per HTTPS
+erreichbar.
 
 ### 4. HTTPS-Setup-Wizard
 
@@ -148,7 +145,7 @@ der Vorlage ist also nie mit `admin` / `admin` erreichbar. Die Vorlage legt an:
 Beim ersten Start installiert cloud-init Docker, holt das Gateway aus GitHub, baut
 es und richtet den Update-Watcher ein. Das dauert nach dem Anlegen noch einige
 Minuten. Unter *Ausgaben* der Bereitstellung stehen IP-Adresse und
-Einrichtungsadresse; weiter geht es mit Schritt 1 des Schnellstarts
+Einrichtungsadresse; weiter geht es mit Schritt 3 des Schnellstarts
 (`http://<IP>`).
 
 ### Azure VM anlegen (PowerShell-Skript)

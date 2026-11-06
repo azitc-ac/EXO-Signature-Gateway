@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.76 — 2026-11-07 — Kein falscher Bypass-Hinweis nach dem Assistenten; Gateway-Name lädt neu
+
+- Nach dem Einrichtungsassistenten meldete die Weboberfläche „Ausfallsicherung
+  aktiv (Bypass) — ausgehende Post wird ohne Signatur zugestellt“, obwohl kein
+  Wächter eingerichtet war und die Regel längst lief. Die Abnahme am Ende des
+  Assistenten liest die Signatur-Transportregel aus; zu diesem Zeitpunkt ist
+  sie noch aus, weil erst danach Postfächer aktiviert werden. Dieser Stand
+  blieb gespeichert, und das Banner wertete ihn als Bypass.
+- Eine abgeschaltete Regel gilt jetzt nur als Bypass, wenn ein Wächter
+  eingerichtet ist. Außerdem verwerfen Connector-Einrichtung,
+  Verteilerlisten-Abgleich und Regel-Split den gespeicherten Regelzustand, weil
+  sie die Regel selbst an- oder abschalten; die nächste Abfrage trägt ihn neu
+  ein.
+- Assistent, Schritt Gateway-Name: Nach dem Speichern lädt die Seite neu. Der
+  Name steht in den folgenden Schritten, etwa als Vorschlag „<Name> Login“ für
+  die Bootstrap-App in Entra; ohne Neuladen zeigten sie den alten Namen.
+- Assistent, S/MIME-Eingangsregeln: Text geglättet.
+- Installationsanleitung: Nach dem Zertifikat auf der Einrichtungsseite
+  startet das Gateway selbst neu (kein `docker compose restart` nötig); der
+  Azure-Abschnitt verweist auf den richtigen Schritt.
+
+**Zu tun:** nichts. Steht das Banner bei dir ohne eingerichteten Wächter, ist
+es nach dem Update weg.
+
 ## v1.10.75 — 2026-11-06 — Azure-Vorlage: SSH-Schlüssel auch neu erzeugen
 
 - Der Portal-Assistent der Azure-Vorlage (Deploy to Azure und Marketplace)
