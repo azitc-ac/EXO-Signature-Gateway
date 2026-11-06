@@ -236,6 +236,10 @@ _SETUP_PAGE_TEMPLATE = """\
 <body>
 <h1>EXO Signature Gateway</h1>
 <p class="sub">Erstkonfiguration — TLS-Zertifikat</p>
+<p class="note">Jeder Schritt verlangt die Anmeldung der Weboberfläche: Benutzer <code>admin</code>
+und das Kennwort <code>admin</code>, auf einer VM aus der Azure-Vorlage das Anfangskennwort
+aus dem Portal. Die Seite läuft noch ohne TLS; das Kennwort geht hier unverschlüsselt über
+das Netz. Ändere es im ersten Schritt des Einrichtungsassistenten.</p>
 {message}
 <p class="ask">Wo soll das TLS-Zertifikat herkommen?</p>
 
@@ -246,7 +250,7 @@ _SETUP_PAGE_TEMPLATE = """\
   <strong>https://{hostname_hint}</strong> weiter.</p>
   <form method="POST" action="/">
     <input type="hidden" name="action" value="letsencrypt">
-    <label>Hostname (öffentlich erreichbar)</label>
+{anmeldung}    <label>Hostname (öffentlich erreichbar)</label>
     <input name="hostname" type="text" placeholder="sig.example.com" value="{hostname}" required>
     <label>E-Mail für Let's Encrypt</label>
     <input name="email" type="email" placeholder="admin@example.com" value="{email}">
@@ -260,7 +264,7 @@ _SETUP_PAGE_TEMPLATE = """\
   (auch Wildcard oder interne CA). Es sollte zum Hostnamen passen.</p>
   <form method="POST" action="/" enctype="multipart/form-data">
     <input type="hidden" name="action" value="pfx">
-    <label>Hostname (muss zum Zertifikat passen)</label>
+{anmeldung}    <label>Hostname (muss zum Zertifikat passen)</label>
     <input name="hostname" type="text" placeholder="sig.example.com" value="{hostname}" required>
     <label>PFX-Datei</label>
     <input name="pfx_file" type="file" accept=".pfx,.p12" required>
@@ -281,7 +285,7 @@ _SETUP_PAGE_TEMPLATE = """\
   {dns01_block}
   <form method="POST" action="/">
     <input type="hidden" name="action" value="dns01-start">
-    <label>Hostname</label>
+{anmeldung}    <label>Hostname</label>
     <input name="hostname" type="text" placeholder="sig.example.com" value="{hostname}" required>
     <label>E-Mail für Let's Encrypt</label>
     <input name="email" type="email" placeholder="admin@example.com" value="{email}">
@@ -335,6 +339,19 @@ def _favicon_data_uri() -> str:
     return "data:image/svg+xml;base64," + base64.b64encode(svg).decode()
 
 
+# Anmeldefelder für JEDES Formular der Einrichtungsseite. Ohne sie konnte bis
+# v1.10.73 jeder, der die IP einer frischen Installation fand, Hostnamen und
+# TLS-Zertifikat setzen (Let's Encrypt, PFX, DNS-01) — vor dem Betreiber.
+# Geprüft wird über webui.deps.admin_anmeldung, dieselbe Stelle wie die
+# Anmeldung der Oberfläche (Drossel, Protokoll).
+_ANMELDE_FELDER = """\
+    <label>Benutzer der Weboberfläche</label>
+    <input name="admin_user" type="text" value="admin" autocomplete="username" required>
+    <label>Kennwort der Weboberfläche</label>
+    <input name="admin_pass" type="password" autocomplete="current-password" required>
+"""
+
+
 def _setup_page(hostname: str = "", email: str = "", message: str = "",
                 dns01_block: str = "", dns01_open: bool = False,
                 pfx_open: bool = False) -> bytes:
@@ -351,12 +368,64 @@ def _setup_page(hostname: str = "", email: str = "", message: str = "",
         le_open=" open" if le_open else "",
         dns01_open=" open" if dns01_aktiv else "",
         pfx_open=" open" if pfx_open else "",
+        anmeldung=_ANMELDE_FELDER,
     ).encode("utf-8")
 
 
 def _html_escape(s: str) -> str:
     import html
     return html.escape(str(s), quote=True)
+
+
+def _bootstrap_post(ctype: str, raw: bytes, ip: str, webroot) -> bytes:
+    """POST der Einrichtungsseite (Port 80, vor TLS) → Antwortseite.
+
+    Zuerst die Anmeldung (webui.deps.admin_anmeldung); ohne sie ändert
+    nichts eine Einstellung und nichts stößt eine Bestellung an.
+    """
+    if ctype.startswith("multipart/form-data"):
+        felder, dateien = _parse_multipart(ctype, raw)
+    else:
+        felder = {k: (v[0] if v else "") for k, v in
+                  urllib.parse.parse_qs(raw.decode("utf-8", errors="replace")).items()}
+        dateien = {}
+    pfx_weg = ctype.startswith("multipart/form-data")
+    hostname = felder.get("hostname", "").strip()
+    email = felder.get("email", "").strip()
+
+    from webui.deps import admin_anmeldung
+    ok, warte = admin_anmeldung(felder.get("admin_user", ""), felder.get("admin_pass", ""),
+                                ip, "Einrichtungsseite")
+    if not ok:
+        text = (f"Zu viele Fehlversuche — bitte {int(warte) + 1} Sekunden warten."
+                if warte > 0 else "Benutzer oder Kennwort der Weboberfläche falsch. Nichts geändert.")
+        return _setup_page(hostname=hostname, email=email, pfx_open=pfx_weg,
+                           message=f'<div class="err">{_html_escape(text)}</div>')
+
+    message = ""
+    dns01_block = ""
+    if pfx_weg:
+        # Weg 2: PFX-Upload
+        if hostname:
+            settings_store.update({"PUBLIC_HOSTNAME": hostname})
+        allow = felder.get("pfx_force", "") in ("1", "on", "true")
+        message = _bootstrap_import_pfx(
+            hostname, dateien.get("pfx_file", b""), felder.get("pfx_pass", ""), allow)
+    else:
+        action = felder.get("action", "").strip() or "letsencrypt"
+        if hostname:
+            settings_store.update({"PUBLIC_HOSTNAME": hostname})
+        if email:
+            settings_store.update({"LE_EMAIL": email})
+        if action == "dns01-start":
+            staging = felder.get("staging", "") in ("1", "on", "true")
+            message, dns01_block = _bootstrap_dns01_start(hostname, email, staging)
+        elif action == "dns01-finish":
+            message = _bootstrap_dns01_finish()
+        else:  # letsencrypt (Weg 1)
+            message = _bootstrap_letsencrypt(webroot, hostname, email)
+    return _setup_page(hostname=hostname, email=email, message=message,
+                       dns01_block=dns01_block, pfx_open=pfx_weg)
 
 
 def _dns01_record_block(record_name: str, record_value: str) -> str:
@@ -368,6 +437,7 @@ def _dns01_record_block(record_name: str, record_value: str) -> str:
 <p class="note">Nach dem Setzen kurz auf die DNS-Verbreitung warten, dann ausstellen.</p>
 <form method="POST" action="/">
   <input type="hidden" name="action" value="dns01-finish">
+""" + _ANMELDE_FELDER + """\
   <button type="submit">Record gesetzt — jetzt ausstellen</button>
 </form></div>"""
 
@@ -380,6 +450,7 @@ def _dns01_pending_block() -> str:
 <p class="note">Wenn der TXT-Record gesetzt und verbreitet ist, jetzt ausstellen.</p>
 <form method="POST" action="/">
   <input type="hidden" name="action" value="dns01-finish">
+""" + _ANMELDE_FELDER + """\
   <button type="submit">Record gesetzt — jetzt ausstellen</button>
 </form></div>"""
 
@@ -519,11 +590,10 @@ def _run_acme_http() -> None:
                     offen = bool(tls_acme_dns.pending())
                 except Exception:                           # noqa: BLE001
                     offen = False
-                body = _setup_page(
-                    hostname=settings_store.get("PUBLIC_HOSTNAME") or "",
-                    email=settings_store.get("LE_EMAIL") or "",
-                    dns01_block=_dns01_pending_block() if offen else "",
-                )
+                # Ohne Vorbelegung aus den Einstellungen: Die Seite ist ohne
+                # Anmeldung erreichbar, und die E-Mail für Let's Encrypt ist
+                # eine Personenangabe.
+                body = _setup_page(dns01_block=_dns01_pending_block() if offen else "")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
@@ -540,44 +610,7 @@ def _run_acme_http() -> None:
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length)
             ctype = self.headers.get("Content-Type", "")
-
-            message = ""
-            dns01_block = ""
-            pfx_open = False
-            email = ""
-
-            if ctype.startswith("multipart/form-data"):
-                # Weg 2: PFX-Upload
-                felder, dateien = _parse_multipart(ctype, raw)
-                action = felder.get("action", "pfx")
-                hostname = felder.get("hostname", "").strip()
-                if hostname:
-                    settings_store.update({"PUBLIC_HOSTNAME": hostname})
-                pfx_open = True
-                allow = felder.get("pfx_force", "") in ("1", "on", "true")
-                message = _bootstrap_import_pfx(
-                    hostname, dateien.get("pfx_file", b""),
-                    felder.get("pfx_pass", ""), allow)
-            else:
-                params = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
-                action = (params.get("action", [""])[0]).strip() or "letsencrypt"
-                hostname = (params.get("hostname", [""])[0]).strip()
-                email = (params.get("email", [""])[0]).strip()
-                if hostname:
-                    settings_store.update({"PUBLIC_HOSTNAME": hostname})
-                if email:
-                    settings_store.update({"LE_EMAIL": email})
-
-                if action == "dns01-start":
-                    staging = (params.get("staging", [""])[0]) in ("1", "on", "true")
-                    message, dns01_block = _bootstrap_dns01_start(hostname, email, staging)
-                elif action == "dns01-finish":
-                    message = _bootstrap_dns01_finish()
-                else:  # letsencrypt (Weg 1)
-                    message = _bootstrap_letsencrypt(webroot, hostname, email)
-
-            body = _setup_page(hostname=hostname, email=email, message=message,
-                               dns01_block=dns01_block, pfx_open=pfx_open)
+            body = _bootstrap_post(ctype, raw, self.client_address[0], webroot)
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))

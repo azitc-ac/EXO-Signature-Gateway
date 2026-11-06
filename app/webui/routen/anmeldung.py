@@ -20,7 +20,6 @@ from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
 
 import asyncio
 import re
-import secrets
 import urllib.parse
 
 import config
@@ -31,7 +30,8 @@ import sso as sso_mod
 
 from webui.deps import (
     templates, log, _gateway_name, _check_auth, _require_admin,
-    _check_password, _get_session_user, _get_session_role, self_service_rolle,
+    _get_session_user, _get_session_role, self_service_rolle,
+    admin_anmeldung,
 )
 from webui.hilfen import _build_redirect_uri
 
@@ -670,29 +670,17 @@ async def api_sso_paste(request: Request):
 @router.post("/auth/local")
 async def auth_local(request: Request):
     """Local admin login — creates session cookie."""
-    import login_drossel
     ip = request.client.host if request.client else "unbekannt"
     data = await request.json()
     username_in = (data.get("username") or "").strip()
     password_in = (data.get("password") or "")
-    # Brute-Force-Bremse: nach mehreren Fehlversuchen exponentielles Backoff,
-    # sowohl je Quell-IP als auch je Benutzername.
-    schluessel = [ip, f"u:{username_in.lower()}"]
-    warte = max((login_drossel.sperr_sekunden(k) for k in schluessel), default=0.0)
+    # Brute-Force-Bremse und Vergleich: admin_anmeldung (deps.py), dieselbe
+    # Prüfung wie HTTP-Basic und die Einrichtungsseite auf Port 80.
+    ok, warte = admin_anmeldung(username_in, password_in, ip, "Formular-Login")
     if warte > 0:
-        log.warning("Anmeldung gedrosselt: %s (noch %.0fs)", ip, warte)
-        try:
-            import anmelde_ereignisse
-            anmelde_ereignisse.merke("web", ip, "gedrosselt")
-        except Exception:
-            pass
         raise HTTPException(429, "Zu viele Fehlversuche — bitte kurz warten.",
                             headers={"Retry-After": str(int(warte) + 1)})
-    username = settings_store.get("WEBUI_USERNAME") or "admin"
-    if (secrets.compare_digest(username_in.encode(), username.encode())
-            and _check_password(password_in)):
-        for k in schluessel:
-            login_drossel.erfolg(k)
+    if ok:
         cookie_val = sso_mod.create_session_cookie(username_in, local=True)
         resp = JSONResponse({"ok": True})
         resp.set_cookie(
@@ -705,14 +693,6 @@ async def auth_local(request: Request):
         ua = request.headers.get("user-agent", "unbekannt")
         asyncio.get_event_loop().run_in_executor(None, _notif.send_local_admin_login, ip, ua, username_in)
         return resp
-    for k in schluessel:
-        login_drossel.fehlversuch(k)
-    try:
-        import anmelde_ereignisse
-        anmelde_ereignisse.merke("web", ip, "Formular-Login abgewiesen")
-    except Exception:
-        pass
-    log.warning("Fehlgeschlagene Anmeldung: Benutzer %r von %s", username_in, ip)
     raise HTTPException(401, "Benutzername oder Passwort falsch")
 
 @router.post("/auth/logout")

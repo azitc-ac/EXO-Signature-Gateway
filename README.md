@@ -205,7 +205,7 @@ docker compose up -d --build
 ```
 
 1. `http://<IP-des-Hosts>` öffnen und das TLS-Zertifikat einrichten (Let's
-   Encrypt oder eigenes).
+   Encrypt oder eigenes). Die Seite verlangt dieselbe Anmeldung wie Schritt 2.
 2. `https://<dein-hostname>` öffnen, mit `admin` / `admin` anmelden und ein
    neues Passwort setzen. Auf einer VM aus der Azure-Vorlage gilt statt `admin`
    das Anfangskennwort, das du im Portal vergeben hast.
