@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.73 — 2026-11-06 — Azure-Vorlage: Anfangskennwort statt admin/admin
+
+- Eine VM aus der Azure-Vorlage (Knopf *Deploy to Azure*, künftig auch der
+  Azure Marketplace) war über ihre öffentliche IP mit `admin` / `admin`
+  erreichbar, bis jemand den Einrichtungsassistenten öffnete. Wer die Adresse
+  vorher fand, konnte sich anmelden und das Kennwort selbst setzen.
+- Der Assistent im Portal fragt jetzt ein Anfangskennwort für den Benutzer
+  `admin` ab (mindestens 12 Zeichen, mit Bestätigung). Es geht verschlüsselt
+  an die VM, über eine Custom-Script-Erweiterung mit `protectedSettings`. Nicht
+  über die cloud-init-Daten (Custom Data): Microsoft rät davon für Geheimnisse
+  ab, sie liegen unverschlüsselt auf der VM.
+- cloud-init startet das Gateway erst, wenn das Kennwort angekommen ist. Kommt
+  es nicht innerhalb von 30 Minuten, startet das Gateway gar nicht, statt mit
+  `admin` / `admin` zu laufen.
+- Unverändert: Eine Installation per `azure-vm-setup.ps1` oder von Hand
+  beginnt weiter mit `admin` / `admin`, und der erste Schritt des Assistenten
+  verlangt ein neues Kennwort.
+
+**Zu tun:** nichts. Bestehende Gateways sind nicht betroffen. Bei einer neuen
+VM aus der Vorlage meldest du dich mit `admin` und dem Kennwort an, das du im
+Portal vergeben hast.
+
 ## v1.10.72 — 2026-11-06 — Vorschau zeigt den Banner einer laufenden Kampagne
 
 - Läuft eine Banner-Kampagne, trägt die Mail deren Banner statt des Banners

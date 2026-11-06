@@ -207,7 +207,8 @@ docker compose up -d --build
 1. `http://<IP-des-Hosts>` öffnen und das TLS-Zertifikat einrichten (Let's
    Encrypt oder eigenes).
 2. `https://<dein-hostname>` öffnen, mit `admin` / `admin` anmelden und ein
-   neues Passwort setzen.
+   neues Passwort setzen. Auf einer VM aus der Azure-Vorlage gilt statt `admin`
+   das Anfangskennwort, das du im Portal vergeben hast.
 3. Der Einrichtungsassistent legt die App-Registrierung in Entra ID an und
    richtet Connector, Transportregel und Verteilerliste in Exchange Online ein.
 

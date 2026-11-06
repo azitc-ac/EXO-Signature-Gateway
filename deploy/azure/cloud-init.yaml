@@ -41,6 +41,23 @@ runcmd:
   # appuser laufende Container crasht mit PermissionError.
   - mkdir -p /opt/exo-gateway/data /opt/exo-gateway/certs /opt/exo-gateway/templates
   - chown -R 1000:1000 /opt/exo-gateway/data /opt/exo-gateway/certs /opt/exo-gateway/templates
+  # Anfangskennwort der Weboberfläche. Die Azure-Vorlage übergibt es
+  # verschlüsselt über eine Custom-Script-Erweiterung, die es nach
+  # /etc/exo-gateway/webui-kennwort schreibt — nicht über diese Datei (Custom
+  # Data), von der Microsoft für Geheimnisse abrät. Bis es da ist, startet das
+  # Gateway nicht; sonst wäre es so lange mit admin/admin erreichbar.
+  # __KENNWORT_WARTEN__ = Sekunden; 0 = kein Kennwort erwartet (azure-vm-setup.ps1,
+  # dort erzwingt der Einrichtungsassistent das Ändern von admin/admin).
+  - |
+    f=/etc/exo-gateway/webui-kennwort; n=0
+    while [ ! -s "$f" ] && [ "$n" -lt __KENNWORT_WARTEN__ ]; do sleep 5; n=$((n+5)); done
+    if [ -s "$f" ]; then
+      printf "WEBUI_PASSWORD='%s'\n" "$(cat "$f")" >> /opt/exo-gateway/.env
+      rm -f "$f"
+    elif [ __KENNWORT_WARTEN__ -gt 0 ]; then
+      echo "exo-gateway: kein Anfangskennwort erhalten, Gateway wird nicht gestartet" >&2
+      exit 1
+    fi
   # Gateway bauen und starten (es gibt kein vorgebautes Image)
   - cd /opt/exo-gateway && docker compose up -d --build
   # Update-Watcher (Update-Knopf in der Oberfläche) — dasselbe Skript wie auf

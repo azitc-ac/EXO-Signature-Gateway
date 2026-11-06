@@ -85,6 +85,23 @@
               "regex": "^(\\*|(\\d{1,3}\\.){3}\\d{1,3}(/\\d{1,2})?)$",
               "validationMessage": "„*“ oder eine IPv4-Adresse, optional mit /Präfix."
             }
+          },
+          {
+            "name": "webuiPassword",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": {
+              "password": "Anfangskennwort der Weboberfläche",
+              "confirmPassword": "Kennwort bestätigen"
+            },
+            "toolTip": "Kennwort für die erste Anmeldung an der Weboberfläche (Benutzer admin). Es wird verschlüsselt an die VM übergeben.",
+            "constraints": {
+              "required": true,
+              "regex": "^[A-Za-z0-9!%&()*+,\\-./:;<=>?@\\[\\]^_{|}~]{12,128}$",
+              "validationMessage": "12–128 Zeichen, ohne Leerzeichen und ohne ' \" ` \\ $ #."
+            },
+            "options": {
+              "hideConfirmation": false
+            }
           }
         ]
       }
@@ -95,7 +112,8 @@
       "vmSize": "[steps('vm').vmSize]",
       "adminUsername": "[steps('vm').adminUsername]",
       "adminSshPublicKey": "[steps('vm').adminSshPublicKey]",
-      "sshQuelle": "[steps('vm').sshQuelle]"
+      "sshQuelle": "[steps('vm').sshQuelle]",
+      "webuiPassword": "[steps('vm').webuiPassword]"
     }
   }
 }

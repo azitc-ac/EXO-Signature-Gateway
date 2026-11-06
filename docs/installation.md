@@ -102,9 +102,10 @@ Ab jetzt ist die Web-UI über HTTPS erreichbar:
 https://sig.example.com
 ```
 
-> **Standard-Login:** Benutzer `admin`, Passwort `admin` — einheitlich, auch auf
-> Azure-VMs. Der erste Schritt des Setup-Wizards erzwingt das Setzen eines neuen
-> Passworts.
+> **Standard-Login:** Benutzer `admin`, Passwort `admin`, auch auf VMs aus
+> `azure-vm-setup.ps1`. Der erste Schritt des Setup-Wizards erzwingt das Setzen
+> eines neuen Passworts. Auf einer VM aus der Azure-Vorlage (Knopf oben, Marketplace)
+> gilt stattdessen das Anfangskennwort, das du im Portal vergeben hast.
 
 Der Setup-Wizard führt durch die Erstkonfiguration:
 
@@ -124,7 +125,10 @@ Für den Azure-Betrieb `REINJECT_MODE=graph` (Graph-only) oder `graph_plus` (Gra
 
 Der Knopf öffnet die Vorlage `deploy/azure/azuredeploy.json` im Azure-Portal. Du
 wählst Abo, Ressourcengruppe und Region und trägst deinen öffentlichen
-SSH-Schlüssel ein. Die Vorlage legt an:
+SSH-Schlüssel und ein Anfangskennwort für die Weboberfläche ein. Das Kennwort
+geht verschlüsselt an die VM (Custom-Script-Erweiterung) und gilt für den
+Benutzer `admin`; das Gateway startet erst, wenn es angekommen ist. Eine VM aus
+der Vorlage ist also nie mit `admin` / `admin` erreichbar. Die Vorlage legt an:
 
 - eine Debian-12-VM, Vorgabe `Standard_B2pls_v2` (ARM64, 2 vCPU, 4 GB), wahlweise eine x64-Größe.
   In der Größenauswahl sind Größen, die in deinem Abo und deiner Region nicht verfügbar sind, mit einem Hinweis (i) gekennzeichnet.

@@ -154,7 +154,7 @@ if (Test-Path $cloudInitPfad) {
     $cloudInit = (Invoke-WebRequest -Uri $rawUrl -UseBasicParsing).Content
 }
 # Zeilenenden auf LF: cloud-init verträgt CRLF aus einem Windows-Checkout nicht.
-$cloudInit = ($cloudInit -replace "`r`n", "`n").Replace('__ADMIN_USER__', $AdminUser).Replace('__REPO_URL__', $RepoUrl)
+$cloudInit = ($cloudInit -replace "`r`n", "`n").Replace('__ADMIN_USER__', $AdminUser).Replace('__REPO_URL__', $RepoUrl).Replace('__KENNWORT_WARTEN__', '0')
 
 $cloudInitFile = [System.IO.Path]::GetTempFileName()
 [System.IO.File]::WriteAllText($cloudInitFile, $cloudInit, (New-Object System.Text.UTF8Encoding $false))
