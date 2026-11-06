@@ -8,7 +8,11 @@ Rechtstexten. Diese Tests halten beide Verbraucher an der Quelle.
 import importlib.util
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 QUELLE = ROOT / "deploy" / "azure" / "cloud-init.yaml"
@@ -39,12 +43,14 @@ def test_platzhalter_werden_in_beiden_wegen_ersetzt():
     quelle = QUELLE.read_text(encoding="utf-8")
     vorlage = json.loads(VORLAGE.read_text(encoding="utf-8"))
     ps = PS.read_text(encoding="utf-8-sig")
-    for platzhalter in ("__ADMIN_USER__", "__REPO_URL__"):
+    for platzhalter in ("__ADMIN_USER__", "__REPO_URL__", "__KENNWORT_WARTEN__"):
         assert platzhalter in quelle
         assert f"'{platzhalter}'" in vorlage["variables"]["customData"]
         assert f"Replace('{platzhalter}'" in ps
     # Kein weiterer, von niemandem ersetzter Platzhalter
-    assert set(re.findall(r"__[A-Z_]+__", quelle)) == {"__ADMIN_USER__", "__REPO_URL__"}
+    assert set(re.findall(r"__[A-Z_]+__", quelle)) == {"__ADMIN_USER__", "__REPO_URL__", "__KENNWORT_WARTEN__"}
+    # Das Skript übergibt kein Kennwort, darf also nicht darauf warten.
+    assert "Replace('__KENNWORT_WARTEN__', '0')" in ps
 
 
 def test_beide_wege_oeffnen_dieselben_ports():
@@ -113,3 +119,113 @@ def test_marketplace_paket_enthaelt_genau_die_erzeugten_dateien(tmp_path):
         assert sorted(z.namelist()) == ["createUiDefinition.json", "mainTemplate.json"]
         assert z.read("mainTemplate.json").decode() == VORLAGE.read_text(encoding="utf-8")
         assert z.read("createUiDefinition.json").decode() == UI.read_text(encoding="utf-8")
+
+
+# ── Anfangskennwort ──────────────────────────────────────────────────────────
+# Eine frisch bereitgestellte VM war über ihre öffentliche IP mit admin/admin
+# erreichbar, bis jemand den Assistenten öffnete. Das Kennwort kommt jetzt aus
+# dem Portal — verschlüsselt (protectedSettings), nie über Custom Data, von dem
+# Microsoft für Geheimnisse abrät.
+
+def _vorlage():
+    return json.loads(VORLAGE.read_text(encoding="utf-8"))
+
+
+def test_kennwort_ist_securestring_ohne_vorgabe():
+    p = _vorlage()["parameters"]["webuiPassword"]
+    assert p["type"] == "securestring"
+    assert "defaultValue" not in p
+
+
+def test_kennwort_nur_in_protected_settings():
+    """Jede Fundstelle des Parameters liegt in protectedSettings — nicht in
+    Custom Data, Variablen, settings oder Ausgaben."""
+    v = _vorlage()
+    funde = []
+
+    def suchen(o, pfad):
+        if isinstance(o, dict):
+            for k, w in o.items():
+                suchen(w, pfad + [k])
+        elif isinstance(o, list):
+            for i, w in enumerate(o):
+                suchen(w, pfad + [str(i)])
+        elif isinstance(o, str) and "parameters('webuiPassword')" in o:
+            funde.append(pfad)
+
+    suchen({k: w for k, w in v.items() if k != "parameters"}, [])
+    assert funde, "Kennwort wird nirgends übergeben"
+    for pfad in funde:
+        assert "protectedSettings" in pfad, "/".join(pfad)
+    ext = next(r for r in v["resources"] if r["type"] == "Microsoft.Compute/virtualMachines/extensions")
+    assert "settings" not in ext["properties"]
+    # Das Kennwort erreicht die Shell nur base64-kodiert.
+    assert "base64(parameters('webuiPassword'))" in ext["properties"]["protectedSettings"]["commandToExecute"]
+
+
+def test_vorlage_wartet_auf_das_kennwort():
+    w = _werkzeug()
+    assert f"'__KENNWORT_WARTEN__', '{w.KENNWORT_WARTEN}'" in _vorlage()["variables"]["customData"]
+    assert w.KENNWORT_WARTEN > 0
+    assert w.KENNWORT_DATEI in _vorlage()["resources"][-1]["properties"]["protectedSettings"]["commandToExecute"]
+    assert w.KENNWORT_DATEI in QUELLE.read_text(encoding="utf-8")
+
+
+def test_assistent_fragt_kennwort_mit_bestaetigung():
+    ui = json.loads(UI.read_text(encoding="utf-8"))["parameters"]
+    feld = next(e for e in ui["steps"][0]["elements"] if e["name"] == "webuiPassword")
+    assert feld["type"] == "Microsoft.Common.PasswordBox"
+    assert feld["options"]["hideConfirmation"] is False
+    assert feld["constraints"]["required"] is True
+    muster = re.compile(feld["constraints"]["regex"])
+    assert muster.match("A!%&()*+,-./:;<=>?@[]^_{|}~9")
+    for schlecht in ("kurz1!", "zwölf Zeichen", "Abc'defghijkl", 'Abc"defghijkl', "Abc`defghijkl",
+                     "Abc\\defghijkl", "Abc$defghijkl", "Abc#defghijkl", "Abcdefghijk\n"):
+        assert not muster.match(schlecht), schlecht
+
+
+def _kennwort_schritt() -> str:
+    """Der runcmd-Block aus cloud-init.yaml, der auf das Kennwort wartet."""
+    text = QUELLE.read_text(encoding="utf-8")
+    m = re.search(r"  - \|\n((?:    .*\n)*?    fi\n)", text[text.index("webui-kennwort"):])
+    assert m, "Kennwort-Schritt nicht gefunden"
+    return "\n".join(z[4:] for z in m.group(1).splitlines()) + "\n"
+
+
+@pytest.mark.skipif(not shutil.which("bash"), reason="bash fehlt")
+@pytest.mark.parametrize("kennwort", ["Abcdefgh1234", "A!%&()*+,-./:;<=>?@[]^_{|}~9"])
+def test_cloud_init_uebernimmt_kennwort_in_die_env(tmp_path, kennwort):
+    datei = tmp_path / "webui-kennwort"
+    datei.write_text(kennwort)
+    env = tmp_path / ".env"
+    env.write_text("WEBUI_SECRET_KEY=x\n")
+    skript = (_kennwort_schritt().replace("/etc/exo-gateway/webui-kennwort", str(datei))
+              .replace("/opt/exo-gateway/.env", str(env)).replace("__KENNWORT_WARTEN__", "10"))
+    r = subprocess.run(["bash", "-ec", skript], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert env.read_text() == f"WEBUI_SECRET_KEY=x\nWEBUI_PASSWORD='{kennwort}'\n"
+    assert not datei.exists(), "Kennwortdatei bleibt liegen"
+
+
+@pytest.mark.skipif(not shutil.which("bash"), reason="bash fehlt")
+def test_cloud_init_startet_ohne_kennwort_nicht(tmp_path):
+    env = tmp_path / ".env"
+    env.write_text("")
+    skript = (_kennwort_schritt().replace("/etc/exo-gateway/webui-kennwort", str(tmp_path / "fehlt"))
+              .replace("/opt/exo-gateway/.env", str(env)).replace("__KENNWORT_WARTEN__", "5")
+              + "echo GESTARTET\n")
+    r = subprocess.run(["bash", "-c", skript], capture_output=True, text=True, timeout=30)
+    assert r.returncode != 0 and "GESTARTET" not in r.stdout
+    assert "WEBUI_PASSWORD" not in env.read_text()
+
+
+@pytest.mark.skipif(not shutil.which("bash"), reason="bash fehlt")
+def test_cloud_init_ohne_wartezeit_laeuft_weiter(tmp_path):
+    """azure-vm-setup.ps1 setzt 0: kein Warten, kein Abbruch, admin/admin wie bisher."""
+    env = tmp_path / ".env"
+    env.write_text("")
+    skript = (_kennwort_schritt().replace("/etc/exo-gateway/webui-kennwort", str(tmp_path / "fehlt"))
+              .replace("/opt/exo-gateway/.env", str(env)).replace("__KENNWORT_WARTEN__", "0")
+              + "echo GESTARTET\n")
+    r = subprocess.run(["bash", "-c", skript], capture_output=True, text=True, timeout=10)
+    assert r.returncode == 0 and "GESTARTET" in r.stdout

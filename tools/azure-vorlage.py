@@ -30,6 +30,25 @@ SSH_MUSTER = r"^(?=.{60,16384}$)(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|52
 
 REPO_URL = "https://github.com/azitc-ac/EXO-Signature-Gateway.git"
 
+# Anfangskennwort der Weboberfläche (WEBUI_PASSWORD). Ohne es wäre eine frisch
+# bereitgestellte VM über ihre öffentliche IP mit admin/admin erreichbar, bis
+# jemand den Assistenten öffnet — bei einem Marketplace-Angebot womöglich ein
+# Fremder vor dem Kunden.
+#
+# Übergabe NICHT über Custom Data (cloud-init): Microsoft rät davon für
+# Geheimnisse ausdrücklich ab („We advise not to store sensitive data in custom
+# data“, learn.microsoft.com/azure/virtual-machines/custom-data); es liegt
+# unverschlüsselt auf der VM und im VM-Modell. Stattdessen schreibt eine
+# Custom-Script-Erweiterung es über `protectedSettings` (verschlüsselt) nach
+# KENNWORT_DATEI; cloud-init wartet darauf, bevor es das Gateway startet.
+#
+# Zeichenvorrat ohne Leerzeichen, ' " ` \ $ #: Der Wert landet einfach
+# gequotet in der .env, die docker compose liest; ein ' beendete das Quoting,
+# $ würde dort ausserhalb von Quotes ersetzt. Der Transport selbst ist base64.
+KENNWORT_DATEI = "/etc/exo-gateway/webui-kennwort"
+KENNWORT_MUSTER = r"^[A-Za-z0-9!%&()*+,\-./:;<=>?@\[\]^_{|}~]{12,128}$"
+KENNWORT_WARTEN = 1800   # Sekunden, die cloud-init höchstens auf das Kennwort wartet
+
 # KANDIDATEN, keine Verfügbarkeitsliste. Welche Größe ein Kunde wirklich
 # bekommt, entscheidet Azure je Abo, Region und Zone — unser eigenes Abo sagt
 # darüber nichts. Der Assistent (createUiDefinition, Microsoft.Compute.SizeSelector)
@@ -111,6 +130,9 @@ def vorlage(cloud_init: str) -> dict:
                           "metadata": {"description": "Von wo SSH erlaubt ist: '*' oder eine eigene IP/CIDR, z. B. 203.0.113.7/32."}},
             "repoUrl": {"type": "string", "defaultValue": REPO_URL,
                         "metadata": {"description": "Git-Repository des Gateways."}},
+            "webuiPassword": {"type": "securestring", "minLength": 12, "maxLength": 128,
+                              "metadata": {"description": "Anfangskennwort der Weboberfläche (Benutzer admin). "
+                                                          "Mindestens 12 Zeichen, ohne Leerzeichen und ohne ' \" ` \\ $ #."}},
         },
         "variables": {
             "armGroessen": GROESSEN_ARM64,
@@ -120,8 +142,9 @@ def vorlage(cloud_init: str) -> dict:
             "vnetName": f"[concat({p('vmName')}, '-vnet')]",
             "nicName": f"[concat({p('vmName')}, '-nic')]",
             "cloudInit": cloud_init,
-            "customData": (f"[base64(replace(replace(variables('cloudInit'), '__ADMIN_USER__', "
-                           f"{p('adminUsername')}), '__REPO_URL__', {p('repoUrl')}))]"),
+            "customData": (f"[base64(replace(replace(replace(variables('cloudInit'), '__ADMIN_USER__', "
+                           f"{p('adminUsername')}), '__REPO_URL__', {p('repoUrl')}), "
+                           f"'__KENNWORT_WARTEN__', '{KENNWORT_WARTEN}'))]"),
         },
         "resources": [
             {
@@ -188,6 +211,23 @@ def vorlage(cloud_init: str) -> dict:
                         {"id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"}]},
                 },
             },
+            {
+                # Anfangskennwort verschlüsselt auf die VM (siehe KENNWORT_DATEI).
+                # base64 im Befehl, damit kein Zeichen des Kennworts die Shell erreicht.
+                "type": "Microsoft.Compute/virtualMachines/extensions", "apiVersion": COMPUTE,
+                "name": f"[concat({p('vmName')}, '/anfangskennwort')]", "location": f"[{p('location')}]",
+                "dependsOn": [f"[resourceId('Microsoft.Compute/virtualMachines', {p('vmName')})]"],
+                "properties": {
+                    "publisher": "Microsoft.Azure.Extensions", "type": "CustomScript",
+                    "typeHandlerVersion": "2.1", "autoUpgradeMinorVersion": True,
+                    "protectedSettings": {
+                        "commandToExecute": (
+                            f"[concat('umask 077 && mkdir -p {KENNWORT_DATEI.rsplit('/', 1)[0]} && echo ', "
+                            f"base64({p('webuiPassword')}), ' | base64 -d > {KENNWORT_DATEI}.neu "
+                            f"&& mv {KENNWORT_DATEI}.neu {KENNWORT_DATEI}')]"),
+                    },
+                },
+            },
         ],
         "outputs": {
             "publicIp": {"type": "string",
@@ -247,6 +287,15 @@ def assistent() -> dict:
                      "constraints": {"required": True,
                                      "regex": r"^(\*|(\d{1,3}\.){3}\d{1,3}(/\d{1,2})?)$",
                                      "validationMessage": "„*“ oder eine IPv4-Adresse, optional mit /Präfix."}},
+                    {"name": "webuiPassword", "type": "Microsoft.Common.PasswordBox",
+                     "label": {"password": "Anfangskennwort der Weboberfläche",
+                               "confirmPassword": "Kennwort bestätigen"},
+                     "toolTip": "Kennwort für die erste Anmeldung an der Weboberfläche (Benutzer admin). "
+                                "Es wird verschlüsselt an die VM übergeben.",
+                     "constraints": {"required": True, "regex": KENNWORT_MUSTER,
+                                     "validationMessage": "12–128 Zeichen, ohne Leerzeichen und ohne "
+                                                          "' \" ` \\ $ #."},
+                     "options": {"hideConfirmation": False}},
                 ],
             }],
             "outputs": {
@@ -256,6 +305,7 @@ def assistent() -> dict:
                 "adminUsername": "[steps('vm').adminUsername]",
                 "adminSshPublicKey": "[steps('vm').adminSshPublicKey]",
                 "sshQuelle": "[steps('vm').sshQuelle]",
+                "webuiPassword": "[steps('vm').webuiPassword]",
             },
         },
     }
