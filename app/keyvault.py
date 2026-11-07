@@ -129,23 +129,11 @@ async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
     Returns the key ID (URL) on success.
     Raises on failure.
     """
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
     from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
     from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePrivateKey, SECP256R1, SECP384R1
 
-    # Decrypt key (try with current password, then without)
-    import config as _config
-    import settings_store as _ss
-    key = None
-    pw = _ss.get("SMIME_KEY_PASSWORD") or _config.SMIME_KEY_PASSWORD or ""
-    for candidate in ([pw.encode()] if pw else []) + [None]:
-        try:
-            key = load_pem_private_key(private_key_pem, password=candidate)
-            break
-        except Exception:
-            continue
-    if key is None:
-        raise ValueError("Privater Schlüssel konnte nicht geladen werden (falsches Passwort?)")
+    import smime_store
+    key = smime_store.schluessel_laden(private_key_pem)
 
     if isinstance(key, RSAPrivateKey):
         kty = "RSA"

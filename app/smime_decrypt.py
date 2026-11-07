@@ -5,7 +5,6 @@ import email.policy
 import logging
 import subprocess
 
-import config
 import smime_store
 
 log = logging.getLogger(__name__)
@@ -17,17 +16,16 @@ def _decrypt_local(message_bytes: bytes, recipient: str) -> bytes | None:
     if not paths:
         return None
     cert_path, key_path = paths
-    import settings_store as _ss
-    password = (config.SMIME_KEY_PASSWORD
-                or _ss.get("SMIME_KEY_PASSWORD") or "")
+    passin, umgebung = smime_store.openssl_passin()
     cmd = [
         "openssl", "smime", "-decrypt",
         "-recip", str(cert_path),
         "-inkey", str(key_path),
-        "-passin", f"pass:{password}",   # always explicit — avoids interactive prompt
+        *passin,
     ]
     try:
-        result = subprocess.run(cmd, input=message_bytes, capture_output=True, timeout=15)
+        result = subprocess.run(cmd, input=message_bytes, capture_output=True,
+                                timeout=15, env=umgebung)
         if result.returncode != 0:
             log.error("openssl smime -decrypt failed for %s: %s",
                       recipient, result.stderr.decode(errors="replace")[:400])

@@ -344,6 +344,37 @@ def _anmeldenachweis() -> dict:
                               "den Einstellungen standen, sieht diese Prüfung nicht.")
 
 
+def _smime_schluessel() -> dict:
+    """Liegen S/MIME-Privatschlüssel im Klartext auf der Platte?
+
+    Gemessen an den DATEIEN, nicht an der Einstellung: Ein gesetztes Passwort
+    sagt nichts über Schlüssel, die vorher abgelegt wurden. Schlüssel in Azure
+    Key Vault liegen gar nicht hier und zählen deshalb nicht."""
+    import settings_store
+    import smime_store
+    name = "S/MIME-Schlüssel verschlüsselt abgelegt"
+    roh = smime_store.unverschluesselte_schluessel()
+    if not roh:
+        return _punkt(name, OK, "Kein Privatschlüssel liegt im Klartext.",
+                      deckt_nicht="Das Passwort selbst liegt in den Einstellungen "
+                                  "dieses Gateways — und damit auch in dessen Backups.")
+    anzahl = f"{len(roh)} Schlüsseldatei(en) liegen im Klartext."
+    weg = "Einstellungen → S/MIME → Schlüsselablage: "
+    if settings_store.get("SMIME_KEY_ENCRYPT") is False:
+        return _punkt(name, OFFEN, anzahl + " Die Verschlüsselung ist abgeschaltet.",
+                      weg + "„Private Keys verschlüsseln“ einschalten und ein Passwort setzen.")
+    if smime_store.schluessel_passwort():
+        return _punkt(name, OFFEN, anzahl + " Ein Passwort ist gesetzt.",
+                      "Gateway neu starten — beim Start werden sie verschlüsselt.")
+    return _punkt(
+        name, OFFEN, anzahl + " Es ist kein Passwort gesetzt.",
+        weg + "Passwort setzen; das Gateway verschlüsselt dann alle Schlüssel neu. "
+        "Notiere es außerhalb des Gateways. Es schützt Schlüsseldateien, die "
+        "einzeln abhandenkommen, nicht ein vollständiges Backup (das die "
+        "Einstellungen mit enthält). Am stärksten schützt Azure Key Vault: "
+        "Dort verlassen die Schlüssel den Tresor nicht.")
+
+
 def _benachrichtigung() -> dict:
     import settings_store
     if settings_store.get("NOTIFICATIONS_ENABLED") is False:
@@ -470,7 +501,8 @@ def _addin_rollen() -> dict:
 
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
-              _addin_rollen, _benachrichtigung, _anmeldenachweis)
+              _addin_rollen, _benachrichtigung, _anmeldenachweis,
+              _smime_schluessel)
 
 
 def bericht() -> dict:

@@ -145,7 +145,7 @@ def _bypass_gemeldet() -> dict | None:
             seit = st.get("rule_checked") or ""
             juengster = max((w.get("last_seen") or "" for w in waechter_register.liste()),
                             default="")
-            return {"seit": juengster or seit or st.get("last_seen") or "",
+            return {"seit": _utc_anzeige(juengster or seit or st.get("last_seen") or ""),
                     "geprueft": _utc_anzeige(st.get("rule_checked") or "")}
     except Exception:                                       # noqa: BLE001
         pass
@@ -153,6 +153,21 @@ def _bypass_gemeldet() -> dict | None:
 
 
 templates.env.globals["bypass_gemeldet"] = _bypass_gemeldet
+
+
+def _aufgaben_offen() -> list[dict]:
+    """Offene Aufgaben für den Sammelpunkt oben rechts und die Banner
+    (`aufgaben.py`). Jinja-Global wie `bypass_gemeldet`: keine Route kann ihn
+    vergessen."""
+    try:
+        import aufgaben
+        return aufgaben.offene()
+    except Exception as exc:                                # noqa: BLE001
+        log.warning("Aufgaben nicht lesbar: %s", exc)       # nie die Seite kippen
+        return []
+
+
+templates.env.globals["aufgaben_offen"] = _aufgaben_offen
 
 
 def _gateway_name() -> str:
