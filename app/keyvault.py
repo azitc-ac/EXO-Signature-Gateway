@@ -65,14 +65,10 @@ async def _get_kv_token(kv_url: str | None = None) -> str | None:
     """Acquire an access token for Key Vault using the MSAL app."""
     try:
         import graph_client
-        app = graph_client._get_msal_app()
-        if not app:
+        result = graph_client.app_token_ergebnis(["https://vault.azure.net/.default"])
+        if not result:
             log.warning("keyvault: MSAL app not configured — cannot acquire KV token")
             return None
-        scope = ["https://vault.azure.net/.default"]
-        result = app.acquire_token_silent(scope, account=None)
-        if not result:
-            result = app.acquire_token_for_client(scopes=scope)
         if "access_token" in result:
             return result["access_token"]
         log.error("keyvault: token acquisition failed: %s",
@@ -321,13 +317,9 @@ async def _get_arm_token() -> str | None:
     """Acquire an ARM management token."""
     try:
         import graph_client
-        app = graph_client._get_msal_app()
-        if not app:
-            return None
-        scope = ["https://management.azure.com/.default"]
-        result = app.acquire_token_silent(scope, account=None)
+        result = graph_client.app_token_ergebnis(["https://management.azure.com/.default"])
         if not result:
-            result = app.acquire_token_for_client(scopes=scope)
+            return None
         if "access_token" in result:
             return result["access_token"]
         log.error("arm token acquisition failed: %s", result.get("error_description", ""))

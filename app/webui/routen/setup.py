@@ -125,7 +125,10 @@ async def setup_wizard(
             (config.TENANT_ID or s.get("TENANT_ID"))
             and (config.CLIENT_ID or s.get("CLIENT_ID"))
             and s.get("TENANT_DOMAIN")
-            and (config.CLIENT_SECRET or s.get("CLIENT_SECRET"))
+            # Anmeldenachweis: das Zertifikat (seit v1.10.80); ein Secret
+            # aus älteren Installationen zählt weiter.
+            and (Path("/app/data/auth.pfx").exists()
+                 or config.CLIENT_SECRET or s.get("CLIENT_SECRET"))
         ),
         "bootstrap_client_id": s.get("BOOTSTRAP_CLIENT_ID", ""),
         "bootstrap_redirect_uris": s.get("BOOTSTRAP_REDIRECT_URIS", []),
