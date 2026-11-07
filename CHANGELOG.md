@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.81 — 2026-11-07 — Prüfstand nachgezogen
+
+- Interner Prüfstand der Code-Kopien angepasst; keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
 ## v1.10.80 — 2026-11-07 — App-Anmeldung per Zertifikat statt Client Secret
 
 - Das Gateway holt seine App-Tokens (Graph, Key Vault, SMTP-587) jetzt mit dem
