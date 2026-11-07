@@ -139,34 +139,112 @@ def _start_flush_thread() -> None:
 _start_flush_thread()
 
 
+# ── Anmeldenachweis: Zertifikat, Secret nur noch als Rückfall ───────────────
+# Seit v1.10.80 holt das Gateway App-Tokens mit dem Zertifikat aus auth.pfx —
+# demselben, mit dem Exchange-PowerShell sich anmeldet und das an der Haupt-App
+# ohnehin hinterlegt ist. Ein Client Secret (bis dahin mit Laufzeit bis 2099,
+# bei jeder erneuten Anmeldung ein weiteres) ist damit überflüssig. Liegt noch
+# eines vor und ist das Zertifikat an einer App (noch) nicht hinterlegt, springt
+# es ein — sonst bräche ein Gateway nach dem Update.
+AUTH_PFX = None   # Pfad; in Tests ersetzbar. None = DATA_DIR/auth.pfx
+
+
+def _auth_pfx_pfad():
+    from pathlib import Path
+    return Path(AUTH_PFX) if AUTH_PFX else Path(config.DATA_DIR) / "auth.pfx"
+
+
+def zertifikat_nachweis() -> dict | None:
+    """MSAL-Nachweis aus auth.pfx: {"private_key", "thumbprint"} — oder None,
+    wenn die Datei fehlt oder unlesbar ist."""
+    try:
+        daten = _auth_pfx_pfad().read_bytes()
+    except OSError:
+        return None
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding, NoEncryption, PrivateFormat, pkcs12)
+    for kennwort in (None, b""):          # openssl -passout pass: → leeres Kennwort
+        try:
+            schluessel, zert, _ = pkcs12.load_key_and_certificates(daten, kennwort)
+            break
+        except ValueError:
+            continue
+    else:
+        log.warning("auth.pfx nicht lesbar — kein Zertifikats-Nachweis")
+        return None
+    return {
+        "private_key": schluessel.private_bytes(
+            Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode(),
+        "thumbprint": zert.fingerprint(hashes.SHA1()).hex().upper(),
+    }
+
+
+def _pfx_stand() -> str:
+    """Änderungsstand von auth.pfx — ein neues Zertifikat baut den Pool neu."""
+    try:
+        st = _auth_pfx_pfad().stat()
+        return f"{st.st_mtime_ns}:{st.st_size}"
+    except OSError:
+        return ""
+
+
+def _verteilungsfrist_laeuft() -> bool:
+    """Wurde das Zertifikat gerade erst an einer App hinterlegt? Entra braucht
+    einige Minuten, bis es Tokens dafür ausstellt (AADSTS700027 bzw. 7000215
+    in dieser Zeit sind kein Fehler, sondern Verzug)."""
+    seit = settings_store.get("AUTH_CERT_HINTERLEGT") or ""
+    try:
+        t0 = datetime.datetime.fromisoformat(seit.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    jetzt = datetime.datetime.now(datetime.timezone.utc)
+    return (jetzt - t0).total_seconds() < 15 * 60
+
+
+def _msal_app(cid: str, tenant: str, nachweis, cache=None):
+    kw = {"token_cache": cache} if cache is not None else {}
+    return msal.ConfidentialClientApplication(
+        cid, authority=f"https://login.microsoftonline.com/{tenant}",
+        client_credential=nachweis, **kw)
+
+
+def _roher_pool() -> list[dict]:
+    """APP_POOL oder, ohne Pool, die Haupt-App. Einträge {client_id, label,
+    client_secret?} — das Secret fehlt bei allem, was seit v1.10.80 angelegt wurde."""
+    raw_pool: list[dict] = settings_store.get("APP_POOL") or []
+    if raw_pool:
+        return raw_pool
+    client = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    if not client:
+        return []
+    return [{"client_id": client, "label": "App 1",
+             "client_secret": config.CLIENT_SECRET or settings_store.get("CLIENT_SECRET") or ""}]
+
+
 def _rebuild_pool_if_needed() -> None:
     global _pool_entries, _pool_hash, _pool_idx
     tenant = config.TENANT_ID or settings_store.get("TENANT_ID") or ""
-    raw_pool: list[dict] = settings_store.get("APP_POOL") or []
-    if not raw_pool:
-        client = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
-        secret = config.CLIENT_SECRET or settings_store.get("CLIENT_SECRET") or ""
-        if client and secret:
-            raw_pool = [{"client_id": client, "client_secret": secret, "label": "App 1"}]
+    raw_pool = _roher_pool()
     new_hash = hashlib.md5(
-        f"{tenant}:{json.dumps(raw_pool, sort_keys=True)}".encode()
+        f"{tenant}:{_pfx_stand()}:{json.dumps(raw_pool, sort_keys=True)}".encode()
     ).hexdigest()
     if new_hash == _pool_hash:
         return
+    zert = zertifikat_nachweis()
     new_entries: list[dict] = []
     for entry in raw_pool:
         cid  = entry.get("client_id", "")
         csec = entry.get("client_secret", "")
-        if not (cid and csec and tenant):
+        if not (cid and tenant and (zert or csec)):
             continue
-        authority = f"https://login.microsoftonline.com/{tenant}"
-        msal_app = msal.ConfidentialClientApplication(
-            cid, authority=authority, client_credential=csec,
-        )
         new_entries.append({
             "client_id": cid,
             "label": entry.get("label", f"App {len(new_entries) + 1}"),
-            "msal": msal_app,
+            "msal": _msal_app(cid, tenant, zert or csec),
+            "nachweis": "zertifikat" if zert else "secret",
+            "secret": csec,
+            "tenant": tenant,
         })
     with _pool_lock:
         _pool_entries = new_entries
@@ -262,12 +340,50 @@ def _acquire_token() -> str | None:
     result = entry["msal"].acquire_token_silent(_SCOPES, account=None)
     if not result:
         result = entry["msal"].acquire_token_for_client(scopes=_SCOPES)
+    if "access_token" not in result and _auf_secret_zurueckfallen(entry, result):
+        result = entry["msal"].acquire_token_for_client(scopes=_SCOPES)
     if "access_token" in result:
         log.debug("Graph token acquired from pool entry '%s'", entry["label"])
         return result["access_token"]
-    log.error("Failed to acquire Graph token from '%s': %s",
-              entry["label"], result.get("error_description"))
+    _token_fehler_melden(entry["label"], result)
     return None
+
+
+# Zertifikat an der App nicht (oder noch nicht) hinterlegt bzw. falsch.
+_NACHWEIS_FEHLER = (700027, 7000215, 700024, 7000222)
+
+
+def _nachweis_abgelehnt(result: dict) -> bool:
+    return any(c in _NACHWEIS_FEHLER for c in (result.get("error_codes") or []))
+
+
+def _auf_secret_zurueckfallen(entry: dict, result: dict) -> bool:
+    """Zertifikat abgelehnt, Secret vorhanden → Eintrag dauerhaft (bis zum
+    nächsten Neuaufbau) auf das Secret umstellen. True, wenn umgestellt."""
+    if entry.get("nachweis") != "zertifikat" or not entry.get("secret"):
+        return False
+    if not _nachweis_abgelehnt(result):
+        return False
+    if _verteilungsfrist_laeuft():
+        log.info("Graph: Zertifikat für '%s' noch nicht verteilt — Secret überbrückt",
+                 entry["label"])
+    else:
+        log.warning("Graph: Zertifikat an '%s' nicht hinterlegt — Secret genutzt. "
+                    "Einrichtung → Entra App-Registrierung → Erneut anmelden hinterlegt es.",
+                    entry["label"])
+    with _pool_lock:
+        entry["msal"] = _msal_app(entry["client_id"], entry["tenant"], entry["secret"])
+        entry["nachweis"] = "secret"
+    return True
+
+
+def _token_fehler_melden(wer: str, result: dict | None) -> None:
+    text = (result or {}).get("error_description") if isinstance(result, dict) else result
+    if isinstance(result, dict) and _nachweis_abgelehnt(result) and _verteilungsfrist_laeuft():
+        log.info("App-Token für '%s' noch nicht verfügbar — Entra verteilt den "
+                 "Nachweis noch (bis ~15 min nach dem Hinterlegen): %s", wer, text)
+        return
+    log.error("Failed to acquire Graph token from '%s': %s", wer, text)
 
 
 async def _acquire_token_async() -> str | None:
@@ -317,6 +433,25 @@ def _get_msal_app():
         return entry["msal"]
 
 
+def app_token_ergebnis(scopes: list[str]) -> dict | None:
+    """MSAL-Ergebnis für andere Ressourcen als Graph (Key Vault, ARM, Exchange
+    für SMTP-XOAUTH2) — erster freier Pool-Eintrag, mit demselben Rückfall aufs
+    Secret wie der Graph-Weg. None ohne Zugangsdaten."""
+    _rebuild_pool_if_needed()
+    now = time.monotonic()
+    with _pool_lock:
+        if not _pool_entries:
+            return None
+        free = [e for e in _pool_entries if now >= _throttled_until.get(e["client_id"], 0)]
+        entry = free[0] if free else _pool_entries[0]
+    result = entry["msal"].acquire_token_silent(scopes, account=None)
+    if not result:
+        result = entry["msal"].acquire_token_for_client(scopes=scopes)
+    if "access_token" not in result and _auf_secret_zurueckfallen(entry, result):
+        result = entry["msal"].acquire_token_for_client(scopes=scopes)
+    return result
+
+
 def _get_effective_credentials() -> tuple[str, str, str]:
     """Return (tenant_id, client_id, client_secret) of the first pool entry."""
     _rebuild_pool_if_needed()
@@ -344,21 +479,22 @@ def frisches_app_token(scope: str = _SCOPES[0]) -> str | None:
     den alten Stand. Ein eigener, leerer Cache je Aufruf holt ein frisches Token.
     `None` ohne Zugangsdaten oder bei Fehler."""
     tenant, cid, secret = _get_effective_credentials()
-    if not (tenant and cid and secret):
+    zert = zertifikat_nachweis()
+    if not (tenant and cid and (zert or secret)):
         return None
-    try:
-        app = msal.ConfidentialClientApplication(
-            cid, authority=f"https://login.microsoftonline.com/{tenant}",
-            client_credential=secret, token_cache=msal.TokenCache(),
-        )
-        result = app.acquire_token_for_client(scopes=[scope])
-    except Exception as exc:                                   # noqa: BLE001
-        log.warning("Frisches App-Token (%s) fehlgeschlagen: %s", scope, exc)
-        return None
-    if isinstance(result, dict) and result.get("access_token"):
-        return result["access_token"]
-    log.warning("Frisches App-Token (%s) fehlgeschlagen: %s", scope,
-                (result or {}).get("error_description") if isinstance(result, dict) else result)
+    result = None
+    for nachweis in [n for n in (zert, secret) if n]:
+        try:
+            result = _msal_app(cid, tenant, nachweis, msal.TokenCache()) \
+                .acquire_token_for_client(scopes=[scope])
+        except Exception as exc:                               # noqa: BLE001
+            log.warning("Frisches App-Token (%s) fehlgeschlagen: %s", scope, exc)
+            return None
+        if isinstance(result, dict) and result.get("access_token"):
+            return result["access_token"]
+        if not (isinstance(result, dict) and _nachweis_abgelehnt(result)):
+            break                       # anderer Fehler: das Secret hülfe auch nicht
+    _token_fehler_melden(f"frisch {scope}", result)
     return None
 
 

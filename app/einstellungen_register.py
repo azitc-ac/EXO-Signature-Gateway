@@ -87,6 +87,7 @@ REGISTER: dict[str, E] = {
     "ADMIN_USERS": E(art=STRUKTUR, ort="/api/admin-users"),
     "APP_POOL": E(art=GEHEIMNIS, ort="/api/setup/app-pool/add"),
     "AZURE_APP_CREATED": E(art=ZUSTAND),
+    "AUTH_CERT_HINTERLEGT": E(art=ZUSTAND),
     "BOOTSTRAP_CLIENT_ID": E(art=OPTION, ort="/api/setup/bootstrap-client"),
     "BOOTSTRAP_REDIRECT_URIS": E(art=STRUKTUR, ort="/api/setup/bootstrap-client"),
     "CATALOG_PROVIDERS_DISABLED": E(art=STRUKTUR, ort="/api/cert/catalog"),

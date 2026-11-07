@@ -187,7 +187,12 @@ async def _upload_key_credential(token: str, app_object_id: str, cert_der: bytes
 async def create_app_registration(token: str, public_hostname: str) -> dict:
     """
     Create (or reuse) the '{GATEWAY_NAME}' app registration.
-    Returns {"app_id": ..., "app_object_id": ..., "sp_id": ..., "client_secret": ...}
+    Returns {"app_id": ..., "app_object_id": ..., "sp_id": ...}
+
+    Seit v1.10.80 ohne Client Secret: Das Gateway meldet sich mit dem
+    Zertifikat aus auth.pfx an (graph_client.zertifikat_nachweis), das
+    run_post_auth_setup an der App hinterlegt. Bis dahin legte JEDER Aufruf ein
+    weiteres Secret mit Laufzeit bis 2099 an.
     """
     gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     gateway_name_odata = gateway_name.replace("'", "''")  # OData string literal escaping
@@ -258,26 +263,10 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
     await _grant_admin_consent(token, sp_id)
     await _assign_exchange_admin_role(token, sp_id)
 
-    # Always create a fresh client secret
-    secret_resp = await _gh(
-        "post",
-        f"{GRAPH}/applications/{app_object_id}/addPassword",
-        token,
-        json={
-            "passwordCredential": {
-                "displayName": gateway_name,
-                "endDateTime": "2099-12-31T00:00:00Z",
-            }
-        },
-    )
-    client_secret = secret_resp["secretText"]
-    log.info("Client secret created for app %s", app_id)
-
     return {
         "app_id": app_id,
         "app_object_id": app_object_id,
         "sp_id": sp_id,
-        "client_secret": client_secret,
     }
 
 
@@ -285,8 +274,12 @@ async def create_pool_app(token: str, index: int) -> dict:
     """
     Create/reuse '{GATEWAY_NAME} (Pool N)' with runtime-only permissions.
     No Exchange.ManageAsApp — pool apps are for mail processing only.
-    Returns {"client_id": ..., "client_secret": ..., "label": ...}
+    Returns {"client_id": ..., "label": ...} — ohne Secret; die App bekommt
+    das Zertifikat aus auth.pfx hinterlegt (wie die Haupt-App).
     """
+    cert_der = _auth_zert_der()
+    if cert_der is None:
+        raise RuntimeError("Kein Auth-Zertifikat (auth.pfx) — erst die Haupt-App einrichten.")
     gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     display_name = f"{gateway_name} (Pool {index})"
     display_name_odata = display_name.replace("'", "''")
@@ -330,19 +323,10 @@ async def create_pool_app(token: str, index: int) -> dict:
         sp_id = sp["id"]
 
     await _grant_admin_consent(token, sp_id)
-
-    secret_resp = await _gh(
-        "post",
-        f"{GRAPH}/applications/{app_object_id}/addPassword",
-        token,
-        json={"passwordCredential": {
-            "displayName": display_name,
-            "endDateTime": "2099-12-31T00:00:00Z",
-        }},
-    )
+    await _upload_key_credential(token, app_object_id, cert_der)
+    _zert_hinterlegt_merken()
     return {
         "client_id":     app_id,
-        "client_secret": secret_resp["secretText"],
         "label":         display_name,
     }
 
@@ -774,7 +758,6 @@ async def run_post_auth_setup(token: str) -> dict:
     app_info = await create_app_registration(token, settings_store.get("PUBLIC_HOSTNAME") or "")
     settings_store.update({
         "CLIENT_ID": app_info["app_id"],
-        "CLIENT_SECRET": app_info["client_secret"],
         "AZURE_APP_CREATED": True,
     })
     _gc.reset_msal_app()
@@ -799,18 +782,137 @@ async def run_post_auth_setup(token: str) -> dict:
     except Exception as exc:
         log.warning("Admin UPN / redirect URI setup failed: %s", exc)
 
-    # 3. Generate auth certificate and upload to Azure
+    # 3. Generate auth certificate and upload to Azure — an die Haupt-App UND an
+    # jede Pool-App: Seit v1.10.80 ist es der einzige Anmeldenachweis.
     try:
         cert_der, pfx_bytes = _generate_auth_cert()
         await _upload_key_credential(token, app_info["app_object_id"], cert_der)
+        for eintrag in settings_store.get("APP_POOL") or []:
+            obj = await _app_objekt_id(token, eintrag.get("client_id", ""))
+            if obj:
+                await _upload_key_credential(token, obj, cert_der)
         _write_auth_pfx(pfx_bytes)
+        _zert_hinterlegt_merken()
+        _gc.reset_msal_app()
         result["auth_cert"] = str(_AUTH_CERT_PATH)
         log.info("Auth certificate generated and uploaded")
     except Exception as exc:
         log.error("Auth certificate setup failed: %s", exc)
         result["auth_cert_error"] = str(exc)
+        return result
 
+    # 4. Secrets abbauen — erst wenn Entra das Zertifikat annimmt. Läuft im
+    # Hintergrund, weil die Verteilung Minuten dauern kann; das Admin-Token
+    # dieser Anmeldung reicht dafür (gültig ~60 min).
+    asyncio.create_task(secrets_abbauen(token))
     return result
+
+
+# ── Client Secrets abbauen (seit v1.10.80) ────────────────────────────────────
+
+def _auth_zert_der() -> bytes | None:
+    """Öffentliches Zertifikat aus auth.pfx (DER) — None ohne Datei."""
+    try:
+        daten = _AUTH_CERT_PATH.read_bytes()
+    except OSError:
+        return None
+    from cryptography.hazmat.primitives.serialization import Encoding, pkcs12
+    for kennwort in (None, b""):
+        try:
+            return pkcs12.load_key_and_certificates(daten, kennwort)[1].public_bytes(Encoding.DER)
+        except ValueError:
+            continue
+    return None
+
+
+def _zert_hinterlegt_merken() -> None:
+    """Zeitpunkt des Hinterlegens: In den Minuten danach sind abgelehnte
+    Zertifikats-Tokens Verteilungsverzug, kein Fehler (graph_client)."""
+    from datetime import datetime, timezone
+    settings_store.update({"AUTH_CERT_HINTERLEGT":
+                           datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+
+
+async def _app_objekt_id(token: str, app_id: str) -> str:
+    if not app_id:
+        return ""
+    d = await _gh("get", f"{GRAPH}/applications?$filter=appId eq '{app_id}'&$select=id", token)
+    werte = d.get("value") or []
+    return werte[0]["id"] if werte else ""
+
+
+def _zert_token_klappt(client_id: str) -> bool:
+    """Stellt Entra für diese App ein Token gegen das Zertifikat aus — ohne
+    Secret, ohne gemeinsamen Cache?"""
+    import msal
+    zert = _gc.zertifikat_nachweis()
+    tenant = config.TENANT_ID or settings_store.get("TENANT_ID") or ""
+    if not (zert and tenant and client_id):
+        return False
+    try:
+        r = msal.ConfidentialClientApplication(
+            client_id, authority=f"https://login.microsoftonline.com/{tenant}",
+            client_credential=zert, token_cache=msal.TokenCache(),
+        ).acquire_token_for_client(scopes=_gc._SCOPES)
+    except Exception:                                           # noqa: BLE001
+        return False
+    return bool(isinstance(r, dict) and r.get("access_token"))
+
+
+def secret_vorhanden() -> bool:
+    """Liegt noch ein Client Secret in den Einstellungen (Haupt- oder Pool-App)?"""
+    if config.CLIENT_SECRET or settings_store.get("CLIENT_SECRET"):
+        return True
+    return any(e.get("client_secret") for e in settings_store.get("APP_POOL") or [])
+
+
+async def secrets_abbauen(token: str, warten_s: int = 900, takt_s: int = 30) -> dict:
+    """Je App: warten, bis ein Zertifikats-Token klappt, dann ALLE Client
+    Secrets in Entra löschen und aus den Einstellungen nehmen.
+
+    Reihenfolge ist die Schutzfunktion: Ein Secret wird erst gelöscht, wenn
+    das Zertifikat nachweislich trägt — sonst stünde das Gateway ohne Graph da.
+    Klappt das Zertifikat in der Frist nicht, bleibt alles, wie es ist (die
+    Abnahme meldet das Secret weiter). Rückgabe {client_id: ergebnis}."""
+    apps = [config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""] + \
+           [e.get("client_id", "") for e in settings_store.get("APP_POOL") or []]
+    ergebnis: dict = {}
+    for cid in [a for a in apps if a]:
+        frist = warten_s
+        while not await asyncio.to_thread(_zert_token_klappt, cid):
+            if frist <= 0:
+                break
+            await asyncio.sleep(takt_s)
+            frist -= takt_s
+        else:
+            try:
+                obj = await _app_objekt_id(token, cid)
+                d = await _gh("get", f"{GRAPH}/applications/{obj}?$select=passwordCredentials", token)
+                for pw in d.get("passwordCredentials") or []:
+                    await _gh("post", f"{GRAPH}/applications/{obj}/removePassword", token,
+                              json={"keyId": pw["keyId"]})
+                ergebnis[cid] = f"{len(d.get('passwordCredentials') or [])} Secret(s) gelöscht"
+                _secret_aus_einstellungen(cid)
+                log.info("App %s: Zertifikat trägt, %s", cid[:8], ergebnis[cid])
+            except Exception as exc:                            # noqa: BLE001
+                ergebnis[cid] = f"Löschen fehlgeschlagen: {exc}"
+                log.warning("App %s: Secrets nicht gelöscht: %s", cid[:8], exc)
+            continue
+        ergebnis[cid] = "Zertifikat in der Frist nicht angenommen — Secret bleibt"
+        log.warning("App %s: Zertifikat nach %d s nicht angenommen — Secrets bleiben",
+                    cid[:8], warten_s)
+    return ergebnis
+
+
+def _secret_aus_einstellungen(client_id: str) -> None:
+    if client_id == (config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""):
+        settings_store.update({"CLIENT_SECRET": ""})
+    pool = settings_store.get("APP_POOL") or []
+    if any(e.get("client_id") == client_id and "client_secret" in e for e in pool):
+        settings_store.update({"APP_POOL": [
+            {k: v for k, v in e.items() if not (k == "client_secret" and e.get("client_id") == client_id)}
+            for e in pool]})
+    _gc.reset_msal_app()
 
 
 # ── Step: run PowerShell S/MIME transport rules setup ────────────────────────
@@ -964,7 +1066,7 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
     # Get the Entra ID service principal Object ID for New-ServicePrincipal
     token = _gc._acquire_token()
     if not token:
-        return {"ok": False, "output": "Graph-Token nicht verfügbar. CLIENT_ID / CLIENT_SECRET prüfen."}
+        return {"ok": False, "output": "Graph-Token nicht verfügbar. App-Registrierung prüfen (Schritt 5, Auth-Zertifikat)."}
 
     try:
         r = _req.get(

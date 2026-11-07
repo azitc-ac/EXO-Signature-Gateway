@@ -278,6 +278,7 @@ DEFAULTS: dict = {
     "EXO_SMARTHOST": "",         # Can be set via env var (takes precedence) or wizard
     "TENANT_DOMAIN": "",         # Auto-discovered (e.g. "contoso.onmicrosoft.com")
     "AZURE_APP_CREATED": False,
+    "AUTH_CERT_HINTERLEGT": "",  # Zeitpunkt (UTC), zu dem auth.pfx an den Apps hinterlegt wurde
     "EXO_CONNECTOR_CREATED": False,
     "SMIME_RULES_CREATED": False,
     "BOOTSTRAP_CLIENT_ID": "",   # Client-ID der eigenen Bootstrap-App-Registrierung für den Setup-Login

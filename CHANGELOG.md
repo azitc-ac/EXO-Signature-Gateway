@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.80 — 2026-11-07 — App-Anmeldung per Zertifikat statt Client Secret
+
+- Das Gateway holt seine App-Tokens (Graph, Key Vault, SMTP-587) jetzt mit dem
+  Zertifikat aus `auth.pfx`. Mit demselben Zertifikat meldet es sich schon
+  immer bei Exchange-PowerShell an; es ist an der App hinterlegt. Ein Client
+  Secret ist damit überflüssig.
+- Bisher legte die Einrichtung ein Secret mit Laufzeit bis 2099 an, und jede
+  erneute Anmeldung in *Einrichtung → Entra App-Registrierung* ein weiteres.
+  Die älteren blieben in Entra gültig.
+- Neue Installationen und neue Pool-Apps bekommen kein Secret mehr; Pool-Apps
+  erhalten dasselbe Zertifikat wie die Haupt-App.
+- Nach einer erneuten Anmeldung hinterlegt das Gateway das Zertifikat an Haupt-
+  und Pool-Apps, wartet, bis Entra Tokens dafür ausstellt (meist wenige
+  Minuten), und löscht erst dann alle Secrets dieser Apps in Entra und in den
+  Einstellungen. Nimmt Entra das Zertifikat binnen 15 Minuten nicht an, bleibt
+  alles, wie es ist.
+- Solange noch ein Secret vorliegt und das Zertifikat an einer App fehlt,
+  springt das Secret ein; das Protokoll meldet es. Abgelehnte Tokens in den
+  ersten Minuten nach dem Hinterlegen erscheinen als Hinweis statt als Fehler.
+- Die Abnahme prüft neu „Anmeldung der App per Zertifikat“ und meldet ein
+  verbliebenes Secret.
+
+**Zu tun:** *Einrichtung → Entra App-Registrierung → Erneut anmelden*. Danach
+in einigen Minuten die Abnahme starten; „Anmeldung der App per Zertifikat“
+steht dann auf grün. Steht `CLIENT_SECRET` in deiner `.env`, entferne die
+Zeile dort. Bis dahin läuft das Gateway unverändert weiter.
+
 ## v1.10.79 — 2026-11-07 — Routenverzeichnis nachgezogen
 
 - Die Momentaufnahme der Routen kennt den Endpunkt von „Erneut prüfen“ (v1.10.78).

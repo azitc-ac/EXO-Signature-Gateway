@@ -323,6 +323,27 @@ def _signaturvorlage() -> dict:
                   f"{len(vorhanden)} Vorlage(n): {', '.join(sorted(vorhanden))}"[:200])
 
 
+def _anmeldenachweis() -> dict:
+    """Meldet sich das Gateway mit dem Zertifikat an — und ist kein Client
+    Secret mehr übrig? Bis v1.10.79 legte jede erneute Anmeldung in Schritt 5
+    ein weiteres Secret mit Laufzeit bis 2099 an."""
+    import graph_client
+    import setup_wizard
+    name = "Anmeldung der App per Zertifikat"
+    if graph_client.zertifikat_nachweis() is None:
+        return _punkt(name, OFFEN, "Kein lesbares Auth-Zertifikat (auth.pfx).",
+                      "Einrichtung → Entra App-Registrierung → Erneut anmelden.")
+    if setup_wizard.secret_vorhanden():
+        return _punkt(name, OFFEN, "Es ist noch ein Client Secret hinterlegt.",
+                      "Einrichtung → Entra App-Registrierung → Erneut anmelden. Danach "
+                      "löscht das Gateway die Secrets, sobald Entra das Zertifikat "
+                      "annimmt (einige Minuten). Steht CLIENT_SECRET in der .env, dort "
+                      "entfernen.")
+    return _punkt(name, OK, "Zertifikat, kein Secret in den Einstellungen",
+                  deckt_nicht="Ob in Entra noch Secrets an der App hängen, die nie in "
+                              "den Einstellungen standen, sieht diese Prüfung nicht.")
+
+
 def _benachrichtigung() -> dict:
     import settings_store
     if settings_store.get("NOTIFICATIONS_ENABLED") is False:
@@ -449,7 +470,7 @@ def _addin_rollen() -> dict:
 
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
-              _addin_rollen, _benachrichtigung)
+              _addin_rollen, _benachrichtigung, _anmeldenachweis)
 
 
 def bericht() -> dict:

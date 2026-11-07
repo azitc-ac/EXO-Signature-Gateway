@@ -83,12 +83,9 @@ def _acquire_smtp_token() -> str | None:
             client_id, authority=authority, client_credential=client_secret)
         result = app.acquire_token_for_client(scopes=_SMTP_SCOPE)
     else:
-        app = graph_client._get_msal_app()
-        if not app:
-            return None
-        result = app.acquire_token_silent(_SMTP_SCOPE, account=None)
+        result = graph_client.app_token_ergebnis(_SMTP_SCOPE)
         if not result:
-            result = app.acquire_token_for_client(scopes=_SMTP_SCOPE)
+            return None
 
     if result and "access_token" in result:
         return result["access_token"]
@@ -146,13 +143,9 @@ def _acquire_imap_tokens() -> list[str]:
               or graph_client._get_effective_credentials()[0] or "")
 
     # 1. Main app
-    main_app = graph_client._get_msal_app()
-    if main_app:
-        r = main_app.acquire_token_silent(_SMTP_SCOPE, account=None)
-        if not r:
-            r = main_app.acquire_token_for_client(scopes=_SMTP_SCOPE)
-        if r and "access_token" in r:
-            tokens.append(r["access_token"])
+    r = graph_client.app_token_ergebnis(_SMTP_SCOPE)
+    if r and "access_token" in r:
+        tokens.append(r["access_token"])
 
     # 2. Alternate app (SMTP_SUBMIT_CLIENT_ID), if configured and different
     alt_id = settings_store.get("SMTP_SUBMIT_CLIENT_ID") or ""
