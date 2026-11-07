@@ -32,11 +32,69 @@ SMIME_DIR = Path(config.DATA_DIR) / "smime"
 RECIPIENT_DIR = Path(config.DATA_DIR) / "smime" / "recipients"
 
 
+def schluessel_passwort() -> str:
+    """Das EINE Passwort der abgelegten S/MIME-Privatschlüssel.
+
+    Oberfläche vor Umgebung (`.env`) — dieselbe Rangfolge wie überall. Bis
+    v1.10.81 las das Signieren nur die Umgebung, das Neuverschlüsseln nach dem
+    Setzen in der Oberfläche aber die Einstellungen: Wer das Passwort in der
+    Oberfläche setzte, bekam verschlüsselte Schlüssel, die `openssl smime
+    -sign` nicht mehr öffnen konnte. Jeder Leser holt es deshalb HIER
+    (`tests/test_smime_schluessel_passwort.py` erzwingt das)."""
+    import settings_store
+    return settings_store.get("SMIME_KEY_PASSWORD") or config.SMIME_KEY_PASSWORD or ""
+
+
+def schluessel_laden(pem: bytes):
+    """Privatschlüssel laden — mit dem Passwort, sonst ohne.
+
+    Beide Versuche sind nötig: Ein Schlüssel kann aus der Zeit vor dem Passwort
+    stammen, oder `SMIME_KEY_ENCRYPT` war aus. `cryptography` wirft TypeError,
+    wenn ein Passwort auf einen unverschlüsselten Schlüssel trifft."""
+    pw = schluessel_passwort()
+    for kandidat in ([pw.encode()] if pw else []) + [None]:
+        try:
+            return load_pem_private_key(pem, password=kandidat)
+        except (ValueError, TypeError):
+            continue
+    raise ValueError("Privater Schlüssel nicht lesbar (falsches Passwort?)")
+
+
+def openssl_passin() -> tuple[list[str], dict]:
+    """`-passin`-Argumente samt Umgebung für openssl.
+
+    Über die Umgebung statt `pass:` auf der Kommandozeile — die ist für jeden
+    Prozess auf der Maschine in `ps` lesbar. Immer gesetzt, auch leer: ohne
+    `-passin` fragt openssl bei verschlüsseltem Schlüssel interaktiv."""
+    import os
+    return (["-passin", "env:EXO_SMIME_PASSIN"],
+            {**os.environ, "EXO_SMIME_PASSIN": schluessel_passwort()})
+
+
+def unverschluesselte_schluessel() -> list[Path]:
+    """Abgelegte Privatschlüssel (key.pem, key.pem.bak), die im Klartext liegen.
+
+    Gemessen an der DATEI, nicht an der Einstellung — ein gesetztes Passwort
+    sagt nichts über Schlüssel, die davor abgelegt wurden."""
+    if not SMIME_DIR.exists():
+        return []
+    roh = []
+    for p in SMIME_DIR.rglob("key.pem*"):
+        if p.name not in ("key.pem", "key.pem.bak") or "recipients" in p.parts:
+            continue
+        try:
+            if b"ENCRYPTED" not in p.read_bytes():
+                roh.append(p)
+        except OSError:
+            continue
+    return sorted(roh)
+
+
 def _key_encryption():
-    import settings_store, config
+    import settings_store
     if settings_store.get("SMIME_KEY_ENCRYPT") is False:
         return NoEncryption()
-    pw = settings_store.get("SMIME_KEY_PASSWORD") or config.SMIME_KEY_PASSWORD or ""
+    pw = schluessel_passwort()
     if pw:
         return BestAvailableEncryption(pw.encode())
     return NoEncryption()
@@ -474,8 +532,6 @@ def store_pem_slot(email: str, cert_chain_pem: bytes, key_pem: bytes) -> dict:
     The leaf cert (first in chain) is stored. Used by ACME auto-renewal.
     The new cert always becomes the default for this user.
     """
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
-
     # Extract leaf cert (first PEM block)
     pem_str = cert_chain_pem.decode(errors="replace")
     begin = pem_str.find("-----BEGIN CERTIFICATE-----")
@@ -485,9 +541,7 @@ def store_pem_slot(email: str, cert_chain_pem: bytes, key_pem: bytes) -> dict:
     leaf_pem = pem_str[begin : end + len("-----END CERTIFICATE-----")].encode()
 
     cert = x509.load_pem_x509_certificate(leaf_pem)
-    import config as _cfg
-    pw = _cfg.SMIME_KEY_PASSWORD
-    private_key = load_pem_private_key(key_pem, password=pw.encode() if pw else None)
+    private_key = schluessel_laden(key_pem)
 
     email = email.lower().strip()
     slot = _slot_id(cert)
@@ -662,9 +716,10 @@ async def migrate_key_to_keyvault(email: str, slot_id: str | None = None) -> dic
 
 def migrate_keys_encryption() -> int:
     """Re-encrypt existing unencrypted key.pem files with SMIME_KEY_PASSWORD."""
-    import config
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
-    pw = config.SMIME_KEY_PASSWORD
+    import settings_store
+    if settings_store.get("SMIME_KEY_ENCRYPT") is False:
+        return 0
+    pw = schluessel_passwort()
     if not pw:
         return 0
     count = 0

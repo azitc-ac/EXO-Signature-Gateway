@@ -5,6 +5,43 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.82 — 2026-11-07 — Offene Aufgaben oben rechts; S/MIME-Schlüsselpasswort wirkt überall
+
+- **Offene Aufgaben:** Neben dem Hell/Dunkel-Schalter zeigt ein Symbol mit
+  Zähler, was auf diesem Gateway noch zu tun ist. Jede Aufgabe nennt Befund,
+  Weg und einen Link zur Stelle, an der sie erledigt wird. Sie stützt sich auf
+  dieselbe Prüfung wie die Abnahme und verschwindet von selbst, sobald die
+  Prüfung grün ist. Aufgenommen sind: Anmeldung per Zertifikat (v1.10.80),
+  S/MIME-Schlüssel im Klartext, Benachrichtigung, Signaturvorlage, aktivierte
+  Postfächer. Vor der Einrichtung bleibt die Liste leer; dort führt der
+  Assistent.
+- **Dringende Aufgaben** erscheinen zusätzlich als Banner auf jeder Seite.
+  „Ausblenden“ merkt sich der Browser; ändert sich der Befund, erscheint das
+  Banner wieder. Oben rechts bleibt die Aufgabe in jedem Fall erreichbar.
+- **S/MIME-Schlüsselpasswort:** Das Signieren las das Passwort nur aus der
+  `.env`, das Neuverschlüsseln nach dem Setzen in der Oberfläche dagegen aus
+  den Einstellungen. Ein in der Oberfläche gesetztes Passwort verschlüsselte
+  die Schlüssel also, und `openssl` konnte sie beim Signieren danach nicht mehr
+  öffnen — S/MIME-Signaturen mit lokalem Schlüssel fielen aus. Dasselbe galt
+  für das Übernehmen neu ausgestellter Zertifikate (ACME, Betreiber-Bezug) bei
+  einem Passwort in der `.env`. Alle Stellen lesen das Passwort jetzt aus
+  einer Quelle: Oberfläche vor `.env`.
+- Das Passwort steht nicht mehr auf der Kommandozeile von `openssl` (dort war
+  es für andere Prozesse derselben Maschine lesbar), sondern wird über die
+  Umgebung übergeben.
+- Die Abnahme prüft neu „S/MIME-Schlüssel verschlüsselt abgelegt“. Sie misst
+  die Schlüsseldateien selbst, nicht die Einstellung. Ein gesetztes Passwort
+  schützt einzeln abhandengekommene Schlüsseldateien; ein vollständiges Backup
+  enthält auch die Einstellungen und damit das Passwort. Am stärksten schützt
+  Azure Key Vault.
+- Das Bypass-Banner zeigt „gemeldet seit“ jetzt im selben Format wie „zuletzt
+  geprüft“.
+
+**Zu tun:** Zeigt die Aufgabenliste „S/MIME-Schlüssel verschlüsselt abgelegt“
+als offen, setze unter *Einstellungen → S/MIME → Schlüsselablage* ein Passwort
+und notiere es außerhalb des Gateways. Hattest du dort schon eines gesetzt,
+signiert das Gateway nach dem Update wieder per S/MIME.
+
 ## v1.10.81 — 2026-11-07 — Prüfstand nachgezogen
 
 - Interner Prüfstand der Code-Kopien angepasst; keine Änderung am Verhalten.

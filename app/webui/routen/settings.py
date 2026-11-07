@@ -255,6 +255,8 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
         log.warning("/settings: unbekannte Schlüssel verworfen: %s", unbekannt)
     _loop_header_konsequenzen(clean)
     settings_store.update(clean)
+    import aufgaben
+    aufgaben.vergessen()        # der Sammelpunkt soll die Änderung gleich zeigen
     log.info("Settings updated by %s: %s", user, list(clean.keys()))
     return JSONResponse({"ok": True})
 

@@ -62,6 +62,8 @@ async def api_smime_key_password(request: Request, user: str = Depends(_require_
         raise HTTPException(400, "Aktuelles Passwort falsch")
     settings_store.update({"SMIME_KEY_PASSWORD": new_pw})
     failed = _smime.reencrypt_all_keys(old_password=stored)
+    import aufgaben
+    aufgaben.vergessen()
     log.info("SMIME key password changed by %s; re-encrypted keys, failed: %s", user, failed)
     if failed:
         return JSONResponse({"ok": True, "warnings": failed})
@@ -705,7 +707,6 @@ async def api_smime_backup_key_download(
     """Download the local backup key (key.pem.bak or key.pem) for a cert slot.
     If the key is unencrypted and SMIME_KEY_PASSWORD is set, encrypt on the fly before download."""
     from fastapi.responses import Response as _Resp
-    import config as _cfg
 
     if settings_store.get("KV_KEY_MODE") == "strict":
         raise HTTPException(403, "Backup-Download im Strict-Modus deaktiviert")
@@ -726,7 +727,7 @@ async def api_smime_backup_key_download(
         raise HTTPException(404, "Kein lokaler Schlüssel für diesen Slot vorhanden")
 
     # Encrypt on-the-fly if the file is plaintext PEM and a password is configured
-    pw = settings_store.get("SMIME_KEY_PASSWORD") or _cfg.SMIME_KEY_PASSWORD or ""
+    pw = _smime_store.schluessel_passwort()
     if pw and b"ENCRYPTED" not in key_bytes:
         try:
             from cryptography.hazmat.primitives.serialization import (
@@ -755,7 +756,6 @@ async def api_smime_backup_all_keys(_: str = Depends(_require_admin)):
     """Download a ZIP of all local key files (key.pem + key.pem.bak), encrypted where needed."""
     import io
     import zipfile
-    import config as _cfg
     from fastapi.responses import Response as _Resp
 
     if settings_store.get("KV_KEY_MODE") == "strict":
@@ -764,7 +764,7 @@ async def api_smime_backup_all_keys(_: str = Depends(_require_admin)):
     # Pfad aus dem Modul, nicht erneut verdrahtet: smime_store.SMIME_DIR ist
     # die eine Quelle. Drei Endpunkte hatten hier ein eigenes Literal.
     smime_dir = _smime_store.SMIME_DIR
-    pw = settings_store.get("SMIME_KEY_PASSWORD") or _cfg.SMIME_KEY_PASSWORD or ""
+    pw = _smime_store.schluessel_passwort()
 
     buf = io.BytesIO()
     count = 0

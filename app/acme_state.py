@@ -493,7 +493,7 @@ async def _revoke_existing_cert_before_reissue(email: str, client: "AcmeClient",
     """
     import smime_store
     from cryptography import x509
-    from cryptography.hazmat.primitives.serialization import Encoding, load_pem_private_key
+    from cryptography.hazmat.primitives.serialization import Encoding
     from cryptography.hazmat.primitives.asymmetric import ec as _ec
 
     paths = smime_store.get_signing_paths(email)
@@ -519,9 +519,7 @@ async def _revoke_existing_cert_before_reissue(email: str, client: "AcmeClient",
     # Fallback: revoke signed with the cert's own keypair — works even if the
     # issuing account was reset/lost (stuck-identity recovery). Requires an EC key.
     try:
-        import config as _cfg
-        pw = _cfg.SMIME_KEY_PASSWORD
-        cert_key = load_pem_private_key(key_path.read_bytes(), password=pw.encode() if pw else None)
+        cert_key = smime_store.schluessel_laden(key_path.read_bytes())
         if isinstance(cert_key, _ec.EllipticCurvePrivateKey):
             await client.revoke_with_cert_key(cert_der, cert_key, reason=4)
             log.info("[acme:%s] revoked existing cert for %s (cert keypair) before re-issue", fid, email)

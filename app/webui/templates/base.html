@@ -52,6 +52,46 @@
                 {% endif %}
             </ul>
         </div>
+        {# Sammelpunkt der offenen Aufgaben (aufgaben.py) — immer erreichbar, auch
+           wenn das Banner einer dringenden Aufgabe ausgeblendet wurde. #}
+        {% set _aufgaben = aufgaben_offen() if _role == 'admin' else [] %}
+        {% if _role == 'admin' %}
+        <div id="aufgaben" style="position:relative;flex-shrink:0">
+          <button id="aufgaben-btn" type="button" onclick="aufgabenUmschalten(event)"
+                  aria-haspopup="true" aria-expanded="false"
+                  title="{{ _aufgaben|length }} offene Aufgabe{{ '' if _aufgaben|length == 1 else 'n' }}"
+                  aria-label="Offene Aufgaben: {{ _aufgaben|length }}"
+                  style="background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:4px;
+                         color:rgba(255,255,255,{{ '0.95' if _aufgaben else '0.6' }});display:flex;align-items:center;gap:3px;line-height:1">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/>
+              <path d="M9 12l2 2 4-4"/></svg>
+            {% if _aufgaben %}<span style="background:#fef3c7;color:#92400e;border-radius:9px;
+                  font-size:11px;font-weight:700;padding:1px 6px">{{ _aufgaben|length }}</span>{% endif %}
+          </button>
+          <div id="aufgaben-liste" hidden role="dialog" aria-label="Offene Aufgaben"
+               style="position:fixed;top:56px;right:12px;width:min(380px,calc(100vw - 24px));
+                      max-height:70vh;overflow-y:auto;background:#fff;border:1px solid #e2e8f0;
+                      border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);z-index:9999;
+                      padding:12px 14px;font-size:13px;color:#1e293b">
+            <div style="font-weight:700;margin-bottom:8px">Offene Aufgaben</div>
+            {% for a in _aufgaben %}
+            <div style="border-top:1px solid #e2e8f0;padding:9px 0">
+              <div style="font-weight:600">{% if a.dringend %}<span style="color:#b45309">Dringend · </span>{% endif %}{{ a.titel }}</div>
+              <div style="color:#64748b;margin:3px 0">{{ a.befund }}</div>
+              {% if a.zu_tun %}<div style="margin:3px 0">{{ a.zu_tun }}</div>{% endif %}
+              {# display/padding ausdrücklich: das Fenster liegt in <nav>, deren Links Abstände tragen #}
+              <a href="{{ a.link }}" style="color:#0369a1;font-weight:600;font-size:13px;display:inline;padding:0">Zur Stelle →</a>
+              {% if a.seit %}<span style="color:#94a3b8;font-size:11px;margin-left:8px">seit v{{ a.seit }}</span>{% endif %}
+            </div>
+            {% else %}
+            <div style="color:#64748b">Nichts offen. Hier erscheint, was nach einem Update
+              oder in der Einrichtung noch zu tun ist.</div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
         <button id="theme-toggle" onclick="toggleTheme()" title="Hell/Dunkel wechseln" aria-label="Theme wechseln">☾</button>
         <span id="nav-online" style="display:flex;align-items:center;gap:5px;font-size:12px;color:rgba(255,255,255,0.75);white-space:nowrap;padding:0 8px;flex-shrink:0">
             <span id="nav-dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;transition:background 0.4s"></span>
@@ -216,6 +256,33 @@
         var tt = document.getElementById('user-tooltip');
         tt.style.display = tt.style.display === 'none' ? 'block' : 'none';
       }
+      function aufgabenUmschalten(e) {
+        e.stopPropagation();
+        var liste = document.getElementById('aufgaben-liste');
+        liste.hidden = !liste.hidden;
+        document.getElementById('aufgaben-btn').setAttribute('aria-expanded', String(!liste.hidden));
+      }
+      document.addEventListener('click', function(e) {
+        var box = document.getElementById('aufgaben');
+        if (box && !box.contains(e.target)) {
+          document.getElementById('aufgaben-liste').hidden = true;
+          document.getElementById('aufgaben-btn').setAttribute('aria-expanded', 'false');
+        }
+      });
+      // Banner dringender Aufgaben: je Befund ausblendbar (siehe Vorlage unten).
+      var AUFGABE_AUS = 'aufgabe-aus:';
+      function aufgabeAusblenden(knopf) {
+        var el = knopf.closest('.aufgabe-banner');
+        try { localStorage.setItem(AUFGABE_AUS + el.dataset.aufgabe, '1'); } catch (x) { /* privat: nur jetzt */ }
+        el.hidden = true;
+      }
+      document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.aufgabe-banner').forEach(function(el) {
+          var aus = false;
+          try { aus = localStorage.getItem(AUFGABE_AUS + el.dataset.aufgabe) === '1'; } catch (x) { /* zeigen */ }
+          el.hidden = aus;
+        });
+      });
       document.addEventListener('click', function(e) {
         var badge = document.getElementById('user-badge');
         if (badge && !badge.contains(e.target)) {
@@ -587,6 +654,23 @@
       }
     </script>
     {% endif %}
+
+    {# Dringende Aufgaben zusätzlich als Banner. Ausblenden merkt sich der
+       Browser je Befund (localStorage) — ändert sich der Befund, kommt es
+       wieder. Die Aufgabe selbst bleibt oben rechts erreichbar. Zunächst
+       verborgen, damit ein ausgeblendetes nicht aufblitzt. #}
+    {% for a in _aufgaben if a.dringend %}
+    <div class="aufgabe-banner" data-aufgabe="{{ a.kennung }}:{{ a.stempel }}" hidden
+         style="background:#fffbeb;border-bottom:2px solid #fcd34d;padding:9px 16px;
+                font-size:13px;color:#92400e;display:flex;gap:10px;
+                align-items:center;flex-wrap:wrap">
+      <strong>{{ a.titel }}</strong>
+      <span>{{ a.befund }}</span>
+      <a href="{{ a.link }}" style="color:#92400e;font-weight:700;margin-left:auto">Zur Stelle</a>
+      <button type="button" class="btn secondary btn-sm" onclick="aufgabeAusblenden(this)"
+              title="Bleibt oben rechts unter „Offene Aufgaben“ erreichbar">Ausblenden</button>
+    </div>
+    {% endfor %}
 
     {# `weit` fuer Seiten, die Daten NEBENEINANDER zeigen (Postfachtabelle,
        Baukasten). Fliesstext bleibt bei 960px: ueber die volle Breite eines

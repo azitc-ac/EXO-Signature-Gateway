@@ -13,7 +13,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import config
 import loop_detector
 import smime_store
 
@@ -45,10 +44,11 @@ def sign(message_bytes: bytes, sender: str, use_backup: bool = False) -> bytes |
             "-md", "sha256",
             "-outform", "SMIME",
         ]
-        if config.SMIME_KEY_PASSWORD:
-            cmd += ["-passin", f"pass:{config.SMIME_KEY_PASSWORD}"]
+        passin, umgebung = smime_store.openssl_passin()
+        cmd += passin
         result = subprocess.run(
             cmd,
+            env=umgebung,
             capture_output=True,
             timeout=15,
         )
