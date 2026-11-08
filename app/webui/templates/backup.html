@@ -107,6 +107,13 @@
     Erstellt ein vollständiges ZIP-Archiv aller kritischen Gateway-Daten — geeignet
     für Migrationen, Umzüge auf neue Server oder als regelmäßige Sicherungskopie.
   </p>
+  <div class="alert warn" style="margin-bottom:16px">
+    <strong>Vertraulich:</strong> Das Archiv enthält alle Geheimnisse des Gateways —
+    die Anmeldedaten der App, das Anmeldezertifikat, die ACME-Kontoschlüssel und die
+    S/MIME-Privatschlüssel samt ihrem Passwort. Das gilt auch mit Key Vault: Dort bleibt
+    eine lokale Rückfallkopie jedes Schlüssels. Bewahre das Archiv so sicher auf wie die
+    Schlüssel selbst, also nicht in einem geteilten Ordner oder Postfach.
+  </div>
 
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:16px;max-width:640px">
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">

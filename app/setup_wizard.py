@@ -942,7 +942,7 @@ def run_smime_rules_setup(
             "ok": False,
             "output": (
                 "Auth-Zertifikat nicht gefunden (/app/data/auth.pfx). "
-                "Bitte Schritt 5 (Entra App-Registrierung → „App-Registrierung neu einrichten“) ausführen."
+                "Bitte Schritt 5 (Entra App-Registrierung → „Erneut anmelden“) ausführen."
             ),
         }
 
@@ -998,7 +998,7 @@ def run_exo_connector_setup(
             "ok": False,
             "output": (
                 "Auth-Zertifikat nicht gefunden (/app/data/auth.pfx). "
-                "Bitte Schritt 5 (Entra App-Registrierung → „App-Registrierung neu einrichten“) ausführen."
+                "Bitte Schritt 5 (Entra App-Registrierung → „Erneut anmelden“) ausführen."
             ),
         }
 
@@ -1059,7 +1059,7 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
             "ok": False,
             "output": (
                 "Auth-Zertifikat nicht gefunden (/app/data/auth.pfx). "
-                "Bitte Schritt 5 (Entra App-Registrierung → „App-Registrierung neu einrichten“) ausführen."
+                "Bitte Schritt 5 (Entra App-Registrierung → „Erneut anmelden“) ausführen."
             ),
         }
 
@@ -1185,7 +1185,7 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
     if not script.exists():
         return {"ok": False, "output": "PowerShell script not found"}
     if not _AUTH_CERT_PATH.exists():
-        return {"ok": False, "output": "Auth-Zertifikat nicht gefunden — bitte Schritt 5 (Entra App-Registrierung → „App-Registrierung neu einrichten“) ausführen."}
+        return {"ok": False, "output": "Auth-Zertifikat nicht gefunden — bitte Schritt 5 (Entra App-Registrierung → „Erneut anmelden“) ausführen."}
 
     gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     import waechter_regel

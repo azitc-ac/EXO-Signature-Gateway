@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.83 — 2026-11-08 — Backup: Hinweis auf enthaltene Geheimnisse; „Erneut anmelden“ heißt überall so
+
+- **Backup erstellen** sagt jetzt ausdrücklich, dass das Archiv alle
+  Geheimnisse des Gateways enthält: Anmeldedaten der App, Anmeldezertifikat,
+  ACME-Kontoschlüssel und die S/MIME-Privatschlüssel samt Schlüsselpasswort.
+  Das Schlüsselpasswort schützt einzeln abhandengekommene Schlüsseldateien,
+  nicht aber das Archiv, weil es mit darin liegt. Auch mit Key Vault bleibt
+  eine lokale Rückfallkopie jedes Schlüssels im Archiv. Ein eigenes Passwort
+  für das Archiv gibt es bewusst nicht: Ginge es verloren, wäre die Sicherung
+  wertlos.
+- **Einrichtung, Schritt 5:** Der Knopf „App-Registrierung neu einrichten“
+  heißt jetzt „Erneut anmelden“. Er löste schon immer die erneute Anmeldung
+  aus, bei der die bestehende App-Registrierung wiederverwendet und das
+  Zertifikat erneuert wird. Aufgaben, Abnahme und Fehlermeldungen nannten den
+  Weg aber „Erneut anmelden“, sodass die Anleitung auf einen Knopf verwies,
+  der so nicht beschriftet war. Ein Test prüft jetzt, dass jeder in Meldungen
+  genannte Weg der Form → „Beschriftung“ als Knopf oder Link existiert.
+- **Offene Aufgaben:** Der Link in Liste und Banner heißt „Zum Ziel →“
+  statt „Zur Stelle“.
+
+**Zu tun:** nichts.
+
 ## v1.10.82 — 2026-11-07 — Offene Aufgaben oben rechts; S/MIME-Schlüsselpasswort wirkt überall
 
 - **Offene Aufgaben:** Neben dem Hell/Dunkel-Schalter zeigt ein Symbol mit

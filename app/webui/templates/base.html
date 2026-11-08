@@ -82,7 +82,7 @@
               <div style="color:#64748b;margin:3px 0">{{ a.befund }}</div>
               {% if a.zu_tun %}<div style="margin:3px 0">{{ a.zu_tun }}</div>{% endif %}
               {# display/padding ausdrücklich: das Fenster liegt in <nav>, deren Links Abstände tragen #}
-              <a href="{{ a.link }}" style="color:#0369a1;font-weight:600;font-size:13px;display:inline;padding:0">Zur Stelle →</a>
+              <a href="{{ a.link }}" style="color:#0369a1;font-weight:600;font-size:13px;display:inline;padding:0">Zum Ziel →</a>
               {% if a.seit %}<span style="color:#94a3b8;font-size:11px;margin-left:8px">seit v{{ a.seit }}</span>{% endif %}
             </div>
             {% else %}
@@ -666,7 +666,7 @@
                 align-items:center;flex-wrap:wrap">
       <strong>{{ a.titel }}</strong>
       <span>{{ a.befund }}</span>
-      <a href="{{ a.link }}" style="color:#92400e;font-weight:700;margin-left:auto">Zur Stelle</a>
+      <a href="{{ a.link }}" style="color:#92400e;font-weight:700;margin-left:auto">Zum Ziel →</a>
       <button type="button" class="btn secondary btn-sm" onclick="aufgabeAusblenden(this)"
               title="Bleibt oben rechts unter „Offene Aufgaben“ erreichbar">Ausblenden</button>
     </div>

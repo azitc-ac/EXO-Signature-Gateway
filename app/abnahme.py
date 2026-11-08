@@ -332,10 +332,10 @@ def _anmeldenachweis() -> dict:
     name = "Anmeldung der App per Zertifikat"
     if graph_client.zertifikat_nachweis() is None:
         return _punkt(name, OFFEN, "Kein lesbares Auth-Zertifikat (auth.pfx).",
-                      "Einrichtung → Entra App-Registrierung → Erneut anmelden.")
+                      "Einrichtung → Entra App-Registrierung → „Erneut anmelden“.")
     if setup_wizard.secret_vorhanden():
         return _punkt(name, OFFEN, "Es ist noch ein Client Secret hinterlegt.",
-                      "Einrichtung → Entra App-Registrierung → Erneut anmelden. Danach "
+                      "Einrichtung → Entra App-Registrierung → „Erneut anmelden“. Danach "
                       "löscht das Gateway die Secrets, sobald Entra das Zertifikat "
                       "annimmt (einige Minuten). Steht CLIENT_SECRET in der .env, dort "
                       "entfernen.")
