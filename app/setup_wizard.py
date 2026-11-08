@@ -88,7 +88,8 @@ _AUTH_CERT_PATH = Path(config.DATA_DIR) / "auth.pfx"
 
 async def _gh(method: str, url: str, token: str, **kwargs) -> dict:
     """Helper: perform a Graph API call, raise on HTTP error, return JSON."""
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json",
+               **(kwargs.pop("headers", None) or {})}
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await getattr(client, method)(url, headers=headers, **kwargs)
     if not resp.is_success:
@@ -734,6 +735,30 @@ async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
         log.warning("Bootstrap app: NAA-Vorbereitung fehlgeschlagen: %s", exc)
 
 
+# ── Vorab: darf das angemeldete Konto einrichten? ─────────────────────────────
+
+# Rollenvorlage „Globaler Administrator“ (Microsoft Learn, Entra built-in roles).
+GLOBALER_ADMIN = "62e90394-69f5-4237-9190-012177145e10"
+
+
+async def konto_rollen(token: str) -> list[dict] | None:
+    """Aktive Verzeichnisrollen des angemeldeten Kontos — auch über Gruppen
+    (transitiveMemberOf). None, wenn die Abfrage scheitert: Dann entscheidet
+    nicht diese Vorprüfung, sondern Entra beim ersten Schreiben.
+
+    Nicht das Token-Merkmal `wids`: Ob es erscheint, legt die Ziel-App fest
+    (hier Microsoft Graph), laut Microsoft soll man sich darauf nicht verlassen."""
+    try:
+        data = await _gh(
+            "get", f"{GRAPH}/me/transitiveMemberOf/microsoft.graph.directoryRole"
+                   "?$count=true&$select=displayName,roleTemplateId",
+            token, headers={"ConsistencyLevel": "eventual"})
+    except Exception as exc:                                  # noqa: BLE001
+        log.warning("Einrichtung: Rollen des angemeldeten Kontos nicht lesbar: %s", exc)
+        return None
+    return data.get("value", [])
+
+
 # ── Step: run full setup after PKCE callback ──────────────────────────────────
 
 async def run_post_auth_setup(token: str) -> dict:
@@ -743,6 +768,18 @@ async def run_post_auth_setup(token: str) -> dict:
     Returns a status dict with results.
     """
     result: dict = {}
+
+    # 0. Vorprüfung, BEVOR irgendetwas geschrieben wird. Ein Konto ohne aktive
+    # Rolle „Globaler Administrator“ (häufig: das Alltagskonto gewählt, oder die
+    # PIM-Rolle nicht aktiviert) scheitert sonst erst an Entra — nachdem der
+    # Tenant schon gespeichert ist und jeder Schreibversuch einzeln 403 meldet.
+    rollen = await konto_rollen(token)
+    if rollen is not None:
+        log.info("Einrichtung: angemeldetes Konto hat %d aktive Verzeichnisrolle(n): %s",
+                 len(rollen), ", ".join(r.get("displayName", "?") for r in rollen) or "keine")
+        if GLOBALER_ADMIN not in {r.get("roleTemplateId") for r in rollen}:
+            result["konto_fehler"] = "kein_globaler_admin"
+            return result
 
     # 1. Discover tenant
     tenant_info = await discover_tenant(token)

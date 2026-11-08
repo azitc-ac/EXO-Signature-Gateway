@@ -5,6 +5,44 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.84 — 2026-11-08 — Einrichtungs-Anmeldung nur für Gateway-Admins; abgelehntes Zertifikat wird gemeldet
+
+- **Sicherheit:** Der Beginn der Einrichtungs-Anmeldung (`/auth/start`,
+  `/auth/start-redirect`) war ohne Anmeldung am Gateway erreichbar. Nach der
+  Rückkehr von Microsoft schreibt dieser Ablauf im Gateway Tenant und
+  App-Registrierung und trägt das angemeldete Konto als Admin ein. Damit
+  konnte ein Konto, das sich bei Microsoft anmelden kann, ohne Rechte am
+  Gateway Admin werden oder die Anbindung an Entra umstellen. Beide Adressen
+  verlangen jetzt eine Admin-Sitzung, wie die Einrichtungsseite selbst.
+  Prüfe unter *Einstellungen → Zugangsdaten → Entra-Konten (SSO)* die Liste
+  auf Konten, die dort nicht hingehören.
+- **Einrichtung, Vorprüfung des Kontos:** Gleich nach der Anmeldung prüft
+  das Gateway, ob das Konto eine aktive Rolle Globaler Administrator hat (auch
+  über eine Gruppe). Fehlt sie, bricht es ab, bevor etwas geschrieben wird,
+  und sagt das im Anmeldefenster: anderes Konto wählen oder die Rolle per PIM
+  aktivieren. Bisher lief der Ablauf mit einem gewöhnlichen Konto weiter, und
+  jeder Schreibversuch scheiterte einzeln an Entra.
+- **Einrichtung, „Erneut anmelden“:** Lehnte Entra das Hinterlegen des
+  Anmeldezertifikats ab (etwa `403 Authorization_RequestDenied`, wenn dem
+  angemeldeten Konto die nötige Rolle fehlt), zeigte das Anmeldefenster
+  trotzdem „Entra-Login abgeschlossen“. Das Gateway meldete sich weiter mit
+  dem Client Secret an, und die Aufgabe „Anmeldung der App per Zertifikat“
+  blieb ohne erkennbaren Grund offen. Jetzt meldet das Fenster den Fehler und
+  nennt den Weg: mit einem Konto mit der Rolle Globaler Administrator
+  anmelden (bei PIM die Rolle vorher aktivieren) und „Erneut anmelden“
+  wiederholen.
+- Die Abschlussfenster der Anmeldeabläufe (Einrichtung, Azure-Verbindung,
+  Berechtigungen, Wächter) sind ein gemeinsamer Baustein. Zwei davon setzten
+  den Fehlertext, oft eine Antwort von Microsoft Graph, unmaskiert in die
+  Seite.
+- Die Anleitung unter „Erneut anmelden“ beschrieb nur den Notweg über
+  `localhost` (Adresse kopieren und einfügen). Im Normalfall schließt sich das
+  Anmeldefenster von selbst; das steht jetzt zuerst.
+
+**Zu tun:** aktualisieren und die Liste der Admins prüfen (siehe oben). Die
+Aufgabe „Anmeldung der App per Zertifikat“ bleibt offen, bis das Zertifikat
+hinterlegt ist.
+
 ## v1.10.83 — 2026-11-08 — Backup: Hinweis auf enthaltene Geheimnisse; „Erneut anmelden“ heißt überall so
 
 - **Backup erstellen** sagt jetzt ausdrücklich, dass das Archiv alle

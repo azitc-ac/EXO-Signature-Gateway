@@ -164,3 +164,104 @@ def test_abnahme_meldet_restliches_secret(pfx, monkeypatch):
     monkeypatch.setattr(sw, "secret_vorhanden", lambda: False)
     assert abnahme._anmeldenachweis()["zustand"] == abnahme.OK
     assert abnahme._anmeldenachweis in abnahme.PRUEFUNGEN
+
+
+# ── Rückmeldung nach „Erneut anmelden“ (v1.10.84) ────────────────────────────
+# Bis v1.10.83 meldete das Fenster „abgeschlossen“, auch wenn Entra das
+# Hinterlegen des Zertifikats mit 403 abwies — die Aufgabe blieb offen, ohne
+# dass jemand sah, warum.
+
+def _nachlauf(monkeypatch, ergebnis):
+    from webui.routen import anmeldung
+
+    async def setup(token):
+        return ergebnis
+    monkeypatch.setattr(sw, "run_post_auth_setup", setup)
+    return asyncio.run(anmeldung.nachlauf("setup", {}, "tok"))
+
+
+def test_abgelehntes_zertifikat_ist_kein_erfolg(monkeypatch):
+    res = _nachlauf(monkeypatch, {"auth_cert_error": (
+        "Graph PATCH https://graph.microsoft.com/v1.0/applications/x → 403: "
+        '{"error":{"code":"Authorization_RequestDenied"}}')})
+    assert res["ok"] is False
+    assert "Globaler Administrator" in res["msg"] and "Client Secret" in res["msg"]
+
+
+def test_anderer_zertifikatsfehler_nennt_den_fehler(monkeypatch):
+    res = _nachlauf(monkeypatch, {"auth_cert_error": "Zeitüberschreitung"})
+    assert res["ok"] is False and "Zeitüberschreitung" in res["msg"]
+
+
+def test_hinterlegtes_zertifikat_ist_erfolg(monkeypatch):
+    assert _nachlauf(monkeypatch, {"auth_cert": "/app/data/auth.pfx"})["ok"] is True
+
+
+@pytest.mark.parametrize("seite", ["_setup_callback_page", "_arm_callback_page",
+                                   "_watchdog_callback_page", "_berechtigungen_callback_page"])
+def test_popup_maskiert_den_fehlertext(seite):
+    import json
+    import re
+    from webui.routen import anmeldung
+    boese = 'x</script><img src=y onerror=alert(1)> \' " \\'
+    html = getattr(anmeldung, seite)(ok=False, msg=boese)
+    assert "<img" not in html and "&lt;img" in html
+    # Genau ein </script> — das schließende des Blocks.
+    assert html.count("</script>") == 1
+    nachricht = re.search(r"postMessage\((\{.*?\}), window", html).group(1)
+    assert json.loads(nachricht)["msg"] == boese
+
+
+# ── Vorprüfung: Konto ohne Globalen Administrator (v1.10.84) ─────────────────
+
+def _einrichtung_mit_rollen(monkeypatch, rollen_antwort):
+    """Führt run_post_auth_setup aus; jeder Graph-Aufruf außer der
+    Rollenabfrage wird mitgeschrieben und bricht danach ab."""
+    aufrufe = []
+
+    async def gh(methode, url, token, **kw):
+        if "transitiveMemberOf/microsoft.graph.directoryRole" in url:
+            assert kw.get("headers", {}).get("ConsistencyLevel") == "eventual"
+            if isinstance(rollen_antwort, Exception):
+                raise rollen_antwort
+            return {"value": rollen_antwort}
+        aufrufe.append((methode, url))
+        raise RuntimeError("Abbruch nach der Vorprüfung")
+    geschrieben = []
+    monkeypatch.setattr(sw, "_gh", gh)
+    monkeypatch.setattr(sw.settings_store, "update", lambda d, *a, **k: geschrieben.append(d))
+    try:
+        ergebnis = asyncio.run(sw.run_post_auth_setup("tok"))
+    except RuntimeError:
+        ergebnis = None
+    return ergebnis, aufrufe, geschrieben
+
+
+def test_ohne_globalen_admin_wird_nichts_geschrieben(monkeypatch):
+    ergebnis, aufrufe, geschrieben = _einrichtung_mit_rollen(
+        monkeypatch, [{"displayName": "Exchange Administrator",
+                       "roleTemplateId": "29232cdf-9323-42fd-ade2-1d097af3e4de"}])
+    assert ergebnis == {"konto_fehler": "kein_globaler_admin"}
+    assert aufrufe == [] and geschrieben == []
+
+
+def test_konto_ganz_ohne_rolle(monkeypatch):
+    ergebnis, aufrufe, geschrieben = _einrichtung_mit_rollen(monkeypatch, [])
+    assert ergebnis == {"konto_fehler": "kein_globaler_admin"} and not aufrufe
+
+
+def test_globaler_admin_darf_weiter(monkeypatch):
+    _ergebnis, aufrufe, _ = _einrichtung_mit_rollen(
+        monkeypatch, [{"displayName": "Global Administrator", "roleTemplateId": sw.GLOBALER_ADMIN}])
+    assert aufrufe and "/organization" in aufrufe[0][1]
+
+
+def test_unlesbare_rollen_blockieren_nicht(monkeypatch):
+    """Scheitert die Abfrage selbst, entscheidet Entra beim Schreiben (403 wird gemeldet)."""
+    _ergebnis, aufrufe, _ = _einrichtung_mit_rollen(monkeypatch, RuntimeError("→ 500"))
+    assert aufrufe and "/organization" in aufrufe[0][1]
+
+
+def test_kein_admin_wird_im_fenster_gemeldet(monkeypatch):
+    res = _nachlauf(monkeypatch, {"konto_fehler": "kein_globaler_admin"})
+    assert res["ok"] is False and "nichts geändert" in res["msg"] and "PIM" in res["msg"]

@@ -19,6 +19,8 @@ from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
                                RedirectResponse, StreamingResponse)
 
 import asyncio
+import html as _html
+import json as _json
 import re
 import urllib.parse
 
@@ -96,76 +98,83 @@ def _endet_lokal(redirect_uri: str) -> bool:
     return redirect_uri.startswith("http://localhost")
 
 
+def einrichtung_fehlertext(fehler: str) -> str:
+    """Fehler beim Hinterlegen des Zertifikats, mit dem Weg für den Nutzer."""
+    if "Authorization_RequestDenied" in fehler or "→ 403" in fehler:
+        return ("Das angemeldete Konto darf die App-Registrierung nicht ändern "
+                "(Entra: Insufficient privileges). Das Zertifikat wurde nicht "
+                "hinterlegt; das Gateway meldet sich weiter mit dem Client Secret an. "
+                "Melde dich mit einem Konto an, das die Rolle Globaler Administrator "
+                "hat (bei PIM die Rolle vorher aktivieren), und wiederhole "
+                "„Erneut anmelden“.")
+    return f"Das Zertifikat konnte nicht hinterlegt werden: {fehler[:300]}"
+
+
+def _popup_seite(ok: bool, ueberschrift: str, text: str, nachricht: dict,
+                 schliessen_ms: int = 1200, breite: int = 420) -> str:
+    """Abschlussfenster eines Anmelde-Popups: zeigt das Ergebnis, meldet es dem
+    öffnenden Fenster und schließt sich bei Erfolg.
+
+    EIN Baustein für alle Abläufe. Bis v1.10.83 gab es vier Kopien; zwei
+    setzten den Fehlertext (oft eine Graph-Antwort) roh ins HTML und bauten die
+    Nachricht mit `repr` — ein Python-, kein JavaScript-Literal."""
+    # Jedes „<“ als \u003c: kein Fehlertext kann den Skriptblock beenden.
+    nachricht_js = _json.dumps(nachricht).replace("<", "\\u003c")
+    farbe = "#16a34a" if ok else "#dc2626"
+    schliessen = f"setTimeout(function(){{window.close();}},{schliessen_ms});" if ok else ""
+    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{_html.escape(ueberschrift)}</title></head>
+<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
+<div style="text-align:center;padding:40px;max-width:{breite}px">
+  <div style="font-size:52px;margin-bottom:16px">{"✓" if ok else "✗"}</div>
+  <h2 style="color:{farbe};margin:0 0 10px">{_html.escape(ueberschrift)}</h2>
+  <p style="color:#64748b;margin:0">{_html.escape(text)}</p>
+</div>
+<script>
+  try {{ window.opener && window.opener.postMessage({nachricht_js}, window.opener.location.origin); }} catch(e) {{}}
+  {schliessen}
+</script>
+</body></html>"""
+
+
 def _setup_callback_page(ok: bool, msg: str = "") -> str:
     """Self-closing page for the popup setup-login (HTTPS-redirect variant).
     Signals the opener (wizard tab) to reload, then closes the popup."""
     if ok:
-        icon, heading, body_text, color = "✓", "Entra-Login abgeschlossen", "App-Registrierung eingerichtet. Dieses Fenster schließt sich…", "#16a34a"
-    else:
-        icon, heading, body_text, color = "✗", "Setup fehlgeschlagen", msg or "Unbekannter Fehler", "#dc2626"
-    post_msg = '{"type":"setup-auth-done"}' if ok else '{"type":"setup-auth-fail","msg":' + repr(msg) + '}'
-    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{heading}</title></head>
-<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
-<div style="text-align:center;padding:40px;max-width:420px">
-  <div style="font-size:52px;margin-bottom:16px">{icon}</div>
-  <h2 style="color:{color};margin:0 0 10px">{heading}</h2>
-  <p style="color:#64748b;margin:0">{body_text}</p>
-</div>
-<script>
-  try {{ window.opener && window.opener.postMessage({post_msg}, window.opener.location.origin); }} catch(e) {{}}
-  {'setTimeout(function(){window.close();},1200);' if ok else ''}
-</script>
-</body></html>"""
+        return _popup_seite(True, "Entra-Login abgeschlossen",
+                            "App-Registrierung eingerichtet. Dieses Fenster schließt sich…",
+                            {"type": "setup-auth-done"})
+    return _popup_seite(False, "Setup fehlgeschlagen", msg or "Unbekannter Fehler",
+                        {"type": "setup-auth-fail", "msg": msg})
+
 
 def _arm_callback_page(ok: bool, msg: str = "") -> str:
     if ok:
-        icon, heading, body_text, color = "✓", "Azure-Verbindung hergestellt", "Dieses Fenster schließt sich…", "#16a34a"
-    else:
-        icon, heading, body_text, color = "✗", "Verbindung fehlgeschlagen", msg or "Unbekannter Fehler", "#dc2626"
-    post_msg = '{"type":"arm-auth-done"}' if ok else '{"type":"arm-auth-fail","msg":' + repr(msg) + '}'
-    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{heading}</title></head>
-<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
-<div style="text-align:center;padding:40px;max-width:420px">
-  <div style="font-size:52px;margin-bottom:16px">{icon}</div>
-  <h2 style="color:{color};margin:0 0 10px">{heading}</h2>
-  <p style="color:#64748b;margin:0">{body_text}</p>
-</div>
-<script>
-  try {{ window.opener && window.opener.postMessage({post_msg}, window.opener.location.origin); }} catch(e) {{}}
-  {'setTimeout(function(){window.close();},1200);' if ok else ''}
-</script>
-</body></html>"""
+        return _popup_seite(True, "Azure-Verbindung hergestellt", "Dieses Fenster schließt sich…",
+                            {"type": "arm-auth-done"})
+    return _popup_seite(False, "Verbindung fehlgeschlagen", msg or "Unbekannter Fehler",
+                        {"type": "arm-auth-fail", "msg": msg})
 
 
 def _watchdog_callback_page(ok: bool, msg: str = "", app_id: str = "") -> str:
-    import json as _json
     if ok:
-        icon, heading, color = "✓", "Berechtigungen erteilt", "#16a34a"
-        body_text = "App-Rolle + Global Reader gesetzt. Dieses Fenster schließt sich…"
-    else:
-        icon, heading, color = "✗", "Erteilung fehlgeschlagen", "#dc2626"
-        body_text = msg or "Unbekannter Fehler"
-    post_msg = (_json.dumps({"type": "watchdog-grants-done", "app_id": app_id}) if ok
-                else _json.dumps({"type": "watchdog-grants-fail", "msg": msg}))
-    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{heading}</title></head>
-<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
-<div style="text-align:center;padding:40px;max-width:460px">
-  <div style="font-size:52px;margin-bottom:16px">{icon}</div>
-  <h2 style="color:{color};margin:0 0 10px">{heading}</h2>
-  <p style="color:#64748b;margin:0">{body_text}</p>
-</div>
-<script>
-  try {{ window.opener && window.opener.postMessage({post_msg}, window.opener.location.origin); }} catch(e) {{}}
-  {'setTimeout(function(){window.close();},1500);' if ok else ''}
-</script>
-</body></html>"""
+        return _popup_seite(True, "Berechtigungen erteilt",
+                            "App-Rolle + Global Reader gesetzt. Dieses Fenster schließt sich…",
+                            {"type": "watchdog-grants-done", "app_id": app_id},
+                            schliessen_ms=1500, breite=460)
+    return _popup_seite(False, "Erteilung fehlgeschlagen", msg or "Unbekannter Fehler",
+                        {"type": "watchdog-grants-fail", "msg": msg}, breite=460)
 
 
 @router.get("/auth/start")
-async def auth_start(request: Request):
+async def auth_start(request: Request, _: str = Depends(_require_admin)):
     """Return Azure AD auth URL as JSON (for fetch callers in the setup wizard).
-    No auth required — generating a PKCE URL is harmless; privileged operations
-    are protected by the Microsoft access token returned after login.
+
+    ⚠️ Nur für Gateway-Admins (seit v1.10.84). Bis dahin hieß es hier, die URL
+    zu erzeugen sei harmlos, weil das Microsoft-Token die Rechte trage. Das
+    Token trägt aber nur die Rechte in ENTRA — der Rücksprung führt danach
+    `run_post_auth_setup` aus, und das schreibt im GATEWAY: Tenant, App und
+    das angemeldete Konto als Admin in ADMIN_USERS. Ohne Wache hätte jedes
+    Konto, das sich bei Microsoft anmelden kann, diesen Ablauf starten können.
     """
     # ?localhost=1 erzwingt den Localhost/Copy-Paste-Redirect (Notausgang, falls die
     # HTTPS-Redirect-URI an der Bootstrap-App doch nicht registriert ist → AADSTS50011).
@@ -175,7 +184,7 @@ async def auth_start(request: Request):
     return JSONResponse({"auth_url": auth_url})
 
 @router.get("/auth/start-redirect")
-async def auth_start_redirect(request: Request):
+async def auth_start_redirect(request: Request, _: str = Depends(_require_admin)):
     """Redirect browser directly to Azure AD for PKCE login (setup wizard)."""
     redirect_uri = _build_redirect_uri()
     _state, auth_url = pkce_mod.create_session(redirect_uri, flow="setup")
@@ -259,24 +268,11 @@ def _sitzung_abgelaufen_page() -> str:
 
 def _berechtigungen_callback_page(ok: bool, msg: str = "") -> str:
     """Popup-Abschluss: meldet dem öffnenden Fenster das Ergebnis und schliesst sich."""
-    import html as _html
-    import json as _json
-    heading = "Berechtigungen erteilt" if ok else "Erteilung fehlgeschlagen"
     text = ("Neue Rollen stehen im nächsten Token — die Anzeige aktualisiert sich. "
             "Entra braucht dafür mitunter einige Minuten.") if ok else (msg or "Unbekannter Fehler")
-    post = _json.dumps({"type": "berechtigungen-done" if ok else "berechtigungen-fail", "msg": msg})
-    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{heading}</title></head>
-<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
-<div style="text-align:center;padding:40px;max-width:460px">
-  <div style="font-size:52px;margin-bottom:16px">{"✓" if ok else "✗"}</div>
-  <h2 style="color:{"#16a34a" if ok else "#dc2626"};margin:0 0 10px">{heading}</h2>
-  <p style="color:#64748b;margin:0">{_html.escape(text)}</p>
-</div>
-<script>
-  try {{ window.opener && window.opener.postMessage({post}, window.opener.location.origin); }} catch(e) {{}}
-  {'setTimeout(function(){window.close();},2500);' if ok else ''}
-</script>
-</body></html>"""
+    return _popup_seite(ok, "Berechtigungen erteilt" if ok else "Erteilung fehlgeschlagen", text,
+                        {"type": "berechtigungen-done" if ok else "berechtigungen-fail", "msg": msg},
+                        schliessen_ms=2500, breite=460)
 
 
 # Abläufe, deren Ergebnis eine Wirkung im Tenant ist (nicht eine Sitzung im
@@ -326,6 +322,16 @@ async def nachlauf(flow: str, session_obj: dict, access_token: str) -> dict:
     if flow == "setup":
         result = await setup_wizard.run_post_auth_setup(access_token)
         log.info("Post-auth setup complete: %s", result)
+        # Ohne hinterlegtes Zertifikat ist die Anmeldung wirkungslos — bis
+        # v1.10.83 meldete das Fenster trotzdem „abgeschlossen“.
+        if result.get("konto_fehler") == "kein_globaler_admin":
+            return {"ok": False, "app_id": "", "msg": (
+                "Das angemeldete Konto hat keine aktive Rolle Globaler Administrator. "
+                "Es wurde nichts geändert. Melde dich mit einem Administratorkonto an "
+                "(bei PIM die Rolle vorher aktivieren) und wiederhole „Erneut anmelden“.")}
+        fehler = result.get("auth_cert_error", "")
+        if fehler:
+            return {"ok": False, "msg": einrichtung_fehlertext(fehler), "app_id": ""}
         return {"ok": True, "msg": "", "app_id": ""}
     raise ValueError(f"Unbekannter Anmeldeablauf {flow!r}")
 

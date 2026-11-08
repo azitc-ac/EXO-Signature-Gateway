@@ -46,8 +46,6 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     "/auth/login":            "Anmeldeformular",
     "/auth/local":            "Anmeldung mit örtlichem Kennwort",
     "/auth/logout":           "Abmelden",
-    "/auth/start":            "Beginn des OIDC-Ablaufs",
-    "/auth/start-redirect":   "Beginn des OIDC-Ablaufs (Weiterleitung)",
     "/auth/callback":         "Rückweg vom Anmeldedienst",
     "/auth/id-callback":      "Rückweg des Implicit-id_token-Logins (Nutzer noch nicht angemeldet; das Token wird IM Handler signaturgeprüft)",
     "/auth/login/microsoft":  "Beginn der Entra-Anmeldung",

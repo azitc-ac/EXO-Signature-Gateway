@@ -511,9 +511,10 @@
       <summary style="cursor:pointer;font-size:13px;color:#64748b">↩ Erneut anmelden (z.B. um Auth-Zertifikat neu zu generieren)</summary>
       <div style="margin-top:12px">
         <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
-          <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Tab.</li>
-          <li>Nach dem Login zeigt der Browser eine Fehler-/Verbindungsseite — <em>normal</em>.</li>
-          <li>Kopiere die <strong>komplette URL</strong> aus der Adressleiste und füge sie unten ein.</li>
+          <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Fenster.</li>
+          <li>Nach dem Login schließt sich das Fenster von selbst, und diese Seite lädt neu.</li>
+          <li>Nur wenn stattdessen eine Fehler-/Verbindungsseite (<code>localhost</code>) erscheint:
+              die <strong>komplette URL</strong> aus der Adressleiste kopieren und unten einfügen.</li>
         </ol>
         <div class="actions" style="margin-bottom:14px">
           <button class="btn secondary" id="btn-azure-login-retry" onclick="startAzureLogin('btn-azure-login-retry','paste-section-retry')">Jetzt anmelden &rarr;</button>

@@ -23,7 +23,10 @@ CHANGELOG = Path(__file__).resolve().parent.parent / "CHANGELOG.md"
 AB_VERSION = (1, 10, 80)
 
 # „Zu tun“ jenseits von „nichts“, das keine Aufgabe tragen KANN — mit Grund.
-OHNE_AUFGABE: dict[str, str] = {}
+OHNE_AUFGABE: dict[str, str] = {
+    "1.10.84": "einmalige Durchsicht der Admin-Liste — ob ein Eintrag dorthin "
+               "gehört, kann keine Prüfung feststellen; eine Aufgabe bliebe für immer offen",
+}
 
 _KOPF = re.compile(r"^## v(\d+\.\d+\.\d+)\b.*$", re.M)
 _ZU_TUN = re.compile(r"^\*\*Zu tun:\*\*\s*(.*)$", re.M)
