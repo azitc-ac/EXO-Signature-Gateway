@@ -1328,7 +1328,7 @@ async function saveMailboxes() {
 // bis Exchange die Liste überall kennt, vergehen ohnehin 5–15 Min.
 async function _pollDgStatus(result) {
   for (var i = 0; i < 80; i++) {
-    await new Promise(function(r) { setTimeout(r, 2000); });
+    await warten(2000);
     // Netzhaken/HTTP-Fehler liefern {ok:false, error} ohne `state` → weiterversuchen.
     var s = await getJSON('/api/mailboxes/dg-status');
     if (s.state !== 'done') continue;

@@ -519,6 +519,7 @@
         <div class="actions" style="margin-bottom:14px">
           <button class="btn secondary" id="btn-azure-login-retry" onclick="startAzureLogin('btn-azure-login-retry','paste-section-retry')">Jetzt anmelden &rarr;</button>
         </div>
+        <div class="anmelde-fortschritt" hidden style="margin-bottom:14px"></div>
         <div id="paste-section-retry" style="display:none">
           <div class="settings-row">
             <label for="auth-url-paste-retry">URL aus der Adressleiste</label>
@@ -611,6 +612,7 @@
       <div class="actions" style="margin-bottom:6px">
         <button class="btn primary" id="btn-azure-login" onclick="startAzureLogin()">Jetzt anmelden &rarr;</button>
       </div>
+      <div class="anmelde-fortschritt" hidden style="margin-bottom:6px"></div>
       <p class="hint" style="margin:0 0 14px;font-size:12px;color:#888">
         Login bricht mit <code>AADSTS50011</code> (Redirect-URI) ab?
         <a href="#" onclick="startAzureLogin('btn-azure-login','paste-section',true);return false;">Per Localhost anmelden (Copy-Paste)</a>
@@ -1439,11 +1441,26 @@ async function startAzureLogin(btnId, pasteSectionId, forceLocalhost) {
 window.addEventListener('message', function(e) {
   if (!e.data || typeof e.data !== 'object') return;
   if (e.data.type === 'setup-auth-done') {
-    location.reload();
+    nachAnmeldungNeuLaden();
   } else if (e.data.type === 'setup-auth-fail') {
     alert('Setup-Fehler nach Login: ' + (e.data.msg || 'Unbekannt'));
   }
 });
+
+// Nach der Anmeldung löscht das Gateway das alte Client Secret erst, wenn Entra
+// das neue Zertifikat annimmt (meist Sekunden, höchstens einige Minuten). Bis
+// dahin warten — sonst zeigt die neu geladene Seite die Aufgabe noch als offen.
+async function nachAnmeldungNeuLaden() {
+  document.querySelectorAll('.anmelde-fortschritt').forEach(function (el) {
+    laeuftZeigen(el, 'Entra prüft das neue Zertifikat, danach wird das alte Client Secret gelöscht …');
+  });
+  for (let i = 0; i < 60; i++) {                 // höchstens 2 Minuten
+    const d = await getJSON('/api/setup/zertifikat-abbau');
+    if (!d.ok || !d.laeuft) break;
+    await warten(2000);
+  }
+  location.reload();
+}
 
 async function submitPastedUrl(pasteInputId, resultId) {
   pasteInputId = pasteInputId || 'auth-url-paste';
@@ -1458,7 +1475,8 @@ async function submitPastedUrl(pasteInputId, resultId) {
   const d = await knopfAktion(btn, 'Verarbeite…', () => postJSON('/api/setup/auth-paste', {url}));
   if (!d.ok) { showAlert(result, 'error', 'Fehler: ' + esc(errText(d))); return; }
   showAlert(result, 'success', 'Entra-Login erfolgreich! App-Registrierung eingerichtet. Seite lädt neu…');
-  setTimeout(() => location.reload(), 2500);
+  await warten(1500);
+  nachAnmeldungNeuLaden();
 }
 
 let _certPemGlobal = '';
@@ -2022,7 +2040,7 @@ async function _kvPollAfterAssign() {
   const maxAttempts = 10;
   const intervalMs = 30000;
   for (let i = 1; i <= maxAttempts; i++) {
-    await new Promise(function(res) { setTimeout(res, intervalMs); });
+    await warten(intervalMs);
     if (resultEl) {
       resultEl.className = 'alert';
       resultEl.textContent = 'Rolle zugewiesen — warte auf Azure RBAC-Propagierung (Testversuch ' + i + '/' + maxAttempts + ')…';

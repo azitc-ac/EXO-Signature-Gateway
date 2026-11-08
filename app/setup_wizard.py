@@ -460,11 +460,7 @@ async def grant_watchdog_graph_roles(token: str, mi_object_id: str) -> dict:
       1. App-Rolle Exchange.ManageAsApp (Ressource = Office 365 Exchange Online),
       2. Entra-Directory-Rolle „Global Reader" (nur-lesen, kleinste Anmelde-Rolle).
     Die EXO-RBAC-Schreibrolle „Transport Rules" kommt separat (grant_watchdog_role.ps1).
-    Idempotent: bereits vorhandene Zuweisungen gelten als Erfolg."""
-    def _ok_or_exists(exc: Exception) -> bool:
-        m = str(exc).lower()
-        return any(w in m for w in ("already", "exists", "conflict", "added object references"))
-
+    Idempotent: bereits vorhandene Zuweisungen gelten als Erfolg (_schon_erteilt)."""
     ergebnis = {"app_role": False, "global_reader": False, "fehler": []}
     try:
         exo_sp_id = await _get_sp_id_for_resource(token, _EXO_APP_ID)
@@ -473,7 +469,7 @@ async def grant_watchdog_graph_roles(token: str, mi_object_id: str) -> dict:
                         "appRoleId": _EXO_MANAGE_AS_APP_ROLE_ID})
         ergebnis["app_role"] = True
     except Exception as exc:                                    # noqa: BLE001
-        if _ok_or_exists(exc):
+        if _schon_erteilt(exc):
             ergebnis["app_role"] = True
         else:
             ergebnis["fehler"].append(f"App-Rolle Exchange.ManageAsApp: {exc}")
@@ -483,7 +479,7 @@ async def grant_watchdog_graph_roles(token: str, mi_object_id: str) -> dict:
                         "directoryScopeId": "/"})
         ergebnis["global_reader"] = True
     except Exception as exc:                                    # noqa: BLE001
-        if _ok_or_exists(exc):
+        if _schon_erteilt(exc):
             ergebnis["global_reader"] = True
         else:
             ergebnis["fehler"].append(f"Global Reader: {exc}")
@@ -515,7 +511,12 @@ async def _assign_exchange_admin_role(token: str, sp_id: str) -> None:
         )
         log.info("Exchange Administrator role assigned to sp=%s", sp_id)
     except Exception as exc:
-        log.warning("Could not assign Exchange Administrator role: %s", exc)
+        # Bei jeder erneuten Anmeldung besteht die Zuweisung schon; Entra meldet
+        # das als 400 „A conflicting object …“ — bis v1.10.84 ein WARNING.
+        if _schon_erteilt(exc):
+            log.info("Exchange Administrator role bereits zugewiesen (sp=%s)", sp_id)
+        else:
+            log.warning("Could not assign Exchange Administrator role: %s", exc)
 
 
 # ── Step: get current user UPN and patch Bootstrap app redirect URI ───────────
@@ -841,7 +842,10 @@ async def run_post_auth_setup(token: str) -> dict:
     # 4. Secrets abbauen — erst wenn Entra das Zertifikat annimmt. Läuft im
     # Hintergrund, weil die Verteilung Minuten dauern kann; das Admin-Token
     # dieser Anmeldung reicht dafür (gültig ~60 min).
-    asyncio.create_task(secrets_abbauen(token))
+    global _abbau
+    _abbau = asyncio.create_task(secrets_abbauen(token))
+    import aufgaben
+    aufgaben.vergessen()            # „läuft“ sofort im Sammelpunkt, nicht nach 10 s
     return result
 
 
@@ -903,6 +907,16 @@ def secret_vorhanden() -> bool:
     return any(e.get("client_secret") for e in settings_store.get("APP_POOL") or [])
 
 
+_abbau: "asyncio.Task | None" = None
+
+
+def abbau_laeuft() -> bool:
+    """Wartet das Gateway gerade darauf, dass Entra das neue Zertifikat annimmt?
+    Die Einrichtungsseite lädt erst danach neu — sonst zeigte sie das alte
+    Secret noch als offene Aufgabe an, obwohl es Sekunden später gelöscht ist."""
+    return _abbau is not None and not _abbau.done()
+
+
 async def secrets_abbauen(token: str, warten_s: int = 900, takt_s: int = 30) -> dict:
     """Je App: warten, bis ein Zertifikats-Token klappt, dann ALLE Client
     Secrets in Entra löschen und aus den Einstellungen nehmen.
@@ -938,6 +952,8 @@ async def secrets_abbauen(token: str, warten_s: int = 900, takt_s: int = 30) -> 
         ergebnis[cid] = "Zertifikat in der Frist nicht angenommen — Secret bleibt"
         log.warning("App %s: Zertifikat nach %d s nicht angenommen — Secrets bleiben",
                     cid[:8], warten_s)
+    import aufgaben
+    aufgaben.vergessen()            # sonst zeigt der Sammelpunkt bis zu 10 s das Alte
     return ergebnis
 
 

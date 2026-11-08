@@ -265,3 +265,76 @@ def test_unlesbare_rollen_blockieren_nicht(monkeypatch):
 def test_kein_admin_wird_im_fenster_gemeldet(monkeypatch):
     res = _nachlauf(monkeypatch, {"konto_fehler": "kein_globaler_admin"})
     assert res["ok"] is False and "nichts geändert" in res["msg"] and "PIM" in res["msg"]
+
+
+# ── Neuladen erst nach dem Abbau (v1.10.85) ───────────────────────────────────
+# Die Einrichtungsseite lud neu, sobald das Zertifikat hinterlegt war; das
+# Secret wurde ~8 s später gelöscht. Die Aufgabe stand deshalb noch auf der
+# frisch geladenen Seite.
+
+def test_abbau_leert_den_aufgaben_zwischenspeicher(monkeypatch, einstellungen):
+    import aufgaben
+    geleert = []
+    monkeypatch.setattr(aufgaben, "vergessen", lambda: geleert.append(1))
+    _abbau(monkeypatch, einstellungen, klappt=True)
+    assert geleert
+
+
+def test_abbau_laeuft_bis_er_fertig_ist(monkeypatch):
+    async def ablauf():
+        frei = asyncio.Event()
+
+        async def abbau(token):
+            await frei.wait()
+            return {}
+        monkeypatch.setattr(sw, "secrets_abbauen", abbau)
+        monkeypatch.setattr(sw, "_abbau", None)
+        assert not sw.abbau_laeuft()
+        sw._abbau = asyncio.create_task(sw.secrets_abbauen("tok"))
+        await asyncio.sleep(0)
+        assert sw.abbau_laeuft()
+        frei.set()
+        await sw._abbau
+        assert not sw.abbau_laeuft()
+    asyncio.run(ablauf())
+
+
+def test_einrichtung_merkt_sich_den_abbau():
+    """Der Abbau muss in `_abbau` landen — ein loses create_task sähe niemand."""
+    quelle = (WURZEL / "app" / "setup_wizard.py").read_text("utf-8")
+    assert "_abbau = asyncio.create_task(secrets_abbauen(token))" in quelle
+    assert "asyncio.create_task(secrets_abbauen(token))" not in quelle.replace(
+        "_abbau = asyncio.create_task(secrets_abbauen(token))", "")
+
+
+def test_seite_wartet_vor_dem_neuladen():
+    html = (WURZEL / "app" / "webui" / "templates" / "setup.html").read_text("utf-8")
+    zweig = html[html.index("e.data.type === 'setup-auth-done'"):][:120]
+    assert "nachAnmeldungNeuLaden()" in zweig and "location.reload" not in zweig
+    fn = html[html.index("async function nachAnmeldungNeuLaden"):][:900]
+    assert "/api/setup/zertifikat-abbau" in fn and "laeuft" in fn
+
+
+# ── Exchange-Administratorrolle bereits zugewiesen ───────────────────────────
+
+def _exchange_rolle(monkeypatch, caplog, fehler):
+    async def gh(methode, url, token, **kw):
+        raise RuntimeError(fehler)
+    monkeypatch.setattr(sw, "_gh", gh)
+    with caplog.at_level("INFO", logger=sw.log.name):
+        asyncio.run(sw._assign_exchange_admin_role("tok", "sp-1"))
+    return [r for r in caplog.records if "Exchange Administrator" in r.getMessage()]
+
+
+def test_bestehende_exchange_rolle_ist_kein_fehler(monkeypatch, caplog):
+    meldungen = _exchange_rolle(monkeypatch, caplog, (
+        'Graph POST …/roleAssignments → 400: {"error":{"code":"Request_BadRequest","message":'
+        '"A conflicting object with one or more of the specified property values is present '
+        'in the directory."}}'))
+    assert meldungen and all(r.levelname == "INFO" for r in meldungen)
+    assert "bereits zugewiesen" in meldungen[0].getMessage()
+
+
+def test_echter_fehler_bei_exchange_rolle_bleibt_warnung(monkeypatch, caplog):
+    meldungen = _exchange_rolle(monkeypatch, caplog, "403 Insufficient privileges")
+    assert meldungen and meldungen[0].levelname == "WARNING"

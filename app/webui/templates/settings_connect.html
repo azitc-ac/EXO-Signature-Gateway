@@ -1058,7 +1058,7 @@ async function _zahlungAbwarten(vorher, standHolen, aktualisieren, melden) {
   if (vorher === null) return;
   const ende = Date.now() + _ZAHLUNG_GEDULD_MS;
   while (Date.now() < ende) {
-    await new Promise(r => setTimeout(r, _ZAHLUNG_TAKT_MS));
+    await warten(_ZAHLUNG_TAKT_MS);
     let jetzt = await standHolen();
     if (jetzt === null || jetzt === vorher) continue;
     await aktualisieren();

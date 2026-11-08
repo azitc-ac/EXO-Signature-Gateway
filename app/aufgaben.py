@@ -45,11 +45,20 @@ class Aufgabe:
     link: str
     dringend: bool = False
     seit: str = ""          # Fassung, deren Changelog-„Zu tun“ sie trägt
+    # Wird die Aufgabe gerade im Hintergrund erledigt? Dann zeigt der
+    # Sammelpunkt einen Fortschritt statt „offen“, und das Banner entfällt.
+    laeuft: Callable[[], bool] | None = None
+
+
+def _zertifikat_abbau_laeuft() -> bool:
+    import setup_wizard
+    return setup_wizard.abbau_laeuft()
 
 
 AUFGABEN: tuple[Aufgabe, ...] = (
     Aufgabe("zertifikat-anmeldung", abnahme._anmeldenachweis,
-            "/setup#step-4", dringend=True, seit="1.10.80"),
+            "/setup#step-4", dringend=True, seit="1.10.80",
+            laeuft=_zertifikat_abbau_laeuft),
     Aufgabe("smime-schluessel", abnahme._smime_schluessel,
             "/settings/smime#schluesselablage", dringend=True, seit="1.10.82"),
     Aufgabe("benachrichtigung", abnahme._benachrichtigung,
@@ -95,7 +104,11 @@ def offene() -> list[dict]:
                      "befund": f"Prüfung gescheitert: {str(exc)[:120]}", "zu_tun": ""}
             if p["zustand"] not in (abnahme.OFFEN, abnahme.UNBEKANNT):
                 continue
-            liste.append({"kennung": a.kennung, "titel": p["name"],
+            try:
+                laeuft = bool(a.laeuft and a.laeuft())
+            except Exception:                         # noqa: BLE001 — dann eben „offen“
+                laeuft = False
+            liste.append({"kennung": a.kennung, "titel": p["name"], "laeuft": laeuft,
                           "befund": p.get("befund", ""), "zu_tun": p.get("zu_tun", ""),
                           "link": a.link, "dringend": a.dringend, "seit": a.seit,
                           "stempel": _stempel(p)})

@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.85 — 2026-11-08 — Nach „Erneut anmelden“ verschwindet die Aufgabe sofort
+
+- **Einrichtung:** Nach „Erneut anmelden“ lud die Seite neu, sobald das
+  Zertifikat an der App hinterlegt war. Das alte Client Secret löscht das
+  Gateway aber erst, wenn Entra das Zertifikat annimmt, meist wenige Sekunden
+  später. Die frisch geladene Seite zeigte die Aufgabe „Anmeldung der App per
+  Zertifikat“ samt Banner deshalb noch als offen. Jetzt wartet die Seite mit
+  dem Hinweis „Entra prüft das neue Zertifikat …“, bis das Secret gelöscht
+  ist (höchstens zwei Minuten), und lädt erst dann neu. Der Sammelpunkt
+  verwirft danach seinen Zwischenstand.
+- **Offene Aufgaben:** Wird eine Aufgabe gerade im Hintergrund erledigt,
+  zeigt der Sammelpunkt oben rechts „Wird gerade erledigt …“ mit
+  Fortschrittsanzeige statt des Handlungsschritts, und das Banner entfällt.
+  Das gilt auf jeder Seite, nicht nur auf der Einrichtungsseite.
+- **Exchange-Administratorrolle:** Bei jeder erneuten Anmeldung stand
+  „Could not assign Exchange Administrator role … A conflicting object“ als
+  Warnung im Protokoll. Die Rolle war schon zugewiesen; Entra meldet das als
+  Konflikt. Das gilt jetzt als Erfolg, wie bereits bei den übrigen
+  Berechtigungen. Die Rollenvergabe an den Bypass-Wächter benutzt dieselbe
+  Prüfung statt einer eigenen Kopie.
+
+**Zu tun:** nichts.
+
 ## v1.10.84 — 2026-11-08 — Einrichtungs-Anmeldung nur für Gateway-Admins; abgelehntes Zertifikat wird gemeldet
 
 - **Sicherheit:** Der Beginn der Einrichtungs-Anmeldung (`/auth/start`,

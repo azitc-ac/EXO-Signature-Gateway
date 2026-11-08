@@ -80,7 +80,8 @@
             <div style="border-top:1px solid #e2e8f0;padding:9px 0">
               <div style="font-weight:600">{% if a.dringend %}<span style="color:#b45309">Dringend · </span>{% endif %}{{ a.titel }}</div>
               <div style="color:#64748b;margin:3px 0">{{ a.befund }}</div>
-              {% if a.zu_tun %}<div style="margin:3px 0">{{ a.zu_tun }}</div>{% endif %}
+              {% if a.laeuft %}<div class="aufgabe-laeuft" hidden style="margin:3px 0"></div>
+              {% elif a.zu_tun %}<div style="margin:3px 0">{{ a.zu_tun }}</div>{% endif %}
               {# display/padding ausdrücklich: das Fenster liegt in <nav>, deren Links Abstände tragen #}
               <a href="{{ a.link }}" style="color:#0369a1;font-weight:600;font-size:13px;display:inline;padding:0">Zum Ziel →</a>
               {% if a.seit %}<span style="color:#94a3b8;font-size:11px;margin-left:8px">seit v{{ a.seit }}</span>{% endif %}
@@ -277,6 +278,10 @@
         el.hidden = true;
       }
       document.addEventListener('DOMContentLoaded', function() {
+        // Fortschritt nur über laeuftZeigen() — ein Weg für den drehenden Pfeil.
+        document.querySelectorAll('.aufgabe-laeuft').forEach(function(el) {
+          laeuftZeigen(el, 'Wird gerade erledigt …');
+        });
         document.querySelectorAll('.aufgabe-banner').forEach(function(el) {
           var aus = false;
           try { aus = localStorage.getItem(AUFGABE_AUS + el.dataset.aufgabe) === '1'; } catch (x) { /* zeigen */ }
@@ -425,6 +430,11 @@
       // esc() allein ließe den String dort aufbrechen.
       function escJsAttr(wert) {
         return escAttr(String(wert == null ? '' : wert).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+      }
+      // Pause in einer async-Funktion: `await warten(2000)`. Eine Schreibweise
+      // für alle Abfrageschleifen (bis v1.10.85 drei verschiedene).
+      function warten(ms) {
+        return new Promise(function (fertig) { setTimeout(fertig, ms); });
       }
       function copyBtnHtml(value) {
         var v = escAttr(value);
@@ -658,8 +668,9 @@
     {# Dringende Aufgaben zusätzlich als Banner. Ausblenden merkt sich der
        Browser je Befund (localStorage) — ändert sich der Befund, kommt es
        wieder. Die Aufgabe selbst bleibt oben rechts erreichbar. Zunächst
-       verborgen, damit ein ausgeblendetes nicht aufblitzt. #}
-    {% for a in _aufgaben if a.dringend %}
+       verborgen, damit ein ausgeblendetes nicht aufblitzt. Was gerade im
+       Hintergrund erledigt wird (`laeuft`), bekommt kein Banner. #}
+    {% for a in _aufgaben if a.dringend and not a.laeuft %}
     <div class="aufgabe-banner" data-aufgabe="{{ a.kennung }}:{{ a.stempel }}" hidden
          style="background:#fffbeb;border-bottom:2px solid #fcd34d;padding:9px 16px;
                 font-size:13px;color:#92400e;display:flex;gap:10px;

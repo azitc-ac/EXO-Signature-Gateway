@@ -196,3 +196,33 @@ def test_links_zeigen_auf_vorhandene_anker(link):
     datei = {"/setup": "setup.html", "/settings": "settings.html",
              "/settings/smime": "settings_smime.html"}[pfad]
     assert f'id="{anker}"' in (vorlagen / datei).read_text("utf-8")
+
+
+# ── Aufgabe, die gerade im Hintergrund erledigt wird (v1.10.85) ──────────────
+
+def test_laufende_aufgabe_wird_als_laufend_gemeldet(monkeypatch):
+    _eingerichtet(monkeypatch, True)
+    offen = lambda: abnahme._punkt("A", abnahme.OFFEN, "Secret da")       # noqa: E731
+    kaputt = lambda: 1 / 0                                                 # noqa: E731
+    monkeypatch.setattr(aufgaben, "AUFGABEN", (
+        aufgaben.Aufgabe("laeuft", offen, "/a", dringend=True, laeuft=lambda: True),
+        aufgaben.Aufgabe("still", offen, "/b", dringend=True),
+        aufgaben.Aufgabe("unklar", offen, "/c", laeuft=kaputt),
+    ))
+    zustand = {a["kennung"]: a["laeuft"] for a in aufgaben.offene()}
+    assert zustand == {"laeuft": True, "still": False, "unklar": False}
+    aufgaben.vergessen()
+
+
+def test_laufende_aufgabe_zeigt_fortschritt_statt_banner(monkeypatch):
+    html = _seite(monkeypatch, [{**_EINE, "laeuft": True}])
+    assert 'class="aufgabe-banner"' not in html
+    assert 'class="aufgabe-laeuft"' in html                   # laeuftZeigen() füllt es
+    assert "querySelectorAll('.aufgabe-laeuft')" in html and "Wird gerade erledigt" in html
+    assert "Passwort setzen" not in html                     # kein „Zu tun“ mehr
+    assert 'aria-label="Offene Aufgaben: 1"' in html         # bleibt erreichbar
+
+
+def test_zertifikat_aufgabe_kennt_den_abbau():
+    a = {x.kennung: x for x in aufgaben.AUFGABEN}["zertifikat-anmeldung"]
+    assert a.laeuft is aufgaben._zertifikat_abbau_laeuft

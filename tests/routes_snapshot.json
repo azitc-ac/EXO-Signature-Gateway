@@ -1379,6 +1379,13 @@
     "name": "api_verify_sso"
   },
   {
+    "pfad": "/api/setup/zertifikat-abbau",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_zertifikat_abbau"
+  },
+  {
     "pfad": "/api/smime/auto-enroll/vorschau",
     "methoden": [
       "POST"

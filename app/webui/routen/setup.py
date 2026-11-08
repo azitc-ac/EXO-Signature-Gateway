@@ -318,6 +318,14 @@ async def api_auth_paste(request: Request, user: str = Depends(_require_admin)):
                          "app_id": res["app_id"]})
 
 
+@router.get("/api/setup/zertifikat-abbau")
+async def api_zertifikat_abbau(_: str = Depends(_require_admin)):
+    """Läuft nach „Erneut anmelden“ noch der Abbau der Client Secrets? Die
+    Einrichtungsseite wartet darauf, bevor sie neu lädt."""
+    import setup_wizard
+    return {"laeuft": setup_wizard.abbau_laeuft()}
+
+
 # ── Routes: setup API endpoints ────────────────────────────────────────────────
 
 @router.post("/api/setup/bootstrap-client")
