@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.99 — 2026-11-09 — Zertifikatsbestellung: Bestätigen und Abholen je Bestellung nur einmal zugleich
+
+- **Fehler:** Die S/MIME-Seite und der Hintergrundlauf bestätigen eine
+  Bestellung bei der Zertifizierungsstelle beide über denselben Weg. Liefen
+  sie gleichzeitig, sahen beide die Bestellung als unbestätigt an und schickten
+  je eine Bestätigung. Die erste wurde angenommen (HTTP 202), die zweite
+  lehnte Certum ab (HTTP 400, „The order is being processed“). Wer die zweite
+  ausgelöst hatte, sah „abgelehnt“, obwohl die Bestellung bestätigt war.
+  Jetzt bestätigt je Bestellung nur einer. Wer zu spät kommt, ruft die
+  Zertifizierungsstelle nicht mehr an, und ob schon bestätigt ist, liest das
+  Gateway frisch nach.
+- **Gleiche Ursache beim Abholen:** Holten Seite und Hintergrundlauf ein
+  ausgestelltes Zertifikat gleichzeitig ab, konnte es zweimal eingespielt
+  werden, und der Postfachinhaber bekam die Mail „ausgestellt“ doppelt. Auch
+  das läuft jetzt je Bestellung nur einmal.
+
+**Zu tun:** nichts.
+
 ## v1.10.98 — 2026-11-09 — SMTP-Relay: Rolle „vorgelagertes Gateway“ für die Tenant-Weiterleitung
 
 - **Fehler:** Teilen sich zwei Gateways eine öffentliche Adresse, nimmt das

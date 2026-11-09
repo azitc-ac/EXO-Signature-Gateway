@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import os
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import config
@@ -22,6 +23,32 @@ import config
 log = logging.getLogger(__name__)
 
 _DIR = Path(config.DATA_DIR) / "hub_orders"
+
+# Was gerade je Bestellung läuft: Bestätigen und Abholen, je für sich. Seite
+# und Hintergrundlauf lösen beides aus, und zwar aus VERSCHIEDENEN
+# Ereignisschleifen: der Hintergrundlauf aus dem Scheduler-Thread
+# (`asyncio.run`), die Seite aus der des Webservers. Deshalb `threading.Lock`
+# und kein `asyncio.Lock` — Letzteres gälte nur in einer davon.
+#
+# Zwei Mengen, nicht eine: Holte der Hintergrundlauf gerade ab, wiese eine
+# gemeinsame Sperre die Bestätigung der Seite ab, und die Bestellung wartete
+# bis zum nächsten Durchgang.
+_laeuft: dict[str, set[str]] = {"bestaetigen": set(), "abholen": set()}
+_laeuft_lock = threading.Lock()
+
+
+def _beanspruchen(art: str, order_id: str) -> bool:
+    """Diese Bestellung für `art` übernehmen — False, wenn das schon jemand tut."""
+    with _laeuft_lock:
+        if order_id in _laeuft[art]:
+            return False
+        _laeuft[art].add(order_id)
+        return True
+
+
+def _freigeben(art: str, order_id: str) -> None:
+    with _laeuft_lock:
+        _laeuft[art].discard(order_id)
 
 STALE_DAYS = 30  # danach warnen wir im Log (Keys werden NIE automatisch gelöscht)
 
@@ -79,60 +106,80 @@ def _remove(order_id: str) -> None:
 
 async def poll_all() -> int:
     """Alle offenen Orders abfragen (Hub bzw. DigiCert-Direkt je nach source).
-    Rückgabe: Anzahl abgeschlossener."""
-    import hub_client
+    Rückgabe: Anzahl abgeschlossener.
+
+    ⚠️ Je Bestellung höchstens ein Abholen zugleich. Seite (`/abholen`) und
+    Hintergrundlauf konnten dieselbe ausgestellte Bestellung gleichzeitig
+    sehen: zweimal eingespielt, zweimal die Mail „ausgestellt“ an den Inhaber.
+    Wer zu spät kommt, überspringt; wer danach kommt, findet die Metadatei
+    nicht mehr (`_remove`).
+    """
     done = 0
     for meta in list_pending():
         order_id = meta["order_id"]
-        email = meta["email"]
+        if not _beanspruchen("abholen", order_id):
+            continue
         try:
-            if meta.get("source") == "digicert_direct":
-                import digicert_client
-                res = await digicert_client.collect(order_id)
-            else:
-                res = await hub_client.cert_get_order(order_id)
-        except Exception as exc:
-            log.warning("hub_orders: poll %s fehlgeschlagen: %s", order_id, exc)
-            continue
-        if not res.get("ok"):
-            log.warning("hub_orders: poll %s: %s", order_id, res.get("error"))
-            continue
-        status = res.get("status") or ""
-        if status == "issued" and res.get("cert_pem"):
-            key_pem = _load_key(order_id)
-            if not key_pem:
-                log.error("hub_orders: Zertifikat für %s ausgestellt, aber lokaler "
-                          "Schlüssel fehlt (Order %s) — manueller Eingriff nötig!",
-                          email, order_id)
-                continue
-            try:
-                import smime_store
-                info = smime_store.store_pem_slot(
-                    email, res["cert_pem"].encode(), key_pem)
-                log.info("hub_orders: Zertifikat für %s importiert (Order %s, Slot %s)",
-                         email, order_id, info.get("slot_id"))
-                _remove(order_id)
-                done += 1
-                _notify_issued(email, meta.get("provider", ""))
-            except Exception as exc:
-                log.error("hub_orders: Import für %s fehlgeschlagen: %s", email, exc)
-        elif status == "rejected":
-            log.warning("hub_orders: Order %s für %s abgelehnt: %s",
-                        order_id, email, res.get("note", ""))
-            _remove(order_id)
-            done += 1
-            _notify_rejected(email, meta.get("provider", ""), res.get("note", ""))
-        else:
-            # pending/processing — liegen lassen; bei alten Orders warnen
-            try:
-                created = datetime.fromisoformat(meta["created"])
-                age_days = (datetime.now(timezone.utc) - created).days
-                if age_days >= STALE_DAYS:
-                    log.warning("hub_orders: Order %s für %s ist seit %d Tagen offen",
-                                order_id, email, age_days)
-            except (KeyError, ValueError):
-                pass
+            if (_DIR / f"{order_id}.json").exists():
+                done += await _abholen(meta)
+        finally:
+            _freigeben("abholen", order_id)
     return done
+
+
+async def _abholen(meta: dict) -> int:
+    """Eine Bestellung abfragen und ggf. einspielen. 1 = abgeschlossen."""
+    import hub_client
+    order_id = meta["order_id"]
+    email = meta["email"]
+    try:
+        if meta.get("source") == "digicert_direct":
+            import digicert_client
+            res = await digicert_client.collect(order_id)
+        else:
+            res = await hub_client.cert_get_order(order_id)
+    except Exception as exc:
+        log.warning("hub_orders: poll %s fehlgeschlagen: %s", order_id, exc)
+        return 0
+    if not res.get("ok"):
+        log.warning("hub_orders: poll %s: %s", order_id, res.get("error"))
+        return 0
+    status = res.get("status") or ""
+    if status == "issued" and res.get("cert_pem"):
+        key_pem = _load_key(order_id)
+        if not key_pem:
+            log.error("hub_orders: Zertifikat für %s ausgestellt, aber lokaler "
+                      "Schlüssel fehlt (Order %s) — manueller Eingriff nötig!",
+                      email, order_id)
+            return 0
+        try:
+            import smime_store
+            info = smime_store.store_pem_slot(
+                email, res["cert_pem"].encode(), key_pem)
+            log.info("hub_orders: Zertifikat für %s importiert (Order %s, Slot %s)",
+                     email, order_id, info.get("slot_id"))
+            _remove(order_id)
+            _notify_issued(email, meta.get("provider", ""))
+            return 1
+        except Exception as exc:
+            log.error("hub_orders: Import für %s fehlgeschlagen: %s", email, exc)
+    elif status == "rejected":
+        log.warning("hub_orders: Order %s für %s abgelehnt: %s",
+                    order_id, email, res.get("note", ""))
+        _remove(order_id)
+        _notify_rejected(email, meta.get("provider", ""), res.get("note", ""))
+        return 1
+    else:
+        # pending/processing — liegen lassen; bei alten Orders warnen
+        try:
+            created = datetime.fromisoformat(meta["created"])
+            age_days = (datetime.now(timezone.utc) - created).days
+            if age_days >= STALE_DAYS:
+                log.warning("hub_orders: Order %s für %s ist seit %d Tagen offen",
+                            order_id, email, age_days)
+        except (KeyError, ValueError):
+            pass
+    return 0
 
 
 def poll_all_sync() -> int:
@@ -325,8 +372,36 @@ async def bestaetigen(meta: dict) -> tuple[bool, str]:
     Link an — ein zweiter Klick endete bei Certum mit „The order is being
     processed“ (09.11.2026).
 
+    ⚠️ HÖCHSTENS EIN AUFRUF JE BESTELLUNG ZUGLEICH. Seite und Hintergrundlauf
+    lasen beide `bestaetigt_am` als leer und schickten je einen POST; der
+    zweite bekam von Certum HTTP 400 („being processed“), und wer ihn
+    ausgelöst hatte, sah „abgelehnt“ — obwohl der erste mit 202 bestätigt
+    hatte (09.11.2026). Wer zu spät kommt, ruft nicht mehr nach aussen, und
+    der Merker wird frisch von der Platte gelesen, nicht aus dem `meta`, das
+    der Aufrufer vor Sekunden geladen hat.
+
     Die Einwilligung prüft der Aufrufer (unterschiedliche Rückmeldung).
     """
+    oid = meta["order_id"]
+    if not _beanspruchen("bestaetigen", oid):
+        return True, "Bestätigung läuft bereits."
+    try:
+        if _bestaetigt_am(oid):
+            return True, "Bereits bestätigt."
+        return await _bestaetigen(meta)
+    finally:
+        _freigeben("bestaetigen", oid)
+
+
+def _bestaetigt_am(order_id: str) -> str:
+    """`bestaetigt_am` aus der Metadatei auf der Platte — "" wenn nicht gesetzt."""
+    try:
+        return json.loads((_DIR / f"{order_id}.json").read_text()).get("bestaetigt_am") or ""
+    except Exception:
+        return ""
+
+
+async def _bestaetigen(meta: dict) -> tuple[bool, str]:
     import ca_bestaetigung
     import hub_client
 

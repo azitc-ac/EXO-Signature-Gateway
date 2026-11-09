@@ -218,3 +218,97 @@ def test_nur_hub_orders_ruft_die_ca_bestaetigung():
     treffer = [str(p.relative_to(WURZEL)) for p in (WURZEL / "app").rglob("*.py")
                if "ca_bestaetigung.bestaetigen(" in p.read_text(encoding="utf-8")]
     assert treffer == ["app/hub_orders.py"], treffer
+
+
+def test_gleichzeitige_aufrufe_bestaetigen_nur_einmal(offen, monkeypatch):
+    """Seite (Webserver-Schleife) und Hintergrundlauf (Scheduler-Thread mit
+    eigener Schleife) zugleich: nur EIN POST bei der Zertifizierungsstelle.
+
+    09.11.2026: Beide lasen `bestaetigt_am` leer, beide POSTeten; der zweite
+    bekam HTTP 400, und die Oberfläche meldete „abgelehnt“.
+    """
+    import asyncio
+    import threading
+    import ca_bestaetigung
+    tmp, aufgerufen = offen
+    drin = threading.Event()
+    weiter = threading.Event()
+
+    async def _langsam(link):
+        aufgerufen.append(link)
+        drin.set()
+        await asyncio.get_running_loop().run_in_executor(None, weiter.wait, 5)
+        return True, "bestätigt (HTTP 202)"
+    monkeypatch.setattr(ca_bestaetigung, "bestaetigen", _langsam)
+    meta = json.loads((tmp / "o1.json").read_text())
+
+    ergebnis = {}
+    t = threading.Thread(target=lambda: ergebnis.setdefault(
+        "erster", asyncio.run(hub_orders.bestaetigen(dict(meta)))))
+    t.start()
+    assert drin.wait(5)
+    zweiter = asyncio.run(hub_orders.bestaetigen(dict(meta)))   # andere Schleife
+    weiter.set()
+    t.join(5)
+    assert len(aufgerufen) == 1, aufgerufen
+    assert zweiter[0] is True, zweiter       # kein „abgelehnt“ für den Zweiten
+    assert ergebnis["erster"][0] is True
+
+
+def test_veraltetes_meta_bestaetigt_nicht_erneut(offen):
+    """Der Aufrufer hält `meta` von vor der Bestätigung; die Platte weiss es besser."""
+    import asyncio
+    tmp, aufgerufen = offen
+    meta = json.loads((tmp / "o1.json").read_text())        # noch ohne Merker
+    assert asyncio.run(hub_orders.bestaetigen(dict(meta)))[0] is True
+    assert asyncio.run(hub_orders.bestaetigen(dict(meta)))[0] is True
+    assert len(aufgerufen) == 1, aufgerufen
+
+
+def test_gleichzeitiges_abholen_spielt_nur_einmal_ein(offen, monkeypatch):
+    """Geschwister des Bestätigens: Seite (`/abholen`) und Hintergrundlauf
+    sehen dieselbe ausgestellte Bestellung — eingespielt und gemeldet wird
+    sie genau einmal.
+
+    Beide Läufe in eigenen Threads mit eigener Schleife, und beide werden
+    GLEICHZEITIG freigegeben; das Einspielen dauert einen Moment. Ohne das
+    rettete das Löschen des Schlüssels durch den Ersten den Zweiten zufällig.
+    """
+    import asyncio
+    import threading
+    import time
+    import hub_client
+    import smime_store
+    tmp, _ = offen
+    (tmp / "o2.json").unlink()                       # nur o1
+    (tmp / "o1.key").write_bytes(b"KEY")
+    weiter = threading.Event()
+    drinnen = []
+
+    async def _ausgestellt(order_id):
+        drinnen.append(order_id)
+        await asyncio.get_running_loop().run_in_executor(None, weiter.wait, 5)
+        return {"ok": True, "status": "issued", "cert_pem": "CERT"}
+
+    eingespielt, gemeldet = [], []
+
+    def _einspielen(e, c, k):
+        time.sleep(0.3)
+        eingespielt.append(e)
+        return {"slot_id": "s1"}
+    monkeypatch.setattr(hub_client, "cert_get_order", _ausgestellt)
+    monkeypatch.setattr(smime_store, "store_pem_slot", _einspielen)
+    monkeypatch.setattr(hub_orders, "_notify_issued", lambda e, p: gemeldet.append(e))
+
+    ergebnisse = []
+    laeufe = [threading.Thread(target=lambda: ergebnisse.append(hub_orders.poll_all_sync()))
+              for _ in range(2)]
+    for t in laeufe:
+        t.start()
+    time.sleep(0.5)                                  # beide hatten Zeit hineinzukommen
+    weiter.set()
+    for t in laeufe:
+        t.join(5)
+    assert eingespielt == ["mit@x.de"] and gemeldet == ["mit@x.de"], (eingespielt, gemeldet)
+    assert sorted(ergebnisse) == [0, 1] and len(drinnen) == 1
+    assert not (tmp / "o1.json").exists()
