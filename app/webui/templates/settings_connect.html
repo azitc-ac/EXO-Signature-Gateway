@@ -881,8 +881,9 @@ document.addEventListener('DOMContentLoaded', hubLoadConfig);
 document.addEventListener('DOMContentLoaded', kontoAdresseLaden);
 
 // ── Zertifikatsbezug: kostenpflichtige Fähigkeit auf demselben Konto ─────────
-// Schritt 1 (Nutzungsbedingungen akzeptieren = der Antrag) schaltet Schritt 2
-// (Guthaben aufladen) frei; sobald Guthaben da ist, wird automatisch freigeschaltet.
+// Die Zustimmung zu den Nutzungsbedingungen ist der Antrag; der Hub schaltet
+// damit frei. Guthaben prüft erst die einzelne kostenpflichtige Bestellung
+// (seit Hub 0.24.151; vorher war es Voraussetzung der Freischaltung).
 function _certMsg(html, ok) { const el=document.getElementById('cert-msg'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
 async function certOptOut() { if(!confirm('Zertifikatsbezug für dieses Konto abbestellen? Verbleibendes Guthaben wird erstattet.'))return;
   const d=await sendJSON('POST','/api/hub/cert/opt-out');
@@ -1183,6 +1184,10 @@ async function certLoadEligibility(manual) {
   if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Zertifikatsbezug aktiviert.</strong> '
     +'Kontingent '+esc(d.used_this_month||0)+'/'+esc((d.monthly_limit>0)?d.monthly_limit:'∞')+' diesen Monat · Domains: '+esc((d.verified_domains||[]).join(', ')||'–'); }
   else if(d.cert_issuing_enabled){ el.innerHTML='<strong style="color:#92400e">⚠ Freigeschaltet, aber noch nicht bezugsbereit:</strong> '+esc(d.reason||d.error||'unbekannt'); }
+  // Nicht freigeschaltet: Der Hub nennt den Weg (Zustimmung, Guthaben …). Bis
+  // v1.10.95 blieb das Feld hier leer, und das Kopfzeichen sagte nur „noch
+  // nicht aktiv“ — wer bestellen wollte, sah nicht, was fehlt.
+  else if(d.reason && !d.cert_issuing_enabled){ el.innerHTML='<strong style="color:#92400e">⚠ Noch nicht freigeschaltet:</strong> '+esc(d.reason); }
   else { el.innerHTML=''; }
   const optBtn=document.getElementById('cert-optout-btn'), optHint=document.getElementById('cert-optout-hint');
   optBtn.style.display = d.cert_issuing_enabled ? 'inline-block' : 'none';
@@ -1191,7 +1196,7 @@ async function certLoadEligibility(manual) {
   if(badge){
     if(d.ok){ badge.className='conn-badge conn-ok'; badge.textContent='✓ Zertifikatsbezug aktiviert'; }
     else if(d.cert_issuing_enabled){ badge.className='conn-badge conn-wait'; badge.textContent='⚠ freigeschaltet, Voraussetzung fehlt: '+(d.reason||'unbekannt'); }
-    else { badge.className='conn-badge conn-wait'; badge.textContent='⚠ noch nicht aktiv'; }
+    else { badge.className='conn-badge conn-wait'; badge.textContent='⚠ noch nicht aktiv'+(d.reason?' — Voraussetzung unten':''); }
   }
   if(manual){ _certMsg('✓ Aktualisiert ('+new Date().toLocaleTimeString('de-DE')+')', true); }
 }

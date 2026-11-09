@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.96 — 2026-11-09 — Zertifikatsbezug: die Oberfläche nennt, was zur Freischaltung fehlt
+
+- **Fehler:** Unter *Einstellungen → Anbindung & Lizenzen → Zertifikatsbezug*
+  stand bei einem noch nicht freigeschalteten Bezug nur „noch nicht aktiv“.
+  Der Hub schaltet den Bezug von selbst frei und meldet dem Gateway den
+  fehlenden Schritt. Diesen Grund zeigte die Seite nur an, wenn der Bezug
+  schon freigeschaltet war. Jetzt steht er auch davor im Abschnitt, und das
+  Kopfzeichen verweist darauf. Einen Antrag gibt es nicht.
+- **Freischaltung ohne Guthaben:** Der Hub verlangte für die Freischaltung
+  bisher Guthaben oder die automatische Aufladung, auch wenn nur kostenlose
+  Anbieter (z. B. Testumgebungen) genutzt werden sollten. Jetzt genügt die
+  Zustimmung zu den Bedingungen. Guthaben prüft erst die einzelne
+  kostenpflichtige Bestellung.
+- Drei Meldungen verwiesen noch auf die alten Reiter „Erweitert“ bzw.
+  „Anbindung“. Sie nennen jetzt *Einstellungen → Anbindung & Lizenzen*.
+
+**Zu tun:** nichts.
+
 ## v1.10.95 — 2026-11-09 — Einrichtungsseite auf Port 80 ohne Benutzernamen
 
 - **Fehler:** Die Einrichtungsseite auf Port 80 (TLS-Zertifikat vor dem ersten

@@ -1,7 +1,7 @@
 """DigiCert-Direktanbindung — der Kunde nutzt sein EIGENES CertCentral-Konto.
 
 Transparente Alternative zum Hub-Weg (hub:digicert): wer sich selbst kümmern
-will, hinterlegt seinen API-Key im Anbindung-Tab; Bestellung, Abholung und
+will, hinterlegt seinen API-Key unter Anbindung & Lizenzen; Bestellung, Abholung und
 Import laufen trotzdem vollautomatisch über das Gateway. Schlüssel entsteht
 lokal und verlässt das Gateway nie; offene Orders werden über den bestehenden
 hub_orders-Poller (source=digicert_direct) abgeholt.
@@ -30,7 +30,7 @@ class DigiCertDirectBackend(CABackend):
         return digicert_client.is_configured()
 
     def not_ready_reason(self) -> str:
-        return "DigiCert-API-Key nicht hinterlegt (Anbindung-Tab → DigiCert-Direktanbindung)."
+        return "DigiCert-API-Key nicht hinterlegt (Einstellungen → Anbindung & Lizenzen → DigiCert-Direktanbindung)."
 
     def get_portal_url(self, email: str, user_config: dict) -> str:
         return "https://www.digicert.com/account/"

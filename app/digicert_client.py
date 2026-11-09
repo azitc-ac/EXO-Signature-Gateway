@@ -71,7 +71,7 @@ async def order(target_email: str, csr_pem: str) -> dict:
     Returns {ok, status: submitted|error|unconfigured, ref?, message}."""
     if not is_configured():
         return {"ok": False, "status": "unconfigured",
-                "message": "DigiCert-API-Key nicht konfiguriert (Anbindung-Tab)."}
+                "message": "DigiCert-API-Key nicht konfiguriert (Einstellungen → Anbindung & Lizenzen → DigiCert-Direktanbindung)."}
     days = _int_or(_s("DIGICERT_VALIDITY_DAYS"), 365)
     payment = _s("DIGICERT_PAYMENT_METHOD") or "profile"
     if payment not in ("profile", "balance"):

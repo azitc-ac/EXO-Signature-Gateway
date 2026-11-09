@@ -46,7 +46,7 @@ class HubProviderBackend(CABackend):
     def not_ready_reason(self) -> str:
         import hub_client
         if not hub_client.cert_is_registered():
-            return "Cert-Provider-Hub nicht registriert/freigegeben (Erweitert-Tab)."
+            return "Gateway nicht am Hub angebunden (Einstellungen → Anbindung & Lizenzen → Anbindung)."
         # Vorschau: der Hub liefert `available=false` an normale Konten (für das
         # Betreiber-Konto `available=true`, dann ist der Anbieter ganz normal
         # bestellbar). „preview & !available" ist also genau der Teaser-Fall.
@@ -82,7 +82,7 @@ veranlassen.</p>
         import hub_orders
         if not hub_client.cert_is_registered():
             raise RuntimeError(
-                "Cert-Provider-Hub nicht registriert/freigegeben (Erweitert-Tab).")
+                "Gateway nicht am Hub angebunden (Einstellungen → Anbindung & Lizenzen → Anbindung).")
         # Vorschau-Anbieter sind für normale Konten nicht bestellbar (der Hub gibt
         # dann `available=false`). Defensiv hier abfangen — der Hub weist eine
         # solche Bestellung ohnehin mit 403 ab, aber so entsteht gar nicht erst
