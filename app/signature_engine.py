@@ -405,9 +405,16 @@ def textfassung_eigen(name: str) -> bool:
     if not txt.strip():
         return False
     try:
-        return txt.strip() != textfassung_auto(datei).strip()
+        # Leerraum zählt nicht: Ältere Baukasten-Fassungen erzeugten denselben
+        # Text mit anderen Umbrüchen und geschützten Leerzeichen — der wäre
+        # sonst als „eigen“ festgehalten worden, mitsamt seinen Mängeln.
+        return _ohne_leerraum(txt) != _ohne_leerraum(textfassung_auto(datei))
     except Exception:                                        # noqa: BLE001
         return True
+
+
+def _ohne_leerraum(text: str) -> str:
+    return " ".join(text.replace("\xa0", " ").split())
 
 
 def quelltext_neuer(name: str) -> bool:

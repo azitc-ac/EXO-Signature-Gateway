@@ -869,9 +869,15 @@ def _nur_text(roh: str) -> str:
     Reihenfolge: erst Tags weg, dann Entities. Umgekehrt wuerde aus einem
     `&lt;b&gt;` im Text ein `<b>`, das die naechste Regel als Tag entfernt —
     aus einer harmlosen Zeichenfolge verschwaende so Inhalt.
+
+    Seit v1.10.89 derselbe Umwandler wie für handgeschriebene Vorlagen
+    (`signature_engine.html_zu_text`): Vorher blieben hier Zeilenumbrüche und
+    Einrückung des Quelltexts und geschützte Leerzeichen stehen — „mehr —
+    \\n      blog.zarenko.net“ mitten im Satz. Der Parser löst Entities als
+    TEXT auf, ein `&lt;b&gt;` bleibt also „<b>“ und verschwindet nicht.
     """
-    ohne_tags = re.sub(r"<[^>]+>", "", roh or "")
-    return _htmllib.unescape(ohne_tags).strip()
+    import signature_engine
+    return signature_engine.html_zu_text(roh or "").strip()
 
 
 def _render_blocks_txt(blocks: list[dict], g: dict, lines: list[str]) -> None:

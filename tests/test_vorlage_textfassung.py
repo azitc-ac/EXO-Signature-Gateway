@@ -171,12 +171,13 @@ def test_von_hand_geaendertes_html_gewinnt(ordner):
     ("  \n", False),                # leer
     ("AUTO", False),                # gleich der automatischen Fassung
     ("Von Hand geschrieben", True),
+    ("Tipps\xa0und\n      Tools", False),   # nur Leerraum anders (ältere Baukasten-Fassung)
 ])
 def test_bestand_ohne_eintrag(ordner, txt, eigen):
-    (ordner / "V.html").write_text("<p>Inhalt</p>", encoding="utf-8")
+    (ordner / "V.html").write_text("<p>Tipps und Tools</p>", encoding="utf-8")
     if txt is not None:
-        (ordner / "V.txt").write_text(se.html_zu_text("<p>Inhalt</p>") if txt == "AUTO" else txt,
-                                      encoding="utf-8")
+        (ordner / "V.txt").write_text(se.html_zu_text("<p>Tipps und Tools</p>") if txt == "AUTO"
+                                      else txt, encoding="utf-8")
     assert se.textfassung_eigen("V") is eigen
 
 
@@ -294,3 +295,14 @@ def test_endpunkt_liefert_die_vorschau(klient, ordner):
     d = klient.post("/api/templates/textfassung",
                     json={"name": "V", "html": "<p>Getippt</p>"}).json()
     assert d == {"ok": True, "txt": "Getippt\n"}
+
+
+def test_baukasten_freitext_ueber_denselben_umwandler():
+    """Der Blog-Banner auf dem Raspi (09.11.): Quelltext-Umbruch mit Einrückung
+    und &nbsp; standen mitten im Satz der Textfassung."""
+    import template_builder
+    meta = {"version": 1, "blocks": [{"type": "freetext", "html":
+            "💡 <strong>Schon gewusst?</strong>&nbsp; Tipps &amp; Tools zu Exchange&nbsp;Online —\n"
+            "      <a href=\"https://blog.zarenko.net\">blog.zarenko.net</a>&lt;b&gt;"}]}
+    assert template_builder.render_txt(meta).strip() == (
+        "💡 Schon gewusst? Tipps & Tools zu Exchange Online — blog.zarenko.net<b>")

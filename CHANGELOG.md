@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.90 — 2026-11-09 — Textfassung aus dem Baukasten ohne Quelltext-Umbrüche
+
+- **Baukasten:** Freitext- und Etikett-Bausteine übernahmen in die
+  Textfassung die Zeilenumbrüche und Einrückungen ihres HTML-Quelltexts und
+  geschützte Leerzeichen — etwa „… und mehr —“ und darunter, eingerückt,
+  „blog.zarenko.net“. Sie gehen jetzt durch denselben Umwandler wie
+  handgeschriebene Vorlagen; ein Link erscheint dabei als „Text (Adresse)“,
+  sofern die Adresse nicht schon im Text steht.
+- **Bestand:** Ob eine vorhandene Textfassung als „selbst angepasst“ gilt,
+  entscheidet der Vergleich mit dem automatischen Ergebnis jetzt ohne
+  Rücksicht auf Leerraum. Eine Fassung, die eine ältere Baukasten-Version
+  erzeugt hat, wird so automatisch und bekommt die bereinigte Form.
+
+**Zu tun:** nichts.
+
 ## v1.10.89 — 2026-11-09 — Textfassung der Vorlagen automatisch
 
 - **Fehler:** Hatte eine Vorlage keine eigene Nur-Text-Fassung, setzte das
