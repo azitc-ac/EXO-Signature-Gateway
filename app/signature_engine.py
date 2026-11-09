@@ -388,7 +388,8 @@ def textfassung_eigen(name: str) -> bool:
 
     Massgeblich ist `text_eigen` in der Meta, gesetzt vom Editor. Fehlt der
     Eintrag (Bestand vor v1.10.89), zählt die .txt als eigen, wenn sie nicht
-    leer ist und von der automatischen Fassung abweicht —
+    leer ist, bei Baukasten-Vorlagen NACH der Meta geändert wurde, und von der
+    automatischen Fassung abweicht (ohne Rücksicht auf Leerraum) —
     so bleibt eine von Hand geschriebene Fassung erhalten, und eine nur vom
     Baukasten erzeugte wird automatisch.
     """
@@ -404,10 +405,23 @@ def textfassung_eigen(name: str) -> bool:
         return False
     if not txt.strip():
         return False
+    if meta.get("blocks"):
+        # Baukasten-Vorlagen: Der Baukasten schrieb .txt, .html und Meta
+        # IMMER zusammen. Von Hand bearbeitet ist die .txt nur, wenn sie danach
+        # geändert wurde. Ein blosser Inhaltsvergleich hielte dagegen jede vom
+        # Baukasten erzeugte Fassung fest, sobald sich dessen Ausgabe ändert
+        # (Raspi 09.11.: „Demo-Banner“ — neu mit Link-Adresse).
+        try:
+            txt_neuer = (os.stat(pfad).st_mtime >
+                         os.stat(os.path.join(config.TEMPLATE_DIR,
+                                              f"{datei}.meta.json")).st_mtime + 1)
+        except OSError:
+            txt_neuer = True
+        if not txt_neuer:
+            return False
     try:
-        # Leerraum zählt nicht: Ältere Baukasten-Fassungen erzeugten denselben
-        # Text mit anderen Umbrüchen und geschützten Leerzeichen — der wäre
-        # sonst als „eigen“ festgehalten worden, mitsamt seinen Mängeln.
+        # Leerraum zählt nicht: Ältere Fassungen desselben Inhalts hatten
+        # andere Umbrüche und geschützte Leerzeichen.
         return _ohne_leerraum(txt) != _ohne_leerraum(textfassung_auto(datei))
     except Exception:                                        # noqa: BLE001
         return True

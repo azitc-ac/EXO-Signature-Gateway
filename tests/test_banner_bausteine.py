@@ -455,11 +455,17 @@ def test_link_traegt_die_linkfarbe():
 
 
 def test_textfassung_ohne_auszeichnung():
-    """Im Textteil ist die Adresse für den Leser nutzlos, der Wortlaut nicht."""
+    """Auszeichnung fällt weg; ein Link wird „Text (Adresse)“.
+
+    Bis v1.10.89 entfiel die Adresse („für den Leser nutzlos“). In einer
+    Nur-Text-Mail ist der Link aber nicht anklickbar — „Blog“ allein führt
+    nirgends hin. Seit v1.10.90 dieselbe Regel wie für HTML-Vorlagen
+    (signature_engine.html_zu_text); steht die Adresse schon im Text, bleibt
+    sie einfach."""
     txt = tb.render_txt({"version": 1, "blocks": [{"type": "text",
-        "text": "**fett** und [Blog](https://example.org)"}]})
-    assert "fett und Blog" in txt, txt
-    assert "**" not in txt and "https://" not in txt
+        "text": "**fett** und [Blog](https://example.org)\n"
+                "      [blog.example](https://blog.example)\xa0Ende"}]})
+    assert txt.splitlines() == ["fett und Blog (https://example.org)", "blog.example Ende"], txt
 
 
 def test_rundlauf_auszeichnung():

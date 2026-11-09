@@ -936,15 +936,25 @@ def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
             vorsatz = praefix or f"{anzeige}:"
             lines.append(f"{vorsatz} {url}")
     elif t == "text":
-        # Auszeichnung faellt weg, der Linktext bleibt — im Textteil ist die
-        # Adresse fuer den Leser nutzlos, der Wortlaut nicht.
+        # Auszeichnung faellt weg. Ein Link wird „Text (Adresse)“, ausser die
+        # Adresse steht schon im Text — dieselbe Regel wie
+        # signature_engine.html_zu_text (seit v1.10.90; vorher fiel die Adresse
+        # weg, und „jetzt lesen“ stand im Nur-Text-Teil ohne Ziel).
+        import signature_engine
         for zeile in (b.get("text") or "").splitlines() or [""]:
-            klar = _AUS_LINK.sub(lambda m: m.group(1), zeile)
+            klar = _AUS_LINK.sub(
+                lambda m: m.group(1) + (f" ({m.group(2)})" if signature_engine
+                                        ._ziel_fehlt_im_text(m.group(2), m.group(1)) else ""),
+                zeile)
             klar = _AUS_FETT.sub(lambda m: m.group(1), klar)
             klar = _AUS_KURSIV.sub(lambda m: m.group(1), klar)
             klar = _AUS_FARBE.sub(lambda m: m.group(2), klar)
-            if klar.strip():
-                lines.append(klar.rstrip())
+            # Leerraum wie im HTML zusammenfassen: Dort verschluckt der
+            # Browser Einrückung und Mehrfach-Leerzeichen, und &nbsp; ist im
+            # Nur-Text-Teil ohne Sinn. Der Zeilenwechsel bleibt (<br>).
+            klar = " ".join(klar.split())
+            if klar:
+                lines.append(klar)
     elif t == "freetext":
         txt = _nur_text(b.get("html"))
         if txt:

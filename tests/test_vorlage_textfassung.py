@@ -306,3 +306,19 @@ def test_baukasten_freitext_ueber_denselben_umwandler():
             "      <a href=\"https://blog.zarenko.net\">blog.zarenko.net</a>&lt;b&gt;"}]}
     assert template_builder.render_txt(meta).strip() == (
         "💡 Schon gewusst? Tipps & Tools zu Exchange Online — blog.zarenko.net<b>")
+
+
+@pytest.mark.parametrize("txt_zeit,eigen", [(1000, False), (5000, True)])
+def test_bestand_baukasten_nach_zeitstempel(ordner, txt_zeit, eigen):
+    """Der Baukasten schrieb .txt und Meta immer zusammen. Weicht eine
+    gleichzeitig geschriebene .txt ab, hat sich nur seine Ausgabe geändert
+    (Raspi 09.11.: „Demo-Banner“) — automatisch. Nach der Meta geändert und
+    abweichend: von Hand — eigen."""
+    import template_builder
+    meta = _baukasten_meta("Neu")
+    (ordner / "B.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    (ordner / "B.html").write_text(template_builder.render_html(meta), encoding="utf-8")
+    (ordner / "B.txt").write_text("Alte Ausgabe des Baukastens", encoding="utf-8")
+    for datei, zeit in (("B.meta.json", 1000), ("B.html", 1000), ("B.txt", txt_zeit)):
+        os.utime(ordner / datei, (zeit, zeit))
+    assert se.textfassung_eigen("B") is eigen

@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.91 — 2026-11-09 — Textfassung: Links mit Adresse, Bestand nach Zeitstempel
+
+- **Baukasten, Text-Baustein:** Ein Link erscheint in der Textfassung jetzt
+  als „Text (Adresse)“ wie bei allen anderen Vorlagen; bisher fiel die
+  Adresse weg, und „jetzt lesen“ stand im Nur-Text-Teil ohne Ziel. Steht die
+  Adresse schon im Text, bleibt es beim Text. Einrückungen und geschützte
+  Leerzeichen fasst die Textfassung zusammen, wie es das HTML tut.
+- **Bestand:** Bei Baukasten-Vorlagen gilt eine vorhandene Textfassung nur
+  dann als „selbst angepasst“, wenn sie nach dem letzten Speichern im
+  Baukasten geändert wurde. Der reine Inhaltsvergleich aus v1.10.89 hätte
+  jede vom Baukasten erzeugte Fassung festgehalten, sobald sich dessen
+  Ausgabe ändert — etwa durch die Adressen aus dem ersten Punkt.
+
+**Zu tun:** nichts.
+
 ## v1.10.90 — 2026-11-09 — Textfassung aus dem Baukasten ohne Quelltext-Umbrüche
 
 - **Baukasten:** Freitext- und Etikett-Bausteine übernahmen in die
