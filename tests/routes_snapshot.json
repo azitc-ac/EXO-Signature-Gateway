@@ -1792,6 +1792,13 @@
     "name": "api_get_templates"
   },
   {
+    "pfad": "/api/templates/textfassung",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_textfassung"
+  },
+  {
     "pfad": "/api/templates/{name}",
     "methoden": [
       "DELETE"

@@ -55,7 +55,9 @@ def test_neue_vorlage_wird_sofort_angelegt(klient):
     c, verz = klient
     r = c.post("/api/templates/Neue/create", json={"kind": "signatur"})
     assert r.status_code == 200, r.text
-    assert (verz / "Neue.html").exists() and (verz / "Neue.txt").exists()
+    assert (verz / "Neue.html").exists()
+    # Seit v1.10.89 keine leere .txt mehr: die Textfassung entsteht automatisch.
+    assert not (verz / "Neue.txt").exists()
     assert (verz / "Neue.html").read_text() == ""
     # Die Art wird beim Anlegen in die Meta geschrieben (Pflicht seit v1.9.66).
     import signature_engine as se

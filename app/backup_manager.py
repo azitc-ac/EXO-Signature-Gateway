@@ -221,7 +221,9 @@ def inspect_backup(zip_bytes: bytes) -> dict:
 
     if vorlagen:
         for e in vorlagen.values():
-            fehlend = [t for t, endung in (("HTML", ".html"), ("Text", ".txt"))
+            # Nur das HTML ist Pflicht: Ohne .txt entsteht die Textfassung
+            # seit v1.10.89 automatisch daraus.
+            fehlend = [t for t, endung in (("HTML", ".html"),)
                        if not any(d.endswith(endung) for d in e["dateien"])]
             e["hinweis"] = ("unvollständig — " + ", ".join(fehlend) + " fehlt"
                             if fehlend else

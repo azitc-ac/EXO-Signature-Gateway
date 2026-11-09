@@ -168,24 +168,20 @@ def render(user: UserData, template_name: str | None = None,
         log.error("Error rendering HTML signature: %s", exc)
         html = ""
 
-    # Plaintext template — fall back to signature.txt if named template not found
+    # Textfassung: die eigene (.txt), wenn sie ausdrücklich angepasst ist —
+    # sonst automatisch aus dem HTML DIESER Vorlage. Bis v1.10.88 fiel eine
+    # Vorlage ohne .txt auf signature.txt zurück; ein Banner hängte so im
+    # Nur-Text-Teil die Standardsignatur ein zweites Mal an.
+    name = "default" if html_file == "signature.html" else html_file[:-5]
+    if not os.path.exists(os.path.join(config.TEMPLATE_DIR, html_file)):
+        name = "default"                          # wie beim HTML oben
     try:
-        txt = env.get_template(txt_file).render(**ctx)
-    except TemplateNotFound:
-        if txt_file != "signature.txt":
-            log.warning("Template %s not found, falling back to signature.txt", txt_file)
-            try:
-                txt = env.get_template("signature.txt").render(**ctx)
-            except TemplateNotFound:
-                txt = ""
-            except Exception as exc:
-                log.error("Error rendering plaintext signature fallback: %s", exc)
-                txt = ""
-        else:
-            log.warning("signature.txt not found, using empty plaintext signature")
-            txt = ""
+        quelle, eigen = textfassung_quelle(name)
+        txt = _text_env().from_string(quelle).render(**ctx)
+        if not eigen:
+            txt = _text_aufraeumen(txt)
     except Exception as exc:
-        log.error("Error rendering plaintext signature: %s", exc)
+        log.error("Error rendering plaintext of %s: %s", name, exc)
         txt = ""
 
     return html, txt
@@ -269,22 +265,248 @@ def setze_art(name: str, art: str) -> bool:
     return True
 
 
-def textfassung_fehlt(name: str) -> bool:
-    """Gibt es zu dieser Vorlage KEINE Nur-Text-Fassung?
+# ── Textfassung (Nur-Text-Teil) ─────────────────────────────────────────────
+#
+# Seit v1.10.89 entsteht sie standardmässig AUTOMATISCH aus dem HTML der
+# Vorlage; eine eigene Fassung (`.txt`) gilt nur, wenn sie ausdrücklich
+# angepasst ist (`text_eigen` in der Meta, im Editor der Haken „Selbst
+# anpassen“). Vorher fiel eine Vorlage ohne .txt auf signature.txt zurück —
+# ein Banner trug dann die Standardsignatur, und eine handgeschriebene
+# Textfassung veraltete bei jeder Änderung am HTML unbemerkt.
 
-    ANLASS (24.08.2026): Auf der Produktions-VM lag `Blog-Banner-Orange.html`
-    ohne zugehörige `.txt`. `render()` fällt dann auf `signature.txt` zurück und
-    protokolliert eine Warnung — im Nur-Text-Teil trug die Nachricht also die
-    Standardsignatur statt der zugewiesenen, und gesehen hat das niemand: Der
-    Bearbeiter sieht im Editor nur ein leeres Feld, und ein leeres Feld sieht
-    aus wie eine Entscheidung.
+_text_umgebung: Environment | None = None
 
-    ⚠️ Das ist KEIN Fehler, sondern eine Auskunft. Wer die Textfassung bewusst
-    weglässt, bekommt bewusst den Rückfall — er soll ihn nur kennen.
+
+def _text_env() -> Environment:
+    """Sandbox wie `_get_env`, aber OHNE HTML-Maskierung — eine Textfassung ist
+    kein HTML (`&` bliebe sonst als `&amp;` stehen). Dieselbe Regel gilt für
+    .txt-Dateien schon über `select_autoescape(["html"])`."""
+    global _text_umgebung
+    if _text_umgebung is None:
+        _text_umgebung = SandboxedEnvironment(autoescape=False)
+    return _text_umgebung
+
+
+_BLOCK_TAGS = frozenset({"p", "div", "br", "tr", "table", "tbody", "thead", "li", "ul", "ol",
+                         "h1", "h2", "h3", "h4", "h5", "h6", "hr", "blockquote", "section"})
+_UEBERSPRINGEN = frozenset({"head", "style", "script", "title"})
+_GRENZE = "\x00"            # Blockgrenze — mehrere hintereinander ergeben EINE Zeile
+
+
+def html_zu_text(markup: str) -> str:
+    """Textfassung aus dem HTML-QUELLTEXT einer Vorlage — Jinja bleibt stehen.
+
+    Bewusst auf dem Quelltext, nicht auf dem gerenderten HTML: So ist das
+    Ergebnis selbst eine Vorlage (`{{ user.phone }}` wird erst beim Versand
+    befüllt), und der Editor kann es zeigen und als Ausgangspunkt für eine
+    eigene Fassung anbieten.
+
+    Nicht `mail_processor.text_zeilen`: Das dient der Wiedererkennung, wirft
+    Zeilenstruktur und Linkziele weg — genau das, was hier gebraucht wird.
+
+    Regeln: Blockelemente und Tabellenzeilen brechen die Zeile, Zellen trennt
+    ein Leerzeichen. Ein Link erscheint als „Text (Ziel)“, ausser das Ziel
+    steht schon im Text (auch ohne mailto:/tel:/https://). Verlinkte Bilder
+    tragen ihren Alternativtext bei, Kommentare und <style>/<script> nichts.
     """
-    import os
-    datei = "signature" if name in ("", "default") else name
-    return not os.path.exists(os.path.join(config.TEMPLATE_DIR, f"{datei}.txt"))
+    import re
+    from html.parser import HTMLParser
+
+    class _Text(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.teile: list[str] = []
+            self.weg = 0
+            self.links: list[tuple[str, int]] = []      # (Ziel, Beginn im Text)
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag in _UEBERSPRINGEN:
+                self.weg += 1
+            elif tag in _BLOCK_TAGS:
+                self.teile.append(_GRENZE)
+            elif tag == "td" or tag == "th":
+                self.teile.append(" ")
+            elif tag == "img" and self.links and (a.get("alt") or "").strip():
+                # Nur verlinkte Bilder: ein Bild-Banner hat sonst keinen Text.
+                # Ein freistehendes Logo trüge den Firmennamen doppelt ein.
+                self.teile.append(" " + a["alt"].strip() + " ")
+            if tag == "a":
+                self.links.append(((a.get("href") or "").strip(), len(self.teile)))
+
+        def handle_startendtag(self, tag, attrs):
+            self.handle_starttag(tag, attrs)
+            if tag == "a":
+                self.handle_endtag(tag)
+
+        def handle_endtag(self, tag):
+            if tag in _UEBERSPRINGEN:
+                self.weg = max(0, self.weg - 1)
+            elif tag in _BLOCK_TAGS:
+                self.teile.append(_GRENZE)
+            elif tag == "a" and self.links:
+                ziel, beginn = self.links.pop()
+                text = "".join(self.teile[beginn:]).strip()
+                if ziel and not ziel.startswith("#") and _ziel_fehlt_im_text(ziel, text):
+                    self.teile.append(f" ({ziel})")
+
+        def handle_data(self, data):
+            if not self.weg:
+                # Zeilenumbrüche im QUELLTEXT sind in HTML nur Leerraum.
+                self.teile.append(re.sub(r"\s+", " ", data))
+
+    p = _Text()
+    p.feed(markup or "")
+    p.close()
+    zeilen = ("".join(p.teile).replace("\xa0", " ").replace(_GRENZE, "\n")).split("\n")
+    return _text_aufraeumen("\n".join(" ".join(z.split()) for z in zeilen)) + "\n"
+
+
+def _ziel_fehlt_im_text(ziel: str, text: str) -> bool:
+    import re
+    kern = re.sub(r"^(mailto:|tel:|https?://)", "", ziel, flags=re.I).rstrip("/")
+    if not kern:
+        return False
+    return kern.lower() not in text.lower() and ziel.lower() not in text.lower()
+
+
+def _text_aufraeumen(text: str) -> str:
+    """Leerzeilen entfernen, Zeilenenden rechts säubern. Nach dem Rendern
+    bleiben von `{% if %}`-Zeilen ohne Wert sonst Lücken stehen, und eine
+    absichtliche Leerzeile lässt sich davon nicht unterscheiden — die
+    automatische Fassung ist deshalb lückenlos. Wer Absätze will, passt sie
+    selbst an."""
+    return "\n".join(z.rstrip() for z in text.split("\n") if z.strip())
+
+
+def _datei(name: str) -> str:
+    return "signature" if name in ("", "default") else name
+
+
+def textfassung_eigen(name: str) -> bool:
+    """Gilt für diese Vorlage eine SELBST angepasste Textfassung?
+
+    Massgeblich ist `text_eigen` in der Meta, gesetzt vom Editor. Fehlt der
+    Eintrag (Bestand vor v1.10.89), zählt die .txt als eigen, wenn sie nicht
+    leer ist und von der automatischen Fassung abweicht —
+    so bleibt eine von Hand geschriebene Fassung erhalten, und eine nur vom
+    Baukasten erzeugte wird automatisch.
+    """
+    datei = _datei(name)
+    meta = _meta_lesen(datei) or {}
+    if "text_eigen" in meta:
+        return bool(meta["text_eigen"])
+    pfad = os.path.join(config.TEMPLATE_DIR, f"{datei}.txt")
+    try:
+        with open(pfad, encoding="utf-8") as f:
+            txt = f.read()
+    except OSError:
+        return False
+    if not txt.strip():
+        return False
+    try:
+        return txt.strip() != textfassung_auto(datei).strip()
+    except Exception:                                        # noqa: BLE001
+        return True
+
+
+def quelltext_neuer(name: str) -> bool:
+    """Wurde das HTML einer Baukasten-Vorlage NACH dem letzten Baukasten-
+    Speichern von Hand geändert? Dann beschreiben die Bausteine es nicht mehr."""
+    datei = _datei(name)
+    html = os.path.join(config.TEMPLATE_DIR, f"{datei}.html")
+    meta = os.path.join(config.TEMPLATE_DIR, f"{datei}.meta.json")
+    try:
+        return hat_bausteine(datei) and os.stat(html).st_mtime > os.stat(meta).st_mtime + 1
+    except OSError:
+        return False
+
+
+def textfassung_auto(name: str) -> str:
+    """Die automatische Textfassung (Vorlagen-Quelltext).
+
+    Baukasten-Vorlagen: aus den Bausteinen (`template_builder.render_txt`) —
+    derselbe Inhalt, aus dem ihr HTML entsteht, aber mit Wissen um Bezeichner
+    und Trenner; am Bestand (Raspi, 09.11.2026) deutlich lesbarer als der Weg
+    über das HTML. Sonst, und wenn das HTML danach von Hand geändert wurde:
+    `html_zu_text` aus dem HTML."""
+    datei = _datei(name)
+    meta = _meta_lesen(datei)
+    if meta and meta.get("blocks") and not quelltext_neuer(datei):
+        import template_builder
+        return template_builder.render_txt(meta)
+    pfad = os.path.join(config.TEMPLATE_DIR, f"{datei}.html")
+    try:
+        with open(pfad, encoding="utf-8") as f:
+            return html_zu_text(f.read())
+    except OSError:
+        return ""
+
+
+def textfassung_vorschau(name: str, html: str) -> str:
+    """Automatische Fassung für den Editor, während im HTML getippt wird —
+    so, wie sie nach dem Speichern gälte: Ist das HTML unverändert, gilt
+    `textfassung_auto` (bei Baukasten-Vorlagen aus den Bausteinen), sonst wird
+    es zur Hand-Änderung und der Text kommt aus dem HTML."""
+    pfad = os.path.join(config.TEMPLATE_DIR, f"{_datei(name)}.html")
+    try:
+        with open(pfad, encoding="utf-8") as f:
+            if f.read() == html:
+                return textfassung_auto(name)
+    except OSError:
+        pass
+    return html_zu_text(html)
+
+
+def textfassung_quelle(name: str) -> tuple[str, bool]:
+    """(Jinja-Quelltext der Textfassung, ist_eigen) — EIN Weg für Versand,
+    Vorschau und Editor."""
+    if textfassung_eigen(name):
+        pfad = os.path.join(config.TEMPLATE_DIR, f"{_datei(name)}.txt")
+        with open(pfad, encoding="utf-8") as f:
+            return f.read(), True
+    return textfassung_auto(name), False
+
+
+def textfassung_festlegen(name: str, eigen: bool, text: str = "") -> None:
+    """Editor: eigene Fassung speichern oder auf automatisch stellen. Beim
+    Zurückstellen wird eine alte .txt entfernt — sie gälte ohnehin nicht mehr,
+    und ein erneutes „Selbst anpassen“ beginnt mit dem frischen Ergebnis."""
+    datei = _datei(name)
+    pfad = os.path.join(config.TEMPLATE_DIR, f"{datei}.txt")
+    if eigen:
+        with open(pfad, "w", encoding="utf-8") as f:
+            f.write(text)
+    elif os.path.exists(pfad):
+        os.remove(pfad)
+    _meta_feld_setzen(datei, "text_eigen", bool(eigen))
+
+
+def _meta_feld_setzen(datei: str, feld: str, wert) -> None:
+    """Ein Feld der Meta setzen, ohne die übrigen anzufassen. Fehlt die Meta,
+    entsteht eine (wie in `setze_art`); ist sie unlesbar, bleibt sie stehen."""
+    import json
+    pfad = os.path.join(config.TEMPLATE_DIR, f"{datei}.meta.json")
+    meta = _meta_lesen(datei)
+    alt = None
+    if meta is None:
+        if os.path.exists(pfad):
+            raise ValueError(f"Vorlage {datei!r}: Meta nicht lesbar")
+        meta = {"version": 1}
+    else:
+        alt = os.stat(pfad)
+    meta[feld] = wert
+    tmp = pfad + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, pfad)
+    if alt is not None:
+        # ⚠️ Änderungszeit der Meta beibehalten: `quelltext_neuer` vergleicht
+        # sie mit der des HTML. Ein jüngerer Zeitstempel hier verdeckte eine
+        # Hand-Änderung am HTML — die Textfassung käme dann aus veralteten
+        # Bausteinen, und der Editor böte das Zurücklesen nicht mehr an.
+        os.utime(pfad, ns=(alt.st_atime_ns, alt.st_mtime_ns))
 
 
 def list_templates(art: str = "signatur") -> list[str]:

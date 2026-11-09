@@ -241,7 +241,6 @@ async def api_create_template(name: str, request: Request, _=Depends(_check_auth
         raise HTTPException(409, f"Es gibt bereits eine Vorlage '{safe}'.")
 
     (verz / f"{safe}.html").write_text("", encoding="utf-8")
-    (verz / f"{safe}.txt").write_text("", encoding="utf-8")
     # Meta mit der Art anlegen (leerer Baukasten). So steht die Vorlage sofort in
     # der richtigen Liste, noch bevor der Baukasten das erste Mal gespeichert hat.
     import json as _json
@@ -360,7 +359,13 @@ async def api_get_template_meta(name: str, _=Depends(_check_auth)):
 
 @router.post("/api/templates/{name}/meta")
 async def api_save_template_meta(name: str, request: Request, _=Depends(_check_auth)):
-    """Save builder meta JSON, regenerate .html and .txt from it."""
+    """Save builder meta JSON, regenerate .html from it.
+
+    Die Textfassung schreibt der Baukasten nicht mehr als Datei (seit v1.10.89):
+    Ist sie automatisch, entsteht sie beim Versand aus den Bausteinen; ist sie
+    selbst angepasst, bleibt die .txt unangetastet. Der Zustand wird VOR dem
+    Schreiben bestimmt und ausdrücklich in die Meta gelegt — danach verglichen,
+    erschiene die alte .txt neben den neuen Bausteinen als „eigen“."""
     import json as _json
     import template_builder as _tb
     import signature_engine
@@ -381,6 +386,7 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
             raise HTTPException(400, f"Unbekannte Vorlagen-Art: {meta.get('kind')!r}")
     else:
         meta["kind"] = signature_engine.vorlagen_art(fname)
+    meta["text_eigen"] = signature_engine.textfassung_eigen(fname)
     if not (meta.get("blocks") or []):
         # Eine leere Bausteinliste ergibt eine leere Vorlage — und jede damit
         # versandte Mail traegt gar keine Signatur mehr. Am 02.08.2026 ist
@@ -443,7 +449,6 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
         (Path(config.TEMPLATE_DIR) / f"{fname}.meta.json",
          _json.dumps(meta, ensure_ascii=False, indent=2)),
         (Path(config.TEMPLATE_DIR) / f"{fname}.html", html_content),
-        (Path(config.TEMPLATE_DIR) / f"{fname}.txt", txt_content),
     ]
     fertig: list[tuple[Path, Path]] = []
     try:
@@ -468,9 +473,28 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
                                  f"Nicht gespeichert — die bisherige Fassung bleibt "
                                  f"erhalten. Meist sind es die Zugriffsrechte auf "
                                  f"dem Vorlagenverzeichnis.")
+    if not meta["text_eigen"]:
+        # Eine vom Baukasten früher geschriebene .txt gälte nicht mehr.
+        (Path(config.TEMPLATE_DIR) / f"{fname}.txt").unlink(missing_ok=True)
     signature_engine._reload_env()
     log.info("Template '%s' saved via builder by %s", safe, _)
-    return {"ok": True, "html": html_content, "txt": txt_content}
+    return {"ok": True, "html": html_content,
+            "txt": signature_engine.textfassung_quelle(fname)[0],
+            "text_eigen": meta["text_eigen"]}
+
+@router.post("/api/templates/textfassung")
+async def api_textfassung(request: Request, _=Depends(_check_auth)):
+    """Automatische Textfassung zu einem HTML-Quelltext — für das gesperrte
+    Feld im Editor, während im HTML getippt wird. Dieselben Funktionen wie
+    beim Versand (signature_engine.textfassung_vorschau)."""
+    import signature_engine
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Ungültiges JSON")
+    name = _re.sub(r"[^a-zA-Z0-9_\-]", "", str(body.get("name") or "")) or "default"
+    return {"ok": True, "txt": signature_engine.textfassung_vorschau(
+        name, str(body.get("html") or ""))}
 
 @router.post("/api/templates/{name}/kind")
 async def api_template_kind(name: str, request: Request, _=Depends(_check_auth)):
@@ -518,7 +542,8 @@ async def api_usermail_standard(schluessel: str, _=Depends(_check_auth)):
     (verz / f"{fname}.meta.json").write_text(
         _json_mod.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     (verz / f"{fname}.html").write_text(_tb.render_html(meta), encoding="utf-8")
-    (verz / f"{fname}.txt").write_text(_tb.render_txt(meta), encoding="utf-8")
+    import signature_engine as _se
+    _se.textfassung_festlegen(fname, eigen=False)          # Text wieder automatisch
     log.info("Nutzer-Mail %s auf die mitgelieferte Fassung zurückgesetzt", schluessel)
     return JSONResponse({"ok": True})
 
@@ -532,7 +557,6 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
     name = request.query_params.get("name") or "default"
     fname = "signature" if name == "default" else name
     html_path = Path(config.TEMPLATE_DIR) / f"{fname}.html"
-    txt_path = Path(config.TEMPLATE_DIR) / f"{fname}.txt"
     meta_path = Path(config.TEMPLATE_DIR) / f"{fname}.meta.json"
     # Auswahl nach Art gruppiert (Signaturen/Banner/Disclaimer) plus die Art der
     # gerade geöffneten Vorlage — der Editor zeigt und bewahrt sie.
@@ -543,11 +567,10 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
         request=request, name="template_editor.html",
         context={
             "html_content": html_path.read_text() if html_path.exists() else "",
-            "txt_content": txt_path.read_text() if txt_path.exists() else "",
-            # Ein leeres Textfeld sieht aus wie eine Entscheidung. Fehlt die
-            # Datei, wird im Betrieb aber die Textfassung der Standardsignatur
-            # eingesetzt — das gehört danebengeschrieben, nicht ins Protokoll.
-            "txt_fehlt": not txt_path.exists() and fname != "signature",
+            # Textfassung: automatisch (Feld gesperrt, zeigt das Ergebnis) oder
+            # selbst angepasst — derselbe Weg wie beim Versand.
+            "txt_content": _sig_engine.textfassung_quelle(fname)[0],
+            "text_eigen": _sig_engine.textfassung_eigen(fname),
             # Für Nachrichten an Postfachinhaber IMMER wahr: Ohne eigene
             # Datei liefert der Meta-Endpunkt die mitgelieferte Fassung, und
             # der Editor soll sie laden statt leer zu bleiben.
@@ -571,10 +594,7 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             # Baukasten-Vorlage von Hand nachbesserte, sah beim naechsten
             # Oeffnen die alten Bausteine und verlor seine Arbeit beim
             # Speichern.
-            "quelltext_neuer": (
-                _sig_engine.hat_bausteine(fname) and html_path.exists()
-                and html_path.stat().st_mtime > meta_path.stat().st_mtime + 1
-            ),
+            "quelltext_neuer": _sig_engine.quelltext_neuer(fname),
             "active": "template",
             "saved": request.query_params.get("saved"),
             "current_template": name,
@@ -596,20 +616,25 @@ async def template_save(
     request: Request,
     html_content: str = Form(""),
     txt_content: str = Form(""),
+    text_eigen: str = Form(""),
     template_name: str = Form("default"),
     user: str = Depends(_check_auth),
 ):
     # Sanitise template_name: only allow alphanumeric, dash, underscore
     import re as _re2
     safe_name = _re2.sub(r"[^a-zA-Z0-9_\-]", "", template_name).strip("-_") or "default"
-    if safe_name == "default":
-        html_path = Path(config.TEMPLATE_DIR, "signature.html")
-        txt_path = Path(config.TEMPLATE_DIR, "signature.txt")
-    else:
-        html_path = Path(config.TEMPLATE_DIR, f"{safe_name}.html")
-        txt_path = Path(config.TEMPLATE_DIR, f"{safe_name}.txt")
-    html_path.write_text(html_content)
-    txt_path.write_text(txt_content)
+    html_path = Path(config.TEMPLATE_DIR,
+                     "signature.html" if safe_name == "default" else f"{safe_name}.html")
+    # Nur bei Änderung schreiben: Ein jüngeres HTML gilt bei Baukasten-Vorlagen
+    # als „von Hand geändert“ (signature_engine.quelltext_neuer) — die
+    # Textfassung käme dann aus dem HTML statt aus den Bausteinen.
+    if not html_path.exists() or html_path.read_text() != html_content:
+        html_path.write_text(html_content)
+    # Ohne Haken „Selbst anpassen“ ist die Textfassung automatisch; eine alte
+    # eigene wird dann verworfen (erneutes Anhaken beginnt mit dem frischen
+    # Ergebnis).
+    signature_engine.textfassung_festlegen(safe_name, eigen=text_eigen == "1",
+                                           text=txt_content)
     signature_engine._reload_env()
     log.info("Template '%s' saved by user %s", safe_name, user)
     return RedirectResponse(url=f"/template?name={safe_name}&saved=1", status_code=303)

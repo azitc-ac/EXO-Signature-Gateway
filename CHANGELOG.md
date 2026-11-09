@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.89 — 2026-11-09 — Textfassung der Vorlagen automatisch
+
+- **Fehler:** Hatte eine Vorlage keine eigene Nur-Text-Fassung, setzte das
+  Gateway den Text der Standardsignatur ein. Bei einem Banner oder Disclaimer
+  stand im Nur-Text-Teil einer Mail deshalb unter der Signatur die
+  Standardsignatur ein zweites Mal, vom Banner kein Wort. Und eine
+  handgeschriebene Textfassung veraltete bei jeder Änderung am HTML, ohne dass
+  es auffiel.
+- **Neu:** Die Textfassung entsteht standardmäßig automatisch. Bei
+  Baukasten-Vorlagen kommt sie aus den Bausteinen, sonst und nach einer
+  Hand-Änderung am HTML aus dem HTML der Vorlage. Verlinkte Texte erscheinen
+  als „Text (Adresse)“, Leerzeilen leerer Felder entfallen. Im Editor zeigt das
+  gesperrte Feld *Plaintext-Signatur* das Ergebnis und folgt Änderungen am
+  HTML. Mit *Selbst anpassen* wird es zum Bearbeiten freigegeben. Abwählen
+  und Speichern kehrt zur automatischen Fassung zurück; erneutes Anwählen
+  beginnt mit dem frischen Ergebnis.
+- **Bestand:** Eine vorhandene Textfassung bleibt als „selbst angepasst“
+  erhalten, wenn sie vom automatischen Ergebnis abweicht. Alle anderen gelten
+  ab jetzt als automatisch, ohne Änderung am Versand.
+- **Backup:** Eine Vorlage ohne `.txt` gilt bei der Wiederherstellung nicht
+  mehr als unvollständig.
+
+**Zu tun:** nichts.
+
 ## v1.10.88 — 2026-11-09 — Anmeldeseite zeigte Admin-Hinweise; Bänder ohne Neuladen
 
 - **Sicherheit:** Die Anmeldeseite zeigte auch ohne Anmeldung den Sammelpunkt

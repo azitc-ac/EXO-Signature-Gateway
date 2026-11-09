@@ -224,6 +224,7 @@ EDITOR_DARF: dict[str, str] = {
     "/api/templates/{name}/meta":       "Baukasten-Daten lesen und speichern",
     "/api/templates/{name}/kind":       "Art einer Vorlage setzen (wie beim Baukasten-Speichern)",
     "/api/templates/{name}/parse":      "Quelltext in Bausteine zerlegen",
+    "/api/templates/textfassung":       "automatische Textfassung im Editor anzeigen",
     "/api/templates/{name}/create":     "Vorlage anlegen",
     "/api/templates/{name}/duplicate":  "Vorlage kopieren",
     "/api/templates/{name}/rename":     "Vorlage umbenennen",
