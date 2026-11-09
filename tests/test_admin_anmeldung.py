@@ -162,6 +162,14 @@ def test_anmeldeseite_ohne_benutzerfeld():
     assert "postJSON('/auth/local', {password: p})" in html
 
 
+def test_einrichtungsseite_nennt_keinen_benutzernamen():
+    # Das Feld war entfernt, der Hinweistext darüber nannte bis v1.10.95 weiter
+    # „Benutzer admin“.
+    html = (main._setup_page().decode() + main._dns01_pending_block()
+            + main._dns01_record_block("_acme-challenge.x", "wert"))
+    assert not re.search(r"Benutzer(name)?\b", html), "es gibt nur ein Kennwort"
+
+
 def test_benutzername_ist_keine_einstellung_mehr():
     import settings_store
     assert "WEBUI_USERNAME" not in settings_store.DEFAULTS

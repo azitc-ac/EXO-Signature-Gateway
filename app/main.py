@@ -236,9 +236,8 @@ _SETUP_PAGE_TEMPLATE = """\
 <body>
 <h1>EXO Signature Gateway</h1>
 <p class="sub">Erstkonfiguration — TLS-Zertifikat</p>
-<p class="note">Jeder Schritt verlangt die Anmeldung der Weboberfläche: Benutzer <code>admin</code>
-und das Kennwort <code>admin</code>, auf einer VM aus der Azure-Vorlage das Anfangskennwort
-aus dem Portal. Die Seite läuft noch ohne TLS; das Kennwort geht hier unverschlüsselt über
+<p class="note">Jeder Schritt verlangt das Kennwort der Weboberfläche: <code>admin</code>,
+auf einer VM aus der Azure-Vorlage das Anfangskennwort aus dem Portal. Die Seite läuft noch ohne TLS; das Kennwort geht hier unverschlüsselt über
 das Netz. Ändere es im ersten Schritt des Einrichtungsassistenten.</p>
 {message}
 <p class="ask">Wo soll das TLS-Zertifikat herkommen?</p>

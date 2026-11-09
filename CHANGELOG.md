@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.95 — 2026-11-09 — Einrichtungsseite auf Port 80 ohne Benutzernamen
+
+- **Fehler:** Die Einrichtungsseite auf Port 80 (TLS-Zertifikat vor dem ersten
+  Start) nannte im Hinweistext noch den Benutzer `admin`. Seit v1.10.77 gibt es
+  dort und auf der Anmeldeseite nur noch das Kennwort. Der Text nennt jetzt nur
+  das Kennwort. Ein Test prüft, dass die Seite keinen Benutzernamen erwähnt.
+
+**Zu tun:** nichts.
+
 ## v1.10.94 — 2026-11-09 — Vorlagen-Editor: kein „Website verlassen?“ beim Speichern
 
 - **Fehler:** Beim Speichern im Quelltext-Reiter des Vorlagen-Editors fragte
