@@ -183,3 +183,38 @@ def test_zeitplaner_bestaetigt_vor_dem_abfragen(monkeypatch):
     scheduler._poll_hub_orders()
     assert ablauf == ["bestaetigen", "abfragen"], (
         f"Zeitplaner ruft nicht beides in dieser Reihenfolge: {ablauf}")
+
+
+# ── Bestätigung über die S/MIME-Seite: derselbe Weg ──────────────────────────
+# Bis v1.10.96 bestätigte die Seite über eine eigene Kopie, die `bestaetigt_am`
+# nicht setzte. Die Anzeige bot danach weiter „Wartet auf Bestätigung“ samt
+# Link an; ein zweiter Klick endete bei Certum mit „The order is being
+# processed or has been canceled“ (09.11.2026).
+
+def test_seite_bestaetigt_ueber_denselben_weg(offen):
+    import asyncio
+    from webui.routen import smime
+    tmp, aufgerufen = offen
+    asyncio.run(smime.api_hub_order_bestaetigen("mit@x.de", user="admin"))
+    assert len(aufgerufen) == 1
+    assert json.loads((tmp / "o1.json").read_text()).get("bestaetigt_am"), (
+        "Bestätigung über die Seite hinterlässt keinen Merkposten")
+    asyncio.run(smime.api_hub_order_bestaetigen("mit@x.de", user="admin"))
+    assert len(aufgerufen) == 1, "zweiter Aufruf klopfte erneut bei der CA an"
+
+
+def test_status_nach_bestaetigung_wartet_nicht_mehr(offen):
+    import asyncio
+    from webui.routen import smime
+    asyncio.run(smime.api_hub_order_bestaetigen("mit@x.de", user="admin"))
+    d = json.loads(asyncio.run(smime.api_hub_order_status("mit@x.de", user="admin")).body)
+    assert d["wartet_auf_nutzer"] is False
+    assert d["bestaetigt_am"] and not d["bestaetigungslink"]
+
+
+def test_nur_hub_orders_ruft_die_ca_bestaetigung():
+    """EIN Weg: Wer `ca_bestaetigung.bestaetigen` an anderer Stelle ruft, baut
+    die Kopie ohne Merkposten wieder auf."""
+    treffer = [str(p.relative_to(WURZEL)) for p in (WURZEL / "app").rglob("*.py")
+               if "ca_bestaetigung.bestaetigen(" in p.read_text(encoding="utf-8")]
+    assert treffer == ["app/hub_orders.py"], treffer

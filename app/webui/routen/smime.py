@@ -920,7 +920,7 @@ async def api_hub_order_bestaetigen(email: str, user: str = Depends(_require_adm
     Abfrage ist eine Anzeige und läuft alle paar Sekunden; dies hier greift nach
     aussen und darf nicht als Nebenwirkung eines Blicks passieren.
     """
-    import hub_orders, hub_client, ca_bestaetigung
+    import hub_orders
 
     import einwilligung
     adresse = (email or "").strip().lower()
@@ -933,15 +933,11 @@ async def api_hub_order_bestaetigen(email: str, user: str = Depends(_require_adm
     if not offen:
         return JSONResponse({"ok": True, "aktiv": False})
     meta = sorted(offen, key=lambda m: m.get("created") or "")[-1]
+    if meta.get("bestaetigt_am"):
+        return JSONResponse({"ok": True, "message": "Bereits bestätigt."})
 
-    res = await hub_client.cert_get_order(meta["order_id"])
-    link = await hub_orders.bestaetigungslink(adresse, res.get("ref", ""),
-                                              meta.get("created", ""))
-    if not link:
-        return JSONResponse({"ok": False, "message": "Keine Bestätigungsmail gefunden."})
-
-    ok, meldung = await ca_bestaetigung.bestaetigen(link)
-    log.info("Automatische Bestätigung für %s durch %s: %s", adresse, user, meldung)
+    ok, meldung = await hub_orders.bestaetigen(meta)
+    log.info("Bestätigung für %s ausgelöst durch %s: %s", adresse, user, meldung)
     return JSONResponse({"ok": ok, "message": meldung})
 
 
@@ -990,7 +986,11 @@ async def api_hub_order_status(email: str, user: str = Depends(_require_admin)):
                              "hinweis": "Der Betreiber-Hub ist gerade nicht erreichbar."})
 
     status = (res.get("status") or "unbekannt") if res.get("ok") else "unbekannt"
-    wartet = status in _WARTET_AUF_BESTAETIGUNG
+    # Schon bestätigt: Die Stelle hat den Klick, sie prüft bzw. stellt aus.
+    # Der Hub kennt nur „submitted“ für beides — die Unterscheidung steht in
+    # der Metadatei (hub_orders.bestaetigen).
+    bestaetigt = meta.get("bestaetigt_am", "")
+    wartet = status in _WARTET_AUF_BESTAETIGUNG and not bestaetigt
 
     # Nur im Wartefall im Postfach nachsehen: Ein Abruf je Nachfassen wäre
     # sonst reine Last, und in allen anderen Zuständen gibt es keine Mail, auf
@@ -1008,6 +1008,9 @@ async def api_hub_order_status(email: str, user: str = Depends(_require_admin)):
         "anbieter": meta.get("provider", ""),
         "seit": meta.get("created", ""),
         "wartet_auf_nutzer": wartet,
+        "bestaetigt_am": bestaetigt if status in _WARTET_AUF_BESTAETIGUNG else "",
+        # Letzte Rückmeldung der Zertifizierungsstelle (Hub ab 0.24.152).
+        "ca_zustand": res.get("ca_zustand", "") if status in _WARTET_AUF_BESTAETIGUNG else "",
         "bestaetigungslink": link,
         "einwilligung": bool(__import__("einwilligung").liegt_vor(adresse)),
         "hinweis": res.get("note", "") if status == "rejected" else "",

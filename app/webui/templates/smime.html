@@ -859,6 +859,17 @@ function _hubOrderText(d) {
             (d.hinweis ? ': ' + esc(d.hinweis) : '.'), 'fehler'];
   if (d.status === 'unbekannt')
     return [esc(d.hinweis || 'Zustand derzeit nicht abfragbar.'), 'unklar'];
+  if (d.bestaetigt_am) {
+    // Bestätigt — der Link wäre jetzt ein zweiter Klick, und Certum antwortet
+    // darauf mit „The order is being processed“. Stattdessen sagen, wo die
+    // Bestellung steht, mit der letzten Meldung der Stelle, wenn es eine gibt.
+    const um = new Date(d.bestaetigt_am);
+    const zeit = isNaN(um) ? '' : ' um ' + um.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}) + ' Uhr';
+    return ['<strong>Bestätigt' + zeit + '.</strong> Die Zertifizierungsstelle stellt jetzt aus; ' +
+            'das Zertifikat wird eingespielt, sobald es vorliegt.' +
+            (d.ca_zustand ? '<br>Letzte Meldung der Zertifizierungsstelle: ' + esc(d.ca_zustand) : ''),
+            'laeuft'];
+  }
   if (d.wartet_auf_nutzer) {
     // Der Knopf erspart das Suchen im Postfach — geklickt wird weiterhin von
     // Hand. Fehlt der Link (Mail noch nicht da, Postfach nicht lesbar), bleibt

@@ -296,9 +296,7 @@ async def bestaetigungen_nachholen() -> int:
 
     Gibt die Anzahl der ausgelösten Bestätigungen zurück.
     """
-    import ca_bestaetigung
     import einwilligung
-    import hub_client
 
     n = 0
     for meta in list_pending():
@@ -308,25 +306,44 @@ async def bestaetigungen_nachholen() -> int:
         if not einwilligung.liegt_vor(adresse):
             continue
         try:
-            res = await hub_client.cert_get_order(meta["order_id"])
-            # Nur wenn die Zertifizierungsstelle tatsächlich wartet. Ein Aufruf
-            # „auf Verdacht" wäre ein Zugriff auf ein fremdes System ohne Anlass.
-            if (res.get("status") or "") not in ("submitted", "pending", "waiting"):
-                continue
-            link = await bestaetigungslink(adresse, res.get("ref", ""),
-                                           meta.get("created", ""))
-            if not link:
-                continue                       # Mail noch nicht da — nächster Durchgang
-            ok, meldung = await ca_bestaetigung.bestaetigen(link)
-            log.info("hub_orders: Bestätigung für %s (%s): %s",
-                     adresse, meta["order_id"], meldung)
-            if ok:
-                _merken_bestaetigt(meta["order_id"])
-                n += 1
+            ok, _ = await bestaetigen(meta)
+            n += ok
         except Exception as exc:
             # Ein Postfach darf die übrigen nicht mitnehmen.
             log.warning("hub_orders: Bestätigung für %s fehlgeschlagen: %s", adresse, exc)
     return n
+
+
+async def bestaetigen(meta: dict) -> tuple[bool, str]:
+    """Eine offene Bestellung bei der Zertifizierungsstelle bestätigen und das
+    Ergebnis in der Metadatei festhalten.
+
+    ⚠️ EIN Weg für den Hintergrundlauf UND den Knopf/die Automatik der
+    S/MIME-Seite. Bis v1.10.96 bestätigte die Seite über eine eigene Kopie, die
+    `bestaetigt_am` nicht setzte. Die Anzeige hielt eine längst bestätigte
+    Bestellung deshalb weiter für „wartet auf den Postfachinhaber“ und bot den
+    Link an — ein zweiter Klick endete bei Certum mit „The order is being
+    processed“ (09.11.2026).
+
+    Die Einwilligung prüft der Aufrufer (unterschiedliche Rückmeldung).
+    """
+    import ca_bestaetigung
+    import hub_client
+
+    adresse = (meta.get("email") or "").lower()
+    res = await hub_client.cert_get_order(meta["order_id"])
+    # Nur wenn die Zertifizierungsstelle tatsächlich wartet. Ein Aufruf
+    # „auf Verdacht" wäre ein Zugriff auf ein fremdes System ohne Anlass.
+    if (res.get("status") or "") not in ("submitted", "pending", "waiting"):
+        return False, "Die Bestellung wartet nicht auf eine Bestätigung."
+    link = await bestaetigungslink(adresse, res.get("ref", ""), meta.get("created", ""))
+    if not link:
+        return False, "Keine Bestätigungsmail gefunden."
+    ok, meldung = await ca_bestaetigung.bestaetigen(link)
+    log.info("hub_orders: Bestätigung für %s (%s): %s", adresse, meta["order_id"], meldung)
+    if ok:
+        _merken_bestaetigt(meta["order_id"])
+    return ok, meldung
 
 
 def _merken_bestaetigt(order_id: str) -> None:

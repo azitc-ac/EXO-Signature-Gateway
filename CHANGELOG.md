@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.97 — 2026-11-09 — S/MIME: bestätigte Bestellung wartet nicht mehr auf den Postfachinhaber
+
+- **Fehler:** Das Gateway bestätigt eine Bestellung bei der
+  Zertifizierungsstelle selbst, wenn für das Postfach eine Einwilligung
+  vorliegt. Geschah das beim Öffnen der S/MIME-Seite, merkte es sich die
+  Bestätigung nicht. Die Seite zeigte weiter „Wartet auf Bestätigung durch den
+  Postfachinhaber“ samt Link. Ein Klick darauf endete bei Certum mit „The
+  order is being processed or has been canceled“: Die Bestellung war längst
+  bestätigt. Die Bestätigung im Hintergrund hatte den Merker schon immer
+  gesetzt. Jetzt laufen beide über denselben Weg.
+- **Neu:** Eine bestätigte Bestellung zeigt „Bestätigt um …“ und, sobald der
+  Betreiber-Hub sie liefert, die letzte Meldung der Zertifizierungsstelle
+  (etwa den Bestellstatus bei Certum). Den Link bietet die Seite dann nicht
+  mehr an.
+
+**Zu tun:** nichts.
+
 ## v1.10.96 — 2026-11-09 — Zertifikatsbezug: die Oberfläche nennt, was zur Freischaltung fehlt
 
 - **Fehler:** Unter *Einstellungen → Anbindung & Lizenzen → Zertifikatsbezug*
