@@ -416,7 +416,14 @@ class SignatureHandler:
         # ein Drucker steht nun einmal nicht in Microsofts Adressbereichen.
         # Dafuer greifen die Grenzen aus `smtp_relay` (Absenderdomaene, Ziel).
         import smtp_relay
-        aus_relay_netz = smtp_relay.ist_relay_quelle(peer_ip) if peer_ip else False
+        # Ein vorgelagertes Gateway (Tenant-Weiterleitung) reicht Post aus
+        # Exchange weiter: Es gilt wie der Connector und NICHT als Relay-Geraet.
+        # Sonst traefen die Relay-Grenzen jede Post mit fremdem Absender — die
+        # gesamte eingehende Post, die eine Transportregel herschickt
+        # (09.11.2026: Bestaetigungsmails der CA, sechsmal abgewiesen).
+        vorgelagert = smtp_relay.ist_vorgelagertes_gateway(peer_ip) if peer_ip else False
+        aus_relay_netz = (not vorgelagert and smtp_relay.ist_relay_quelle(peer_ip)
+                          if peer_ip else False)
 
         sender = envelope.mail_from
         recipients = envelope.rcpt_tos
@@ -457,7 +464,7 @@ class SignatureHandler:
                     log.warning("Sende-Identität %s über Tageskontingent (%d/%d) — "
                                 "Einlieferung läuft weiter (weiches Limit)",
                                 _ident.get("login") or "?", _heute_n, _kont)
-        elif peer_ip and not aus_relay_netz:
+        elif peer_ip and not aus_relay_netz and not vorgelagert:
             import smtp_acl
             if not smtp_acl.is_allowed(peer_ip):
                 log.warning("SMTP: rejected connection from %s — not an allowed "
@@ -531,6 +538,15 @@ class SignatureHandler:
             # (nicht in relay_hosts — das ist mit exo-smtp-relay gespiegelt).
             import relay_stats
             relay_stats.merke(peer_ip, absender=sender, empfaenger=recipients, bytes_=len(raw))
+        elif vorgelagert and not _ident:
+            # Ab hier wie Post vom Connector (Tenant-Gate, Weiterleitung).
+            # Gezaehlt wird trotzdem, damit die Geraeteliste zeigt, dass die
+            # Weiterleitung lebt — nicht aber in relay_stats: Das ist die
+            # Statistik eingelieferter Geraetepost, keine Exchange-Post.
+            log.info("Vorgelagertes Gateway %s: %s → %s",
+                     peer_ip, sender, ", ".join(recipients[:3]))
+            import relay_hosts
+            relay_hosts.merke_zustellung(peer_ip, tls=bool(getattr(session, "ssl", None)))
         wants_encryption = False  # tracked for fallback safety
         _t0 = time.monotonic()
         # Quelle einer per SMTP-Relay eingelieferten Nachricht — leer bei Post,

@@ -26,6 +26,10 @@ AB_VERSION = (1, 10, 80)
 OHNE_AUFGABE: dict[str, str] = {
     "1.10.84": "einmalige Durchsicht der Admin-Liste — ob ein Eintrag dorthin "
                "gehört, kann keine Prüfung feststellen; eine Aufgabe bliebe für immer offen",
+    "1.10.98": "betrifft nur Installationen hinter einer Tenant-Weiterleitung; ob eine "
+               "Adresse ein weiterreichendes Gateway ist, kann keine lokale Prüfung "
+               "feststellen — ein abgewiesener Absender kann ebenso ein falsch "
+               "eingestelltes Gerät sein. Die Abweisungsliste zeigt den Fall bereits",
 }
 
 _KOPF = re.compile(r"^## v(\d+\.\d+\.\d+)\b.*$", re.M)

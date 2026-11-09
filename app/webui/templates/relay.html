@@ -165,6 +165,13 @@
     <strong>Statistik</strong> oben unter <em>Top-Geräte</em>.
   </p>
   <p style="font-size:13px;color:#555;margin:0 0 14px">
+    In der Spalte <strong>Darf</strong> legst du fest, ob ein Gerät nur an interne
+    oder auch an externe Empfänger senden darf. <strong>Vorgelagertes Gateway</strong>
+    ist für ein Gateway, das die Post dieses Tenants aus Exchange annimmt und
+    weiterreicht (Tenant-Weiterleitung, wenn sich zwei Gateways eine öffentliche
+    Adresse teilen): Seine Post gilt wie die vom Exchange-Connector, auch Post mit
+    externem Absender.
+    <br>
     Die Spalte <strong>TLS</strong> zeigt, ob die letzte Einlieferung verschlüsselt
     war; <em>Klartext</em> bedeutet unverschlüsselt.
     <br>
@@ -179,7 +186,7 @@
       <thead>
         <tr>
           <th>Adresse</th><th>Name (DNS)</th><th style="min-width:240px">Kommentar</th>
-          <th>Ansprechpartner</th><th style="text-align:center">Extern</th>
+          <th>Ansprechpartner</th><th>Darf</th>
           <th style="text-align:center">TLS</th>
           <th>Letzte Mail</th>
           <th></th>
@@ -1576,6 +1583,26 @@ function zeichneLernmodus(l) {
                         : ' · neue Geräte dürfen nur intern');
 }
 
+// Was ein Gerät darf. Ein vorgelagertes Gateway reicht Post aus Exchange
+// weiter (Tenant-Weiterleitung) und gilt wie der Exchange-Connector — ohne
+// Absender- und Zielgrenze. Als Gerät eingetragen, wiese das Gateway jede Post
+// mit fremdem Absender ab, also alles, was eine Transportregel von aussen
+// herschickt.
+const _ROLLEN = {
+  intern:  { extern: false, gateway: false },
+  extern:  { extern: true,  gateway: false },
+  gateway: { extern: false, gateway: true },
+};
+function _rolleWahl(g) {
+  const wert = g.gateway ? 'gateway' : (g.extern ? 'extern' : 'intern');
+  const opt = function (v, text) {
+    return '<option value="' + v + '"' + (v === wert ? ' selected' : '') + '>' + text + '</option>';
+  };
+  return '<select aria-label="Was darf ' + escAttr(g.ip) + '">'
+    + opt('intern', 'nur intern senden') + opt('extern', 'auch extern senden')
+    + opt('gateway', 'vorgelagertes Gateway') + '</select>';
+}
+
 function zeichneGeraete(liste) {
   const tb = document.getElementById('geraete-body');
   _anzahlZeigen('geraete-anzahl', liste.length, 'Gerät', 'e');
@@ -1599,7 +1626,7 @@ function zeichneGeraete(liste) {
       + '<td style="font-size:12px;color:#64748b">' + esc(g.dns || '—') + '</td>'
       + '<td><input type="text" value="' + escAttr(g.kommentar) + '" style="width:100%"></td>'
       + '<td><input type="text" value="' + escAttr(g.ansprechpartner) + '" style="width:100%"></td>'
-      + '<td style="text-align:center"><input type="checkbox"' + (g.extern ? ' checked' : '') + '></td>'
+      + '<td>' + _rolleWahl(g) + '</td>'
       + '<td style="text-align:center" data-relay-tls="' + escAttr(g.tls) + '">'
         + (g.tls === 'ja' ? '✓' : g.tls === 'nein' ? 'Klartext' : '–') + '</td>'
       + '<td style="white-space:nowrap;font-size:12px">' + esc(zeitKurz(g.letzte_mail)) + '</td>'
@@ -1658,12 +1685,12 @@ async function geraeteSpeichern() {
   let fehler = null;
   for (const tr of zeilen) {
     const felder = tr.querySelectorAll('input');
-    const r = await postJSON('/api/relay/geraet', {
+    const rolle = tr.querySelector('select');
+    const r = await postJSON('/api/relay/geraet', Object.assign({
       ip: tr.dataset.relayIp,
       kommentar: felder[0] ? felder[0].value : undefined,
       ansprechpartner: felder[1] ? felder[1].value : undefined,
-      extern: felder[2] ? felder[2].checked : undefined,
-    });
+    }, rolle ? _ROLLEN[rolle.value] : {}));
     if (!r.ok) { fehler = r.error || 'Fehler beim Speichern'; break; }
   }
   wacheFertig('geraete-btn', !fehler, fehler || undefined);

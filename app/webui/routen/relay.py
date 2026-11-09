@@ -446,7 +446,8 @@ async def api_relay_geraet(request: Request, user: str = Depends(_require_admin)
             status_code=400)
 
     felder = {k: daten[k] for k in
-              ("dns", "kommentar", "ansprechpartner", "extern", "gesperrt")
+              ("dns", "kommentar", "ansprechpartner", "extern", "gesperrt",
+               "gateway")
               if k in daten}
     relay_hosts.speichern(ip, **felder)
     # Ein übernommenes Gerät hat in der Abweisungsliste nichts mehr verloren.

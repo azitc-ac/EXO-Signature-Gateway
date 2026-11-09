@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.98 — 2026-11-09 — SMTP-Relay: Rolle „vorgelagertes Gateway“ für die Tenant-Weiterleitung
+
+- **Fehler:** Teilen sich zwei Gateways eine öffentliche Adresse, nimmt das
+  erste die Post aus Exchange an und reicht die des zweiten Tenants über die
+  Tenant-Weiterleitung weiter. Beim zweiten kommt dann jede Post von dieser
+  einen Adresse, und die liegt nicht in Microsofts Bereichen. Zulassen ließ
+  sie sich nur über die Geräteliste des SMTP-Relays, und dort galten die
+  Grenzen für Geräte: Die Absenderdomäne muss zum eigenen Tenant gehören.
+  Damit wies das zweite Gateway jede Post mit externem Absender ab, die eine
+  Transportregel herschickt, also eingehende signierte oder verschlüsselte
+  Mails von außen. Darunter waren die Bestätigungsmails der
+  Zertifizierungsstelle (Certum), sodass Zertifikatsbestellungen nie bestätigt
+  wurden. Exchange bekam ein vorläufiges 451 und stellte erneut zu, ohne
+  Erfolg.
+- **Neu:** In der Geräteliste (*SMTP-Relay → Geräte*, Spalte **Darf**) hat
+  jedes Gerät eine Rolle: *nur intern senden*, *auch extern senden* oder
+  *vorgelagertes Gateway*. Post eines vorgelagerten Gateways behandelt das
+  Gateway wie Post vom Exchange-Connector: ohne Absender- und Zielgrenze, mit
+  Herkunftsprüfung des Tenants und Tenant-Weiterleitung. Die Einlieferungen
+  zählt die Geräteliste weiter, die Relay-Statistik nicht. Sperren nimmt die
+  Rolle zurück, ebenso das Abschalten des Relays. Der Lernmodus vergibt sie
+  nie; das tut nur der Betreiber.
+
+**Zu tun:** Nur wenn dir ein anderes Gateway Post weiterreicht: unter
+*SMTP-Relay → Geräte* bei dessen Adresse **Darf** auf *vorgelagertes Gateway*
+stellen und speichern. Abgewiesene Post dieses Gateways erscheint bis dahin
+unter *Abgewiesen* mit dem Grund „Absenderdomäne … gehört nicht zu diesem
+Tenant“.
+
 ## v1.10.97 — 2026-11-09 — S/MIME: bestätigte Bestellung wartet nicht mehr auf den Postfachinhaber
 
 - **Fehler:** Das Gateway bestätigt eine Bestellung bei der
