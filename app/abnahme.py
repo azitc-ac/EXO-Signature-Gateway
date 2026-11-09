@@ -375,6 +375,33 @@ def _smime_schluessel() -> dict:
         "Dort verlassen die Schlüssel den Tresor nicht.")
 
 
+def _admin_passwort() -> dict:
+    """Gilt für die Weboberfläche noch das Auslieferungs-Kennwort?"""
+    from webui.hilfen import _password_change_required
+    name = "Admin-Kennwort geändert"
+    if not _password_change_required():
+        return _punkt(name, OK, "Ein eigenes Kennwort ist gesetzt.")
+    return _punkt(name, OFFEN,
+                  "Für die Weboberfläche gilt noch das Auslieferungs-Kennwort.",
+                  "Einrichtung → Schritt 1: ein eigenes Kennwort setzen.")
+
+
+def _fair_use() -> dict:
+    """Mehr Postfächer aktiviert, als Lizenz oder Freigrenze erlauben?"""
+    import license as _lic
+    name = "Postfächer innerhalb der Lizenz"
+    st = _lic.fair_use_state()
+    grenze = "das lizenzierte Limit" if st["licensed"] else "die Freigrenze"
+    if not st["exceeded"]:
+        return _punkt(name, OK, f"{st['count']} Postfächer aktiviert"
+                      + (f", {grenze} liegt bei {st['limit']}." if st["limit"] else "."))
+    return _punkt(name, OFFEN,
+                  f"{st['count']} Postfächer sind für Signatur/S/MIME aktiviert — "
+                  f"{grenze} ({st['limit']}) ist überschritten.",
+                  "Lizenz unter Einstellungen → Anbindung & Lizenzen beziehen "
+                  "oder per Mail an support@zarenko.net.")
+
+
 def _vertragsbedingungen() -> dict:
     """Ist einer geänderten Fassung der Vertragsbedingungen zuzustimmen?
 
@@ -521,7 +548,8 @@ def _addin_rollen() -> dict:
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _addin_rollen, _benachrichtigung, _anmeldenachweis,
-              _smime_schluessel, _vertragsbedingungen)
+              _smime_schluessel, _vertragsbedingungen,
+              _admin_passwort, _fair_use)
 
 
 def bericht() -> dict:

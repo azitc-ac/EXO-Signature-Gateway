@@ -64,6 +64,8 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     # Öffnet den Zustimmungsdialog aus base.html — auf jeder Seite.
     Aufgabe("vertragsbedingungen", abnahme._vertragsbedingungen,
             "#vertragsbedingungen", dringend=True),
+    Aufgabe("admin-passwort", abnahme._admin_passwort, "/setup#step-1", dringend=True),
+    Aufgabe("lizenz", abnahme._fair_use, "/settings/connect#lizenz", dringend=True),
     Aufgabe("benachrichtigung", abnahme._benachrichtigung,
             "/settings#benachrichtigungen"),
     Aufgabe("signaturvorlage", abnahme._signaturvorlage, "/template"),

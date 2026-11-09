@@ -75,6 +75,7 @@ def test_advanced_queue_nicht_allein_am_wartungsmodus():
 def test_dashboard_unterscheidet_zustellfehler_von_wartung():
     s = (_TPL / "dashboard.html").read_text()
     assert "delivery_failed_count" in s          # getrennte Zahl wird genutzt
-    assert "delivery-failed-banner" in s          # eigenes, wartungsmodus-unabhängiges Banner
+    # eigenes, wartungsmodus-unabhängiges Band — seit v1.10.86 auf jeder Seite
+    assert 'id="zustellfehler-banner"' in (_TPL / "base.html").read_text()
     # der pauschale Alt-Text darf nicht zurückkehren
     assert "held + ' Mail" not in s

@@ -28,71 +28,6 @@ function dismissWelcome() {
 </script>
 {% endif %}
 
-<div id="fairuse-banner" style="display:none;margin-bottom:20px">
-  <div class="alert warn">
-    <strong>Fair-Use-Hinweis:</strong> <span id="fairuse-text"></span>
-    Lizenz über die <a href="/settings/connect#lizenz" style="color:inherit;font-weight:700">Hub-Anbindung</a>
-    beziehen oder per Mail an <a href="mailto:support@zarenko.net" style="color:inherit;font-weight:700">support@zarenko.net</a>.
-  </div>
-</div>
-<script>
-(function(){
-  getJSON('/api/license/status').then(function(d){
-    if (!d.ok || !d.exceeded) return;
-    document.getElementById('fairuse-text').textContent =
-      d.count + ' Postfächer sind für Signatur/S/MIME aktiviert — ' +
-      (d.licensed ? 'das lizenzierte Limit (' + d.limit + ') ist überschritten. '
-                  : 'die Fair-Use-Grenze (' + d.limit + ') ist überschritten. ');
-    document.getElementById('fairuse-banner').style.display = '';
-  }).catch(function(){});
-})();
-</script>
-
-<div id="maintenance-banner" style="display:none;margin-bottom:20px">
-  <div class="alert warn" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-    <div>
-      <strong>Wartungsmodus aktiv</strong> — Mails werden verarbeitet aber <strong>nicht zugestellt</strong>.
-      Zurückgehaltene Mails sind unter
-      <a href="/advanced#maintenance" style="color:inherit;font-weight:700">Erweitert → Wartungsmodus</a> einsehbar.
-      Aktuell: <span id="maintenance-held-count">0</span> Mail(s) zurückgehalten.
-    </div>
-    <button class="btn secondary" style="white-space:nowrap;flex-shrink:0"
-            onclick="window.location='/advanced#maintenance'">Anzeigen</button>
-  </div>
-</div>
-
-<div id="delivery-failed-banner" style="display:none;margin-bottom:20px">
-  <div class="alert error" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-    <div>
-      <strong>Zustellfehler</strong> — <span id="delivery-failed-count">0</span> Mail(s)
-      konnten nicht zugestellt werden und warten in der Warteschlange (statt verloren zu gehen).
-      Sie werden <strong>automatisch erneut zugestellt</strong> (Kadenz wie Exchange: erst
-      minütlich, dann alle 5, dann alle 15 Minuten, Aufgabe nach 2 Tagen). Bleibt es dauerhaft,
-      prüfe die Zustellwege; unter
-      <a href="/advanced#maintenance" style="color:inherit;font-weight:700">Erweitert → Wartungsmodus</a>
-      kannst du sie einsehen und sofort zustellen.
-    </div>
-    <button class="btn secondary" style="white-space:nowrap;flex-shrink:0"
-            onclick="window.location='/advanced#maintenance'">Anzeigen</button>
-  </div>
-</div>
-
-<!-- Bypass-Wächter — nur sichtbar, wenn der Wächter eingerichtet ist. Inhalt +
-     Warnstufe (error/warn/success) setzt JS über die Klasse, nie über Inline-Farben. -->
-<div id="watchdog-dash-banner" style="display:none;margin-bottom:20px">
-  <div id="watchdog-dash-alert" class="alert" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-    <div id="watchdog-dash-text"></div>
-    <button class="btn secondary" style="white-space:nowrap;flex-shrink:0"
-            onclick="window.location='/advanced#watchdog'">Anzeigen</button>
-  </div>
-</div>
-
-{% if password_change_needed %}
-<div class="alert warn" style="margin-bottom:20px">
-  <strong>Sicherheitshinweis:</strong> Es ist noch das Standard-Passwort (<code>admin</code>) aktiv.
-  Bitte im <a href="/setup">Einrichtungsassistenten</a> ein sicheres Passwort setzen.
-</div>
-{% endif %}
 
 {% if tls_warnung %}
 <div class="alert {{ 'error' if tls_warnung.days <= 0 else 'warn' }}" style="margin-bottom:20px">
@@ -546,48 +481,6 @@ function openInFlightInfo(active, maintHeld, dfCount) {
       (sub ? '<div class="sys-sub">' + sub + '</div>' : '') +
       '</div>';
   }
-  async function loadWatchdogBanner() {
-    var wrap = document.getElementById('watchdog-dash-banner');
-    if (!wrap) return;
-    try {
-      var d = await getJSON('/api/watchdog/status');
-      if (!d.ok) { wrap.style.display = 'none'; return; }
-      if (!d.enabled) { wrap.style.display = 'none'; return; }   // nicht eingerichtet → nichts
-      var kind = d.kind === 'cron' ? 'cron-Host' : (d.kind === 'azure' ? 'Azure Function' : 'Wächter');
-      var seenMs = d.last_seen ? Date.parse(d.last_seen) : NaN;
-      var seenTxt = isNaN(seenMs) ? 'noch nie' : (new Date(seenMs).toLocaleString('de-DE') + ' Uhr');
-      var ageMin = isNaN(seenMs) ? null : Math.floor((Date.now() - seenMs) / 60000);
-      var bypass = d.bypass_active || d.rule_state === 'Disabled';
-      var stale  = (ageMin === null) || (ageMin > 15);   // der Wächter prüft alle 5 min
-
-      var cls, html;
-      if (bypass) {
-        cls = 'error';
-        html = '<strong>Bypass AKTIV</strong> — die Signatur-Transportregel ist abgeschaltet, '
-             + 'ausgehende Post läuft derzeit <strong>unsigniert</strong> (das Gateway gilt als ausgefallen). '
-             + 'S/MIME-Post wartet bewusst in der Exchange-Queue. Zuletzt gesehen: ' + seenTxt + '.';
-      } else if (d.exo_error) {
-        // Wächter lebt (Heartbeat frisch), kann aber die Regel nicht schalten.
-        cls = 'warn';
-        html = '<strong>Bypass-Wächter ohne EXO-Zugriff</strong> (' + kind + ') — er läuft, kann die '
-             + 'Transportregel aber <strong>nicht schalten</strong> (im Ausfall gäbe es keinen Bypass). '
-             + 'Prüfe die EXO-Rolle „Transport Rules". Fehler: ' + esc(String(d.exo_error)) + '. Zuletzt: ' + seenTxt + '.';
-      } else if (stale) {
-        cls = 'warn';
-        html = '<strong>Bypass-Wächter meldet sich nicht</strong> (' + kind + ') — zuletzt gesehen: '
-             + seenTxt + '. Läuft der Wächter noch? Solange er schweigt, bliebe ein Gateway-Ausfall unbemerkt.';
-      } else {
-        wrap.style.display = 'none';   // gesund → kein Banner (Status steht in der Wächter-Card)
-        return;
-      }
-      document.getElementById('watchdog-dash-alert').className = 'alert ' + cls;
-      document.getElementById('watchdog-dash-text').innerHTML = html;
-      wrap.style.display = 'block';
-    } catch(e) {
-      wrap.style.display = 'none';
-    }
-  }
-
   async function loadSys() {
     try {
       const d = await getJSON('/api/system/info');
@@ -608,21 +501,6 @@ function openInFlightInfo(active, maintHeld, dfCount) {
       const grid = document.getElementById('sysGrid');
       const peakOnclick = d.peak_hour != null ? 'openAuditModal("' + _sysToday + '","","' + d.peak_hour + '")' : null;
       const avgMs = d.avg_ms_24h != null ? d.avg_ms_24h + ' ms' : '—';
-      // Wartungsmodus-Banner (nur echte Wartungs-Rückhaltungen zählen)
-      if (d.maintenance_mode) {
-        document.getElementById('maintenance-banner').style.display = 'block';
-        document.getElementById('maintenance-held-count').textContent = maintHeld;
-      } else {
-        document.getElementById('maintenance-banner').style.display = 'none';
-      }
-      // Zustellfehler-Banner (unabhängig vom Wartungsmodus)
-      var dfBanner = document.getElementById('delivery-failed-banner');
-      if (dfCount > 0) {
-        dfBanner.style.display = 'block';
-        document.getElementById('delivery-failed-count').textContent = dfCount;
-      } else {
-        dfBanner.style.display = 'none';
-      }
       var subParts = [];
       if (d.in_flight > 0) subParts.push(d.in_flight + ' in Verarbeitung');
       if (maintHeld > 0)   subParts.push(maintHeld + ' im Wartungsmodus zurückgehalten');
@@ -683,9 +561,7 @@ function openInFlightInfo(active, maintHeld, dfCount) {
     } catch(e) { ursache(e, 'dashboard:567'); }
   }
   loadSys();
-  loadWatchdogBanner();
   setInterval(loadSys, 10000);
-  setInterval(loadWatchdogBanner, 30000);   // Wächter-Zustand ändert sich langsam
 })();
 </script>
 

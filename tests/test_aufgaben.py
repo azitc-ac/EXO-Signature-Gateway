@@ -198,7 +198,8 @@ def test_links_zeigen_auf_vorhandene_anker(link):
         assert f'a[href="#{anker}"]' in (vorlagen / "base.html").read_text("utf-8")
         return
     datei = {"/setup": "setup.html", "/settings": "settings.html",
-             "/settings/smime": "settings_smime.html"}[pfad]
+             "/settings/smime": "settings_smime.html",
+             "/settings/connect": "settings_connect.html"}[pfad]
     assert f'id="{anker}"' in (vorlagen / datei).read_text("utf-8")
 
 
@@ -230,3 +231,27 @@ def test_laufende_aufgabe_zeigt_fortschritt_statt_banner(monkeypatch):
 def test_zertifikat_aufgabe_kennt_den_abbau():
     a = {x.kennung: x for x in aufgaben.AUFGABEN}["zertifikat-anmeldung"]
     assert a.laeuft is aufgaben._zertifikat_abbau_laeuft
+
+
+# ── Kennwort und Lizenz (v1.10.86, vorher Hinweise nur auf der Übersicht) ────
+
+def test_admin_passwort(monkeypatch):
+    from webui import hilfen
+    monkeypatch.setattr(hilfen, "_password_change_required", lambda: True)
+    assert abnahme._admin_passwort()["zustand"] == abnahme.OFFEN
+    monkeypatch.setattr(hilfen, "_password_change_required", lambda: False)
+    assert abnahme._admin_passwort()["zustand"] == abnahme.OK
+
+
+@pytest.mark.parametrize("lizenziert,anzahl,grenze,offen", [
+    (False, 100, 100, False), (False, 101, 100, True),
+    (True, 30, 25, True), (True, 500, 0, False)])
+def test_fair_use(monkeypatch, lizenziert, anzahl, grenze, offen):
+    import license as lic
+    monkeypatch.setattr(lic, "fair_use_state", lambda: {
+        "licensed": lizenziert, "count": anzahl, "limit": grenze,
+        "exceeded": grenze > 0 and anzahl > grenze})
+    p = abnahme._fair_use()
+    assert (p["zustand"] == abnahme.OFFEN) is offen
+    if offen:
+        assert str(anzahl) in p["befund"] and str(grenze) in p["befund"]

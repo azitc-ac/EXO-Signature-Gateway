@@ -155,6 +155,79 @@ def _bypass_gemeldet() -> dict | None:
 templates.env.globals["bypass_gemeldet"] = _bypass_gemeldet
 
 
+# ── Betriebszustände als Band auf JEDER Seite (wie Lernmodus und Bypass) ─────
+# Bis v1.10.86 standen Wartungsmodus, Zustellfehler und Wächter-Ausfall nur auf
+# der Übersicht. Wer auf einer anderen Seite arbeitete, sah sie nicht — und
+# ein vergessener Wartungsmodus hält stillschweigend alle Post zurück.
+
+def _wartung_gemeldet() -> dict | None:
+    """Wartungsmodus an? Rückgabe {zurueck: Anzahl wegen Wartung gehaltener
+    Mails} oder None. Zustellfehler zählen nicht mit — sie haben ihr eigenes Band."""
+    try:
+        if not settings_store.get("MAINTENANCE_MODE"):
+            return None
+        import held_mails
+        return {"zurueck": max(0, held_mails.count() - held_mails.count("delivery_failed"))}
+    except Exception:                                       # noqa: BLE001
+        return None
+
+
+templates.env.globals["wartung_gemeldet"] = _wartung_gemeldet
+
+
+def _zustellfehler_anzahl() -> int:
+    """Mails, die nicht zugestellt werden konnten und in der Warteschlange warten."""
+    try:
+        import held_mails
+        return held_mails.count("delivery_failed")
+    except Exception:                                       # noqa: BLE001
+        return 0
+
+
+templates.env.globals["zustellfehler_anzahl"] = _zustellfehler_anzahl
+
+# Der Wächter meldet sich alle 5 Minuten; nach 15 gilt er als verstummt.
+WAECHTER_STILL_MIN = 15
+
+
+def _waechter_gemeldet() -> dict | None:
+    """Ist der eingerichtete Bypass-Wächter funktionsunfähig?
+
+    Zwei Fälle: Er meldet sich nicht mehr (`still`), oder er lebt, kann die
+    Transportregel aber nicht schalten (`exo`). In beiden Fällen gäbe es im
+    Ausfall keinen Bypass. Ein AKTIVER Bypass ist nicht dieser Fall — den meldet
+    `bypass_gemeldet` mit eigenem Band; hier entfiele er sonst doppelt.
+    Rückgabe {art, zuletzt, fehler} oder None."""
+    try:
+        if settings_store.get("WATCHDOG_ENABLED") is not True or _bypass_gemeldet():
+            return None
+        import waechter_register
+        import waechter_state
+        from datetime import datetime, timezone
+        st = waechter_state.lesen()
+        waechter = waechter_register.liste()
+        zuletzt = max((w.get("last_seen") or "" for w in waechter), default="") \
+            or (st.get("last_seen") or "")
+        fehler = next((w.get("exo_error") for w in waechter if w.get("exo_error")), "") \
+            or (st.get("exo_error") or "")
+        anzeige = _utc_anzeige(zuletzt) if zuletzt else "noch nie"
+        if fehler:
+            return {"art": "exo", "zuletzt": anzeige, "fehler": str(fehler)[:200]}
+        try:
+            alter = (datetime.now(timezone.utc) - datetime.strptime(
+                zuletzt, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)).total_seconds()
+        except ValueError:
+            alter = None                                    # nie gesehen / unlesbar
+        if alter is None or alter > WAECHTER_STILL_MIN * 60:
+            return {"art": "still", "zuletzt": anzeige, "fehler": ""}
+    except Exception:                                       # noqa: BLE001
+        pass
+    return None
+
+
+templates.env.globals["waechter_gemeldet"] = _waechter_gemeldet
+
+
 def _aufgaben_offen() -> list[dict]:
     """Offene Aufgaben für den Sammelpunkt oben rechts und die Banner
     (`aufgaben.py`). Jinja-Global wie `bypass_gemeldet`: keine Route kann ihn

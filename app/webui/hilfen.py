@@ -89,8 +89,8 @@ _DEFAULT_PASSWORDS = {"admin", "changeme", ""}
 def _password_change_required() -> bool:
     """True, solange noch ein Vorgabe-/Platzhalterkennwort gilt.
 
-    Gebraucht vom Einrichtungsassistenten (Schritt 1) und von der
-    Übersichtsseite in `app.py`, die denselben Hinweis als Banner zeigt.
+    Gebraucht vom Einrichtungsassistenten (Schritt 1) und von der Aufgabe
+    „admin-passwort“ im Sammelpunkt (`abnahme._admin_passwort`).
     """
     stored_hash = settings_store.get("ADMIN_PASSWORD_HASH") or ""
     if stored_hash:

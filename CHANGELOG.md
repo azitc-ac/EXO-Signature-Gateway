@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.87 — 2026-11-09 — Betriebszustände auf jeder Seite; Kennwort und Lizenz im Sammelpunkt
+
+- **Betriebszustände auf jeder Seite:** Wartungsmodus, Zustellfehler und ein
+  funktionsunfähiger Bypass-Wächter standen nur auf der Übersicht. Wer auf
+  einer anderen Seite arbeitete, sah sie nicht, und ein vergessener
+  Wartungsmodus hält alle Post zurück. Sie erscheinen jetzt wie der
+  SMTP-Lernmodus als Band über jeder Seite, mit Link zur zuständigen Stelle:
+  Wartungsmodus gelb, Zustellfehler und Wächter rot. Der Wächter gilt als
+  funktionsunfähig, wenn er sich länger als 15 Minuten nicht meldet oder die
+  Transportregel nicht schalten kann. Ein aktiver Bypass hat weiterhin sein
+  eigenes Band und erscheint nicht doppelt. Die Bänder sehen nur Admins.
+- **Offene Aufgaben:** Das noch gültige Auslieferungs-Kennwort und eine
+  überschrittene Fair-Use-Grenze bzw. ein überschrittenes Lizenzlimit sind
+  jetzt dringende Aufgaben im Sammelpunkt (vorher Hinweise auf der Übersicht
+  bzw. der Postfachseite). Der Zähler auf der Postfachseite bleibt.
+
+**Zu tun:** nichts.
+
 ## v1.10.86 — 2026-11-09 — Geänderte Vertragsbedingungen im Sammelpunkt
 
 - **Offene Aufgaben:** Der Hinweis auf geänderte Vertragsbedingungen
