@@ -44,6 +44,11 @@ UNBEKANNT = "unbekannt"          # nicht prüfbar — ausdrücklich kein „ok"
 ENTFAELLT = "entfaellt"          # in dieser Betriebsart ohne Bedeutung
 
 
+# `deckt_nicht` („Nicht geprüft: …“ in der Oberfläche) NUR, wenn im Einzelfall
+# etwas nicht prüfbar war oder eine echte, benennbare Lücke bleibt — nie als
+# Dauerfloskel („zeigt erst der Betrieb“). Am 09.11.2026 standen elf davon da,
+# drei längst behoben; die Abnahme las sich wie eine Mängelliste ohne Aussicht.
+# tests/test_abnahme_ton.py.
 def _punkt(name: str, zustand: str, befund: str = "", zu_tun: str = "",
            deckt_nicht: str = "") -> dict:
     return {"name": name, "zustand": zustand, "befund": befund,
@@ -202,10 +207,7 @@ def _anmeldung() -> dict:
     import settings_store
     admins = settings_store.get("ADMIN_USERS") or []
     if admins:
-        return _punkt("Anmeldung möglich", OK, f"{len(admins)} Entra-Konto(en) zugelassen",
-                      deckt_nicht="Ob die Anmeldung durchläuft, zeigt erst ein "
-                                  "Versuch — bedingter Zugriff und gesperrte "
-                                  "Konten sind von hier nicht sichtbar.")
+        return _punkt("Anmeldung möglich", OK, f"{len(admins)} Entra-Konto(en) zugelassen")
     return _punkt(
         "Anmeldung möglich", OFFEN, "Kein Entra-Konto zugelassen.",
         "Mindestens ein Konto eintragen. Der örtliche Notfallzugang bleibt "
@@ -250,8 +252,7 @@ def _exchange() -> dict:
     if exo is not None and "Exchange.ManageAsApp" not in exo:
         fehlt.append("Exchange.ManageAsApp")
     elif exo is None:
-        exo_hinweis = ("Exchange.ManageAsApp ließ sich nicht prüfen "
-                       "(kein EXO-Token) — greift erst im Betrieb.")
+        exo_hinweis = "Exchange.ManageAsApp — kein Exchange-Token erhalten."
 
     if fehlt:
         return _punkt(
@@ -287,20 +288,14 @@ def _rueckweg() -> dict:
                           "Modus SMTP, aber kein Smarthost hinterlegt.",
                           "Einrichtung: Exchange-Connector anlegen.")
         return _punkt("Post geht an Exchange zurück", OK,
-                      f"per SMTP-Smarthost ({ziel})",
-                      deckt_nicht="Ob ausgehender Port 25 offen ist, zeigt erst "
-                                  "die erste Zustellung.")
+                      f"per SMTP-Smarthost ({ziel})")
     if modus == "graph_plus":
         # Graph++ = Graph als Hauptweg; IMAP nur für eingehende S/MIME-Post,
         # 587 nur für gemischte Empfänger.
         return _punkt(
             "Post geht an Exchange zurück", OK,
-            "per Graph (sendMail); IMAP nur für eingehende S/MIME-Post, 587 nur für gemischte Empfänger",
-            deckt_nicht="Ob die nötigen Anwendungsberechtigungen vollständig "
-                        "erteilt sind, zeigt erst der Betrieb.")
-    return _punkt("Post geht an Exchange zurück", OK, "per Graph (sendMail)",
-                  deckt_nicht="Ob die nötigen Anwendungsberechtigungen "
-                              "vollständig erteilt sind, zeigt erst der Betrieb.")
+            "per Graph (sendMail); IMAP nur für eingehende S/MIME-Post, 587 nur für gemischte Empfänger")
+    return _punkt("Post geht an Exchange zurück", OK, "per Graph (sendMail)")
 
 
 def _signaturvorlage() -> dict:
@@ -348,9 +343,7 @@ def _anmeldenachweis() -> dict:
                       "löscht das Gateway die Secrets, sobald Entra das Zertifikat "
                       "annimmt (einige Minuten). Steht CLIENT_SECRET in der .env, dort "
                       "entfernen.")
-    return _punkt(name, OK, "Zertifikat, kein Secret in den Einstellungen",
-                  deckt_nicht="Ob in Entra noch Secrets an der App hängen, die nie in "
-                              "den Einstellungen standen, sieht diese Prüfung nicht.")
+    return _punkt(name, OK, "Zertifikat, kein Secret in den Einstellungen")
 
 
 def _smime_schluessel() -> dict:
@@ -364,9 +357,7 @@ def _smime_schluessel() -> dict:
     name = "S/MIME-Schlüssel verschlüsselt abgelegt"
     roh = smime_store.unverschluesselte_schluessel()
     if not roh:
-        return _punkt(name, OK, "Kein Privatschlüssel liegt im Klartext.",
-                      deckt_nicht="Das Passwort selbst liegt in den Einstellungen "
-                                  "dieses Gateways — und damit auch in dessen Backups.")
+        return _punkt(name, OK, "Kein Privatschlüssel liegt im Klartext.")
     anzahl = f"{len(roh)} Schlüsseldatei(en) liegen im Klartext."
     weg = "Einstellungen → S/MIME → Schlüsselablage: "
     if settings_store.get("SMIME_KEY_ENCRYPT") is False:
@@ -441,8 +432,8 @@ def _benachrichtigung() -> dict:
         return _punkt(
             "Verwaltung wird benachrichtigt", OFFEN,
             "Absender oder Empfänger fehlt.",
-            "Ohne beides bleibt jede Warnung im Protokoll stehen — "
-            "auch die über ein ablaufendes Zertifikat.")
+            "Einstellungen → Benachrichtigungen: Absender und Empfänger eintragen, "
+            "damit Warnungen wie ein ablaufendes Zertifikat nicht unbemerkt bleiben.")
     return _punkt("Verwaltung wird benachrichtigt", OK,
                   f"{len(empf)} Empfänger über {absender}")
 
@@ -478,9 +469,7 @@ def _naa() -> dict:
     if fehlt:
         return _punkt(name, OFFEN, "Es fehlt: " + "; ".join(fehlt) + ".",
                       "Einstellungen → Einrichtung → „Anmeldung prüfen“ → „In Entra ergänzen“.")
-    return _punkt(name, OK, "Bootstrap-App vollständig vorbereitet",
-                  deckt_nicht="Ob Outlook/Teams das Token tatsächlich still "
-                              "ausgeben, zeigt erst ein Versuch im Client.")
+    return _punkt(name, OK, "Bootstrap-App vollständig vorbereitet")
 
 
 def _regel_empfaenger() -> dict:
@@ -499,9 +488,7 @@ def _regel_empfaenger() -> dict:
                       "Post erreicht das Gateway nicht, bei gemischten Empfängern "
                       "geht der interne Teil unsigniert vorbei.",
                       "Einstellungen → Signatur → Erweiterte Einstellungen → „Empfängerbedingung entfernen“.")
-    return _punkt(name, OK, f"Regel „{p['regel']}“ ohne Empfängerbedingung",
-                  deckt_nicht="Andere empfängerbezogene Bedingungen (z. B. "
-                              "SentTo, RecipientDomainIs) prüft dieser Punkt nicht.")
+    return _punkt(name, OK, f"Regel „{p['regel']}“ ohne Empfängerbedingung")
 
 
 def _regel_kennung() -> dict:
@@ -523,9 +510,7 @@ def _regel_kennung() -> dict:
                       f"{p['soll']} aus: {', '.join(falsch)}. Post anderer Gateways "
                       "umgeht dann die eingehenden S/MIME-Regeln.",
                       "Einstellungen → Signatur → Erweiterte Einstellungen → „Regeln prüfen“ → „Regeln angleichen“.")
-    return _punkt(name, OK, f"{len(p['regeln'])} Regel(n) mit Kennung {p['soll']}",
-                  deckt_nicht="Ob eine Mail die Kennung tatsächlich trägt, zeigt erst "
-                              "der Betrieb (Kopfzeile der zugestellten Mail).")
+    return _punkt(name, OK, f"{len(p['regeln'])} Regel(n) mit Kennung {p['soll']}")
 
 
 def _addin_rollen() -> dict:
@@ -550,8 +535,8 @@ def _addin_rollen() -> dict:
                       "Exchange Admin Center → Rollen → Benutzerrollen → "
                       f"„{p['richtlinie']}“ → Andere Rollen: die fehlenden anhaken.")
     return _punkt(name, OK, f"„{p['richtlinie']}“ enthält die Rollen für Add-ins",
-                  deckt_nicht="Nur die Standardrichtlinie. Postfächer mit einer eigenen "
-                              "Rollenzuweisungsrichtlinie prüft dieser Punkt nicht.")
+                  deckt_nicht="Postfächer mit einer eigenen Rollenzuweisungsrichtlinie "
+                              "prüft dieser Punkt nicht.")
 
 
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,

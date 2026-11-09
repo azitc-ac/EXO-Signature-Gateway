@@ -2508,10 +2508,6 @@ async function ssoPruefen() {
          + '</li>';
   });
   html += '</ul>';
-  if (d.nachgezogen) {
-    html += '<p style="margin:6px 0 0;color:#b45309">Die hinterlegten Rückadressen '
-         + 'wichen vom Stand in Azure ab und wurden nachgezogen.</p>';
-  }
   if (d.nachholen) {
     html += '<p style="margin:6px 0 0"><a class="btn secondary btn-sm" href="' + escAttr(d.nachholen) + '">'
          + 'In Entra ergänzen</a> <span style="color:#64748b">Öffnet die Microsoft-Anmeldung '

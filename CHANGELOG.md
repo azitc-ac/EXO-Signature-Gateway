@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.93 — 2026-11-09 — Abnahme ohne Dauerfloskeln; keine falsche Rückadressen-Meldung
+
+- **Anmeldung prüfen (SSO):** Nach jeder Einrichtung meldete die Prüfung, die
+  hinterlegten Rückadressen „wichen vom Stand in Azure ab und wurden
+  nachgezogen“. In Azure war dabei nichts falsch: Die Einrichtung merkte sich
+  nur einen Teil der Rückadressen, die Prüfung verglich alle. Beide benutzen
+  jetzt dieselbe Definition, und das Auffrischen der Anzeige geschieht still.
+- **Abnahme:** Die Hinweise „Nicht geprüft: … zeigt erst der Betrieb“ an
+  sechs Punkten entfallen, ebenso drei, deren Lücke längst geschlossen ist:
+  Secrets in Entra entfernt der Wechsel aufs Zertifikat vollständig, und auf
+  das Schlüsselpasswort im Backup weist die Backup-Seite hin. „Nicht
+  geprüft“ erscheint nur noch, wenn eine Prüfung im Einzelfall nicht möglich
+  war, und bei Postfächern mit eigener Rollenzuweisungsrichtlinie.
+- **Benachrichtigungen:** Der Hinweis bei fehlendem Absender oder Empfänger
+  sagt jetzt, was zu tun ist, statt was sonst passiert.
+
+**Zu tun:** nichts.
+
 ## v1.10.92 — 2026-11-09 — TLS-Zertifikat im Sammelpunkt; gesperrte Felder im Dunkelmodus
 
 - **Offene Aufgaben:** Ein ablaufendes oder abgelaufenes TLS-Zertifikat ist

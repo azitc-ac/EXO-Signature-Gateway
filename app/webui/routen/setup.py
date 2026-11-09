@@ -618,8 +618,8 @@ async def api_verify_sso(_=Depends(_require_admin)):
     # Beide Stellen lesen: Eine Anwendung kann die Rückadresse als öffentlicher
     # Client ODER unter „web" führen — je nachdem, wie sie angelegt wurde. Nur
     # eine davon zu prüfen ergäbe einen Fehlalarm.
-    registriert = list((app_obj.get("publicClient") or {}).get("redirectUris") or [])
-    registriert += list((app_obj.get("web") or {}).get("redirectUris") or [])
+    import setup_wizard
+    registriert = setup_wizard.rueckadressen(app_obj)
     passt = erwartet in registriert
     schritt("Rückadresse in der Registrierung", passt,
             erwartet if passt else
@@ -628,7 +628,6 @@ async def api_verify_sso(_=Depends(_require_admin)):
 
     # NAA (Verfassen-Add-in, stille Tab-Anmeldung): dieselbe Soll-Funktion wie
     # der Setzer im Einrichtungs-Login — was er noch ergänzen würde, fehlt.
-    import setup_wizard
     fehlt = setup_wizard.naa_luecken(app_obj, client_id)
     schritt("Anmeldung für Add-in und Tab (NAA)", not fehlt,
             "vollständig" if not fehlt else
@@ -636,11 +635,11 @@ async def api_verify_sso(_=Depends(_require_admin)):
     if fehlt:
         ergebnis["nachholen"] = "/api/addin/update-redirect-uri"
 
-    # Den eigenen Stand nachziehen, wenn er abweicht — genau diese Abweichung
-    # war der Anlass für die Prüfung.
+    # Den gemerkten Stand (Anzeige „Aktuell registriert“) still auffrischen —
+    # eine Buchhaltung der Oberfläche, kein Befund. Bis v1.10.93 kam dazu eine
+    # Meldung, die wegen zweier Definitionen nach jeder Einrichtung erschien.
     if sorted(registriert) != sorted(settings_store.get("BOOTSTRAP_REDIRECT_URIS") or []):
         settings_store.update({"BOOTSTRAP_REDIRECT_URIS": registriert})
-        ergebnis["nachgezogen"] = True
 
     ergebnis["ok"] = all(s["ok"] for s in ergebnis["schritte"])
     return JSONResponse(ergebnis)

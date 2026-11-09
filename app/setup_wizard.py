@@ -535,6 +535,18 @@ _BOOTSTRAP_TARGET_NAME = "EXO Signature Gateway Login"
 _BOOTSTRAP_OLD_NAMES = {"EXO Signature Gateway Setup", "EXO Signature Service Setup"}
 
 
+def rueckadressen(app_obj: dict) -> list[str]:
+    """Alle Rückadressen einer App-Registrierung: `publicClient` UND `web`.
+
+    EINE Definition für den gemerkten Stand (BOOTSTRAP_REDIRECT_URIS) und die
+    Prüfung „Anmeldung prüfen“. Bis v1.10.93 merkte sich die Einrichtung nur
+    `publicClient`, die Prüfung verglich beide — nach jeder Einrichtung „wichen
+    die Rückadressen ab“ (die id-callback-Adresse steht unter `web`), ohne dass
+    in Azure etwas falsch war."""
+    return (list((app_obj.get("publicClient") or {}).get("redirectUris") or [])
+            + list((app_obj.get("web") or {}).get("redirectUris") or []))
+
+
 def _implicit_web_patch(web: dict | None, id_callback: str) -> dict | None:
     """Gewünschtes `web`-Objekt für den Implicit-id_token-Flow, oder None, wenn
     schon korrekt.
@@ -721,7 +733,8 @@ async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
 
         if patch:
             await _gh("patch", f"{GRAPH}/applications/{obj_id}", token, json=patch)
-        settings_store.update({"BOOTSTRAP_REDIRECT_URIS": existing_uris})
+        settings_store.update({"BOOTSTRAP_REDIRECT_URIS": rueckadressen(
+            {**apps[0], **{k: v for k, v in patch.items() if k in ("publicClient", "web")}})})
     except Exception as exc:
         log.warning("Could not patch Bootstrap app: %s", exc)
         return
