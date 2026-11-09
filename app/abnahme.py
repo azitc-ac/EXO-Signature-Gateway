@@ -180,12 +180,21 @@ def _tls() -> dict:
         return _punkt("TLS-Zertifikat", UNBEKANNT, f"nicht lesbar: {exc}"[:120],
                       "Datei prüfen — ein unlesbares Zertifikat bedeutet keine "
                       "gesicherte Verbindung.")
-    if rest < 0:
-        return _punkt("TLS-Zertifikat", OFFEN, f"abgelaufen seit {-rest} Tagen",
-                      "Erneuern, sonst lehnt Exchange die Verbindung ab.")
-    if rest < 14:
-        return _punkt("TLS-Zertifikat", OFFEN, f"läuft in {rest} Tagen ab",
-                      "Erneuerung anstossen oder die automatische prüfen.")
+    # Dieselbe Schwelle wie die automatische Erneuerung: Ist sie erreicht und
+    # das Zertifikat noch alt, hat die Erneuerung nicht gegriffen (TLS-Vorfall
+    # 30.09.). Bis v1.10.92 rechnete die Abnahme fest mit 14 Tagen, die
+    # Übersicht mit LE_RENEW_DAYS — zwei Antworten auf dieselbe Frage.
+    import settings_store
+    schwelle = int(settings_store.get("LE_RENEW_DAYS") or 14)
+    if rest <= 0:
+        return _punkt("TLS-Zertifikat", OFFEN, f"abgelaufen seit {-rest} Tagen — die "
+                      "Zustellung ans Gateway kann scheitern (450 4.4.317), ausgehende "
+                      "Post bleibt hängen.",
+                      "Einrichtung → TLS-Zertifikat: sofort erneuern.")
+    if rest <= schwelle:
+        return _punkt("TLS-Zertifikat", OFFEN, f"läuft in {rest} Tagen ab — die "
+                      "automatische Erneuerung hätte bis hierhin greifen müssen.",
+                      "Einrichtung → TLS-Zertifikat: Erneuerung prüfen.")
     return _punkt("TLS-Zertifikat", OK, f"gültig, noch {rest} Tage")
 
 

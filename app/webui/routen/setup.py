@@ -97,6 +97,10 @@ async def setup_wizard(
             f"/auth/login?next={urllib.parse.quote('/setup', safe='')}",
             status_code=302,
         )
+    # Wie `_check_auth`: base.html zeigt die Admin-Sicht (Menü, Sammelpunkt,
+    # Bänder) nur mit diesem Vermerk. Ohne ihn erschien diese Seite seit
+    # v1.10.88 mit dem Menü eines Nicht-Admins.
+    request.state.angemeldet = True
 
     # Maskierte Sicht: `s` landet unten im Vorlagen-Kontext. Die hier gelesenen
     # Schlüssel (TENANT_ID, CLIENT_ID, Setup-Marker) sind keine Geheimnisse.

@@ -133,7 +133,7 @@ def test_uebersicht_hat_keinen_eigenen_weg_mehr():
     """Ein zweiter Weg neben base.html — genau das wurde abgelöst."""
     s = (VORLAGEN / "dashboard.html").read_text("utf-8")
     for alt in ("maintenance-banner", "delivery-failed-banner", "watchdog-dash-banner",
-                "fairuse-banner", "password_change_needed"):
+                "fairuse-banner", "password_change_needed", "tls_warnung"):
         assert alt not in s, alt
     assert "fairuse-banner" not in (VORLAGEN / "mailboxes.html").read_text("utf-8")
 
@@ -197,3 +197,4 @@ def test_wartung_zaehlt_zustellfehler_nicht_mit(monkeypatch):
     assert deps._wartung_gemeldet() == {"zurueck": 5}
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: d)
     assert deps._wartung_gemeldet() is None
+

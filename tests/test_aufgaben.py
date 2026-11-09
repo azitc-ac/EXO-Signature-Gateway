@@ -255,3 +255,44 @@ def test_fair_use(monkeypatch, lizenziert, anzahl, grenze, offen):
     assert (p["zustand"] == abnahme.OFFEN) is offen
     if offen:
         assert str(anzahl) in p["befund"] and str(grenze) in p["befund"]
+
+
+# ── TLS-Zertifikat (v1.10.92, vorher Hinweis nur auf der Übersicht) ──────────
+
+def _zertifikat(pfad, tage):
+    from datetime import datetime, timedelta, timezone
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+    schluessel = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "gw.example")])
+    jetzt = datetime.now(timezone.utc)
+    c = (x509.CertificateBuilder().subject_name(name).issuer_name(name)
+         .public_key(schluessel.public_key()).serial_number(1)
+         .not_valid_before(jetzt - timedelta(days=60))
+         .not_valid_after(jetzt + timedelta(days=tage, hours=12))
+         .sign(schluessel, hashes.SHA256()))
+    pfad.write_bytes(c.public_bytes(serialization.Encoding.PEM))
+
+
+@pytest.mark.parametrize("tage,schwelle,zustand", [
+    (40, 30, "ok"), (25, 30, "offen"),        # Schwelle aus LE_RENEW_DAYS, nicht fest 14
+    (10, None, "offen"), (20, None, "ok"),    # ohne Einstellung: 14
+    (-3, 30, "offen")])
+def test_tls_schwelle_wie_die_erneuerung(tmp_path, monkeypatch, tage, schwelle, zustand):
+    import config
+    import settings_store
+    _zertifikat(tmp_path / "tls.pem", tage)
+    monkeypatch.setattr(config, "SMTP_TLS_CERT", str(tmp_path / "tls.pem"))
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: schwelle if k == "LE_RENEW_DAYS" else d)
+    p = abnahme._tls()
+    assert p["zustand"] == {"ok": abnahme.OK, "offen": abnahme.OFFEN}[zustand], p
+    if tage < 0:
+        assert "abgelaufen" in p["befund"]
+
+
+def test_tls_ist_eine_dringende_aufgabe():
+    a = {x.kennung: x for x in aufgaben.AUFGABEN}["tls-zertifikat"]
+    assert a.pruefung is abnahme._tls and a.dringend

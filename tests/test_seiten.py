@@ -689,3 +689,41 @@ def test_admin_einwilligung_haelt_den_namen_fest(client, ew_ablage):
     assert einwilligung.liegt_vor("neu@x.de")["von"] == "admin:testadmin"
     r = client.post("/api/smime/einwilligung/neu@x.de", json={"aktion": "widerrufen"})
     assert r.json()["zustand"] == "fehlt"
+
+
+def test_jede_seite_zeigt_admins_die_admin_sicht(client, monkeypatch):
+    """Jede HTML-Seite zeigt einer ECHTEN Admin-Sitzung die Admin-Sicht
+    (Sammelpunkt). Ohne dependency_overrides — gerade die Anmeldeprüfung ist
+    gemeint: base.html zeigt sie nur mit `request.state.angemeldet`, den
+    `_check_auth` setzt. `/setup` prüfte selbst und zeigte seit v1.10.88 das
+    Menü eines Nicht-Admins (Testinstallation, 09.11.2026)."""
+    import aufgaben
+    import sso
+    from fastapi.routing import APIRoute
+    from webui.app import app
+    monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-seiten")
+    monkeypatch.setattr(aufgaben, "offene", lambda: [])
+    gesichert = dict(app.dependency_overrides)
+    app.dependency_overrides.clear()
+    geprueft, ohne = [], []
+    try:
+        with TestClient(app, raise_server_exceptions=False) as c:
+            c.cookies.set(sso.SESSION_COOKIE,
+                          sso.create_session_cookie("chefin@example.org", role=sso.ROLE_ADMIN))
+            # Derselbe Aufzähler wie die Routen-Momentaufnahme: `app.routes`
+            # allein sieht die eingebundenen Router nicht (FastAPI ≥ 0.139).
+            from test_routes import _alle_route_objekte
+            for r in _alle_route_objekte():
+                if (not isinstance(r, APIRoute) or "GET" not in r.methods or "{" in r.path
+                        or r.path.startswith(("/api/", "/auth/", "/log/"))):
+                    continue
+                antwort = c.get(r.path, follow_redirects=False)
+                if antwort.status_code != 200 or 'id="main-nav"' not in antwort.text:
+                    continue
+                geprueft.append(r.path)
+                if 'id="aufgaben-btn"' not in antwort.text:
+                    ohne.append(r.path)
+    finally:
+        app.dependency_overrides.update(gesichert)
+    assert {"/setup", "/settings", "/mailboxes", "/template"} <= set(geprueft), geprueft
+    assert not ohne, f"Admin sieht hier die Nicht-Admin-Sicht: {ohne}"

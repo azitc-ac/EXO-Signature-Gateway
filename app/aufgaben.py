@@ -65,6 +65,7 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     Aufgabe("vertragsbedingungen", abnahme._vertragsbedingungen,
             "#vertragsbedingungen", dringend=True),
     Aufgabe("admin-passwort", abnahme._admin_passwort, "/setup#step-1", dringend=True),
+    Aufgabe("tls-zertifikat", abnahme._tls, "/setup#step-le", dringend=True),
     Aufgabe("lizenz", abnahme._fair_use, "/settings/connect#lizenz", dringend=True),
     Aufgabe("benachrichtigung", abnahme._benachrichtigung,
             "/settings#benachrichtigungen"),

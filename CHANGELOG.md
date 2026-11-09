@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.92 — 2026-11-09 — TLS-Zertifikat im Sammelpunkt; gesperrte Felder im Dunkelmodus
+
+- **Offene Aufgaben:** Ein ablaufendes oder abgelaufenes TLS-Zertifikat ist
+  jetzt eine dringende Aufgabe im Sammelpunkt; bisher stand der Hinweis nur
+  auf der Übersicht. Die Schwelle ist dieselbe wie für die automatische
+  Erneuerung (*Erneuern ab … Tagen*): Ist sie erreicht und das Zertifikat
+  noch alt, hat die Erneuerung nicht gegriffen. Die Abnahme rechnete bisher
+  fest mit 14 Tagen, die Übersicht mit dieser Einstellung.
+- **Dunkelmodus:** Gesperrte mehrzeilige Felder, etwa die automatische
+  Textfassung im Vorlagen-Editor, erscheinen jetzt ausgegraut wie gesperrte
+  Eingabefelder.
+
+**Zu tun:** nichts.
+
 ## v1.10.91 — 2026-11-09 — Textfassung: Links mit Adresse, Bestand nach Zeitstempel
 
 - **Baukasten, Text-Baustein:** Ein Link erscheint in der Textfassung jetzt
