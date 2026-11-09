@@ -176,44 +176,52 @@ def pending_reconsent() -> list[dict]:
 
     Bewusst verschieden von „noch nie zugestimmt": Auf einem frisch aufgesetzten
     Gateway ist noch zu gar nichts zugestimmt worden — dort führen die Gates
-    (CONTEXT_DOCUMENTS) durch die Erstzustimmung, ein Banner wäre dort nur Lärm.
-    Ein Banner gehört genau dorthin, wo eine bestehende Zustimmung durch eine
+    (CONTEXT_DOCUMENTS) durch die Erstzustimmung, ein Hinweis wäre dort nur Lärm.
+    Er gehört genau dorthin (seit v1.10.86 als Aufgabe im Sammelpunkt,
+    `abnahme._vertragsbedingungen`), wo eine bestehende Zustimmung durch eine
     Textänderung ungültig geworden ist und der Betreiber sonst erst beim
     nächsten kostenpflichtigen Vorgang darüber stolpert.
 
     Rückgabe je Dokument: doc_id, Bezeichnungen, aktuelle Version und Prüfsumme
     sowie Version und Zeitpunkt der zuletzt erteilten Zustimmung.
     """
-    offen: list[dict] = []
     try:
-        with _conn() as c:
-            for doc_id, doc in CURRENT_DOCUMENTS.items():
-                if doc.get("no_consent_required"):
-                    continue
-                h = compute_document_hash(doc_id)
-                if not h:
-                    # Datei fehlt oder ist unlesbar. Kein Banner: der Betreiber
-                    # könnte ohnehin nichts zustimmen, und has_valid_consent()
-                    # sperrt die Gates bereits.
-                    continue
-                if has_valid_consent(doc_id):
-                    continue
-                frueher = c.execute(
-                    "SELECT version, accepted_at FROM consents WHERE document_id=? "
-                    "ORDER BY id DESC LIMIT 1", (doc_id,),
-                ).fetchone()
-                if not frueher:
-                    continue                      # nie zugestimmt → Sache der Gates
-                offen.append({
-                    "doc_id": doc_id,
-                    "label_de": doc.get("label_de", doc_id),
-                    "version": doc["version"],
-                    "content_hash": h,
-                    "previous_version": frueher["version"],
-                    "previous_accepted_at": frueher["accepted_at"],
-                })
+        return offene_fassungen()
     except Exception as e:
         log.error("legal_consent.pending_reconsent: %s", e)
+        return []
+
+
+def offene_fassungen() -> list[dict]:
+    """Wie `pending_reconsent()`, aber ein Lesefehler wird geworfen statt zu
+    einer leeren Liste. Für die Abnahme: Dort hiesse „leer“ sonst „zugestimmt“."""
+    offen: list[dict] = []
+    with _conn() as c:
+        for doc_id, doc in CURRENT_DOCUMENTS.items():
+            if doc.get("no_consent_required"):
+                continue
+            h = compute_document_hash(doc_id)
+            if not h:
+                # Datei fehlt oder ist unlesbar. Kein Banner: der Betreiber
+                # könnte ohnehin nichts zustimmen, und has_valid_consent()
+                # sperrt die Gates bereits.
+                continue
+            if has_valid_consent(doc_id):
+                continue
+            frueher = c.execute(
+                "SELECT version, accepted_at FROM consents WHERE document_id=? "
+                "ORDER BY id DESC LIMIT 1", (doc_id,),
+            ).fetchone()
+            if not frueher:
+                continue                      # nie zugestimmt → Sache der Gates
+            offen.append({
+                "doc_id": doc_id,
+                "label_de": doc.get("label_de", doc_id),
+                "version": doc["version"],
+                "content_hash": h,
+                "previous_version": frueher["version"],
+                "previous_accepted_at": frueher["accepted_at"],
+            })
     return offen
 
 

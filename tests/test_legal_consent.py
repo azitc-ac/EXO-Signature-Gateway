@@ -221,6 +221,49 @@ def test_fehlende_datei_erzeugt_kein_banner(lc):
     assert not legal_consent.has_valid_consent("muster")
 
 
+# Seit v1.10.86 trägt der Sammelpunkt „Offene Aufgaben“ den Hinweis — kein
+# eigenes Band mehr. Die Prüfung muss einen Lesefehler als „unbekannt“ melden:
+# pending_reconsent() schluckt ihn zur leeren Liste, und leer hiesse „zugestimmt“.
+
+def test_aufgabe_folgt_der_offenen_fassung(lc):
+    import abnahme
+    assert abnahme._vertragsbedingungen()["zustand"] == abnahme.OK      # nie zugestimmt
+    _zustimmen()
+    lc.write_text("Fassung zwei.\n", encoding="utf-8")
+    p = abnahme._vertragsbedingungen()
+    assert p["zustand"] == abnahme.OFFEN and "Muster (Fassung 1.0)" in p["befund"]
+    _zustimmen()
+    assert abnahme._vertragsbedingungen()["zustand"] == abnahme.OK
+
+
+def test_aufgabe_meldet_lesefehler_nicht_als_zugestimmt(lc, monkeypatch):
+    import abnahme
+    import aufgaben
+
+    def kaputt():
+        raise OSError("consent.db gesperrt")
+    monkeypatch.setattr(legal_consent, "_conn", kaputt)
+    assert legal_consent.pending_reconsent() == []            # Anzeige: still
+    with pytest.raises(OSError):
+        abnahme._vertragsbedingungen()                        # Prüfung: laut
+    monkeypatch.setattr(aufgaben, "_eingerichtet", lambda: True)
+    monkeypatch.setattr(aufgaben, "AUFGABEN", tuple(
+        a for a in aufgaben.AUFGABEN if a.kennung == "vertragsbedingungen"))
+    aufgaben.vergessen()
+    try:
+        assert [a["kennung"] for a in aufgaben.offene()] == ["vertragsbedingungen"]
+    finally:
+        aufgaben.vergessen()
+
+
+def test_kein_eigenes_band_mehr():
+    """Ein zweiter Hinweisweg neben dem Sammelpunkt — genau das wurde abgelöst."""
+    base = (REPO / "app/webui/templates/base.html").read_text("utf-8")
+    assert "reconsent-bar" not in base
+    assert "getJSON('/api/legal/pending')" in base.split("async function _rcOpen")[1][:400], \
+        "die Liste wird erst beim Öffnen geholt"
+
+
 # ── 3. Zahlwege ──────────────────────────────────────────────────────────────
 # Anlass (28.07.2026): Aufladen war moeglich, obwohl `hub-terms` in Fassung 2.2
 # vorlag und nur 2.1 bestaetigt war. Der Lizenzkauf hatte sein Gate ueber

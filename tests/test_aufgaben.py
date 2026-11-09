@@ -193,6 +193,10 @@ def test_links_zeigen_auf_vorhandene_anker(link):
     if not anker:
         return
     vorlagen = Path(__file__).resolve().parent.parent / "app/webui/templates"
+    if not pfad:
+        # Reiner Anker: öffnet einen Dialog aus base.html auf jeder Seite.
+        assert f'a[href="#{anker}"]' in (vorlagen / "base.html").read_text("utf-8")
+        return
     datei = {"/setup": "setup.html", "/settings": "settings.html",
              "/settings/smime": "settings_smime.html"}[pfad]
     assert f'id="{anker}"' in (vorlagen / datei).read_text("utf-8")

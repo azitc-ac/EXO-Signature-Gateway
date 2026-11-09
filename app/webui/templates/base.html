@@ -441,18 +441,9 @@
         return '<button type="button" class="copy-btn" data-copy="' + v + '" title="Kopieren">' + COPY_ICON + '</button>';
       }
     </script>
-    <!-- Offene Wiederzustimmung (Ziffer 13.3 der Nutzungsbedingungen). Farben
-         stehen statisch im Attribut, damit die Dark-Mode-Regeln greifen — per
-         JS gesetzte Werte normalisiert der Browser zu rgb() und die
-         Attributselektoren fassen nicht mehr. -->
-    <div id="reconsent-bar" style="display:none;background:#fffbeb;border-bottom:1px solid #fcd34d;color:#92400e;padding:11px 20px;font-size:14px;line-height:1.5">
-      <strong>Geänderte Vertragsbedingungen liegen zur Zustimmung bereit.</strong>
-      <span id="reconsent-docs"></span>
-      Bis zur Zustimmung gilt die bisherige Fassung fort; neue kostenpflichtige
-      Vorgänge sind so lange nicht möglich. <strong>Der Mailfluss läuft unverändert weiter.</strong>
-      <button class="btn primary btn-sm" style="margin-left:10px" onclick="_rcOpen()">Ansehen und zustimmen</button>
-    </div>
-
+    <!-- Zustimmungsdialog für geänderte Vertragsbedingungen (Ziffer 13.3 der
+         Nutzungsbedingungen). Den Hinweis darauf trägt seit v1.10.86 der
+         Sammelpunkt (Aufgabe „vertragsbedingungen“, Link #vertragsbedingungen). -->
     <div id="reconsent-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1001;align-items:center;justify-content:center">
       <div class="dlg-card" style="max-width:620px;width:94%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
         <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
@@ -473,25 +464,20 @@
     </div>
 
     <script>
-      // Wiederzustimmung: das Band erscheint nur, wenn einer FRÜHEREN Fassung
-      // zugestimmt wurde und der Text sich seither geändert hat. Auf einem
-      // frischen Gateway liefert der Endpunkt eine leere Liste.
+      // Wiederzustimmung: Der Dialog öffnet sich über den Link der Aufgabe
+      // „vertragsbedingungen“ (Sammelpunkt oder Banner) — auf jeder Seite, ohne
+      // Seitenwechsel. Die Liste kommt erst beim Öffnen: Auf einem frischen
+      // Gateway ist sie leer, und eine Abfrage je Seitenaufbau wäre umsonst.
       var _rcPending = [];
       var _rcText = {};
 
-      async function _rcLoad() {
-        try {
-          const d = await getJSON('/api/legal/pending');
-          if (!d.ok) return;                    // nicht angemeldet o.ä. — still bleiben
-          _rcPending = d.pending || [];
-          if (!_rcPending.length) return;
-          document.getElementById('reconsent-docs').textContent =
-            ' Betroffen: ' + _rcPending.map(function(p){ return p.label_de + ' (Fassung ' + p.version + ')'; }).join(', ') + '.';
-          document.getElementById('reconsent-bar').style.display = 'block';
-        } catch (e) { /* Anzeige ist nachrangig — nie die Seite blockieren */ }
-      }
-
-      function _rcOpen() {
+      async function _rcOpen() {
+        const d = await getJSON('/api/legal/pending');
+        if (!d.ok) return;                      // Abruf gescheitert — Aufgabe bleibt stehen
+        _rcPending = d.pending || [];
+        if (!_rcPending.length) { location.reload(); return; }   // inzwischen zugestimmt
+        var liste = document.getElementById('aufgaben-liste');
+        if (liste) liste.hidden = true;
         document.getElementById('reconsent-modal').style.display = 'flex';
         var tabs = _rcPending.map(function(p, i) {
           return '<button type="button" id="rc-tab-' + i + '" class="btn-toggle" onclick="_rcTab(' + i + ')">' + esc(p.label_de) + '</button>';
@@ -555,11 +541,19 @@
         }, {gesperrtLassen: true});
         if (!erg.ok) { showMsg(msg, erg.error, false); return; }
         _rcClose();
-        document.getElementById('reconsent-bar').style.display = 'none';
         location.reload();
       }
 
-      document.addEventListener('DOMContentLoaded', _rcLoad);
+      // Ein Klick auf denselben Anker löst kein hashchange aus — deshalb am Klick.
+      document.addEventListener('click', function (e) {
+        var a = e.target.closest && e.target.closest('a[href="#vertragsbedingungen"]');
+        if (!a) return;
+        e.preventDefault();
+        _rcOpen();
+      });
+      document.addEventListener('DOMContentLoaded', function () {
+        if (location.hash === '#vertragsbedingungen') _rcOpen();
+      });
     </script>
 
     <script>

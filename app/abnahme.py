@@ -375,6 +375,25 @@ def _smime_schluessel() -> dict:
         "Dort verlassen die Schlüssel den Tresor nicht.")
 
 
+def _vertragsbedingungen() -> dict:
+    """Ist einer geänderten Fassung der Vertragsbedingungen zuzustimmen?
+
+    Nur Dokumenten, denen schon einmal zugestimmt wurde — durch die
+    Erstzustimmung führen die Gates (Ziffer 13.3 der Nutzungsbedingungen)."""
+    import legal_consent
+    name = "Geänderten Vertragsbedingungen zustimmen"
+    offen = legal_consent.offene_fassungen()
+    if not offen:
+        return _punkt(name, OK, "Allen geltenden Fassungen ist zugestimmt.")
+    betroffen = ", ".join(f"{d['label_de']} (Fassung {d['version']})" for d in offen)
+    return _punkt(
+        name, OFFEN,
+        f"Betroffen: {betroffen}. Bis zur Zustimmung gilt die bisherige Fassung "
+        "fort; neue kostenpflichtige Vorgänge sind so lange nicht möglich. "
+        "Der Mailfluss läuft unverändert weiter.",
+        "Die geänderten Texte ansehen und zustimmen.")
+
+
 def _benachrichtigung() -> dict:
     import settings_store
     if settings_store.get("NOTIFICATIONS_ENABLED") is False:
@@ -502,7 +521,7 @@ def _addin_rollen() -> dict:
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _addin_rollen, _benachrichtigung, _anmeldenachweis,
-              _smime_schluessel)
+              _smime_schluessel, _vertragsbedingungen)
 
 
 def bericht() -> dict:

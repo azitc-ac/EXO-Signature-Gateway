@@ -61,6 +61,9 @@ AUFGABEN: tuple[Aufgabe, ...] = (
             laeuft=_zertifikat_abbau_laeuft),
     Aufgabe("smime-schluessel", abnahme._smime_schluessel,
             "/settings/smime#schluesselablage", dringend=True, seit="1.10.82"),
+    # Öffnet den Zustimmungsdialog aus base.html — auf jeder Seite.
+    Aufgabe("vertragsbedingungen", abnahme._vertragsbedingungen,
+            "#vertragsbedingungen", dringend=True),
     Aufgabe("benachrichtigung", abnahme._benachrichtigung,
             "/settings#benachrichtigungen"),
     Aufgabe("signaturvorlage", abnahme._signaturvorlage, "/template"),

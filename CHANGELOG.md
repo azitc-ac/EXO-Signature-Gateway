@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.86 — 2026-11-09 — Geänderte Vertragsbedingungen im Sammelpunkt
+
+- **Offene Aufgaben:** Der Hinweis auf geänderte Vertragsbedingungen
+  (Ziffer 13.3 der Nutzungsbedingungen) stand als eigenes Band über jeder
+  Seite, außerhalb der offenen Aufgaben, und ließ sich nicht ausblenden. Er
+  ist jetzt eine dringende Aufgabe wie die übrigen: im Sammelpunkt oben rechts
+  und als ausblendbares Banner, mit den betroffenen Dokumenten und Fassungen.
+  „Zum Ziel →“ öffnet den Zustimmungsdialog auf der aktuellen Seite. Erscheint
+  eine weitere neue Fassung, kommt das Banner wieder.
+- **Abnahme:** Neuer Punkt „Geänderten Vertragsbedingungen zustimmen“. Kann
+  das Gateway die Zustimmungen nicht lesen, meldet er „unbekannt“ statt
+  „zugestimmt“.
+
+**Zu tun:** nichts.
+
 ## v1.10.85 — 2026-11-08 — Nach „Erneut anmelden“ verschwindet die Aufgabe sofort
 
 - **Einrichtung:** Nach „Erneut anmelden“ lud die Seite neu, sobald das
