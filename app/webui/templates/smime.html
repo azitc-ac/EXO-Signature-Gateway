@@ -155,10 +155,10 @@
           <strong>lesen</strong> und <strong>im Namen der Inhaber</strong> bei der
           Zertifizierungsstelle bestätigen
           <span class="muted" style="display:block;font-size:12px">
-            Ohne diesen Haken fragt das Gateway jeden Postfachinhaber per Mail um
-            Zustimmung (CASTLE) bzw. der Inhaber klickt den Link der
-            Zertifizierungsstelle selbst (Anbieter über den Hub). Eine bereits
-            erteilte Einwilligung eines Postfachs gilt weiter.
+            Ohne diesen Haken fragt das Gateway jeden Postfachinhaber, der noch nicht
+            eingewilligt hat, per Mail um Zustimmung; seine Bestellung startet nach
+            der Zustimmung. Eine bereits erteilte Einwilligung eines Postfachs gilt
+            weiter.
           </span>
         </span>
       </label>
@@ -1108,8 +1108,7 @@ async function sammelStarten() {
       'und bestätigt im Namen der Inhaber bei der Zertifizierungsstelle. ' +
       'Das wird je Postfach mit Ihrem Namen festgehalten.'
     : '\n\nOhne Ihre Einwilligung wird jeder Postfachinhaber, der noch nicht ' +
-      'zugestimmt hat, per Mail gefragt (CASTLE) bzw. klickt den Link der ' +
-      'Zertifizierungsstelle selbst.';
+      'zugestimmt hat, per Mail gefragt; seine Bestellung startet nach der Zustimmung.';
   frage += '\n\nBereits erteilte Bestellungen lassen sich nicht zurücknehmen.';
   if (!confirm(frage)) return;
 

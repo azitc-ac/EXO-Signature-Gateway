@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.100 — 2026-11-09 — Sammelbestellung: Hinweis ohne Admin-Einwilligung berichtigt
+
+- **Fehler:** Hinweis und Rückfrage der Sammelbestellung (*S/MIME →
+  Massenoperation starten → Zertifikate beantragen*) sagten, ohne den Haken
+  „Ich willige als Administrator ein“ klicke der Postfachinhaber bei Anbietern
+  über den Hub den Link der Zertifizierungsstelle selbst. Seit v1.10.40 gilt
+  für alle Bezugswege: Wer noch nicht eingewilligt hat, wird per Mail gefragt,
+  und seine Bestellung startet erst nach der Zustimmung. Beide Texte sagen das
+  jetzt.
+
+**Zu tun:** nichts.
+
 ## v1.10.99 — 2026-11-09 — Zertifikatsbestellung: Bestätigen und Abholen je Bestellung nur einmal zugleich
 
 - **Fehler:** Die S/MIME-Seite und der Hintergrundlauf bestätigen eine

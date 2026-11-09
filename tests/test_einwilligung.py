@@ -287,3 +287,14 @@ def test_ankuendigung_verlangt_keinen_klick_mehr():
     _, html = usermail.rendern("cert_pending", "erika@example.org", "Certum")
     assert "nichts tun" in html
     assert "klicken Sie darin" not in html.lower() and "Bitte klicken" not in html
+
+
+def test_sammelbestellung_beschreibt_den_weg_ohne_haken_richtig():
+    """Seit v1.10.40 fragt auch der Hub-Weg den Inhaber per Mail, bevor bestellt
+    wird. Hinweis und Rückfrage der Sammelbestellung sagten bis v1.10.99 noch,
+    bei Hub-Anbietern klicke der Inhaber den Link der Zertifizierungsstelle."""
+    from pathlib import Path
+    seite = (Path(__file__).parent.parent / "app/webui/templates/smime.html").read_text("utf-8")
+    assert "Link der Zertifizierungsstelle selbst" not in seite
+    assert "(CASTLE) bzw." not in seite
+    assert seite.count("seine Bestellung startet nach") == 2       # Hinweis + Rückfrage
