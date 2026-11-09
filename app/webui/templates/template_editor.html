@@ -320,7 +320,10 @@
     Quelltext neu gelesen — und speichere dort.
   </div>
   {% endif %}
-  <form method="post" action="/template" id="raw-form">
+  {# Absenden ist ein Seitenwechsel: Ohne Freigabe der Wache fragte der
+     Browser „Website verlassen?“ — beim Speichern selbst. #}
+  <form method="post" action="/template" id="raw-form"
+        onsubmit="wacheFertig('raw-save-btn', true, 'Wird gespeichert …')">
     <input type="hidden" name="template_name" value="{{ current_template }}">
     <div class="editor-section">
       <label for="html_content"><strong>HTML-Signatur</strong> (Jinja2)</label>

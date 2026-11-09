@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.94 — 2026-11-09 — Vorlagen-Editor: kein „Website verlassen?“ beim Speichern
+
+- **Fehler:** Beim Speichern im Quelltext-Reiter des Vorlagen-Editors fragte
+  der Browser „Website verlassen?“. Gespeichert wurde trotzdem. Das Speichern
+  schickt dort ein Formular ab, also einen Seitenwechsel, und in diesem
+  Moment galt die Änderung noch als ungesichert. Das Formular gibt die
+  Rückfrage beim Absenden jetzt frei; ein Test erfasst jedes Formular mit
+  dieser Bauart.
+
+**Zu tun:** nichts.
+
 ## v1.10.93 — 2026-11-09 — Abnahme ohne Dauerfloskeln; keine falsche Rückadressen-Meldung
 
 - **Anmeldung prüfen (SSO):** Nach jeder Einrichtung meldete die Prüfung, die

@@ -394,3 +394,26 @@ def test_baukasten_misst_nach_dem_laden_neu():
     assert nach_laden > 0 and "wacheNeuMessen('save-builder-btn')" in q[nach_laden:nach_laden + 500], (
         "Nach dem Rendern der Bausteine wird nicht neu gemessen — die Felder "
         "kommen per Abruf, die Wache hat vorher einen leeren Stand gesehen.")
+
+
+def test_formular_mit_wache_gibt_sie_beim_absenden_frei():
+    """Ein Speichern-Knopf mit `data-wache`, der ein Formular ABSCHICKT, löst
+    einen Seitenwechsel aus — während er noch bedienbar ist. Die Wache fragt
+    dann „Website verlassen?“, beim Speichern selbst (Vorlagen-Editor,
+    Quelltext-Reiter, gemeldet 09.11.2026). Das Formular muss die Wache in
+    `onsubmit` freigeben (`wacheFertig(…, true, …)`)."""
+    import re
+    from pathlib import Path
+    vorlagen = Path(__file__).resolve().parent.parent / "app" / "webui" / "templates"
+    fehlt = []
+    for datei in sorted(vorlagen.glob("*.html")):
+        text = datei.read_text("utf-8")
+        for form in re.finditer(r"<form\b([^>]*)>(.*?)</form>", text, re.S):
+            kopf, rumpf = form.group(1), form.group(2)
+            for knopf in re.finditer(r"<button\b[^>]*\bdata-wache=[^>]*>", rumpf):
+                if 'type="button"' in knopf.group(0):
+                    continue
+                kid = re.search(r'\bid="([^"]+)"', knopf.group(0)).group(1)
+                if f"wacheFertig('{kid}', true" not in kopf:
+                    fehlt.append(f"{datei.name}#{kid}")
+    assert not fehlt, f"Formular gibt die Wache beim Absenden nicht frei: {fehlt}"
