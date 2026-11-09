@@ -376,7 +376,12 @@ def _get_session_role(request: Request) -> str:
 
 def _check_auth(request: Request,
                 credentials: HTTPBasicCredentials = Depends(security)) -> str:
-    """Sitzungskeks → örtliches HTTP-Basic → 401 bzw. Weiterleitung."""
+    """Sitzungskeks → örtliches HTTP-Basic → 401 bzw. Weiterleitung.
+
+    Setzt `request.state.angemeldet`. ⚠️ base.html zeigt Aufgaben und
+    Betriebsbänder NUR damit: `user_role` aus der Middleware steht auch ohne
+    Anmeldung auf „admin“ (Basic hat keinen Keks), und bis v1.10.87 zeigte die
+    öffentliche Anmeldeseite deshalb Befunde, die nur Admins sehen dürfen."""
     user = _get_session_user(request)
     if user:
         # ⚠️ Eine Self-Service-Sitzung (ROLE_SELF) ist KEINE Verwaltungs-/Editor-
@@ -387,6 +392,7 @@ def _check_auth(request: Request,
         # Loop, der Nutzer IST angemeldet, nur nicht berechtigt).
         if _get_session_role(request) == sso_mod.ROLE_SELF:
             raise HTTPException(403, "Nur Self-Service verfügbar (/self).")
+        request.state.angemeldet = True
         return user
     # Örtliche Verwaltung als Notzugang — bleibt immer erreichbar.
     # Der Benutzername der Basic-Anmeldung zählt nicht (LOKALER_ADMIN).
@@ -396,6 +402,7 @@ def _check_auth(request: Request,
         if warte > 0:
             raise HTTPException(429, "Zu viele Fehlversuche — bitte kurz warten.")
         if ok:
+            request.state.angemeldet = True
             return LOKALER_ADMIN
     path = request.url.path
     is_api = path.startswith("/api/") or path.startswith("/log/")

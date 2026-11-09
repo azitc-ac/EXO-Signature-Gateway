@@ -61,10 +61,14 @@ def test_unlesbare_regel_meldet_fehler(monkeypatch, tmp_path):
 
 
 def test_banner_hat_pruefknopf_und_kein_ausblenden():
-    start = BASE.index('id="bypass-banner"')
-    banner = BASE[start:BASE.index("</script>", start)]
-    assert "bypassPruefen()" in banner and "/api/watchdog/regel-pruefen" in banner
+    # Seit v1.10.88 steht das Band in einer Teilvorlage (per innerHTML
+    # aufgefrischt), die Prüffunktion in base.html.
+    teil = (WURZEL / "app/webui/templates/_betriebsbaender.html").read_text(encoding="utf-8")
+    start = teil.index('id="bypass-banner"')
+    banner = teil[start:teil.index("{% endif %}\n", start)]
+    assert "bypassPruefen()" in banner
     assert "data-ausblendbar" not in banner, "Alarm darf nicht ausblendbar sein"
+    assert "/api/watchdog/regel-pruefen" in BASE.split("async function bypassPruefen")[1][:500]
 
 
 def test_ausblendbare_hinweise():

@@ -282,6 +282,9 @@ smtpCertLaden();
   };
 
   window.loadHeldMails = async function() {
+    // Jede Aktion an Modus oder Warteschlange endet hier — die Bänder oben
+    // (Wartungsmodus, Zustellfehler) ziehen ohne Neuladen nach.
+    betriebsbaenderAuffrischen();
     try {
       var d = await getJSON('/api/maintenance/mails');
       if (!d.ok) return;
@@ -629,6 +632,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
       return;
     }
     _applyEnabledUI(d.enabled);
+    betriebsbaenderAuffrischen();                 // Wächter-Band oben
   };
 
   window.grantWatchdogGraph = async function(){

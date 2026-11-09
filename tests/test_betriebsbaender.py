@@ -19,13 +19,23 @@ from webui import deps
 VORLAGEN = Path(__file__).resolve().parent.parent / "app" / "webui" / "templates"
 
 
-def _seite(monkeypatch, rolle="admin", wartung=None, fehler=0, waechter=None):
+def _alles_gemeldet(monkeypatch, wartung=None, fehler=0, waechter=None, lern=0, bypass=None):
     g = deps.templates.env.globals
-    monkeypatch.setattr(aufgaben, "offene", lambda: [])
     monkeypatch.setitem(g, "wartung_gemeldet", lambda: wartung)
     monkeypatch.setitem(g, "zustellfehler_anzahl", lambda: fehler)
     monkeypatch.setitem(g, "waechter_gemeldet", lambda: waechter)
-    req = SimpleNamespace(state=SimpleNamespace(user_role=rolle), url=SimpleNamespace(path="/"))
+    monkeypatch.setitem(g, "lernmodus_rest_min", lambda: lern)
+    monkeypatch.setitem(g, "bypass_gemeldet", lambda: bypass)
+
+
+def _seite(monkeypatch, rolle="admin", wartung=None, fehler=0, waechter=None,
+           lern=0, bypass=None, angemeldet=True):
+    monkeypatch.setattr(aufgaben, "offene", lambda: [])
+    _alles_gemeldet(monkeypatch, wartung, fehler, waechter, lern, bypass)
+    zustand = SimpleNamespace(user_role=rolle)
+    if angemeldet:
+        zustand.angemeldet = True
+    req = SimpleNamespace(state=zustand, url=SimpleNamespace(path="/"))
     return deps.templates.env.get_template("base.html").render(request=req, active="")
 
 
@@ -60,11 +70,63 @@ def test_waechter_fehlertext_maskiert(monkeypatch):
     assert "<img src=x>" not in html and "&lt;img" in html
 
 
-def test_bearbeiter_sieht_keine_betriebsbaender(monkeypatch):
-    html = _seite(monkeypatch, rolle="editor", wartung={"zurueck": 1}, fehler=1,
-                  waechter={"art": "still", "zuletzt": "x", "fehler": ""})
-    assert "wartung-banner" not in html and "zustellfehler-banner" not in html \
-        and "waechter-banner" not in html
+_ALLE = dict(wartung={"zurueck": 1}, fehler=1, lern=5, bypass={"seit": "x"},
+             waechter={"art": "still", "zuletzt": "x", "fehler": ""})
+_KENNUNGEN = ("wartung-banner", "zustellfehler-banner", "waechter-banner",
+              "lernmodus-banner", "bypass-banner")
+
+
+def test_admin_sieht_alle_fuenf(monkeypatch):
+    html = _seite(monkeypatch, **_ALLE)
+    assert all(f'id="{k}"' in html for k in _KENNUNGEN)
+
+
+@pytest.mark.parametrize("rolle,angemeldet", [("editor", True), ("admin", False)])
+def test_nur_angemeldete_admins_sehen_baender(monkeypatch, rolle, angemeldet):
+    """Bearbeiter können dort nichts tun. Und ohne Anmeldung steht `user_role`
+    trotzdem auf „admin“ (Middleware) — die Anmeldeseite erbt base.html."""
+    html = _seite(monkeypatch, rolle=rolle, angemeldet=angemeldet, **_ALLE)
+    assert not [k for k in _KENNUNGEN if f'id="{k}"' in html]
+    assert "setInterval(betriebsbaenderAuffrischen" not in html
+
+
+# ── Durch die echte Anwendung: Anmeldeseite und Auffrisch-Endpunkt ───────────
+
+def _client(monkeypatch, rolle=None):
+    from starlette.testclient import TestClient
+    import sso
+    from webui import app as wa
+    monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-baender")
+    c = TestClient(wa.app)
+    if rolle:
+        c.cookies.set(sso.SESSION_COOKIE,
+                      sso.create_session_cookie("x@example.org", role=rolle))
+    return c
+
+
+_AUFGABE = {"kennung": "smime-schluessel", "titel": "Geheimer Befund", "befund": "2 Schlüssel roh",
+            "zu_tun": "", "link": "/x", "dringend": True, "seit": "", "stempel": "a", "laeuft": False}
+
+
+def test_anmeldeseite_verraet_nichts(monkeypatch):
+    """Bis v1.10.87 zeigte /auth/login ohne Anmeldung Aufgaben samt Befund."""
+    pytest.importorskip("starlette.testclient")
+    monkeypatch.setattr(aufgaben, "offene", lambda: [_AUFGABE])
+    _alles_gemeldet(monkeypatch, **{k: v for k, v in _ALLE.items()})
+    html = _client(monkeypatch).get("/auth/login").text
+    assert "Anmelden" in html                                # die richtige Seite
+    assert "Geheimer Befund" not in html and 'id="aufgaben-btn"' not in html
+    assert not [k for k in _KENNUNGEN if f'id="{k}"' in html]
+
+
+def test_auffrischen_nur_fuer_admins(monkeypatch):
+    pytest.importorskip("starlette.testclient")
+    import sso
+    _alles_gemeldet(monkeypatch, **_ALLE)
+    assert _client(monkeypatch).get("/api/betriebsbaender").status_code == 401
+    assert _client(monkeypatch, sso.ROLE_EDITOR).get("/api/betriebsbaender").status_code == 403
+    d = _client(monkeypatch, sso.ROLE_ADMIN).get("/api/betriebsbaender").json()
+    assert d["ok"] and all(f'id="{k}"' in d["html"] for k in _KENNUNGEN)
 
 
 def test_uebersicht_hat_keinen_eigenen_weg_mehr():

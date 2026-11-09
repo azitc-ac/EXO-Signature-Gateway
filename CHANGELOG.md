@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.88 — 2026-11-09 — Anmeldeseite zeigte Admin-Hinweise; Bänder ohne Neuladen
+
+- **Sicherheit:** Die Anmeldeseite zeigte auch ohne Anmeldung den Sammelpunkt
+  „Offene Aufgaben“ samt Befunden (seit v1.10.82), ab v1.10.87 zusätzlich die
+  Betriebsbänder, und schon länger die Bänder zu Lernmodus und Bypass. Ursache:
+  Ohne Sitzung galt für die Seitenvorlage die Rolle „Admin“, weil die lokale
+  Anmeldung keinen Sitzungskeks hat. Jetzt erscheinen Admin-Teile der
+  Oberfläche nur nach erfolgreicher Anmeldung. Zugriff auf Einstellungen oder
+  Daten war darüber nicht möglich; sichtbar waren die Texte der Hinweise.
+- **Betriebsbänder nur für Admins:** Auch Lernmodus und Bypass sehen
+  Bearbeiter nicht mehr; sie können dort nichts tun.
+- **Bänder ohne Neuladen:** Nach dem Ausschalten des Wartungsmodus blieb das
+  Band stehen, bis die Seite neu geladen wurde. Die Bänder werden jetzt nach
+  jeder Aktion an Wartungsmodus, Warteschlange, Wächter und Lernmodus sofort
+  neu gezeichnet und zusätzlich jede Minute aufgefrischt — auch für
+  Änderungen im Hintergrund wie neue Zustellfehler. Die Relay-Seite lädt
+  beim Starten und Beenden des Lernmodus deshalb nicht mehr neu.
+
+**Zu tun:** nichts — das Update behebt es.
+
 ## v1.10.87 — 2026-11-09 — Betriebszustände auf jeder Seite; Kennwort und Lizenz im Sammelpunkt
 
 - **Betriebszustände auf jeder Seite:** Wartungsmodus, Zustellfehler und ein

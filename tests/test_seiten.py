@@ -74,9 +74,15 @@ def client():
             ziel.mkdir(parents=True, exist_ok=True)
         setattr(m, attribut, ziel)
 
+    from fastapi import Request
     from webui.app import app, _check_auth, _require_admin
-    app.dependency_overrides[_check_auth] = lambda: "testadmin"
-    app.dependency_overrides[_require_admin] = lambda: "testadmin"
+
+    def _angemeldet(request: Request) -> str:
+        # Wie das echte _check_auth: base.html zeigt Admin-Teile nur damit.
+        request.state.angemeldet = True
+        return "testadmin"
+    app.dependency_overrides[_check_auth] = _angemeldet
+    app.dependency_overrides[_require_admin] = _angemeldet
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
     app.dependency_overrides.clear()

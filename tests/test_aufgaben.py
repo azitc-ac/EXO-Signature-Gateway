@@ -157,7 +157,7 @@ def test_stempel_folgt_dem_befund():
 
 def _seite(monkeypatch, liste, rolle="admin"):
     monkeypatch.setattr(aufgaben, "offene", lambda: liste)
-    req = SimpleNamespace(state=SimpleNamespace(user_role=rolle), url=SimpleNamespace(path="/"))
+    req = SimpleNamespace(state=SimpleNamespace(user_role=rolle, angemeldet=True), url=SimpleNamespace(path="/"))
     return deps.templates.env.get_template("base.html").render(request=req, active="")
 
 

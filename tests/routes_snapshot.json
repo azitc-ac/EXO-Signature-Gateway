@@ -301,6 +301,13 @@
     "name": "api_backup_restore"
   },
   {
+    "pfad": "/api/betriebsbaender",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_betriebsbaender"
+  },
+  {
     "pfad": "/api/campaigns",
     "methoden": [
       "GET"

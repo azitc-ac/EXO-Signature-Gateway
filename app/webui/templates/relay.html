@@ -1738,18 +1738,16 @@ async function lernStarten(btn) {
     hideAlert(box);
   }
   laden(false);
-  // Das Banner oben hängt am serverseitig gerenderten Zustand — ohne Neuladen
-  // erschiene es erst beim nächsten Seitenwechsel.
-  setTimeout(function () { location.reload(); }, r.verstanden < r.eingetragen ? 4000 : 800);
+  betriebsbaenderAuffrischen();                   // Lernmodus-Band oben, ohne Neuladen
 }
 
 async function lernStoppen(btn) {
-  // Gesperrt lassen: Der Pfeil dreht, bis die Seite neu lädt.
   await knopfAktion(btn, null, async () => {
     await postJSON('/api/relay/lernmodus', { start: false });
     return {ok: true};
-  }, {gesperrtLassen: true});
-  location.reload();
+  });
+  laden(false);
+  betriebsbaenderAuffrischen();                   // Lernmodus-Band oben, ohne Neuladen
 }
 
 function _volumen(bytes) {

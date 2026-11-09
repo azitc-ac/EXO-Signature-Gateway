@@ -300,3 +300,12 @@ async def api_abnahme(_=Depends(_require_admin)):
     """
     import abnahme
     return JSONResponse(abnahme.bericht())
+
+
+@router.get("/api/betriebsbaender")
+async def api_betriebsbaender(request: Request, user: str = Depends(_require_admin)):
+    """Die Betriebsbänder (Lernmodus, Bypass, Wartung, Zustellfehler, Wächter)
+    frisch gerendert — für betriebsbaenderAuffrischen() in base.html. Dieselbe
+    Teilvorlage wie beim Seitenaufbau, kein zweiter Nachbau in JavaScript."""
+    html = templates.env.get_template("_betriebsbaender.html").render(request=request)
+    return JSONResponse({"ok": True, "html": html})
