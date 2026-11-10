@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.113 — 2026-11-10 — Auslieferungs-Kennwort erlaubt nur das Ändern
+
+- Solange für die Weboberfläche das Auslieferungs-Kennwort gilt (`admin`,
+  Compose-Weg ohne eigenes `WEBUI_PASSWORD`), lässt die örtliche Anmeldung
+  damit nur noch eines zu: in *Einrichtung → Schritt 1* ein eigenes Kennwort
+  setzen. Seiten führen dorthin, API-Aufrufe antworten mit 403. Bisher
+  meldete das Kennwort voll an. Assistent und Sammelpunkt wiesen darauf hin,
+  gesperrt war aber nichts. Eine Anmeldung über Entra (SSO) ist nicht
+  betroffen. Auch VMs aus der Azure-Vorlage sind es nicht, dort gilt von
+  Anfang an das im Portal vergebene Kennwort.
+- Die Installationsanleitung nennt jetzt die Verzeichnisrolle
+  **Exchange-Administrator**: wofür sie gebraucht wird und warum sie nach der
+  Einrichtung nicht entzogen werden kann. Verteilerliste und Transportregel
+  werden bei jedem Speichern unter *Postfächer* angepasst.
+
+**Zu tun:** nichts, wenn du ein eigenes Kennwort gesetzt hast. Sonst setzt
+du es nach der Anmeldung in *Einrichtung → Schritt 1*.
+
 ## v1.10.112 — 2026-11-10 — Ausgehendes TLS prüft das Zertifikat der Gegenstelle
 
 - **Rückweg an Exchange Online, Unzustellbarkeitsmeldung, IMAP-Ablage:** Das

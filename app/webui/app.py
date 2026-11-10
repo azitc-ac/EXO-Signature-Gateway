@@ -86,7 +86,7 @@ app = FastAPI(title="EXO Signature Gateway", lifespan=_lifespan,
 # Funktionsobjekt. Zwei Kopien, und die Umgehung passte zu keinem Depends mehr.
 from webui.deps import (                                    # noqa: E402
     log, templates, _STATIC_DIR, _TEMPLATE_DIR, _gateway_name,
-    _NotAuthenticated, _check_password,
+    _NotAuthenticated, _KennwortZuerst, _check_password,
     _get_session_user, _get_session_role, _check_auth, _require_admin,
     _LOG_BUFFER, _LOG_SUBSCRIBERS, _LOG_SUBSCRIBERS_LOCK,
     _make_log_token, _check_log_token,
@@ -161,6 +161,14 @@ async def _not_authenticated_handler(request: Request, exc: _NotAuthenticated):
         return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401)
     next_url = urllib.parse.quote(str(request.url.path), safe="")
     return RedirectResponse(f"/auth/login?next={next_url}", status_code=302)
+
+
+@app.exception_handler(_KennwortZuerst)
+async def _kennwort_zuerst_handler(request: Request, exc: _KennwortZuerst):
+    if exc.is_api:
+        return JSONResponse({"detail": "Zuerst das Auslieferungs-Kennwort ändern "
+                                       "(Einrichtung → Schritt 1)."}, status_code=403)
+    return RedirectResponse("/setup#step-1", status_code=302)
 
 
 

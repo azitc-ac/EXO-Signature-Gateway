@@ -257,6 +257,41 @@ class _NotAuthenticated(Exception):
         self.is_api = is_api
 
 
+class _KennwortZuerst(Exception):
+    """Angemeldet mit dem Auslieferungs-Kennwort — erst ändern (v1.10.113).
+
+    Behandler in `app.py`: Seiten leiten zur Einrichtung (Schritt 1), API-
+    Aufrufe bekommen 403 mit Hinweis."""
+
+    def __init__(self, is_api: bool = False):
+        self.is_api = is_api
+
+
+# Was mit dem Auslieferungs-Kennwort erreichbar bleibt. Die Einrichtungsseite
+# selbst prüft ihre Anmeldung im Rumpf (nicht über `_check_auth`) und ist
+# deshalb ohnehin offen; hier steht nur, was über `_check_auth` läuft.
+NUR_MIT_VORGABE_KENNWORT = frozenset({"/api/setup/change-password"})
+
+
+def _vorgabe_kennwort_sperre(request: Request, user: str) -> None:
+    """Örtlicher admin mit Vorgabe-Kennwort → nur Kennwort ändern.
+
+    ⚠️ Bis v1.10.112 meldete das Auslieferungs-Kennwort (`admin`) voll an; der
+    Hinweis darauf im Assistenten und im Sammelpunkt sperrte nichts. Wer ein
+    per Compose aufgesetztes Gateway erreichte, bevor der Betreiber Schritt 1
+    abgeschlossen hatte, hatte die Verwaltung.
+
+    Nur für `LOKALER_ADMIN`: Eine Entra-Anmeldung (SSO) kommt nicht über das
+    Vorgabe-Kennwort herein und bleibt unberührt.
+    """
+    if user != LOKALER_ADMIN or request.url.path in NUR_MIT_VORGABE_KENNWORT:
+        return
+    from webui import hilfen as _hilfen
+    if _hilfen._password_change_required():
+        path = request.url.path
+        raise _KennwortZuerst(is_api=path.startswith("/api/") or path.startswith("/log/"))
+
+
 # ── Passwörter ────────────────────────────────────────────────────────────────
 
 def _hash_password(password: str) -> str:
@@ -392,6 +427,7 @@ def _check_auth(request: Request,
         # Loop, der Nutzer IST angemeldet, nur nicht berechtigt).
         if _get_session_role(request) == sso_mod.ROLE_SELF:
             raise HTTPException(403, "Nur Self-Service verfügbar (/self).")
+        _vorgabe_kennwort_sperre(request, user)
         request.state.angemeldet = True
         return user
     # Örtliche Verwaltung als Notzugang — bleibt immer erreichbar.
@@ -402,6 +438,7 @@ def _check_auth(request: Request,
         if warte > 0:
             raise HTTPException(429, "Zu viele Fehlversuche — bitte kurz warten.")
         if ok:
+            _vorgabe_kennwort_sperre(request, LOKALER_ADMIN)
             request.state.angemeldet = True
             return LOKALER_ADMIN
     path = request.url.path

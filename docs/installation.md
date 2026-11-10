@@ -22,6 +22,26 @@
 
 *\* Schließt `Mail.Read` ein (für CASTLE ACME Mailbox-Polling benötigt).*
 
+Dazu kommt eine **Verzeichnisrolle** für den Dienstprinzipal der App:
+**Exchange-Administrator**. Der Einrichtungsassistent weist sie beim Anlegen
+der App zu. `Exchange.ManageAsApp` allein genügt nicht: Für App-only-Zugriff auf
+Exchange-Online-PowerShell braucht die App zusätzlich eine Entra-Rolle, und
+deren Rechte gelten in der Sitzung
+([Microsoft Learn: App-only authentication, Step 5](https://learn.microsoft.com/en-us/powershell/exchange/app-only-auth-powershell-v2#step-5-assign-role-permissions-to-the-application)).
+
+| Wofür | Wann |
+|---|---|
+| Connector, Transportregeln, Remote-Domäne, Verteilerliste anlegen | Einrichtung |
+| Mitglieder der Verteilerliste pflegen, Transportregel je nach Mitgliederzahl ein- und ausschalten | bei jedem Speichern unter *Postfächer* |
+| Postfächer und E-Mail-Benutzer lesen, Regeln und Connector prüfen | laufend (Zwischenspeicher, Abnahme, Wächter) |
+
+**Entziehen nach der Einrichtung geht nicht:** Ohne die Rolle scheitern das
+Speichern unter *Postfächer* und die laufenden Prüfungen. Microsoft nennt als
+engere Wege eine schmalere Rolle (etwa *Exchange Recipient Administrator*) oder
+eine eigene Rollengruppe für den Dienstprinzipal. Beide decken die
+Transportregeln nicht ohne Weiteres ab und sind mit dem Gateway **nicht
+erprobt**.
+
 ---
 
 ## Schnellstart
@@ -106,8 +126,9 @@ https://sig.example.com
 ```
 
 > **Standard-Login:** Kennwort `admin` (ohne Benutzernamen), auch auf VMs aus
-> `azure-vm-setup.ps1`. Der erste Schritt des Setup-Wizards erzwingt das Setzen
-> eines neuen Passworts. Auf einer VM aus der Azure-Vorlage (Knopf oben, Marketplace)
+> `azure-vm-setup.ps1`. Solange es gilt, lässt die Weboberfläche damit nur eines
+> zu: im ersten Schritt des Setup-Wizards ein eigenes Kennwort setzen (seit
+> v1.10.113). Jede andere Seite führt dorthin zurück. Auf einer VM aus der Azure-Vorlage (Knopf oben, Marketplace)
 > gilt stattdessen das Anfangskennwort, das du im Portal vergeben hast.
 
 Der Setup-Wizard führt durch die Erstkonfiguration:
