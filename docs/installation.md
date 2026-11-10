@@ -124,9 +124,17 @@ Für den Azure-Betrieb `REINJECT_MODE=graph` (Graph-only) oder `graph_plus` (Gra
 
 ### Azure VM anlegen (Vorlage im Portal)
 
+<!-- MARKETPLACE-VORSCHAU: Links nach Go live ersetzen (tests/test_marketplace_links.py) -->
+Das Gateway steht als kostenloses Angebot im Azure Marketplace:
+[Im Azure-Portal bereitstellen](https://portal.azure.com/#create/azitc.exo-signature-gateway-previewgateway-vm) · [Angebot im Azure Marketplace](https://marketplace.microsoft.com/de-de/product/azure-application/azitc.exo-signature-gateway-preview).
+Azure berechnet nur VM, IP-Adresse und Speicher; die Lizenz des Gateways ist davon
+getrennt ([LICENSE.md](../LICENSE.md)).
+
+Dieselbe Vorlage startest du auch direkt aus diesem Repository:
+
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2FcreateUiDefinition.json)
 
-Der Knopf öffnet die Vorlage `deploy/azure/azuredeploy.json` im Azure-Portal. Du
+Beide Wege öffnen denselben Assistenten mit der Vorlage `deploy/azure/azuredeploy.json`. Du
 wählst Abo, Ressourcengruppe und Region, gibst einen SSH-Schlüssel an und
 trägst ein Anfangskennwort für die Weboberfläche ein. Als SSH-Schlüssel nimmst du
 einen vorhandenen öffentlichen Schlüssel, einen in Azure gespeicherten, oder du

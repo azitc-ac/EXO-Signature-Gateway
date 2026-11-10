@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.101 — 2026-11-10 — Doku: Azure Marketplace als erster Weg nach Azure
+
+- **Neu:** README und `docs/installation.md` führen zum Angebot im Azure
+  Marketplace, mit Direktlink ins Portal und zur Angebotsseite. Der Knopf
+  *Deploy to Azure* aus dem Repository bleibt als zweiter Weg zur selben
+  Vorlage. Bis zur Freischaltung des Angebots stehen dort die Links der
+  Vorschau. Sie sind gekennzeichnet und werden nach der Freischaltung ersetzt.
+- `tests/test_marketplace_links.py` prüft, dass alle Dateien dieselben Links
+  nennen und ein Vorschau-Link nur zusammen mit seiner Kennzeichnung steht.
+
+**Zu tun:** nichts.
+
 ## v1.10.100 — 2026-11-09 — Sammelbestellung: Hinweis ohne Admin-Einwilligung berichtigt
 
 - **Fehler:** Hinweis und Rückfrage der Sammelbestellung (*S/MIME →
