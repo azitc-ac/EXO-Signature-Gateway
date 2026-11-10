@@ -51,6 +51,14 @@ HEARTBEAT_MAX_AGE_S = 300
 # Obergrenze für angezeigte Changelog-Einträge
 MAX_CHANGELOG_ENTRIES = 25
 
+# Update-Kanäle, vom stabilsten zum experimentellsten. Der Host-Watcher kennt
+# dieselben drei Namen (update-watcher.sh, je Anwendung).
+#   release → jüngstes Release-Tag (von Hand freigegeben)
+#   nightly → Zweig `nightly`: täglich 23:59 (Berlin) der letzte Commit von main
+#             mit grüner CI (.github/workflows/nightly.yml)
+#   main    → jeder Push, auch ungeprüft — ausdrücklich experimentell
+KANAELE = ("release", "nightly", "main")
+
 
 def _version_tuple(v: str) -> tuple:
     try:
@@ -101,8 +109,8 @@ class Updater:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.read().decode()
 
-    def _repo_datei(self, pfad: str) -> str:
-        """Inhalt einer Datei des main-Branch — über die API, NICHT über raw.
+    def _repo_datei(self, pfad: str, ref: str = "main") -> str:
+        """Inhalt einer Datei des Zweigs `ref` — über die API, NICHT über raw.
 
         `raw.githubusercontent.com` liefert über ein Auslieferungsnetz mit
         `max-age=300` aus. Direkt nach einer Veröffentlichung meldet die
@@ -123,7 +131,7 @@ class Updater:
         Changelog liegt bei rund 0,4 MB.
         """
         return self._get(
-            f"https://api.github.com/repos/{self.repo}/contents/{pfad}?ref=main",
+            f"https://api.github.com/repos/{self.repo}/contents/{pfad}?ref={ref}",
             accept="application/vnd.github.raw")
 
     # ── Versionsermittlung ──────────────────────────────────────────────────
@@ -194,12 +202,17 @@ class Updater:
         """Neuere Version verfügbar?
 
         channel "main"    → VERSION-Datei des main-Branch
+        channel "nightly" → VERSION-Datei des Zweigs `nightly`
         channel "release" → jüngstes GitHub-Release (Tag)
 
         Rangfolge im main-Kanal: erst die lokale `.remote-version` (funktioniert
-        auch für private Repos, kein API-Aufruf), dann die GitHub-API.
+        auch für private Repos, kein API-Aufruf), dann die GitHub-API. Die
+        Datei beschreibt main — für nightly gilt sie nicht.
         """
-        if channel != "release":
+        if channel not in KANAELE:
+            return self._result(channel, current_version, None,
+                                note=f"Unbekannter Kanal {channel!r}", available=False)
+        if channel == "main":
             local = self.read_remote_version()
             if local:
                 return self._result(channel, current_version, local)
@@ -217,10 +230,16 @@ class Updater:
                 return self._result(channel, current_version,
                                     data["tag_name"].lstrip("v"),
                                     url=data.get("html_url", ""))
-            latest = self._repo_datei("VERSION").strip()
+            latest = self._repo_datei("VERSION", ref=channel).strip()
             return self._result(channel, current_version, latest)
 
         except urllib.error.HTTPError as e:
+            if e.code == 404 and channel == "nightly":
+                # Zweig noch nicht angelegt (erster Lauf der Nightly-Aktion
+                # steht aus) — oder privates Repo. Nichts zu installieren.
+                return self._result(channel, current_version, None,
+                                    note="Noch kein Nightly-Stand veröffentlicht",
+                                    available=False)
             if e.code == 404:
                 # Privates Repo und der Watcher hat noch keine .remote-version
                 # geschrieben. KEIN Fehler: das Update lässt sich trotzdem
@@ -288,6 +307,8 @@ class Updater:
         target_version: bestimmtes Release-Tag (nur Release-Kanal). None = jüngste.
         Eine ältere Zielversion als die laufende ist die Rückrollung.
         """
+        if channel not in KANAELE:
+            return {"ok": False, "error": f"Unbekannter Kanal {channel!r}"}
         if self.get_status().get("state") == "running":
             return {"ok": False, "error": "Update läuft bereits"}
         payload = {

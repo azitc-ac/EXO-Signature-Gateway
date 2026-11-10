@@ -270,6 +270,16 @@ git pull && docker compose up -d --build
 Die Bind-Mounts `data/`, `certs/`, `templates/` bleiben erhalten → Konfiguration
 und Zertifikat überstehen das Update. (Alternativ per Web-UI: *Update & Backup*.)
 
+In der Weboberfläche wählst du unter *Update & Backup* den Kanal:
+
+| Kanal | Stand | Für |
+|---|---|---|
+| **Stabil** | freigegebene Versionen (Releases); gezielte Version und Rollback möglich | Betrieb (Vorgabe für neue Installationen) |
+| **Nightly** | täglich um 23:59 (Berlin) der jüngste Entwicklungsstand, dessen automatische Prüfungen bestanden sind | wer Neuerungen früher will |
+| **Entwicklung** | jeder Stand sofort, auch ungeprüft — experimentell | Testinstallationen |
+
+Die Befehlszeile oben holt immer den Entwicklungsstand (`main`).
+
 ---
 
 ## Let's Encrypt

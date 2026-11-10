@@ -24,6 +24,8 @@ AB_VERSION = (1, 10, 80)
 
 # „Zu tun“ jenseits von „nichts“, das keine Aufgabe tragen KANN — mit Grund.
 OHNE_AUFGABE: dict[str, str] = {
+    "1.10.107": "Wahl des Update-Kanals — welcher richtig ist, entscheidet der Betreiber; "
+               "keine Prüfung kann eine falsche Wahl erkennen, eine Aufgabe bliebe offen",
     "1.10.84": "einmalige Durchsicht der Admin-Liste — ob ein Eintrag dorthin "
                "gehört, kann keine Prüfung feststellen; eine Aufgabe bliebe für immer offen",
     "1.10.98": "betrifft nur Installationen hinter einer Tenant-Weiterleitung; ob eine "

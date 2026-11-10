@@ -26,8 +26,19 @@ do_git_update() {
       git reset --hard "$LATEST" 2>&1
       echo "→ Release $LATEST ausgecheckt"
     fi
-  else
+  elif [ "$CHANNEL" = "nightly" ]; then
+    # Zweig `nightly`: täglich 23:59 (Berlin) der letzte main-Stand mit grüner CI
+    # (.github/workflows/nightly.yml).
+    cd "$REPO" && git fetch origin nightly 2>&1 || { echo "FEHLER: Zweig nightly nicht gefunden"; return 1; }
+    git reset --hard origin/nightly 2>&1
+    echo "→ Nightly-Stand ausgecheckt"
+  elif [ "$CHANNEL" = "main" ]; then
     cd "$REPO" && git fetch origin main 2>&1 && git reset --hard origin/main 2>&1
+  else
+    # Unbekannter Kanal: nicht still auf main ausweichen — das wäre der
+    # experimentellste Stand, den niemand gewählt hat.
+    echo "FEHLER: Unbekannter Kanal '$CHANNEL'"
+    return 1
   fi
 }
 

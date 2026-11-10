@@ -14,17 +14,27 @@
     Lädt die aktuelle Version aus dem Git-Repository und baut den Container neu.
     Voraussetzung: der Update-Dienst (<code>exo-gateway-updater.service</code>) muss auf dem Host laufen
     (Einrichtung → <a href="/setup#step-watcher">Update-Dienst</a>).
-    Im Kanal "Releases" kann gezielt eine bestimmte Version gewählt werden — auch ein
+    Im Kanal „Stabil“ kann gezielt eine bestimmte Version gewählt werden — auch ein
     Rollback auf eine ältere Version ist damit möglich (Code-Stand; Einstellungen bleiben unverändert).
   </p>
+  <ul class="hint" style="margin:0 0 12px 18px;padding:0">
+    <li><strong>Stabil:</strong> freigegebene Versionen (Releases). Empfohlen für den Betrieb.</li>
+    <li><strong>Nightly:</strong> täglich um 23:59 der jüngste Entwicklungsstand, dessen
+      automatische Prüfungen bestanden sind. Neuerungen früher, ohne ungeprüfte Zwischenstände.</li>
+    <li><strong>Entwicklung (experimentell):</strong> jeder Stand sofort, auch ungeprüft.
+      Nur für Testinstallationen.</li>
+  </ul>
 
   <!-- Kanal + Prüfen -->
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
     <label style="font-size:13px;color:#374151;font-weight:500">Kanal:</label>
     <select id="upd-channel" onchange="_updSaveChannel()" style="font-size:13px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff">
-      <option value="main">Entwicklungsstand (main)</option>
-      <option value="release">Releases (stabil)</option>
+      {% set _kanal = s.UPDATE_CHANNEL or 'release' %}
+      <option value="release"{% if _kanal == 'release' %} selected{% endif %}>Stabil (Releases)</option>
+      <option value="nightly"{% if _kanal == 'nightly' %} selected{% endif %}>Nightly (geprüft, täglich)</option>
+      <option value="main"{% if _kanal == 'main' %} selected{% endif %}>Entwicklung (experimentell)</option>
     </select>
+    <span id="upd-channel-result"></span>
     <button class="btn secondary btn-sm" id="upd-check-btn" onclick="checkUpdate()">
       Auf Updates prüfen
     </button>
@@ -257,16 +267,15 @@ function _updGetTargetVersion() {
   const el = document.getElementById('upd-target-version');
   return el ? el.value : '';
 }
-function _updSaveChannel() {
-  try { localStorage.setItem('exo_upd_channel', _updGetChannel()); } catch(e) {}
+// Der Kanal ist eine Einstellung des Gateways (UPDATE_CHANNEL), nicht des
+// Browsers: bis v1.10.106 lag er in localStorage, je Browser verschieden.
+// Reiner Schalter ohne Begleitfeld → speichert sofort (Speichern-Regel 4).
+async function _updSaveChannel() {
+  await savePartial({UPDATE_CHANNEL: _updGetChannel()}, 'upd-channel-result', 'backup:kanal');
   document.getElementById('upd-check-result').innerHTML = '';
   document.getElementById('upd-btn').disabled = !_watcherOk;
   _updRefreshVersionPicker();
 }
-function _updLoadChannel() {
-  try { const ch = localStorage.getItem('exo_upd_channel'); if (ch) document.getElementById('upd-channel').value = ch; } catch(e) {}
-}
-
 let _updReleaseList = [];
 function _updRefreshVersionPicker() {
   const picker = document.getElementById('upd-version-picker');
@@ -615,7 +624,6 @@ async function toggleChangelog() {
 }
 
 (async function() {
-  _updLoadChannel();
   _updRefreshVersionPicker();
   await _updCheckWatcher();
   const d = await getJSON('/api/system/update/status');

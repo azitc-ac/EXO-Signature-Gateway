@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.107 — 2026-11-10 — Update-Kanäle Stabil, Nightly und Entwicklung
+
+- **Neu: drei Update-Kanäle** unter *Update & Backup*:
+  - **Stabil**: freigegebene Versionen (Releases), mit Auswahl einer
+    bestimmten Version und Rollback wie bisher.
+  - **Nightly**: täglich um 23:59 (Berlin) der jüngste Stand, dessen
+    automatische Prüfungen bestanden sind. Eine geplante Aktion rückt dafür
+    den Zweig `nightly` vor, nur vorwärts.
+  - **Entwicklung (experimentell)**: jeder Stand sofort, auch ungeprüft. Nur
+    für Testinstallationen.
+- **Geändert: Der Kanal ist eine Einstellung des Gateways.** Bisher merkte
+  ihn sich nur der Browser, mit der Vorgabe „Entwicklungsstand“; zwei Admins
+  konnten so verschiedene Kanäle sehen. Jetzt gilt `UPDATE_CHANNEL`, die Wahl
+  speichert sofort. Neue Installationen stehen auf **Stabil**. Bestehende
+  Installationen stellt das Update einmalig auf **Nightly** um, den
+  geprüften Stand statt jedes ungeprüften.
+- Der Update-Dienst auf dem Host lehnt einen unbekannten Kanal jetzt ab.
+  Bisher behandelte er alles außer „release“ als Entwicklungsstand.
+- Die Befehlszeile (`git pull`) holt weiterhin den Entwicklungsstand.
+
+**Zu tun:** Prüfe unter *Einstellungen → Update & Backup* den Kanal. Nach
+diesem Update steht er auf *Nightly*; wolltest du bisher Releases, stelle
+*Stabil* ein. Der Update-Dienst auf dem Host erneuert sich mit diesem Update
+selbst; der Kanal *Nightly* wirkt ab dem nächsten Update.
+
 ## v1.10.106 — 2026-11-10 — Testsuite startet nicht auf einem ausgelasteten Rechner
 
 - `pytest` bricht beim Start ab, wenn der Rechner weniger als 1 GB

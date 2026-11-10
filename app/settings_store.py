@@ -268,6 +268,10 @@ DEFAULTS: dict = {
     "SMTP_SUBMIT_CLIENT_ID": "",     # Optional: separate app reg with SMTP.SendAsApp
     "SMTP_SUBMIT_CLIENT_SECRET": "", # Secret for SMTP_SUBMIT_CLIENT_ID
     "IMAP_ACCESS_CONFIGURED": False, # True after New-ServicePrincipal + Add-MailboxPermission ran
+    # ── Update ───────────────────────────────────────────────────────────────
+    # Kanal des Selbst-Updates: release | nightly | main (update_core.KANAELE).
+    # Neue Installationen: release. Bestand bis v1.10.106 → nightly (Migration v6).
+    "UPDATE_CHANNEL": "release",
     # ── Setup wizard ─────────────────────────────────────────────────────────
     "SETUP_COMPLETE": False,
     "ADMIN_PASSWORD_HASH": "",   # pbkdf2:sha256:<salt>:<hash> — empty = use WEBUI_PASSWORD env
@@ -680,6 +684,23 @@ def _migrate_v4_to_v5(data: dict) -> dict:
     return data
 
 
+def _migrate_v5_to_v6(data: dict) -> dict:
+    """Update-Kanal wird eine Einstellung des Gateways (v1.10.107).
+
+    Bis dahin merkte sich nur der BROWSER den Kanal (localStorage), mit der
+    Vorgabe „main“. Bestehende Installationen kommen auf „nightly“ (geprüfter
+    Stand vom Vortag), neue auf „release“ (Vorgabe in DEFAULTS). Bestand =
+    Einrichtung begonnen: SETUP_COMPLETE, TENANT_ID oder CLIENT_ID gesetzt.
+    Vor Schema v6 gab es den Schlüssel nicht; was hier ankommt, ist die Vorgabe
+    aus DEFAULTS, keine Wahl des Betreibers.
+    """
+    bestand = bool(data.get("SETUP_COMPLETE") or data.get("TENANT_ID") or data.get("CLIENT_ID"))
+    data["UPDATE_CHANNEL"] = "nightly" if bestand else "release"
+    log.info("settings_store: UPDATE_CHANNEL=%s (%s)", data["UPDATE_CHANNEL"],
+             "Bestandsanlage" if bestand else "neue Installation")
+    return data
+
+
 # Ordered list of (target_version, migration_fn). Each fn receives the full
 # settings dict and returns the migrated dict. Append new entries as the
 # schema evolves — never remove, reorder, or renumber existing ones, since a
@@ -690,6 +711,7 @@ _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
     (3, _migrate_v2_to_v3),
     (4, _migrate_v3_to_v4),
     (5, _migrate_v4_to_v5),
+    (6, _migrate_v5_to_v6),
 ]
 
 

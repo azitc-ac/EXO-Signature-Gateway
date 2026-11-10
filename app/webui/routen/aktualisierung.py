@@ -141,11 +141,17 @@ async def api_restart_container(user: str = Depends(_require_admin)):
     log.info("Container restart requested by %s", user)
     return JSONResponse(result)
 
+def _kanal() -> str:
+    """Eingestellter Update-Kanal — Vorgabe „release“ (settings_store.DEFAULTS)."""
+    return settings_store.get("UPDATE_CHANNEL") or "release"
+
+
 @router.get("/api/system/update/check")
-async def api_update_check(channel: str = "main", user: str = Depends(_require_admin)):
-    """GitHub-Prüfung: gibt es eine neuere Version im gewählten Kanal?"""
+async def api_update_check(channel: str = "", user: str = Depends(_require_admin)):
+    """GitHub-Prüfung: gibt es eine neuere Version im gewählten Kanal?
+    Ohne Angabe gilt der eingestellte Kanal (UPDATE_CHANNEL)."""
     import updater
-    return JSONResponse(updater.check_update(channel, config.VERSION))
+    return JSONResponse(updater.check_update(channel or _kanal(), config.VERSION))
 
 @router.get("/api/system/update/releases")
 async def api_update_releases(user: str = Depends(_require_admin)):
@@ -162,7 +168,7 @@ async def api_system_update(request: Request, user: str = Depends(_require_admin
         body = await request.json()
     except Exception:
         pass
-    channel = body.get("channel", "main")
+    channel = body.get("channel") or _kanal()
     target_version = (body.get("target_version") or "").strip() or None
     result = updater.request_update(user, config.VERSION, channel=channel, target_version=target_version)
     if not result["ok"]:
