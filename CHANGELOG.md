@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.109 — 2026-11-10 — Nightly: Abruf bei GitHub wiederholen
+
+- Die tägliche Nightly-Aktion fragt bei GitHub die CI-Läufe ab. Der erste
+  Lauf scheiterte an einer Serverantwort 502; jetzt versucht sie es bis zu
+  viermal. Der Zweig `nightly` steht seit dem ersten Lauf auf v1.10.100.
+
+**Zu tun:** nichts.
+
 ## v1.10.108 — 2026-11-10 — Nachtrag zu den Update-Kanälen
 
 - Die Schemaversion der Einstellungen steht jetzt auf 6, passend zur

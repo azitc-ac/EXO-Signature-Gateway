@@ -36,8 +36,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=100" \
-            > laeufe.json
+          # GitHub antwortet hier gelegentlich mit 502 (erster Lauf am 10.11.2026):
+          # bis zu viermal versuchen, dann rot.
+          for versuch in 1 2 3 4; do
+            gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=100" \
+              > laeufe.json && break
+            [ "$versuch" = 4 ] && exit 1
+            sleep $((versuch * 30))
+          done
           sha=$(python3 tools/nightly_stand.py < laeufe.json)
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "Gewählt: ${sha:-keiner}"
