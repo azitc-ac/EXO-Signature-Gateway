@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.104 — 2026-11-10 — Eingehende S/MIME-Post im Mail-Protokoll und im Dashboard
+
+- **Neu: „S/MIME signiert empfangen“.** Eingehend signierte Mails von außen
+  entfernt das Gateway die Signatur, sammelt das Zertifikat ein und setzt
+  „[signiert von …]“ in den Betreff. Ins Mail-Protokoll schrieben sie bisher
+  keine Zeile, und gezählt wurden sie nur indirekt unter „Zertifikate
+  gesammelt“. Jetzt hat jede eine Protokollzeile (Aktion *S/MIME sign. ein*)
+  und einen eigenen Zähler. Im Dashboard steht er als „S/MIME signiert
+  empfangen“, im Tagesbericht ebenfalls. Ein Klick auf die Zahl öffnet die
+  Mails. Lässt sich die Signatur nicht entfernen oder ist das Entfernen
+  abgeschaltet, zählt die Mail trotzdem, mit Grund in der Zeile.
+- **Fehler:** Eingehend verschlüsselte Mails, die das Gateway nicht
+  entschlüsseln konnte, gingen verschlüsselt an den Empfänger, ohne Spur im
+  Mail-Protokoll. Fehlt der Schlüssel, steht jetzt eine Zeile *Durchgereicht*
+  mit dem Grund darin; scheitert die Entschlüsselung, eine Zeile *Fehler*.
+- Die neuen Zeilen gehören zu den lange aufbewahrten Kategorien wie die
+  übrigen S/MIME-Zeilen.
+
+**Zu tun:** nichts. Der Zähler beginnt mit dem Update bei null; frühere
+signierte Eingänge lassen sich nicht nachtragen.
+
 ## v1.10.103 — 2026-11-10 — Verfassen-Add-in: kein Fehler mehr bei Nur-Text-Mails
 
 - **Fehler:** In einer Nur-Text-Mail (etwa aus dem Explorer über *Senden an →

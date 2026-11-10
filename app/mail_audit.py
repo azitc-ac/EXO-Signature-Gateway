@@ -359,6 +359,7 @@ def get_mail_hourly(date: str) -> list[dict]:
 # fast nichts (grobe Schaetzung: 100 Krypto-Mails/Tag * ~200 B * 730 Tage ~= 15 MB).
 LANGZEIT_ACTIONS = (
     "smime_encrypted", "smime_signed", "smime_decrypted",     # Krypto
+    "smime_signiert_empfangen",
     "error", "fallback", "tenant_fremd", "relay_abgelehnt",   # Fehler/Abweisung
     "held",                                                    # Warteschlange
 )

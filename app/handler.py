@@ -837,9 +837,12 @@ class SignatureHandler:
                                  "+stripped" if signer_name else "", decrypt_rcpt)
                         return "250 OK"
                     log.error("S/MIME decrypt failed for %s — forwarding encrypted", decrypt_rcpt)
+                    _audit("error", error="Entschlüsselung fehlgeschlagen, verschlüsselt zugestellt")
                 else:
                     log.warning("Encrypted inbound — no private key for %s, forwarding as-is",
                                 recipients)
+                    _audit("durchgereicht",
+                           error="Verschlüsselt, kein Schlüssel für den Empfänger im Gateway")
                 loop_detector.mark_as_signed(msg)
                 reinject.send(sender, recipients, _smtp_bytes(msg))
                 return "250 OK"
@@ -893,14 +896,22 @@ class SignatureHandler:
                                 loop_detector.mark_as_signed(inner_msg)
                                 reinject.send(sender, recipients, _smtp_bytes(inner_msg))
                                 stats.increment("processed")
+                                stats.increment("smime_signiert_empfangen")
+                                _audit("smime_signiert_empfangen")
                                 log.info("S/MIME inbound signed stripped from=%s signer=%s",
                                          sender, signer_name)
                                 return "250 OK"
                             log.warning("S/MIME strip failed for %s — forwarding signed", sender)
+                            _fehler = "Signatur nicht entfernt, signiert zugestellt"
                         else:
                             log.debug("S/MIME inbound signed pass-through (strip disabled) from=%s", sender)
+                            _fehler = None
                         loop_detector.mark_as_signed(msg)
                         reinject.send(sender, recipients, _smtp_bytes(msg))
+                        # Auch ohne Entfernen ist es eine signiert empfangene Mail:
+                        # Zähler und Protokoll zeigen jede, nicht nur die bearbeiteten.
+                        stats.increment("smime_signiert_empfangen")
+                        _audit("smime_signiert_empfangen", error=_fehler)
                         return "250 OK"
 
             # ── Active mailbox filter ──────────────────────────────────────────

@@ -25,6 +25,8 @@ _daily_lock = RLock()
 KEYS = (
     "processed", "fallback", "errors", "held",
     "smime_signed", "smime_encrypted", "smime_decrypted", "certs_harvested",
+    # Eingehend signierte Post (von aussen) — bis v1.10.103 weder gezaehlt noch protokolliert.
+    "smime_signiert_empfangen",
     "graph_api_calls", "kv_sign_calls",
     # Schlüssel-Prüfung des Gesundheits-Checks (halbstündliche Test-Signatur im
     # Key Vault) — GETRENNT von kv_sign_calls, sonst zählt die Probe als
