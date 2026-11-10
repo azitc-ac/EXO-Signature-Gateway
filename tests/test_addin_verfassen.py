@@ -275,7 +275,7 @@ var item = %s;
 item.notificationMessages = {replaceAsync: function (id, m) { protokoll.hinweise.push(m.message); }};
 globalThis.Office = {
   AsyncResultStatus: {Succeeded: 'succeeded', Failed: 'failed'},
-  CoercionType: {Html: 'html'},
+  CoercionType: {Html: 'html', Text: 'text'},
   MailboxEnums: {ItemNotificationMessageType: {InformationalMessage: 'info'}},
   context: {mailbox: {item: item}, diagnostics: {platform: PLATTFORM}},
   actions: {associate: function (n, f) { handler = f; }}
@@ -317,6 +317,29 @@ def test_ohne_signatur_apis_still_beenden(item):
     beendet der Handler sofort — ohne Abruf und ohne Fehlerhinweis."""
     p = _handler_lauf(item)
     assert p == {"fertig": 1, "abrufe": 0, "hinweise": [], "gesetzt": None}
+
+
+def _mit_koerper(art: str) -> str:
+    return _VOLL[:-2] + ", getTypeAsync: " + _OK % repr(art) + "}}"
+
+
+def test_nur_text_entwurf_still_beenden():
+    """Nur-Text-Entwurf (Explorer → Senden an): HTML-Signatur scheitert dort mit
+    InvalidFormatError, und das Gateway signiert reine Textmails beim Versand
+    selbst. Kein Abruf, kein Fehlerhinweis, nichts gesetzt."""
+    p = _handler_lauf(_mit_koerper("text"), plattform="PC")
+    assert p == {"fertig": 1, "abrufe": 0, "hinweise": [], "gesetzt": None}
+
+
+def test_html_entwurf_bekommt_die_signatur_weiter():
+    p = _handler_lauf(_mit_koerper("html"), plattform="PC")
+    assert p["gesetzt"] == "<p>SIG</p>" and p["fertig"] == 1 and not p["hinweise"]
+
+
+def test_scheiternde_typabfrage_gilt_als_html():
+    item = _VOLL[:-2] + ", getTypeAsync: function (cb) { cb({status: 'failed', error: {}}); }}}"
+    p = _handler_lauf(item, plattform="PC")
+    assert p["gesetzt"] == "<p>SIG</p>" and p["fertig"] == 1
 
 
 @pytest.mark.parametrize("roh, erwartet", [
@@ -420,3 +443,16 @@ def test_kein_hinweis_ohne_eingefuegte_signatur():
     assert fehl != _VOLL
     p = _handler_lauf(fehl, "iOS", _MIT_VORLAGE)
     assert len(p["hinweise"]) == 1 and "nicht eingef" in p["hinweise"][0]
+
+
+def test_taskpane_knopf_prueft_nur_text_vor_dem_schreiben():
+    """Der Knopf „Signatur einfügen“ (addin_compose.html) schreibt HTML wie das
+    Start-Ereignis — in einem Nur-Text-Entwurf scheitert das ebenso. Die
+    Typabfrage muss vor jedem schreibenden Aufruf stehen."""
+    from pathlib import Path
+    seite = (Path(__file__).resolve().parent.parent / "app/webui/templates/addin_compose.html").read_text(encoding="utf-8")
+    start = seite.index("function replaceSig()")
+    pruefung = seite.index("getTypeAsync", start)
+    schreiben = [seite.index(s, start) for s in ("setSignatureAsync(", "body.setAsync(")]
+    assert pruefung < min(schreiben)
+    assert "Office.CoercionType.Text" in seite[pruefung:min(schreiben)]

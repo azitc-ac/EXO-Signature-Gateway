@@ -430,6 +430,24 @@
       // ihn samt seiner eigenen Signatur zurück. Dann stehen beide im Text.
       if (_ersetztGerade) return;
       _ersetztGerade = true;
+      // Nur-Text-Entwurf: HTML zu setzen scheitert dort (InvalidFormatError,
+      // MS Learn Office.Body). Das Gateway signiert reine Textmails beim Versand.
+      var koerper = Office.context.mailbox.item.body;
+      if (typeof koerper.getTypeAsync === 'function') {
+        koerper.getTypeAsync(function(tr) {
+          if (tr.status === Office.AsyncResultStatus.Succeeded && tr.value === Office.CoercionType.Text) {
+            _ersetztGerade = false;
+            showStatus('Nur-Text-Mail: Die Signatur fügt das Gateway beim Versand ein.', 'ok');
+            return;
+          }
+          _sigSetzen();
+        });
+        return;
+      }
+      _sigSetzen();
+    }
+
+    function _sigSetzen() {
       // Mailbox 1.10: nur den Signaturbereich setzen bzw. ersetzen — der Text
       // der Mail bleibt unberührt, der Cursor auch. Ganzen Text neu zu schreiben
       // (unten) ist nur der Weg für Clients ohne diese Schnittstelle.

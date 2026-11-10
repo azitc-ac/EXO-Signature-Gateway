@@ -126,6 +126,18 @@
     });
   }
 
+  // Nur-Text-Entwurf (etwa Explorer → „Senden an → E-Mail-Empfänger“):
+  // setSignatureAsync mit HTML scheitert dort mit InvalidFormatError (MS Learn,
+  // Office.Body). Das Gateway signiert reine Textmails beim Versand selbst; eine
+  // Textsignatur vom Add-in trüge keine Markierung und stünde dann doppelt drin.
+  // Fehlt getTypeAsync oder scheitert es, gilt der Entwurf als HTML wie bisher.
+  function nurText(item) {
+    if (typeof item.body.getTypeAsync !== 'function') return Promise.resolve(false);
+    return asynk(function (cb) { item.body.getTypeAsync(cb); })
+      .then(function (typ) { return typ === Office.CoercionType.Text; },
+            function () { return false; });
+  }
+
   function beimVerfassen(event) {
     var item = Office.context.mailbox.item;
     // Das Manifest verlangt nur Mailbox 1.5 (Outlook mobil). Fehlen die
@@ -135,7 +147,10 @@
       event.completed();
       return;
     }
-    asynk(function (cb) { item.getComposeTypeAsync(cb); })
+    nurText(item)
+      .then(function (text) {
+        return text ? null : asynk(function (cb) { item.getComposeTypeAsync(cb); });
+      })
       .then(function (art) {
         // Antwort/Weiterleitung: Das Gateway wendet dieselbe Regel an wie beim
         // Versand (volle Signatur beim ersten eigenen Beitrag, danach die

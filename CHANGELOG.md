@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.103 — 2026-11-10 — Verfassen-Add-in: kein Fehler mehr bei Nur-Text-Mails
+
+- **Fehler:** In einer Nur-Text-Mail (etwa aus dem Explorer über *Senden an →
+  E-Mail-Empfänger*) zeigte Outlook „Gateway-Signatur nicht eingefügt: Fehler
+  beim Ausführen der Operation“. Das Add-in setzt die Signatur als HTML, und
+  `setSignatureAsync` lehnt HTML in einem Textkörper ab (`InvalidFormatError`,
+  so in Microsofts Office.js-Referenz beschrieben). Jetzt erkennt das Add-in
+  den Textkörper und fügt nichts ein; die Signatur setzt das Gateway beim
+  Versand, wie bei jeder reinen Textmail. Eine Textsignatur vom Add-in hätte
+  keine Markierung getragen und wäre beim Versand ein zweites Mal angefügt
+  worden.
+- Der Knopf *Signatur einfügen* im Aufgabenbereich prüft dasselbe und meldet
+  „Nur-Text-Mail: Die Signatur fügt das Gateway beim Versand ein.“ statt eines
+  Fehlers.
+
+**Zu tun:** nichts. Das Add-in lädt sein Skript vom Gateway; ein neues Manifest
+ist nicht nötig.
+
 ## v1.10.102 — 2026-11-10 — Doku: Links zum freigeschalteten Marketplace-Angebot
 
 - README und `docs/installation.md` verlinken jetzt das freigeschaltete
