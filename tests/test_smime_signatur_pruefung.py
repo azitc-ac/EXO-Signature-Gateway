@@ -11,12 +11,15 @@ Ein Zertifikat für eine fremde Adresse kam unter dem Absender in den Bestand,
 ebenso eines, das ein Endzertifikat „ausgestellt“ hatte.
 
 Invarianten:
-1. Entfernt und vermerkt wird nur bei gültiger Inhaltssignatur, passender
-   Kopfadresse (From/Sender, RFC 8550 §3) und tragfähiger, bekannter Kette.
+1. Entfernt und vermerkt wird nur bei gültiger Inhaltssignatur, Zertifikat
+   auf den From-Kopf (seit v1.10.115; Sender-Kopf reicht nur zum Einsammeln,
+   RFC 8550 §3) und tragfähiger, bekannter Kette.
 2. Sonst geht die Mail signiert weiter, ohne Vermerk.
 3. In den Bestand führt nur `_uebernehmen` — Adresse, Zertifikatsart, Kette.
 4. Der Nachlauf verschiebt Bestandszertifikate mit Adress- oder Strukturmangel
-   in den Wartestand, abgelaufene und unbekannt ausgestellte bleiben.
+   in den Wartestand, abgelaufene und unbekannt ausgestellte bleiben. Altbestand
+   (ohne Herkunft) ohne bekannten Aussteller kommt zur Durchsicht (v1.10.115).
+5. Jedes Empfängerzertifikat trägt seine Herkunft — jeder Aufrufer nennt sie.
 """
 from __future__ import annotations
 
@@ -179,14 +182,18 @@ def test_massgeblich_ist_der_from_kopf_nicht_der_envelope(umgebung):
     assert not _bestand("bounce+abc@mailer.shop.example")
 
 
-def test_sender_kopf_zaehlt_ebenfalls(umgebung):
-    cert, key = _mk("Assistenz", umgebung["ca"], umgebung["ca_key"],
-                    san="assistenz@partner.example")
+def test_sender_kopf_reicht_zum_einsammeln_nicht_fuer_den_vermerk(umgebung):
+    """Der Leser sieht From. Ein Vermerk aus einem Zertifikat, das nur auf den
+    Sender-Kopf lautet, bescheinigte einer anderen Adresse die Echtheit — und
+    ohne Signatur könnte Outlook den Widerspruch nicht mehr zeigen."""
+    cert, key = _mk("Dr. Vorstand Mueller", umgebung["ca"], umgebung["ca_key"],
+                    san="angreifer2@evil.example")
     roh = _signiert("chef@partner.example", cert, key, [umgebung["ca"]],
-                    envelope_kopf=b"Sender: assistenz@partner.example\r\n")
-    _, _, grund = _pruefe(roh)
-    assert grund is None
-    assert _bestand("assistenz@partner.example")
+                    envelope_kopf=b"Sender: angreifer2@evil.example\r\n")
+    innen, name, grund = _pruefe(roh)
+    assert innen is None and name is None
+    assert "Sender-Kopf" in grund
+    assert _bestand("angreifer2@evil.example"), "eingesammelt unter seiner eigenen Adresse"
     assert not _bestand("chef@partner.example")
 
 
@@ -241,6 +248,29 @@ def test_nur_uebernehmen_schreibt_in_den_bestand():
                         and knoten.attr == "store_recipient_cert"):
                     aufrufer.append(fn.name)
     assert aufrufer == ["_uebernehmen"], aufrufer
+
+
+def test_jeder_weg_in_den_bestand_nennt_die_herkunft():
+    """Ohne Herkunft liesse sich ein späterer Nachlauf wieder nicht zwischen
+    eingesammelt und hochgeladen unterscheiden."""
+    fehlt, gefunden = [], 0
+    for datei in APP.rglob("*.py"):
+        for k in ast.walk(ast.parse(datei.read_text(encoding="utf-8"))):
+            if (isinstance(k, ast.Call) and isinstance(k.func, ast.Attribute)
+                    and k.func.attr == "store_recipient_cert"):
+                gefunden += 1
+                if not any(kw.arg == "herkunft" for kw in k.keywords):
+                    fehlt.append(f"{datei.relative_to(APP)}:{k.lineno}")
+    assert gefunden >= 4 and not fehlt, (gefunden, fehlt)
+
+
+def test_eingesammeltes_zertifikat_traegt_herkunft(umgebung):
+    cert, key = _mk("Paula Partner", umgebung["ca"], umgebung["ca_key"],
+                    san="paula@partner.example")
+    _pruefe(_signiert("paula@partner.example", cert, key, [umgebung["ca"]]))
+    assert smime_store.herkunft("paula@partner.example") == "eingesammelt"
+    smime_store.delete_recipient_cert("paula@partner.example")
+    assert not (umgebung["tmp"] / "recipients" / "paula@partner.example").exists()
 
 
 # ── 7. Handler: unbestätigt bleibt signiert ──────────────────────────────────
@@ -301,8 +331,15 @@ def test_handler_liefert_falsche_signatur_signiert_und_ohne_vermerk(umgebung, ha
 
 # ── 8. Nachlauf über den Bestand ─────────────────────────────────────────────
 
-def _ablegen(adresse, cert):
-    smime_store.store_recipient_cert(adresse, cert.public_bytes(serialization.Encoding.PEM))
+def _ablegen(adresse, cert, herkunft=None):
+    """Bestand wie vor v1.10.115: ohne Herkunft, sofern keine angegeben."""
+    if herkunft:
+        smime_store.store_recipient_cert(adresse, cert.public_bytes(serialization.Encoding.PEM),
+                                         herkunft=herkunft)
+        return
+    d = smime_store.RECIPIENT_DIR / adresse
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "cert.pem").write_bytes(cert.public_bytes(serialization.Encoding.PEM))
 
 
 def test_nachlauf_verschiebt_nur_echte_maengel(umgebung):
@@ -322,7 +359,42 @@ def test_nachlauf_verschiebt_nur_echte_maengel(umgebung):
     assert "Nachprüfung" in _wartend()["bounce+x@mailer.shop.example"]
     for bleibt in ("paula@partner.example", "alt@partner.example", "eigen@partner.example"):
         assert _bestand(bleibt), bleibt
+    assert [d["adresse"] for d in smime_harvest.durchsicht()] == ["eigen@partner.example"]
+    assert smime_harvest.durchsicht()[0]["selbst_ausgestellt"]
     assert smime_harvest.bestand_nachpruefen_einmal() is None, "läuft nur einmal"
+
+
+def test_durchsicht_kennt_die_herkunft(umgebung):
+    """Hochgeladen ist eine Entscheidung — nur Bestand ohne Herkunft wird vorgelegt."""
+    for adr, h in (("alt@partner.example", None), ("hoch@partner.example", "hochgeladen")):
+        cert, _ = _mk("Eigen", san=adr)
+        _ablegen(adr, cert, h)
+    smime_harvest.bestand_nachpruefen()
+    assert [d["adresse"] for d in smime_harvest.durchsicht()] == ["alt@partner.example"]
+
+
+def test_durchsicht_behalten_und_entfernen(umgebung):
+    import abnahme
+    for adr in ("a@partner.example", "b@partner.example"):
+        cert, _ = _mk("Eigen", san=adr)
+        _ablegen(adr, cert)
+    smime_harvest.bestand_nachpruefen()
+    assert abnahme._bestand_durchsicht()["zustand"] == abnahme.OFFEN
+    assert smime_harvest.durchsicht_entscheiden("a@partner.example", behalten=True)
+    assert smime_store.herkunft("a@partner.example") == "bestaetigt" and _bestand("a@partner.example")
+    assert smime_harvest.durchsicht_entscheiden("B@partner.example", behalten=False)
+    assert not _bestand("b@partner.example")
+    assert smime_harvest.durchsicht() == []
+    assert abnahme._bestand_durchsicht()["zustand"] == abnahme.OK
+    assert not smime_harvest.durchsicht_entscheiden("fremd@x.example", behalten=False), \
+        "nur was zur Durchsicht steht, lässt sich hierüber entfernen"
+
+
+def test_durchsicht_ist_eine_aufgabe():
+    import abnahme
+    import aufgaben
+    assert any(a.pruefung is abnahme._bestand_durchsicht and a.seit == "1.10.115"
+               for a in aufgaben.AUFGABEN)
 
 
 def test_wartende_zertifikate_sind_eine_aufgabe(umgebung):

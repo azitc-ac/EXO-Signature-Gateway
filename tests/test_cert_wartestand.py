@@ -91,9 +91,11 @@ def test_freigabe_uebernimmt_in_den_bestand(monkeypatch):
     gespeichert = {}
     import smime_store
     monkeypatch.setattr(smime_store, "store_recipient_cert",
-                        lambda adr, p: gespeichert.update({"adresse": adr, "pem": p}))
+                        lambda adr, p, herkunft: gespeichert.update({"adresse": adr, "pem": p,
+                                                                   "herkunft": herkunft}))
     ergebnis = cert_wartestand.freigeben(fp)
     assert ergebnis["ok"] and gespeichert["adresse"] == "partner@example.org"
+    assert gespeichert["herkunft"] == "freigegeben"
     assert cert_wartestand.liste() == [], "nach der Freigabe darf es nicht mehr warten"
 
 
@@ -102,7 +104,7 @@ def test_freigabe_des_ausstellers_merkt_sich_diesen(monkeypatch):
     cert, pem = _zert()
     fp = cert_wartestand.merken("partner@example.org", pem, "unbekannt")
     import smime_store, crl_check
-    monkeypatch.setattr(smime_store, "store_recipient_cert", lambda adr, p: None)
+    monkeypatch.setattr(smime_store, "store_recipient_cert", lambda adr, p, herkunft: None)
     monkeypatch.setattr(crl_check, "ausstellerzertifikat", lambda c: None)  # nicht ermittelbar
     gemerkt = {}
     monkeypatch.setattr(trust_store, "freigeben",
@@ -134,7 +136,7 @@ def test_bekannter_aussteller_kommt_direkt_in_den_bestand(monkeypatch):
                         lambda kette: (trust_store.ANNEHMEN, "bekannt"))
     im_bestand = {}
     monkeypatch.setattr(smime_harvest.smime_store, "store_recipient_cert",
-                        lambda adr, p: im_bestand.update({"adresse": adr}))
+                        lambda adr, p, herkunft: im_bestand.update({"adresse": adr}))
     smime_harvest._uebernehmen("partner@example.org", pem)
     assert im_bestand["adresse"] == "partner@example.org"
     assert cert_wartestand.liste() == []
@@ -150,7 +152,7 @@ def test_unbekannter_aussteller_wandert_in_den_wartestand(monkeypatch):
                         lambda kette: (trust_store.WARTEN, "Aussteller unbekannt"))
     im_bestand = {}
     monkeypatch.setattr(smime_harvest.smime_store, "store_recipient_cert",
-                        lambda adr, p: im_bestand.update({"adresse": adr}))
+                        lambda adr, p, herkunft: im_bestand.update({"adresse": adr}))
     smime_harvest._uebernehmen("fremder@example.org", pem)
     assert not im_bestand, "ein nicht zuzuordnendes Zertifikat kam in den Bestand"
     assert [e["adresse"] for e in cert_wartestand.liste()] == ["fremder@example.org"]
@@ -162,7 +164,7 @@ def test_wartendes_zertifikat_wird_gezaehlt(monkeypatch):
     import smime_harvest, stats
     _, pem = _zert("x@y.de")
     monkeypatch.setattr(trust_store, "entscheiden", lambda k: (trust_store.WARTEN, "unbekannt"))
-    monkeypatch.setattr(smime_harvest.smime_store, "store_recipient_cert", lambda a, p: None)
+    monkeypatch.setattr(smime_harvest.smime_store, "store_recipient_cert", lambda a, p, herkunft: None)
     vorher = stats.get().get("cert_wartet", 0)
     smime_harvest._uebernehmen("x@y.de", pem)
     assert stats.get().get("cert_wartet", 0) == vorher + 1

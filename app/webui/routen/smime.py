@@ -202,6 +202,9 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
             # Empfaenger geht die Nachricht ueber das Portal, so als laege gar
             # kein Zertifikat vor.
             "wartende_certs": __import__("cert_wartestand").liste(),
+            # Altbestand ohne bekannten Aussteller (Nachprüfung v1.10.115) —
+            # noch im Bestand, wird benutzt, bis der Administrator entscheidet.
+            "durchsicht_certs": __import__("smime_harvest").durchsicht(),
             "active": "smime",
             "cert_expiry": _cert_expiry(),
             "acme_orders": acme_orders,
@@ -287,7 +290,8 @@ async def api_smime_recipient_upload(
             raise HTTPException(400, "Ungültige Zertifikatsdatei (weder PEM noch DER)")
         cert_bytes = result.stdout
     try:
-        info = smime_store.store_recipient_cert(email.lower().strip(), cert_bytes)
+        info = smime_store.store_recipient_cert(email.lower().strip(), cert_bytes,
+                                                 herkunft="hochgeladen")
         log.info("Recipient S/MIME cert uploaded for %s by %s", email, user)
         return JSONResponse({"ok": True, "info": info})
     except Exception as exc:
@@ -900,6 +904,20 @@ async def api_smime_wartend_verwerfen(fingerabdruck: str, _=Depends(_require_adm
     import cert_wartestand
     if not cert_wartestand.verwerfen(fingerabdruck):
         raise HTTPException(404, "nicht gefunden")
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/smime/durchsicht")
+async def api_smime_durchsicht(request: Request, _=Depends(_require_admin)):
+    """Altbestand ohne bekannten Aussteller: behalten oder entfernen."""
+    import smime_harvest
+    try:
+        daten = await request.json()
+    except Exception:
+        daten = {}
+    if not smime_harvest.durchsicht_entscheiden(str(daten.get("adresse") or ""),
+                                                 bool(daten.get("behalten"))):
+        raise HTTPException(404, "nicht in der Durchsicht")
     return JSONResponse({"ok": True})
 
 

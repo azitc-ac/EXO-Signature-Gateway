@@ -1013,6 +1013,8 @@ async def api_config_export(user: str = Depends(_require_admin)):
                 continue
             elem = _ET.SubElement(root, "smime-recipient-cert")
             elem.set("email", user_dir.name)
+            if _ss.herkunft(user_dir.name):
+                elem.set("herkunft", _ss.herkunft(user_dir.name))
             _ET.SubElement(elem, "cert").text = _b64.b64encode(cert_p.read_bytes()).decode()
 
     # ── Signature templates (HTML + TXT) ──────────────────────────────────────
@@ -1118,7 +1120,12 @@ async def api_config_import(
         if not email_addr or not cert_b64:
             continue
         try:
-            _ss.store_recipient_cert(email_addr, _b64.b64decode(cert_b64))
+            # Herkunft mitnehmen: sonst gälte ein vor v1.10.115 ungeprüft
+            # eingesammeltes Zertifikat nach dem Zurückspielen als Entscheidung.
+            _herkunft = elem.get("herkunft")
+            _ss.store_recipient_cert(email_addr, _b64.b64decode(cert_b64),
+                                     herkunft=_herkunft if _herkunft in _ss.HERKUENFTE
+                                     else "wiederhergestellt")
             certs_restored += 1
         except Exception as exc:
             log.warning("Config import: could not restore recipient cert for %s: %s", email_addr, exc)

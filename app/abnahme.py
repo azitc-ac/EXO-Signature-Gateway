@@ -436,6 +436,23 @@ def _wartende_zertifikate() -> dict:
                   "prüfen, freigeben oder verwerfen.")
 
 
+def _bestand_durchsicht() -> dict:
+    """Liegen Empfängerzertifikate von vor v1.10.115 ohne bekannten Aussteller
+    im Bestand? Sie konnten ungeprüft hineingekommen sein; die Nachprüfung
+    (`smime_harvest.bestand_nachpruefen`) legt sie zur Durchsicht vor."""
+    import smime_harvest
+    name = "Empfängerzertifikate ohne bekannten Aussteller durchgesehen"
+    offen = smime_harvest.durchsicht()
+    if not offen:
+        return _punkt(name, OK, "Kein Bestandszertifikat wartet auf Durchsicht.")
+    return _punkt(name, OFFEN,
+                  f"{len(offen)} Empfängerzertifikat(e) im Bestand führen auf keinen bekannten "
+                  "Aussteller und stammen aus der Zeit vor der Signaturprüfung; an diese "
+                  "Partner wird weiterhin damit verschlüsselt.",
+                  "S/MIME → „Zertifikate zur Durchsicht“: je Zeile behalten oder entfernen, "
+                  "im Zweifel beim Partner nachfragen.")
+
+
 def _fair_use() -> dict:
     """Mehr Postfächer aktiviert, als Lizenz oder Freigrenze erlauben?"""
     import license as _lic
@@ -593,7 +610,8 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _addin_rollen, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
-              _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg)
+              _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg,
+              _bestand_durchsicht)
 
 
 def bericht() -> dict:

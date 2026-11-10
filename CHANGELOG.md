@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.115 — 2026-11-11 — S/MIME eingehend: Vermerk nur für den angezeigten Absender, Durchsicht des Altbestands
+
+- **Vermerk „signiert von …“ nur, wenn das Zertifikat auf den From-Kopf
+  lautet.** Seit v1.10.110 genügte ein Zertifikat für die Adresse im
+  Sender-Kopf. Der Empfänger sieht aber From als Absender; der Vermerk
+  bescheinigte damit einer anderen Adresse die Echtheit, und weil die
+  Signatur entfernt wurde, konnte Outlook den Widerspruch nicht mehr zeigen.
+  Passt das Zertifikat nur auf den Sender-Kopf, bleibt die Mail jetzt signiert
+  und ohne Vermerk; eingesammelt wird das Zertifikat weiterhin, unter seiner
+  eigenen Adresse.
+- **Herkunft je Empfängerzertifikat.** Jedes Zertifikat im Bestand trägt
+  jetzt, wie es hineinkam: eingesammelt, freigegeben, hochgeladen oder
+  wiederhergestellt. Konfigurationsexport und -import nehmen die Angabe mit.
+- **Durchsicht des Altbestands.** Die Nachprüfung aus v1.10.110 ließ
+  Zertifikate ohne bekannten Aussteller im Bestand, weil sich eingesammelte
+  nicht von hochgeladenen unterscheiden ließen. Darunter konnten
+  selbst ausgestellte sein, die bis v1.10.109 ohne Ausstellerprüfung
+  eingesammelt wurden. Die Nachprüfung läuft nach dem Update einmal erneut und
+  legt solche Zertifikate auf der S/MIME-Seite unter **„Zertifikate zur
+  Durchsicht“** vor. Bis du entscheidest, wird weiter mit ihnen verschlüsselt.
+
+**Zu tun:** Erscheint die Aufgabe „Empfängerzertifikate ohne bekannten
+Aussteller durchgesehen“, gehe auf *S/MIME → Zertifikate zur Durchsicht* und
+entscheide je Zeile: **behalten**, wenn du das Zertifikat kennst (etwa von der
+eigenen Zertifizierungsstelle eines Partners), sonst **entfernen**. Im Zweifel
+beim Partner nachfragen.
+
 ## v1.10.114 — 2026-11-10 — Beispiele ohne Kennungen der eigenen Umgebung
 
 - In Kommentaren, Doku, Beispielkonfigurationen und Tests standen als

@@ -590,8 +590,19 @@ def delete_cert(email: str) -> None:
 
 # ── Recipient public key store (encryption) ───────────────────────────────────
 
-def store_recipient_cert(email: str, cert_pem: bytes) -> dict:
+# Woher ein Empfängerzertifikat stammt (Datei `herkunft` neben `cert.pem`).
+# Seit v1.10.115; älterer Bestand hat keine. Daran erkennt
+# `smime_harvest.bestand_nachpruefen`, was vor der Signaturprüfung
+# eingesammelt worden sein KANN — ein Hochladen ist dagegen eine bewusste
+# Entscheidung des Administrators.
+HERKUENFTE = ("eingesammelt", "freigegeben", "hochgeladen", "wiederhergestellt",
+              "bestaetigt")
+
+
+def store_recipient_cert(email: str, cert_pem: bytes, *, herkunft: str) -> dict:
     from cryptography import x509 as _x509
+    if herkunft not in HERKUENFTE:
+        raise ValueError(f"unbekannte Herkunft {herkunft!r}")
     cert = _x509.load_pem_x509_certificate(cert_pem)
     user_dir = RECIPIENT_DIR / email.lower().strip()
     user_dir.mkdir(parents=True, exist_ok=True)
@@ -601,14 +612,32 @@ def store_recipient_cert(email: str, cert_pem: bytes) -> dict:
             existing = _x509.load_pem_x509_certificate(existing_path.read_bytes())
             if existing.fingerprint(hashes.SHA256()) == cert.fingerprint(hashes.SHA256()):
                 log.debug("Recipient S/MIME cert unchanged for %s — skipping", email)
+                herkunft_setzen(email, herkunft)
                 return _cert_info(cert, email.lower().strip())
         except Exception:
             pass  # korrupte gespeicherte Cert → überschreiben
     (user_dir / "cert.pem").write_bytes(cert_pem)
+    herkunft_setzen(email, herkunft)
     import stats
     stats.increment("certs_harvested")
     log.info("Recipient S/MIME cert stored for %s (new/updated)", email)
     return _cert_info(cert, email.lower().strip())
+
+
+def herkunft_setzen(email: str, herkunft: str) -> None:
+    if herkunft not in HERKUENFTE:
+        raise ValueError(f"unbekannte Herkunft {herkunft!r}")
+    (RECIPIENT_DIR / email.lower().strip() / "herkunft").write_text(herkunft + "\n",
+                                                                     encoding="utf-8")
+
+
+def herkunft(email: str) -> str | None:
+    """Herkunft des Empfängerzertifikats; None = vor v1.10.115 gespeichert."""
+    p = RECIPIENT_DIR / email.lower().strip() / "herkunft"
+    try:
+        return p.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
 
 
 def get_recipient_cert_path(email: str) -> Path | None:
@@ -649,8 +678,9 @@ def list_recipient_certs() -> list[dict]:
 
 def delete_recipient_cert(email: str) -> None:
     p = RECIPIENT_DIR / email.lower().strip() / "cert.pem"
-    if p.exists():
-        p.unlink()
+    for datei in (p, p.parent / "herkunft"):
+        if datei.exists():
+            datei.unlink()
     d = p.parent
     if d.exists() and not any(d.iterdir()):
         d.rmdir()

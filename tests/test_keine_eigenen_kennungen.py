@@ -26,7 +26,7 @@ GESPERRT = {
     "b649db4adef29eb4",
     "052c5a686ddd1956",                                           # Tenant
     "3626f29f9ccedc1e", "c75f14c715e3cd9e", "69a7169ae1a5bf2e",   # öffentliche IPs
-    "f858eadd0707e98a",
+    "f858eadd0707e98a", "7c215983523326b2",
     "0677a3b941e29b9c", "c80f752f6b4b1fa3", "0cf5618b5fe5ed52",   # Tenant-/App-IDs
     "cc91e80c12f383ce", "353e062b0c90ca8d",
 }

@@ -598,6 +598,47 @@
 </div>
 {% endif %}
 
+{% if durchsicht_certs %}
+<div class="settings-card" id="durchsicht" style="background:#fffbeb;border:1px solid #fcd34d">
+  <h3 style="margin-top:0;color:#92400e">Zertifikate zur Durchsicht
+    <span style="font-weight:400;font-size:13px">({{ durchsicht_certs|length }})</span></h3>
+  <p class="hint" style="margin-bottom:14px">
+    Diese Empfängerzertifikate liegen seit der Zeit vor der Signaturprüfung im Bestand und
+    führen auf keinen bekannten oder freigegebenen Aussteller. Ob du sie selbst hochgeladen
+    hast oder ob sie aus eingehender Post eingesammelt wurden, lässt sich nicht mehr
+    feststellen. Sie werden <strong>weiterhin zum Verschlüsseln benutzt</strong>, bis du
+    entscheidest.<br>
+    <strong>Behalten</strong>, wenn du das Zertifikat kennst — etwa von der eigenen
+    Zertifizierungsstelle eines Partners. <strong>Entfernen</strong>, wenn nicht; schickt der
+    Partner wieder signiert, wird sein Zertifikat neu geprüft. Im Zweifel beim Partner nachfragen.
+  </p>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <table class="config-table" style="min-width:760px">
+    <thead>
+      <tr><th>E-Mail</th><th>Aussteller</th><th>Grund</th><th>Gültig bis</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for d in durchsicht_certs %}
+      <tr data-adresse="{{ d.adresse }}">
+        <td>{{ d.adresse }}</td>
+        <td style="font-size:12px">{% if d.selbst_ausgestellt %}selbst ausgestellt{% else %}{{ d.aussteller }}{% endif %}</td>
+        <td style="font-size:12px">{{ d.grund or '' }}</td>
+        <td>{{ (d.bis or '')[:10] }}</td>
+        <td style="white-space:nowrap">
+          <button class="btn secondary btn-sm"
+                  onclick="durchsichtEntscheiden(this, true)">behalten</button>
+          <button class="btn danger btn-sm"
+                  onclick="durchsichtEntscheiden(this, false)">entfernen</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div id="durchsicht-result" style="margin-top:10px;display:none"></div>
+</div>
+{% endif %}
+
 {% if recipient_certs %}
 <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
 <table class="config-table" style="min-width:600px">
@@ -1599,6 +1640,22 @@ async function wartendVerwerfen(fp) {
   const d = await sendJSON('DELETE', '/api/smime/wartend/' + encodeURIComponent(fp));
   showMsg(box, d.ok ? 'Verworfen.' : 'Fehler beim Verwerfen: ' + errText(d), d.ok);
   if (d.ok) setTimeout(() => location.reload(), 900);
+}
+
+async function durchsichtEntscheiden(btn, behalten) {
+  // Adresse aus data-*: ein Apostroph im lokalen Teil bräche einen Inline-String.
+  const adresse = btn.closest('tr').dataset.adresse;
+  const frage = behalten
+    ? 'Zertifikat für ' + adresse + ' behalten?\n\nEs wird weiter zum Verschlüsseln benutzt.'
+    : 'Zertifikat für ' + adresse + ' entfernen?\n\nAn diese Adresse wird dann nicht mehr '
+      + 'verschlüsselt, bis ein neues Zertifikat vorliegt.';
+  if (!confirm(frage)) return;
+  const box = document.getElementById('durchsicht-result');
+  await knopfAktion(btn, behalten ? 'behalten' : 'entfernen', async () => {
+    const d = await postJSON('/api/smime/durchsicht', { adresse: adresse, behalten: !!behalten });
+    showMsg(box, d.ok ? (behalten ? 'Behalten: ' : 'Entfernt: ') + adresse : errText(d), !!d.ok);
+    if (d.ok) setTimeout(() => location.reload(), 900);
+  });
 }
 
 async function uploadRcptCert(btn) {

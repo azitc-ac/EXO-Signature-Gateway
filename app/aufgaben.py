@@ -75,6 +75,8 @@ AUFGABEN: tuple[Aufgabe, ...] = (
             seit="1.10.110"),
     Aufgabe("tls-rueckweg", abnahme._tls_rueckweg, "/relay#weiterleitungsziele",
             seit="1.10.112"),
+    Aufgabe("bestand-durchsicht", abnahme._bestand_durchsicht, "/smime#durchsicht",
+            seit="1.10.115"),
 )
 
 _TTL_S = 10

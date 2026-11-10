@@ -190,7 +190,7 @@ def freigeben(fingerabdruck: str, auch_aussteller: bool = False) -> dict:
                                   f"Einzelfreigabe {eintrag.get('adresse') or ''}".strip())
             bezeichnung = "nur dieses Zertifikat"
 
-    smime_store.store_recipient_cert(eintrag["adresse"], pem)
+    smime_store.store_recipient_cert(eintrag["adresse"], pem, herkunft="freigegeben")
     verwerfen(fingerabdruck)
     log.info("Zertifikat für %s freigegeben (%s)", eintrag["adresse"],
              bezeichnung or "einmalig")

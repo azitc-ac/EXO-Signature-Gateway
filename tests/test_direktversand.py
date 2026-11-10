@@ -374,7 +374,7 @@ def spf_dns(monkeypatch):
     (f"v=spf1 include:{MS} ~all", "softfail", False),
     (f"v=spf1 include:{MS} -all", "fail", False),
     (f"v=spf1 include:{MS} ip4:{IP} ~all", "pass", True),
-    ("v=spf1 ip4:212.117.95.0/24 -all", "pass", True),
+    ("v=spf1 ip4:203.0.113.0/24 -all", "pass", True),
     # ausdrücklich verboten bleibt verboten, auch wenn die Adresse dasteht
     (f"v=spf1 -ip4:{IP} +all", "fail", False),
     # bares `all` (ohne Qualifier) = pass für jeden

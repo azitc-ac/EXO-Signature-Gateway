@@ -26,6 +26,11 @@ Seitdem gilt (`pruefen()`):
    der Envelope (RFC 8550 §3). Der Envelope trägt bei Versanddiensten eine
    Bounce-Adresse (VERP); im Produktivbestand lagen deshalb Zertifikate unter
    `bounce_…@`-Adressen.
+   Für Entfernen und Vermerk muss es auf den **From**-Kopf lauten (seit
+   v1.10.115). Der Leser sieht From als Absender; ein Vermerk aus einem
+   Zertifikat, das nur auf den Sender-Kopf passt, bescheinigte einer anderen
+   Adresse die Echtheit, und ohne Signatur könnte Outlook den Widerspruch
+   nicht mehr zeigen. Eingesammelt wird es trotzdem (unter seiner Adresse).
 3. Die Kette muss strukturell taugen und auf einen bekannten oder
    freigegebenen Aussteller führen (`trust_store`).
 
@@ -115,7 +120,10 @@ def _openssl_pruefen(raw: bytes) -> tuple[bool, bytes, bytes, bytes, str]:
 
 
 def pruefen(raw: bytes, adressen: list[str]) -> Pruefung:
-    """Signierte Nachricht (multipart/signed oder signed-data) prüfen."""
+    """Signierte Nachricht (multipart/signed oder signed-data) prüfen.
+
+    *adressen* wie aus `kopf_adressen()`: die ERSTE ist die angezeigte
+    (From); nur auf sie hin wird bestätigt."""
     import trust_store
     from cryptography import x509
     from cryptography.hazmat.primitives.serialization import Encoding
@@ -146,6 +154,9 @@ def pruefen(raw: bytes, adressen: list[str]) -> Pruefung:
         bekannt, grund = trust_store.bewerten(p.kette)
         if not bekannt:
             p.grund = grund
+    if not p.grund and p.adresse != adressen[0]:
+        p.grund = (f"Zertifikat lautet auf {p.adresse} (Sender-Kopf), "
+                   f"nicht auf den angezeigten Absender {adressen[0]}")
     if p.grund:
         log.info("S/MIME-Signatur von %s nicht bestätigt: %s", adressen, p.grund)
     return p
@@ -243,7 +254,7 @@ def nur_entfernen(msg: Message) -> bytes | None:
 
 # Einmal je Regelstand. Wird die Regel verschärft, bekommt der Nachlauf eine
 # neue Kennung und läuft erneut.
-NACHLAUF_KENNUNG = "1.10.110"
+NACHLAUF_KENNUNG = "1.10.115"
 
 
 def _nachlauf_marke() -> Path:
@@ -262,18 +273,23 @@ def bestand_nachpruefen() -> list[dict]:
 
     * **Gültigkeit** zählt nicht: Abgelaufene Empfängerzertifikate bleiben im
       Bestand stehen (Hinweis „früher verschlüsselt“).
-    * **Unbekannte Aussteller** zählen nicht: Im Bestand lassen sich
-      eingesammelte nicht von hochgeladenen Zertifikaten unterscheiden, und ein
-      Hochladen ist eine Vertrauensentscheidung des Administrators. Neu
-      eingesammelte Zertifikate durchlaufen diese Prüfung weiterhin.
+    * **Unbekannte Aussteller** verschieben nicht: Bestand von vor v1.10.115
+      trägt keine Herkunft, eingesammelte und hochgeladene Zertifikate sind
+      darin nicht zu unterscheiden, und ein Hochladen ist eine
+      Vertrauensentscheidung des Administrators. Solche Zertifikate kommen
+      stattdessen auf die **Durchsichtsliste** (`durchsicht()`): Genau über
+      den alten openssl-Rückfall konnte ein selbst ausgestelltes Zertifikat
+      mit passender Adresse in den Bestand kommen. Der Administrator
+      entscheidet je Eintrag: behalten oder entfernen.
 
-    Jeder Treffer meldet sich über `cert_wartestand.merken` beim Administrator.
+    Jeder verschobene Treffer meldet sich über `cert_wartestand.merken` beim
+    Administrator.
     """
     import trust_store
     import cert_wartestand
     from cryptography import x509
 
-    verschoben = []
+    verschoben, durchsehen = [], []
     for pfad in smime_store.alle_empfaenger_cert_pfade():
         adresse = pfad.parent.name
         try:
@@ -284,9 +300,13 @@ def bestand_nachpruefen() -> list[dict]:
             continue
         try:
             mangel = trust_store.blatt_maengel(cert, [adresse], gueltigkeit=False)
+            kette = [] if mangel else trust_store.kette_bauen(cert)
             if not mangel:
-                mangel = trust_store.kette_maengel(trust_store.kette_bauen(cert),
-                                                   gueltigkeit=False)
+                mangel = trust_store.kette_maengel(kette, gueltigkeit=False)
+            if not mangel and smime_store.herkunft(adresse) is None:
+                bekannt, grund = trust_store.bewerten(kette)
+                if not bekannt:
+                    durchsehen.append(_durchsicht_eintrag(adresse, cert, kette, grund))
         except Exception as exc:
             log.warning("Nachprüfung: %s nicht prüfbar: %s", adresse, exc)
             continue
@@ -296,7 +316,76 @@ def bestand_nachpruefen() -> list[dict]:
             smime_store.delete_recipient_cert(adresse)
             verschoben.append({"adresse": adresse, "grund": mangel})
             log.warning("Nachprüfung: Zertifikat für %s in den Wartestand (%s)", adresse, mangel)
+    _durchsicht_schreiben(durchsehen)
+    if durchsehen:
+        log.warning("Nachprüfung: %d Bestandszertifikat(e) ohne bekannten Aussteller "
+                    "zur Durchsicht vorgelegt", len(durchsehen))
     return verschoben
+
+
+# ── Durchsicht: Altbestand ohne bekannten Aussteller ──────────────────────────
+
+def _durchsicht_datei() -> Path:
+    import config
+    return Path(config.DATA_DIR) / "smime" / "durchsicht.json"
+
+
+def _durchsicht_eintrag(adresse: str, cert, kette: list, grund: str) -> dict:
+    import trust_store
+    oben = kette[-1] if kette else cert
+    return {"adresse": adresse, "fingerabdruck": trust_store.abdruck(cert),
+            "aussteller": cert.issuer.rfc4514_string()[:200],
+            "selbst_ausgestellt": cert.subject == cert.issuer,
+            "bis": cert.not_valid_after_utc.isoformat(),
+            "grund": grund or f"Kette endet bei {oben.subject.rfc4514_string()[:120]}"}
+
+
+def _durchsicht_schreiben(eintraege: list[dict]) -> None:
+    import json
+    ziel = _durchsicht_datei()
+    ziel.parent.mkdir(parents=True, exist_ok=True)
+    tmp = ziel.with_suffix(".tmp")
+    tmp.write_text(json.dumps(eintraege, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.chmod(0o600)
+    tmp.replace(ziel)
+
+
+def durchsicht() -> list[dict]:
+    """Offene Einträge: nur solange genau dieses Zertifikat noch im Bestand
+    liegt und niemand entschieden hat (dann trägt es eine Herkunft)."""
+    import json
+    import trust_store
+    from cryptography import x509
+    try:
+        eintraege = json.loads(_durchsicht_datei().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    offen = []
+    for e in eintraege:
+        pfad = smime_store.get_recipient_cert_path(e.get("adresse", ""))
+        if pfad is None or smime_store.herkunft(e["adresse"]) is not None:
+            continue
+        try:
+            if trust_store.abdruck(x509.load_pem_x509_certificate(pfad.read_bytes())) \
+                    != e.get("fingerabdruck"):
+                continue
+        except Exception:
+            continue
+        offen.append(e)
+    return offen
+
+
+def durchsicht_entscheiden(adresse: str, behalten: bool) -> bool:
+    adresse = (adresse or "").lower().strip()
+    if not any(e["adresse"] == adresse for e in durchsicht()):
+        return False
+    if behalten:
+        smime_store.herkunft_setzen(adresse, "bestaetigt")
+    else:
+        smime_store.delete_recipient_cert(adresse)
+    log.info("Durchsicht: Zertifikat für %s %s", adresse,
+             "behalten" if behalten else "entfernt")
+    return True
 
 
 def bestand_nachpruefen_einmal() -> list[dict] | None:
@@ -351,7 +440,7 @@ def _uebernehmen(sender: str, cert_pem: bytes, mitgelieferte=None, kette=None,
         kette = kette or _kette_aus_mitgeliefertem(cert, mitgelieferte) or trust_store.kette_bauen(cert)
         art, grund = trust_store.entscheiden(kette)
     if art == trust_store.ANNEHMEN:
-        smime_store.store_recipient_cert(sender, cert_pem)
+        smime_store.store_recipient_cert(sender, cert_pem, herkunft="eingesammelt")
         return
 
     stats.increment("cert_wartet")
