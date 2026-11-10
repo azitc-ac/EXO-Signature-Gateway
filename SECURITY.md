@@ -25,8 +25,12 @@ Gateway aktualisiert sich über die Oberfläche (*Update & Backup*) oder per
 
 | Version | Unterstützt |
 |---------|-------------|
-| aktuelle `1.8.x` | ✅ |
+| jüngstes Release (Kanal *Stabil*) | ✅ |
+| aktueller Stand der Kanäle *Nightly* und *Entwicklung* | ✅ |
 | ältere | ⚠️ bitte aktualisieren |
+
+Eine Sicherheitskorrektur erreicht den Kanal *Stabil* mit dem nächsten
+Release; ist sie dringend, wird dafür eigens eines veröffentlicht.
 
 ## Umgang mit Meldungen
 

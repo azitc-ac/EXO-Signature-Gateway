@@ -342,7 +342,18 @@ def _ablegen(adresse, cert, herkunft=None):
     (d / "cert.pem").write_bytes(cert.public_bytes(serialization.Encoding.PEM))
 
 
+def _aia(umgebung):
+    """Ausstellerabruf wie im Betrieb (AIA): liefert die Partner-CA. Ohne ihn
+    endet die Kette am Blatt, und alles wäre „unbekannt“."""
+    import crl_check
+    ca = umgebung["ca"]
+    umgebung["mp"].setattr(crl_check, "ausstellerzertifikat",
+                           lambda c: ca if c.issuer == ca.subject and c.subject != ca.subject
+                           else None)
+
+
 def test_nachlauf_verschiebt_nur_echte_maengel(umgebung):
+    _aia(umgebung)
     ca, ca_key = umgebung["ca"], umgebung["ca_key"]
     passend, _ = _mk("Paula", ca, ca_key, san="paula@partner.example")
     fremd, _ = _mk("No-Reply", ca, ca_key, san="no-reply@shop.example")
@@ -366,9 +377,12 @@ def test_nachlauf_verschiebt_nur_echte_maengel(umgebung):
 
 def test_durchsicht_kennt_die_herkunft(umgebung):
     """Hochgeladen ist eine Entscheidung — nur Bestand ohne Herkunft wird vorgelegt."""
+    _aia(umgebung)
     for adr, h in (("alt@partner.example", None), ("hoch@partner.example", "hochgeladen")):
         cert, _ = _mk("Eigen", san=adr)
         _ablegen(adr, cert, h)
+    passend, _ = _mk("Paula", umgebung["ca"], umgebung["ca_key"], san="paula@partner.example")
+    _ablegen("paula@partner.example", passend)
     smime_harvest.bestand_nachpruefen()
     assert [d["adresse"] for d in smime_harvest.durchsicht()] == ["alt@partner.example"]
 

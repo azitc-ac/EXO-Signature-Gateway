@@ -1456,6 +1456,13 @@
     "name": "api_smime_delete"
   },
   {
+    "pfad": "/api/smime/durchsicht",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_durchsicht"
+  },
+  {
     "pfad": "/api/smime/einwilligung/{email}",
     "methoden": [
       "POST"

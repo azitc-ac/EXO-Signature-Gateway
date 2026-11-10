@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.116 — 2026-11-11 — SECURITY.md: unterstützte Fassungen nach Kanal
+
+- `SECURITY.md` nannte noch `1.8.x` als unterstützte Fassung. Jetzt steht
+  dort, was seit den Update-Kanälen gilt: das jüngste Release im Kanal
+  *Stabil* und der aktuelle Stand von *Nightly* und *Entwicklung*.
+
+**Zu tun:** nichts.
+
 ## v1.10.115 — 2026-11-11 — S/MIME eingehend: Vermerk nur für den angezeigten Absender, Durchsicht des Altbestands
 
 - **Vermerk „signiert von …“ nur, wenn das Zertifikat auf den From-Kopf
