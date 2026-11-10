@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.105 — 2026-11-10 — Prüfstand der CI nachgeführt
+
+- Die Kopienprüfung der CI wertete die neue Zeile der Aktionstabelle aus
+  v1.10.104 als Kopie. Es ist ein Tabelleneintrag wie seine Nachbarn; der
+  Prüfstand ist entsprechend nachgeführt. Keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
 ## v1.10.104 — 2026-11-10 — Eingehende S/MIME-Post im Mail-Protokoll und im Dashboard
 
 - **Neu: „S/MIME signiert empfangen“.** Eingehend signierte Mails von außen
