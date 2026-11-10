@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.102 — 2026-11-10 — Doku: Links zum freigeschalteten Marketplace-Angebot
+
+- README und `docs/installation.md` verlinken jetzt das freigeschaltete
+  Angebot im Azure Marketplace statt der Vorschau aus v1.10.101.
+
+**Zu tun:** nichts.
+
 ## v1.10.101 — 2026-11-10 — Doku: Azure Marketplace als erster Weg nach Azure
 
 - **Neu:** README und `docs/installation.md` führen zum Angebot im Azure

@@ -124,9 +124,8 @@ Für den Azure-Betrieb `REINJECT_MODE=graph` (Graph-only) oder `graph_plus` (Gra
 
 ### Azure VM anlegen (Vorlage im Portal)
 
-<!-- MARKETPLACE-VORSCHAU: Links nach Go live ersetzen (tests/test_marketplace_links.py) -->
 Das Gateway steht als kostenloses Angebot im Azure Marketplace:
-[Im Azure-Portal bereitstellen](https://portal.azure.com/#create/azitc.exo-signature-gateway-previewgateway-vm) · [Angebot im Azure Marketplace](https://marketplace.microsoft.com/de-de/product/azure-application/azitc.exo-signature-gateway-preview).
+[Im Azure-Portal bereitstellen](https://portal.azure.com/#create/azitc.exo-signature-gatewaygateway-vm) · [Angebot im Azure Marketplace](https://marketplace.microsoft.com/en-us/product/azure-application/azitc.exo-signature-gateway?tab=Overview).
 Azure berechnet nur VM, IP-Adresse und Speicher; die Lizenz des Gateways ist davon
 getrennt ([LICENSE.md](../LICENSE.md)).
 

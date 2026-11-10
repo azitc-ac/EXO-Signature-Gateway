@@ -212,9 +212,8 @@ docker compose up -d --build
 3. Der Einrichtungsassistent legt die App-Registrierung in Entra ID an und
    richtet Connector, Transportregel und Verteilerliste in Exchange Online ein.
 
-<!-- MARKETPLACE-VORSCHAU: Links nach Go live ersetzen (tests/test_marketplace_links.py) -->
 In Azure geht es ohne Kommandozeile, über den Azure Marketplace:
-[Im Azure-Portal bereitstellen](https://portal.azure.com/#create/azitc.exo-signature-gateway-previewgateway-vm) · [Angebot im Azure Marketplace](https://marketplace.microsoft.com/de-de/product/azure-application/azitc.exo-signature-gateway-preview).
+[Im Azure-Portal bereitstellen](https://portal.azure.com/#create/azitc.exo-signature-gatewaygateway-vm) · [Angebot im Azure Marketplace](https://marketplace.microsoft.com/en-us/product/azure-application/azitc.exo-signature-gateway?tab=Overview).
 Dieselbe Vorlage direkt aus GitHub: [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2Fazuredeploy.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fazitc-ac%2FEXO-Signature-Gateway%2Fmain%2Fdeploy%2Fazure%2FcreateUiDefinition.json)
 Die Vorlage legt VM, statische IP und Firewall an und installiert das Gateway.
 
