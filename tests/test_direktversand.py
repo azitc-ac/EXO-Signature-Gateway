@@ -352,7 +352,7 @@ def test_uebergabe_an_postfix_signiert_ohne_tls(werte, monkeypatch):
 
 # ── SPF-Auswertung (pyspf, gegen ein erfundenes DNS) ────────────────────────
 
-IP = "212.117.95.233"
+IP = "203.0.113.10"
 MS = "spf.protection.outlook.com"
 
 

@@ -14,7 +14,7 @@
     Path to the PFX file (no password) containing the auth certificate and private key.
 
 .PARAMETER SmtpProxyHostname
-    Public hostname of the SMTP proxy (e.g. "mail.zarenko.net").
+    Public hostname of the SMTP proxy (e.g. "mail.contoso.com").
 #>
 
 param(

@@ -16,7 +16,7 @@ import settings_store
 import setup_wizard
 from setup_wizard import _naa_patches
 
-CID = "f8a0f52a-0000-0000-0000-000000000001"
+CID = "00000000-0000-0000-0000-0000000000b1"
 
 # So sieht die von Hand eingerichtete Registrierung auf der VM aus (live
 # gelesen 18.10.2026) — das Soll, das der Code nun selbst herstellt.

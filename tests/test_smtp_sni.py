@@ -2,16 +2,16 @@
 
 ANLASS (2026-09-24): Das Dev-Gateway bedient zwei Connectoren mit
 DomainValidation über EINEN :25-Listener — der Signatur-Connector validiert
-`sig.azitc.eu`, der Hybrid-Koexistenz-Inbound `mail.zarenko.net`. Mit nur einem
+`gateway.fabrikam.com`, der Hybrid-Koexistenz-Inbound `mail.contoso.com`. Mit nur einem
 Zert scheiterte zwangsläufig einer: Exchange lehnte mit
-`450 4.4.317 … SubjectMismatch. Expected Subject: sig.azitc.eu. Presented
-Subject: CN=*.zarenko.net` ab, die Mail blieb hängen.
+`450 4.4.317 … SubjectMismatch. Expected Subject: gateway.fabrikam.com. Presented
+Subject: CN=*.contoso.com` ab, die Mail blieb hängen.
 
 Geprüft wird die eigentliche Invariante über einen echten TLS-Handshake: Der
 Listener präsentiert das zum angefragten Namen passende Zert. Ohne bzw. ohne
 passendes SNI bleibt es beim Default (erstes Zert) — das bisherige Verhalten,
-rein additiv. Baut man die SNI-Auswahl zurück, bekommt `sig.azitc.eu` wieder
-das `*.zarenko.net`-Zert und der Handshake-Test schlägt fehl.
+rein additiv. Baut man die SNI-Auswahl zurück, bekommt `gateway.fabrikam.com` wieder
+das `*.contoso.com`-Zert und der Handshake-Test schlägt fehl.
 """
 import datetime
 import socket
@@ -84,8 +84,8 @@ def _peer_san(server_ctx: ssl.SSLContext, sni: str | None) -> set[str]:
 
 # ── Namen aus Zert lesen ─────────────────────────────────────────────────────
 def test_zert_namen_liest_san(tmp_path):
-    cp, _ = _mk_cert(tmp_path, "azitc", "sig.azitc.eu", ["sig.azitc.eu"])
-    assert smtp_cert.zert_namen(cp) == {"sig.azitc.eu"}
+    cp, _ = _mk_cert(tmp_path, "azitc", "gateway.fabrikam.com", ["gateway.fabrikam.com"])
+    assert smtp_cert.zert_namen(cp) == {"gateway.fabrikam.com"}
 
 
 def test_zert_namen_leer_bei_unlesbar(tmp_path):
@@ -96,13 +96,13 @@ def test_zert_namen_leer_bei_unlesbar(tmp_path):
 
 # ── Wildcard-Regel (RFC 6125) ────────────────────────────────────────────────
 @pytest.mark.parametrize("sn,namen,erwartet", [
-    ("sig.azitc.eu", {"sig.azitc.eu"}, True),
-    ("SIG.AZITC.EU", {"sig.azitc.eu"}, True),                 # Groß/klein egal
-    ("mail.zarenko.net", {"*.zarenko.net"}, True),            # eine Ebene
-    ("zarenko.net", {"*.zarenko.net"}, False),                # Apex nicht
-    ("a.b.zarenko.net", {"*.zarenko.net"}, False),            # zwei Ebenen nicht
-    ("sig.azitc.eu", {"*.zarenko.net"}, False),               # andere Domäne
-    ("", {"*.zarenko.net"}, False),                            # kein SNI
+    ("gateway.fabrikam.com", {"gateway.fabrikam.com"}, True),
+    ("GATEWAY.FABRIKAM.COM", {"gateway.fabrikam.com"}, True),                 # Groß/klein egal
+    ("mail.contoso.com", {"*.contoso.com"}, True),            # eine Ebene
+    ("contoso.com", {"*.contoso.com"}, False),                # Apex nicht
+    ("a.b.contoso.com", {"*.contoso.com"}, False),            # zwei Ebenen nicht
+    ("gateway.fabrikam.com", {"*.contoso.com"}, False),               # andere Domäne
+    ("", {"*.contoso.com"}, False),                            # kein SNI
 ])
 def test_name_passt(sn, namen, erwartet):
     assert smtp_cert.name_passt(sn, namen) is erwartet
@@ -110,23 +110,23 @@ def test_name_passt(sn, namen, erwartet):
 
 # ── SNI-Auswahl über echten Handshake ────────────────────────────────────────
 def test_sni_waehlt_passendes_zert(tmp_path):
-    zarenko = _mk_cert(tmp_path, "zarenko", "*.zarenko.net", ["*.zarenko.net"])
-    azitc = _mk_cert(tmp_path, "azitc", "sig.azitc.eu", ["sig.azitc.eu"])
+    zarenko = _mk_cert(tmp_path, "zarenko", "*.contoso.com", ["*.contoso.com"])
+    azitc = _mk_cert(tmp_path, "azitc", "gateway.fabrikam.com", ["gateway.fabrikam.com"])
     # Reihenfolge = Vorrang: zarenko ist Default (wie im Betrieb das separate Zert)
     ctx = smtp_cert.baue_listener_kontext([zarenko, azitc])
 
-    assert _peer_san(ctx, "sig.azitc.eu") == {"sig.azitc.eu"}      # der Fix
-    assert _peer_san(ctx, "mail.zarenko.net") == {"*.zarenko.net"}
+    assert _peer_san(ctx, "gateway.fabrikam.com") == {"gateway.fabrikam.com"}      # der Fix
+    assert _peer_san(ctx, "mail.contoso.com") == {"*.contoso.com"}
     # ohne/ohne passendes SNI → Default (bisheriges Verhalten, additiv)
-    assert _peer_san(ctx, "fremd.example.org") == {"*.zarenko.net"}
-    assert _peer_san(ctx, None) == {"*.zarenko.net"}
+    assert _peer_san(ctx, "fremd.example.org") == {"*.contoso.com"}
+    assert _peer_san(ctx, None) == {"*.contoso.com"}
 
 
 def test_ein_zert_ohne_sni_immer_dasselbe(tmp_path):
-    azitc = _mk_cert(tmp_path, "azitc", "sig.azitc.eu", ["sig.azitc.eu"])
+    azitc = _mk_cert(tmp_path, "azitc", "gateway.fabrikam.com", ["gateway.fabrikam.com"])
     ctx = smtp_cert.baue_listener_kontext([azitc])
     assert ctx.sni_callback is None                                # kein SNI nötig
-    assert _peer_san(ctx, "mail.zarenko.net") == {"sig.azitc.eu"}
+    assert _peer_san(ctx, "mail.contoso.com") == {"gateway.fabrikam.com"}
 
 
 def test_keine_zerts_kein_kontext():

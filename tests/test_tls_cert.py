@@ -98,10 +98,10 @@ def test_install_pfx_uebergeht_mismatch_mit_flag(tmp_path, monkeypatch):
 
 
 def test_wildcard_deckt_nur_eine_ebene(tmp_path, monkeypatch):
-    """*.zarenko.net passt zu a.zarenko.net, NICHT zu a.b.zarenko.net (RFC 6125)."""
-    assert tls_cert.host_matches("hv01.zarenko.net", ["*.zarenko.net"])
-    assert not tls_cert.host_matches("hv01.test.zarenko.net", ["*.zarenko.net"])
-    assert tls_cert.host_matches("hv01.test.zarenko.net", ["*.test.zarenko.net"])
+    """*.contoso.com passt zu a.contoso.com, NICHT zu a.b.contoso.com (RFC 6125)."""
+    assert tls_cert.host_matches("hv01.contoso.com", ["*.contoso.com"])
+    assert not tls_cert.host_matches("hv01.test.contoso.com", ["*.contoso.com"])
+    assert tls_cert.host_matches("hv01.test.contoso.com", ["*.test.contoso.com"])
 
 
 # ── DNS-01 CSR ────────────────────────────────────────────────────────────────

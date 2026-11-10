@@ -63,7 +63,7 @@ Gateway-Auth-Zertifikat):
 ```bash
 docker exec exo-signature-gateway pwsh -NoLogo -NonInteractive -File \
   /app/scripts/grant_watchdog_role.ps1 \
-  -AppId <GATEWAY_APP_ID> -Organization zarenko.onmicrosoft.com -CertPath /app/data/auth.pfx \
+  -AppId <GATEWAY_APP_ID> -Organization contoso.onmicrosoft.com -CertPath /app/data/auth.pfx \
   -WatchdogAppId <WAECHTER-APP-ID> -WatchdogObjectId <WAECHTER-SP-OBJECT-ID>
 ```
 Schritt 1+2 (App-Rolle + Global Reader) manuell: siehe die `az`-Befehle in
@@ -73,9 +73,9 @@ SP-Objekt-ID der Zertifikats-App.
 ## Konfiguration (`/etc/exo-watchdog/watchdog.env`)
 | Variable | Zweck |
 |---|---|
-| `GATEWAY_HEALTH_URL` | z.B. `https://sig.zarenko.net/health` |
+| `GATEWAY_HEALTH_URL` | z.B. `https://gateway.contoso.com/health` |
 | `WATCHDOG_TOKEN` | Klartext-Token; das Gateway prüft dessen PBKDF2-Hash (`/api/watchdog/token/rotate`) |
-| `EXO_ORGANIZATION` | z.B. `zarenko.onmicrosoft.com` |
+| `EXO_ORGANIZATION` | z.B. `contoso.onmicrosoft.com` |
 | `WATCHDOG_APP_ID` | App-ID der Wächter-App |
 | `WATCHDOG_CERT_PATH` | Pfad zur `.pfx` (600) |
 | `SIG_RULE_NAME` | Name der Signatur-Regel, z.B. `Route via EXO Signature Gateway (Signatur)` (aus der Gateway-UI kopieren: Erweitert → Bypass-Wächter) |

@@ -14,14 +14,14 @@ import aussenadresse
 
 def test_bare_hostname(monkeypatch):
     monkeypatch.setattr(aussenadresse.settings_store, "get",
-                        lambda k, *a, **kw: "sig.zarenko.net" if k == "PUBLIC_HOSTNAME" else None)
-    assert aussenadresse.ehlo_hostname() == "sig.zarenko.net"
+                        lambda k, *a, **kw: "gateway.contoso.com" if k == "PUBLIC_HOSTNAME" else None)
+    assert aussenadresse.ehlo_hostname() == "gateway.contoso.com"
 
 
 def test_url_wird_auf_host_reduziert(monkeypatch):
     monkeypatch.setattr(aussenadresse.settings_store, "get",
-                        lambda k, *a, **kw: "https://sig.zarenko.net:8080/x" if k == "PUBLIC_HOSTNAME" else None)
-    assert aussenadresse.ehlo_hostname() == "sig.zarenko.net"
+                        lambda k, *a, **kw: "https://gateway.contoso.com:8080/x" if k == "PUBLIC_HOSTNAME" else None)
+    assert aussenadresse.ehlo_hostname() == "gateway.contoso.com"
 
 
 def test_leer_ist_none(monkeypatch):

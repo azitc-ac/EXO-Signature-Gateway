@@ -188,8 +188,8 @@ def _submission_authenticator(server, session, envelope, mechanism, auth_data):
 
 def _build_tls_context() -> ssl.SSLContext | None:
     # Der SMTP-Listener kann MEHRERE Namen bedienen und wählt per SNI das
-    # passende Zert: z.B. sig.azitc.eu für den Signatur-Connector UND
-    # mail.zarenko.net (Wildcard) für den Hybrid-Koexistenz-Inbound. Beide
+    # passende Zert: z.B. gateway.fabrikam.com für den Signatur-Connector UND
+    # mail.contoso.com (Wildcard) für den Hybrid-Koexistenz-Inbound. Beide
     # Connectoren validieren per DomainValidation ihren eigenen TlsDomain —
     # mit nur EINEM Zert scheitert zwangsläufig einer.
     #

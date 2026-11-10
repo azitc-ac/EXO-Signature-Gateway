@@ -59,7 +59,7 @@ OPTIONAL = "optional"      # in dieser Anlage nicht nötig
 #
 # Der erste Entwurf führte eine Liste von Erledigt-Wörtern („erledigt",
 # „eingerichtet", „aktiv" …). Der Trockenlauf zeigte sofort die Lücke: Ein
-# Abzeichen trägt oft schlicht den erreichten WERT — „sig.azitc.eu" für den
+# Abzeichen trägt oft schlicht den erreichten WERT — „gateway.fabrikam.com" für den
 # Hostnamen, „SMTP Port 25" für den Modus. Beides ist erledigt, stand aber in
 # keiner Wortliste, und beide Schritte wurden als offen gemeldet.
 #

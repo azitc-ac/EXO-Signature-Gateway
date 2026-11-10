@@ -16,11 +16,11 @@ _spec.loader.exec_module(tsc)
 
 INPUTS = {
     "gateway_name": "EXO Signature Gateway",
-    "public_hostname": "sig.zarenko.net",
-    "tenant_domain": "zarenko.onmicrosoft.com",
+    "public_hostname": "gateway.contoso.com",
+    "tenant_domain": "contoso.onmicrosoft.com",
     "reinject_mode": "smtp",
     "loop_header": "X-Sig-Applied",
-    "tenant_id": "75d1ad31-0000-4000-8000-000000000001",
+    "tenant_id": "00000000-0000-4000-8000-000000000001",
 }
 MUSTER = tsc.muster_fuer(INPUTS["tenant_id"])
 
@@ -31,7 +31,7 @@ def gut() -> dict:
         "transportregeln": [
             {"Name": "Route via EXO Signature Gateway (Signatur)", "State": "Enabled", "Priority": 1,
              "Mode": "Enforce", "FromScope": "InOrganization", "SentToScope": "",
-             "FromMemberOf": ["EXOSignatureGateway-EnabledMailboxes@zarenko.onmicrosoft.com"],
+             "FromMemberOf": ["EXOSignatureGateway-EnabledMailboxes@contoso.onmicrosoft.com"],
              "RouteMessageOutboundConnector": "EXO Signature Gateway - Outbound",
              "ExceptIfHeaderMatchesMessageHeader": "X-Sig-Applied", "ExceptIfHeaderMatchesPatterns": [MUSTER],
              "ExceptIfHeaderContainsMessageHeader": "Auto-Submitted",
@@ -51,12 +51,12 @@ def gut() -> dict:
         ],
         "outbound_connectoren": [
             {"Name": "EXO Signature Gateway - Outbound", "ConnectorType": "OnPremises", "Enabled": True,
-             "IsValidated": True, "UseMXRecord": False, "SmartHosts": ["sig.zarenko.net"],
-             "TlsSettings": "DomainValidation", "TlsDomain": "sig.zarenko.net", "IsTransportRuleScoped": True},
+             "IsValidated": True, "UseMXRecord": False, "SmartHosts": ["gateway.contoso.com"],
+             "TlsSettings": "DomainValidation", "TlsDomain": "gateway.contoso.com", "IsTransportRuleScoped": True},
         ],
         "inbound_connectoren": [
             {"Name": "EXO Signature Gateway - Inbound", "ConnectorType": "OnPremises", "Enabled": True,
-             "SenderDomains": ["smtp:*;1"], "RequireTls": True, "TlsSenderCertificateName": "sig.zarenko.net"},
+             "SenderDomains": ["smtp:*;1"], "RequireTls": True, "TlsSenderCertificateName": "gateway.contoso.com"},
         ],
         "verteilerlisten": [
             {"Name": "EXO Signature Gateway - Enabled Mailboxes", "Alias": "EXOSignatureGateway-EnabledMailboxes",

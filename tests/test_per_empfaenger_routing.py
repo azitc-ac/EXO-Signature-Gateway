@@ -58,8 +58,8 @@ _JSON = """[
    "addresses":["SMTP:Max.Mustermann@zarenko.net","smtp:maxm@zarenko.net","SIP:max@zarenko.net"]},
   {"primary":"justin.braun@regioit.de","RecipientTypeDetails":"GuestMailUser",
    "addresses":["SMTP:justin.braun@regioit.de"]},
-  {"primary":"b9e4eced.zarenko.onmicrosoft.com@emea.teams.ms","RecipientTypeDetails":"MailUser",
-   "addresses":["SMTP:b9e4eced.zarenko.onmicrosoft.com@emea.teams.ms"]}
+  {"primary":"b9e4eced.contoso.onmicrosoft.com@emea.teams.ms","RecipientTypeDetails":"MailUser",
+   "addresses":["SMTP:b9e4eced.contoso.onmicrosoft.com@emea.teams.ms"]}
 ]"""
 
 

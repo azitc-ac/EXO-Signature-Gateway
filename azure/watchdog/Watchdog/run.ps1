@@ -12,9 +12,9 @@
 # Exchange Administrator. Einrichtung siehe README + setup_watchdog_role.ps1.
 #
 # App-Einstellungen (Function App → Konfiguration):
-#   GATEWAY_HEALTH_URL   z.B. https://sig.zarenko.net/health
+#   GATEWAY_HEALTH_URL   z.B. https://gateway.contoso.com/health
 #   WATCHDOG_TOKEN       Klartext-Token; Gateway prüft dessen PBKDF2-Hash
-#   EXO_ORGANIZATION     z.B. zarenko.onmicrosoft.com
+#   EXO_ORGANIZATION     z.B. contoso.onmicrosoft.com
 #   SIG_RULE_NAME        z.B. "Route via EXO Signature Gateway"
 #   FAIL_THRESHOLD       aufeinanderfolgende Fehlversuche bis Bypass (Vorgabe 3)
 param($Timer)

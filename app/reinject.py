@@ -452,7 +452,7 @@ def _send_smtp(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> Non
     relay_pass = settings_store.get("RELAY_PASSWORD") or ""
 
     # Present our proxy TLS cert during STARTTLS so EXO's inbound connector
-    # (TlsSenderCertificateName = sig.zarenko.net) matches and bypasses
+    # (TlsSenderCertificateName = gateway.contoso.com) matches and bypasses
     # spam filtering for stripped inbound mails. Das Zertifikat des Smarthosts
     # wird geprüft (tls_ausgehend) — *.mail.protection.outlook.com, gemessen
     # 10.11.2026; ein Smarthost als IP-Adresse scheitert daran.

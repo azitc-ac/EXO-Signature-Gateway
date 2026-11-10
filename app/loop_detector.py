@@ -13,7 +13,7 @@ def marker_wert() -> str:
     (anderer Kunde, anderer Tenant) trug deshalb schon die Markierung, und die
     eingehenden S/MIME-Regeln des Empfängers nahmen sie aus: kein Zertifikat
     übernommen, verschlüsselte Post nicht entschlüsselt (gemessen 23.10.2026,
-    a-az@azitc.org → alexander@zarenko.net). Jetzt erkennt jedes Gateway nur
+    zwischen zwei Tenants). Jetzt erkennt jedes Gateway nur
     seine eigene Markierung.
 
     ⚠️ Beginnt mit `1-`: Regeln vor der Umstellung prüfen das UNVERANKERTE

@@ -792,7 +792,7 @@ async def addin_update_redirect_uri(request: Request, user: str = Depends(_requi
     """Start PKCE flow to add the external (no-port) redirect URI to the Bootstrap app in Entra.
 
     Uses the OLD registered URI (with port) as PKCE callback so the roundtrip completes
-    when triggered from the internal URL (e.g. https://sig.zarenko.net:8080).
+    when triggered from the internal URL (e.g. https://gateway.contoso.com:8080).
     The callback handler then registers the NEW no-port URI via patch_bootstrap_redirect_uri.
     Afterwards SSO via App Proxy (port 443) works without hitting :8080.
     """

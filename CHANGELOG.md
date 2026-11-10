@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.114 — 2026-11-10 — Beispiele ohne Kennungen der eigenen Umgebung
+
+- In Kommentaren, Doku, Beispielkonfigurationen und Tests standen als
+  Beispiel die echten Hostnamen von Gateways des Projekts, ein Tenant-Name,
+  eine öffentliche IP-Adresse und Anfänge von Tenant-/App-IDs. Sie sind
+  durch neutrale Werte ersetzt (`gateway.contoso.com`, `contoso.onmicrosoft.com`,
+  `203.0.113.10` aus dem Dokumentationsbereich). An der Funktion ändert sich
+  nichts. Ein Test sperrt die Werte künftig; er führt sie nur als
+  Prüfsummen, damit sie nicht über ihn ins Repository zurückkommen.
+
+**Zu tun:** nichts.
+
 ## v1.10.113 — 2026-11-10 — Auslieferungs-Kennwort erlaubt nur das Ändern
 
 - Solange für die Weboberfläche das Auslieferungs-Kennwort gilt (`admin`,
@@ -13059,7 +13071,7 @@ serialisiert (CRLF-Invariante).
 docker-compose mappt 443→8080 — der Fallback in _portal_base_url() hängte
 aber ":8080" an, was extern nicht erreichbar ist. Jetzt: SECURE_PORTAL_BASE_URL
 → ADDIN_BASE_URL → https://{PUBLIC_HOSTNAME} (ohne Port). UI-Hinweis angepasst.
-Auf dem Raspi ergibt der Fallback damit korrekt https://sig.azitc.eu.
+Auf dem Raspi ergibt der Fallback damit korrekt https://gateway.fabrikam.com.
 
 ---
 
@@ -14125,7 +14137,7 @@ _get_gateway_url() hängte bei fehlendem GATEWAY_EXTERNAL_URL fälschlich ":8080
 an die LE_DOMAIN an — das ist nur der interne Container-Port (docker-compose
 mappt Host-443 → Container-8080), von außen ist immer Standard-HTTPS (443)
 korrekt. Produktiv-Symptom: Renewal-Benachrichtigung enthielt
-"https://sig.zarenko.net:8080/smime/renew/…" statt der korrekten URL ohne Port.
+"https://gateway.contoso.com:8080/smime/renew/…" statt der korrekten URL ohne Port.
 Zusätzlich: .alert-Boxen hatten kein Wortumbruch-Handling — eine lange URL
 (z.B. dieser Renewal-Link) sprengte die Box seitlich statt umzubrechen. Fix:
 overflow-wrap:anywhere + max-width:100%.
@@ -15048,9 +15060,9 @@ Service bei Prozessende automatisch neu). Executable-Bit in git persistiert (100
 
 Login-Seite prüft ob der Browser-Host (Host-Header) mit dem SSO-Redirect-Host
 (ADDIN_BASE_URL / PUBLIC_HOSTNAME) übereinstimmt. Bei Mismatch (z.B. Raspi via
-lokaler IP): kein SSO-Button, stattdessen Hinweis "nur über sig.zarenko.net
+lokaler IP): kein SSO-Button, stattdessen Hinweis "nur über gateway.contoso.com
 verfügbar" + lokaler Login direkt aufgeklappt (open). Verhindert dass der User
-nach lokalem Login auf der Azure-VM landet (SSO-Callback geht immer zu sig.zarenko.net).
+nach lokalem Login auf der Azure-VM landet (SSO-Callback geht immer zu gateway.contoso.com).
 
 ## v1.4.322 — 2026-06-30 — feat: Selbsttest-Vorschau (Eingabe vs. Ausgabe Modal)
 
@@ -15528,8 +15540,8 @@ Anleitung zum Anlegen am dringendsten braucht. Jetzt immer `<details open>`.
 
 Hartnäckiges AADSTS50011 trotz korrekt erscheinender App-Registrierung. Ursache:
 _build_redirect_uri(sso=True) hängte den INTERNEN Bind-Port (WEBUI_PORT=8080) an die
-öffentliche Redirect-URI → der Wizard sendete https://sig.zarenko.net:8080/auth/callback,
-während der Nutzer https://sig.zarenko.net/auth/callback (Port 443 extern, Docker
+öffentliche Redirect-URI → der Wizard sendete https://gateway.contoso.com:8080/auth/callback,
+während der Nutzer https://gateway.contoso.com/auth/callback (Port 443 extern, Docker
 mappt 443:8080) registriert → Mismatch. Fix: öffentliche HTTPS-Redirect-URI ohne Port
 (443 implizit); für nicht-Standard-Außenports ADDIN_BASE_URL setzen.
 Zusätzlich Setup-Wizard entwirrt: zeigt jetzt die EXAKT zu registrierende Redirect-URI
@@ -16289,7 +16301,7 @@ Betreff-Stacking:
 ### SSO-Login über App Proxy funktioniert jetzt ohne Port-Konflikt
 - `_build_redirect_uri(sso=True)`: ADDIN_BASE_URL hat Priorität (kein `:8080`-Suffix),
   Fallback auf PUBLIC_HOSTNAME + Port, dann localhost
-- `patch_bootstrap_redirect_uri`: ebenfalls ADDIN_BASE_URL-first — registriert `https://sig.zarenko.net/auth/callback`
+- `patch_bootstrap_redirect_uri`: ebenfalls ADDIN_BASE_URL-first — registriert `https://gateway.contoso.com/auth/callback`
 - Neues PKCE-Flow `patch_redirect_uri`: Registrierung der neuen URI ohne Setup-Wizard-Neustart
 - Neuer Route `GET /api/addin/update-redirect-uri`: startet PKCE mit alter `:8080`-URI (bereits registriert)
 - Settings.html: SSO-Redirect-URI-Status bei gesetzter ADDIN_BASE_URL (✓ registriert / ⚠️ nicht registriert)
@@ -16347,7 +16359,7 @@ Betreff-Stacking:
 ## v1.4.66 — 2026-06-24 — feat: ADDIN_BASE_URL Setting für externe Gateway-URL
 
 ### Feature: Konfigurierbare externe URL für Add-in Manifest
-- Neues Setting `ADDIN_BASE_URL` (z.B. `https://sig.zarenko.net`) — überschreibt automatische Erkennung
+- Neues Setting `ADDIN_BASE_URL` (z.B. `https://gateway.contoso.com`) — überschreibt automatische Erkennung
 - Manifest-Endpunkt und Settings-UI nutzen gemeinsame `_addin_base_url()` Hilfsfunktion
 - Priorität: ADDIN_BASE_URL > X-Forwarded-Host Header > request.url (mit Port)
 - Settings-UI: Manifest-URL wird serverseitig gerendert (korrekte externe URL auch beim internen Zugriff auf :8080)
@@ -16398,9 +16410,9 @@ Betreff-Stacking:
 
 ## v1.4.61 — 2026-06-24 — fix: Manifest-URLs korrekt hinter Azure Application Proxy
 
-### Fix: `https://sig.zarenko.net:8080` in Manifest-URLs
+### Fix: `https://gateway.contoso.com:8080` in Manifest-URLs
 - `addin_manifest` liest jetzt `X-Forwarded-Host` / `X-Forwarded-Proto` aus
-- App Proxy sendet diese Header → Manifest enthält `https://sig.zarenko.net` (kein :8080)
+- App Proxy sendet diese Header → Manifest enthält `https://gateway.contoso.com` (kein :8080)
 - Fallback auf `request.url` wenn kein Proxy-Header vorhanden (lokaler Zugriff)
 
 ---
@@ -17092,7 +17104,7 @@ Aufrufe → mehrere Sent Items (Original unverändert + N signierte Kopien).
 - `acme_state._send_challenge_reply()`: `mime.as_bytes()` → `mime.as_bytes(policy=email.policy.SMTP)`
 - Ursache: Python email-Bibliothek produziert bare LF (\n); Exchange lehnt SMTP-DATA
   mit 550 5.6.11 SMTPSEND.BareLinefeedsAreIllegal ab wenn BDAT nicht verfügbar
-- Exchange Message Trace: TRANSFER→Fail an sig.zarenko.net war eindeutiger Beweis
+- Exchange Message Trace: TRANSFER→Fail an gateway.contoso.com war eindeutiger Beweis
 
 ## v1.0.104 — 2026-06-19 — Debug: EXO PowerShell Zertifikat-Export (.cer)
 
@@ -17260,7 +17272,7 @@ Aufrufe → mehrere Sent Items (Original unverändert + N signierte Kopien).
   `invalid` ohne Error-Details.  
   Fix: Direkte SMTP-Verbindung zu castle.cloud's MX (`route2.mx.cloudflare.net:25`)
   via DNS-over-HTTPS MX-Lookup. Keine Exchange-Zwischenschaltung, keine Modifikationen.
-  SPF für zarenko.net enthält Gateway-IP (212.117.95.233). DMARC p=none.
+  SPF für zarenko.net enthält Gateway-IP (203.0.113.10). DMARC p=none.
   **Ergebnis: status=valid, Zertifikat ausgestellt (Slot 359940cf075acb57, exp 15.12.2026)**
 
 ---

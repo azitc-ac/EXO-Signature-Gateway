@@ -47,8 +47,8 @@ func azure functionapp publish $APP                     # aus diesem Verzeichnis
 
 # App-Einstellungen (SIG_RULE_NAME aus der Gateway-UI kopieren)
 az functionapp config appsettings set -n $APP -g $RG --settings \
-   GATEWAY_HEALTH_URL="https://sig.zarenko.net/health" \
-   EXO_ORGANIZATION="zarenko.onmicrosoft.com" \
+   GATEWAY_HEALTH_URL="https://gateway.contoso.com/health" \
+   EXO_ORGANIZATION="contoso.onmicrosoft.com" \
    SIG_RULE_NAME="Route via EXO Signature Gateway (Signatur)" \
    FAIL_THRESHOLD=3 \
    WATCHDOG_TOKEN="<Token aus /api/watchdog/token/rotate>"
@@ -100,7 +100,7 @@ Alternativ per Kommandozeile (Skript liegt im Container):
 ```bash
 docker exec exo-signature-gateway pwsh -NoLogo -NonInteractive -File \
   /app/scripts/grant_watchdog_role.ps1 \
-  -AppId <GATEWAY_APP_ID> -Organization zarenko.onmicrosoft.com -CertPath /app/data/auth.pfx \
+  -AppId <GATEWAY_APP_ID> -Organization contoso.onmicrosoft.com -CertPath /app/data/auth.pfx \
   -WatchdogAppId <MI-AppId> -WatchdogObjectId <MI-ObjectId>
 ```
 (MI-AppId/ObjectId liefert `az functionapp identity show -n $APP -g $RG`.)
@@ -116,9 +116,9 @@ direkt per `New-ManagementRoleAssignment -App`, das erledigt Schritt 3).
 ## Konfiguration
 | App-Einstellung | Zweck |
 |---|---|
-| `GATEWAY_HEALTH_URL` | z.B. `https://sig.zarenko.net/health` |
+| `GATEWAY_HEALTH_URL` | z.B. `https://gateway.contoso.com/health` |
 | `WATCHDOG_TOKEN` | Klartext-Token; das Gateway prüft dessen PBKDF2-Hash (`/api/watchdog/token/rotate` erzeugt ihn einmalig) |
-| `EXO_ORGANIZATION` | z.B. `zarenko.onmicrosoft.com` |
+| `EXO_ORGANIZATION` | z.B. `contoso.onmicrosoft.com` |
 | `SIG_RULE_NAME` | Name der Signatur-Regel, z.B. `Route via EXO Signature Gateway (Signatur)` (aus der Gateway-UI kopieren: Erweitert → Bypass-Wächter) |
 | `FAIL_THRESHOLD` | aufeinanderfolgende Fehlversuche bis Bypass (Vorgabe 3, je 10 s) |
 
