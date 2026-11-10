@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.106 — 2026-11-10 — Testsuite startet nicht auf einem ausgelasteten Rechner
+
+- `pytest` bricht beim Start ab, wenn der Rechner weniger als 1 GB
+  Arbeitsspeicher frei hat oder weniger als ein Viertel seines Swaps. Die
+  Meldung nennt den Grund und den Weg über die CI. Ein voller Lauf belegt
+  mehrere Minuten lang Speicher und einen Browser; auf einem Rechner, auf dem
+  weitere Dienste laufen, bremst das diese aus. Bewusst übergehen lässt sich
+  die Sperre mit `PYTEST_SPEICHER_EGAL=1`. Nur für die Entwicklung, das
+  Gateway selbst ist nicht betroffen.
+
+**Zu tun:** nichts.
+
 ## v1.10.105 — 2026-11-10 — Prüfstand der CI nachgeführt
 
 - Die Kopienprüfung der CI wertete die neue Zeile der Aktionstabelle aus

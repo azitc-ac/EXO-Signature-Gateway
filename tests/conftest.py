@@ -63,3 +63,21 @@ def mode_of(path: Path) -> str:
     """Rechte als dreistellige Oktalzeichenkette, z.B. '600'."""
     import stat
     return oct(stat.S_IMODE(path.stat().st_mode))[-3:]
+
+
+def _meminfo_lesen() -> str:
+    try:
+        return Path("/proc/meminfo").read_text()
+    except OSError:
+        return ""                        # kein Linux: keine Sperre
+
+
+def pytest_configure(config):
+    """Nicht starten, wenn der Rechner schon ausgelastet ist (tests/speicher_sperre.py)."""
+    if os.environ.get("PYTEST_SPEICHER_EGAL") == "1":
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import speicher_sperre
+    grund = speicher_sperre.einwand(_meminfo_lesen())
+    if grund:
+        raise pytest.UsageError(grund)
