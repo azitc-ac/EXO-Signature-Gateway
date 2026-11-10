@@ -36,17 +36,20 @@ def wegwerfverzeichnis(tmp_path, monkeypatch):
     trust_store._speicher_leeren()
 
 
-def _zert(name: str, aussteller: str | None = None):
+def _zert(name: str, aussteller: str | None = None, ca: bool | None = None):
+    """*ca* None = ohne BasicConstraints (wie bisher), sonst mit CA:TRUE/FALSE."""
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     subj = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
     iss = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, aussteller or name)])
-    return (x509.CertificateBuilder()
-            .subject_name(subj).issuer_name(iss)
-            .public_key(key.public_key())
-            .serial_number(x509.random_serial_number())
-            .not_valid_before(JETZT - timedelta(days=1))
-            .not_valid_after(JETZT + timedelta(days=365))
-            .sign(key, hashes.SHA256()))
+    b = (x509.CertificateBuilder()
+         .subject_name(subj).issuer_name(iss)
+         .public_key(key.public_key())
+         .serial_number(x509.random_serial_number())
+         .not_valid_before(JETZT - timedelta(days=1))
+         .not_valid_after(JETZT + timedelta(days=365)))
+    if ca is not None:
+        b = b.add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True)
+    return b.sign(key, hashes.SHA256())
 
 
 # Eine echte Wurzel für die Zwischenspeicher-Tests. Einmal erzeugt statt je
@@ -325,12 +328,23 @@ def test_bekannte_koennen_trotzdem_freigabe_verlangen(monkeypatch, schalter):
 def test_unbekannte_koennen_ausdruecklich_angenommen_werden(monkeypatch, schalter):
     """`auto` stellt das Verhalten von vor v1.7.199 wieder her — bewusst, nicht
     als Vorgabe."""
-    fremd = _zert("Eigene CA")
+    fremd = _zert("Eigene CA", ca=True)
     blatt = _zert("x@y.de", "Eigene CA")
     monkeypatch.setattr(trust_store, "wurzeln", lambda *a, **kw: {"Z"*64: "x"})
     schalter["TRUST_UNKNOWN_MODE"] = "auto"
     art, grund = trust_store.entscheiden([blatt, fremd])
     assert art == trust_store.ANNEHMEN and "ohne Prüfung" in grund
+
+
+def test_aussteller_ohne_ca_merkmal_wartet_auch_bei_auto(monkeypatch, schalter):
+    """Ein Aussteller ohne BasicConstraints ist keine CA — ausser er ist eine
+    selbstsignierte Wurzel aus Microsofts Liste (Version-1-Wurzeln)."""
+    fremd = _zert("Eigene CA")
+    blatt = _zert("x@y.de", "Eigene CA")
+    monkeypatch.setattr(trust_store, "wurzeln", lambda *a, **kw: {"Z"*64: "x"})
+    schalter["TRUST_UNKNOWN_MODE"] = "auto"
+    art, grund = trust_store.entscheiden([blatt, fremd])
+    assert art == trust_store.WARTEN and "keine Zertifizierungsstelle" in grund
 
 
 def test_abgeschalteter_bezug_laesst_nur_oertliche_freigaben_gelten(monkeypatch, schalter):

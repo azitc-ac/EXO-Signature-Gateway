@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.111 — 2026-11-10 — Tests zu v1.10.110 nachgezogen
+
+- Zwei Tests folgen den Regeln aus v1.10.110: Die Testzertifizierungsstelle
+  trägt jetzt das Merkmal CA:TRUE, und der Anker-Test kennt die Seite
+  *S/MIME*. Ein neuer Test hält fest, dass ein Aussteller ohne dieses
+  Merkmal auch im Modus „ohne Prüfung annehmen“ wartet.
+
+**Zu tun:** nichts.
+
 ## v1.10.110 — 2026-11-10 — Eingehende S/MIME-Signaturen werden geprüft
 
 - **Betreff-Vermerk „signiert von …“ nur noch nach Prüfung.** Bisher kam der
