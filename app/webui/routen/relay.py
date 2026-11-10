@@ -252,6 +252,7 @@ async def api_relay_ziel(request: Request, user: str = Depends(_require_admin)):
             host=daten.get("host") or "",
             port=daten.get("port") or 25,
             starttls=bool(daten.get("starttls", True)),
+            tls_pruefen=bool(daten.get("tls_pruefen", True)),
             user=daten.get("user") or "",
             passwort=(daten.get("passwort") or None),
         )

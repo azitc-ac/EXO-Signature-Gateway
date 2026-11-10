@@ -381,13 +381,13 @@
     Graph-Modi geht diese Post an Exchange Online.
   </p>
 
-  <h3 style="font-size:14px;margin:0 0 8px">Weiterleitungsziele</h3>
+  <h3 id="weiterleitungsziele" style="font-size:14px;margin:0 0 8px">Weiterleitungsziele</h3>
   <div class="tabellen-rollbereich">
     <table class="config-table" style="min-width:620px">
       <thead>
         <tr>
           <th>Kürzel</th><th>Host</th><th>Port</th>
-          <th style="text-align:center">STARTTLS</th><th>Login</th><th></th>
+          <th style="text-align:center">TLS</th><th>Login</th><th></th>
         </tr>
       </thead>
       <tbody id="ziele-body">
@@ -420,11 +420,14 @@
       </div>
       <div style="align-self:end;padding-bottom:6px">
         <label class="checkbox-label" style="margin:0"><input type="checkbox" id="neu-ziel-tls" checked> STARTTLS</label>
+        <label class="checkbox-label" style="margin:4px 0 0"><input type="checkbox" id="neu-ziel-tls-pruefen" checked> Zertifikat prüfen</label>
       </div>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button type="button" class="btn secondary" onclick="zielHinzufuegen(this)">Ziel speichern</button>
-      <span class="hint">Vorhandenes Kürzel = ändern. Ein leeres Passwortfeld lässt ein gesetztes unverändert.</span>
+      <span class="hint">Vorhandenes Kürzel = ändern. Ein leeres Passwortfeld lässt ein gesetztes unverändert.
+        „Zertifikat prüfen“ verlangt einen Hostnamen, auf den das Zertifikat des Ziels lautet;
+        bei einer IP-Adresse oder einem selbst ausgestellten Zertifikat ausschalten.</span>
     </div>
     <div id="neu-ziel-result" style="display:none;margin-top:10px"></div>
   </div>
@@ -924,7 +927,7 @@ function zeichneZiele(liste) {
       '<td><code>' + esc(z.id) + '</code></td>'
       + '<td style="font-size:12px">' + esc(z.host || '—') + '</td>'
       + '<td>' + (z.port || 25) + '</td>'
-      + '<td style="text-align:center">' + (z.starttls ? 'ja' : '<span style="color:#94a3b8">nein</span>') + '</td>'
+      + '<td style="text-align:center">' + _zielTls(z) + '</td>'
       + '<td style="font-size:12px;color:#555">' + (z.user ? esc(z.user) + (z.hat_passwort ? ' 🔒' : '') : '<span style="color:#94a3b8">—</span>') + '</td>'
       + '<td style="white-space:nowrap">'
         + '<button class="btn secondary btn-sm" onclick="zielBearbeiten(' + escAttr(JSON.stringify(z)) + ')">Bearbeiten</button> '
@@ -1223,6 +1226,14 @@ async function dnsPruefen(domain, btn) {
            : '');
 }
 
+function _zielTls(z) {
+  if (!z.starttls) return '<span style="color:#94a3b8">nein</span>';
+  if (z.tls_pruefen) return 'geprüft';
+  return z.tls_uebernommen
+    ? '<span style="color:#b45309" title="Aus der Zeit vor v1.10.112 übernommen — bitte bewusst wählen und speichern">ohne Prüfung (übernommen)</span>'
+    : '<span style="color:#94a3b8">ohne Prüfung</span>';
+}
+
 function zielBearbeiten(z) {
   document.getElementById('neu-ziel-id').value = z.id || '';
   document.getElementById('neu-ziel-host').value = z.host || '';
@@ -1230,6 +1241,7 @@ function zielBearbeiten(z) {
   document.getElementById('neu-ziel-user').value = z.user || '';
   document.getElementById('neu-ziel-pw').value = '';   // leer = unverändert
   document.getElementById('neu-ziel-tls').checked = !!z.starttls;
+  document.getElementById('neu-ziel-tls-pruefen').checked = !!z.tls_pruefen;
   document.getElementById('neu-ziel-id').focus();
 }
 
@@ -1241,15 +1253,18 @@ async function zielHinzufuegen(btn) {
   const user = feldWert('neu-ziel-user');
   const pw = document.getElementById('neu-ziel-pw').value || '';
   const tls = document.getElementById('neu-ziel-tls').checked;
+  const tlsPruefen = document.getElementById('neu-ziel-tls-pruefen').checked;
   if (!id || !host) { showAlert(box, 'error', 'Kürzel und Host sind nötig.'); return; }
   const r = await _sendenUndLaden(btn, box, '/api/relay/ziel',
-      { id: id, host: host, port: port, starttls: tls, user: user, passwort: pw }, 'Ziel gespeichert.');
+      { id: id, host: host, port: port, starttls: tls, tls_pruefen: tlsPruefen,
+        user: user, passwort: pw }, 'Ziel gespeichert.');
   if (!r.ok) return;
   ['neu-ziel-id', 'neu-ziel-host', 'neu-ziel-user', 'neu-ziel-pw'].forEach(function (f) {
     document.getElementById(f).value = '';
   });
   document.getElementById('neu-ziel-port').value = 25;
   document.getElementById('neu-ziel-tls').checked = true;
+  document.getElementById('neu-ziel-tls-pruefen').checked = true;
 }
 
 function zielLoeschen(id, btn) {

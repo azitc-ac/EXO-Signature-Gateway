@@ -283,20 +283,21 @@ def aufloesen(ziel_id: str) -> dict:
         import config
         port = settings_store.get("EXO_PORT") or config._ENV_SEEDS.get("EXO_PORT") or 25
         host = config.EXO_SMARTHOST or settings_store.get("EXO_SMARTHOST") or ""
-        return {"host": host, "port": int(port), "starttls": True,
+        return {"host": host, "port": int(port), "starttls": True, "tls_pruefen": True,
                 "user": settings_store.get("RELAY_USER") or "",
                 "pass": settings_store.get("RELAY_PASSWORD") or ""}
     if ziel_id == DIREKT:
         import direktversand
         # Internes Docker-Netz, ohne TLS: Der Hop verlässt den Rechner nicht.
         return {"host": direktversand.MTA_HOST, "port": direktversand.MTA_PORT,
-                "starttls": False, "user": "", "pass": ""}
+                "starttls": False, "tls_pruefen": False, "user": "", "pass": ""}
     t = ziele().get(ziel_id) or {}
     pw = settings_store.get("RELAY_TARGET_PW")
     pw = pw.get(ziel_id, "") if isinstance(pw, dict) else ""
     return {"host": (t.get("host") or "").strip(),
             "port": int(t.get("port") or 25),
             "starttls": bool(t.get("starttls", True)),
+            "tls_pruefen": bool(t.get("tls_pruefen", True)),
             "user": t.get("user") or "",
             "pass": pw or ""}
 
@@ -315,6 +316,8 @@ def oeffentliche_ziele() -> list[dict]:
         out.append({"id": zid, "host": t.get("host", ""),
                     "port": int(t.get("port") or 25),
                     "starttls": bool(t.get("starttls", True)),
+                    "tls_pruefen": bool(t.get("tls_pruefen", True)),
+                    "tls_uebernommen": bool(t.get("tls_uebernommen")),
                     "user": t.get("user", ""),
                     "hat_passwort": bool(pw.get(zid))})
     return out
@@ -326,7 +329,8 @@ def routen() -> dict:
 
 
 def setze_ziel(ziel_id: str, host: str, port: int, starttls: bool,
-               user: str = "", passwort: str | None = None) -> None:
+               user: str = "", passwort: str | None = None,
+               tls_pruefen: bool = True) -> None:
     """Ein Ziel anlegen oder ändern.
 
     `passwort=None` lässt ein vorhandenes Passwort unverändert (leeres Feld in
@@ -349,8 +353,10 @@ def setze_ziel(ziel_id: str, host: str, port: int, starttls: bool,
         raise ValueError("Port muss zwischen 1 und 65535 liegen")
 
     z = dict(ziele())
+    # Gespeichert = bewusst gewählt: `tls_uebernommen` (aus der Migration auf
+    # Schema 7) entfällt damit.
     z[ziel_id] = {"host": host, "port": port, "starttls": bool(starttls),
-                  "user": (user or "").strip()}
+                  "tls_pruefen": bool(tls_pruefen), "user": (user or "").strip()}
     aktualisierung: dict = {"RELAY_TARGETS": z}
     if passwort is not None:
         pw = settings_store.get("RELAY_TARGET_PW")

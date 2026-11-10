@@ -10,7 +10,6 @@ import re as _re
 import secrets
 import shutil
 import smtplib
-import ssl
 import subprocess
 import sys
 import threading
@@ -780,9 +779,10 @@ async def api_test_mail(request: Request, user: str = Depends(_require_admin)):
     msg["From"] = from_email
     msg["To"] = to_email
 
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    # Ohne Prüfung, bewusst: Ziel ist der eigene Listener auf 127.0.0.1, dessen
+    # Zertifikat auf den öffentlichen Namen lautet, nicht auf die Loopback-Adresse.
+    import tls_ausgehend
+    ctx = tls_ausgehend.kontext(pruefen=False)
 
     try:
         with smtplib.SMTP("127.0.0.1", config.SMTP_PORT, timeout=10) as smtp:

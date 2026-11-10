@@ -560,7 +560,7 @@ def purge_obsolete() -> list:
 # new DEFAULTS key does NOT need a migration — that's handled automatically by
 # the dict-merge in init(). Migrations run once, in order, and are recorded via
 # the internal "_SCHEMA_VERSION" key so they never re-run on an already-migrated file.
-SETTINGS_SCHEMA_VERSION = 6
+SETTINGS_SCHEMA_VERSION = 7
 
 
 def _migrate_v0_to_v1(data: dict) -> dict:
@@ -701,6 +701,26 @@ def _migrate_v5_to_v6(data: dict) -> dict:
     return data
 
 
+
+def _migrate_v6_to_v7(data: dict) -> dict:
+    """Weiterleitungsziele bekommen den Schalter `tls_pruefen` (v1.10.112).
+
+    Bis dahin prüfte das Gateway das TLS-Zertifikat eines Ziels nie. Neue Ziele
+    prüfen ab Werk; bestehende behalten das bisherige Verhalten, damit ein Ziel
+    mit IP-Adresse oder eigenem Zertifikat nach dem Update nicht still
+    scheitert. `tls_uebernommen` hält fest, dass das keine Wahl des Betreibers
+    war — `abnahme._tls_rueckweg` meldet es, bis das Ziel gespeichert wird.
+    """
+    ziele = data.get("RELAY_TARGETS")
+    if isinstance(ziele, dict):
+        for zid, t in ziele.items():
+            if isinstance(t, dict) and "tls_pruefen" not in t:
+                t["tls_pruefen"] = False
+                t["tls_uebernommen"] = True
+                log.info("settings_store: Routing-Ziel %s ohne TLS-Prüfung übernommen", zid)
+    return data
+
+
 # Ordered list of (target_version, migration_fn). Each fn receives the full
 # settings dict and returns the migrated dict. Append new entries as the
 # schema evolves — never remove, reorder, or renumber existing ones, since a
@@ -712,6 +732,7 @@ _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
     (4, _migrate_v3_to_v4),
     (5, _migrate_v4_to_v5),
     (6, _migrate_v5_to_v6),
+    (7, _migrate_v6_to_v7),
 ]
 
 

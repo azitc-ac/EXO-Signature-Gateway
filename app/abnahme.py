@@ -386,6 +386,37 @@ def _admin_passwort() -> dict:
                   "Einrichtung → Schritt 1: ein eigenes Kennwort setzen.")
 
 
+def _tls_rueckweg() -> dict:
+    """Kann der Rückweg das TLS-Zertifikat der Gegenstelle prüfen (v1.10.112)?
+
+    Offen, solange ein Weiterleitungsziel die TLS-Einstellung nur aus der
+    Migration hat (`tls_uebernommen`, ohne Prüfung) oder der Exchange-Smarthost
+    als IP-Adresse eingetragen ist — dann scheitert die Hostnamenprüfung.
+    """
+    import config
+    import domain_routing
+    import settings_store
+    import tls_ausgehend
+    name = "TLS-Rückweg mit Zertifikatsprüfung"
+    offen = []
+    smarthost = config.EXO_SMARTHOST or settings_store.get("EXO_SMARTHOST") or ""
+    if smarthost and tls_ausgehend.ist_ip(smarthost):
+        offen.append(f"Der Exchange-Smarthost ist als IP-Adresse eingetragen ({smarthost}); "
+                     "das Zertifikat lautet auf einen Namen, die Zustellung über SMTP scheitert")
+    uebernommen = sorted(zid for zid, t in domain_routing.ziele().items()
+                         if isinstance(t, dict) and t.get("tls_uebernommen"))
+    if uebernommen:
+        offen.append("Weiterleitungsziel(e) " + ", ".join(uebernommen)
+                     + " laufen noch ohne Zertifikatsprüfung, wie vor dem Update")
+    if not offen:
+        return _punkt(name, OK, "Ausgehende TLS-Verbindungen prüfen das Zertifikat, "
+                      "oder die Ausnahme ist bewusst gewählt.")
+    return _punkt(name, OFFEN, "; ".join(offen) + ".",
+                  "SMTP-Relay → Weiterleitungsziele: je Ziel „Zertifikat prüfen“ wählen "
+                  "(an, wenn der Host ein Name mit gültigem Zertifikat ist) und speichern. "
+                  "Smarthost: als Namen *.mail.protection.outlook.com eintragen.")
+
+
 def _wartende_zertifikate() -> dict:
     """Warten eingesammelte Empfängerzertifikate auf eine Entscheidung?
 
@@ -562,7 +593,7 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _addin_rollen, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
-              _admin_passwort, _fair_use, _wartende_zertifikate)
+              _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg)
 
 
 def bericht() -> dict:

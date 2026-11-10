@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.112 — 2026-11-10 — Ausgehendes TLS prüft das Zertifikat der Gegenstelle
+
+- **Rückweg an Exchange Online, Unzustellbarkeitsmeldung, IMAP-Ablage:** Das
+  Gateway prüft jetzt Zertifikat und Hostnamen der Gegenstelle. Bisher war
+  die Verbindung zwar verschlüsselt, die Gegenstelle aber nicht geprüft,
+  sodass TLS gegen einen Mittelsmann auf dem Weg nicht schützte. Bei der
+  IMAP-Ablage (Graph++) betraf das auch die Anmeldung per OAuth-Token. Der
+  Smarthost `*.mail.protection.outlook.com` besteht die Prüfung (gemessen
+  10.11.2026).
+- **Eigene Weiterleitungsziele** (*SMTP-Relay → Weiterleitungsziele*) haben
+  den neuen Schalter **„Zertifikat prüfen“**. Neue Ziele prüfen ab Werk.
+  Bestehende Ziele behalten ihr bisheriges Verhalten ohne Prüfung, damit ein
+  Ziel mit IP-Adresse oder eigenem Zertifikat nach dem Update nicht
+  scheitert. Die Tabelle zeigt sie als „ohne Prüfung (übernommen)“. Läuft
+  ein Ziel ohne Prüfung, steht das bei jeder Übergabe im Protokoll.
+- Alle ausgehenden TLS-Verbindungen bauen ihren Kontext an einer Stelle.
+  Ein Test lässt ungeprüftes TLS nur dort zu, wo es ausdrücklich gewählt ist,
+  und für die Testmail an den eigenen Listener auf 127.0.0.1.
+- Neue Aufgabe „TLS-Rückweg mit Zertifikatsprüfung“. Sie meldet übernommene
+  Ziele und einen Smarthost, der als IP-Adresse eingetragen ist.
+
+**Zu tun:** Hast du eigene Weiterleitungsziele, öffne unter *SMTP-Relay →
+Weiterleitungsziele* jedes Ziel mit „Bearbeiten“. Schalte „Zertifikat
+prüfen“ ein, wenn der Host ein Name mit gültigem Zertifikat ist, sonst lass
+es aus. Dann speichern. Steht der Exchange-Smarthost als IP-Adresse in der
+Konfiguration, trage dort den Namen `<tenant>.mail.protection.outlook.com`
+ein. Der Sammelpunkt oben rechts zeigt beides an, solange es offen ist.
+
 ## v1.10.111 — 2026-11-10 — Tests zu v1.10.110 nachgezogen
 
 - Zwei Tests folgen den Regeln aus v1.10.110: Die Testzertifizierungsstelle

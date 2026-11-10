@@ -3,7 +3,6 @@ import ssl
 import logging
 import threading
 import time as _time
-from pathlib import Path
 
 import config
 import settings_store
@@ -454,17 +453,11 @@ def _send_smtp(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> Non
 
     # Present our proxy TLS cert during STARTTLS so EXO's inbound connector
     # (TlsSenderCertificateName = sig.zarenko.net) matches and bypasses
-    # spam filtering for stripped inbound mails.
-    tls_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    tls_ctx.check_hostname = False
-    tls_ctx.verify_mode = ssl.CERT_NONE
-    cert_path = Path(config.SMTP_TLS_CERT)
-    key_path = Path(config.SMTP_TLS_KEY)
-    if cert_path.exists() and key_path.exists():
-        try:
-            tls_ctx.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
-        except Exception as e:
-            log.debug("Could not load client cert for SMTP TLS: %s", e)
+    # spam filtering for stripped inbound mails. Das Zertifikat des Smarthosts
+    # wird geprüft (tls_ausgehend) — *.mail.protection.outlook.com, gemessen
+    # 10.11.2026; ein Smarthost als IP-Adresse scheitert daran.
+    import tls_ausgehend
+    tls_ctx = tls_ausgehend.kontext(pruefen=True, client_zert=True)
 
     try:
         import aussenadresse
@@ -479,6 +472,11 @@ def _send_smtp(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> Non
                 smtp.login(relay_user, relay_pass)
             smtp.sendmail(mail_from, rcpt_tos, content_bytes)
         log.info("SMTP re-inject OK: from=%s to=%s via %s:%s", mail_from, rcpt_tos, smarthost, port)
+    except ssl.SSLCertVerificationError as exc:
+        log.error("SMTP re-inject failed: Zertifikat des Smarthosts %s nicht gültig (%s)%s",
+                  smarthost, exc.verify_message,
+                  " — Smarthost als Namen eintragen, nicht als IP" if tls_ausgehend.ist_ip(smarthost) else "")
+        raise
     except Exception as exc:
         log.error("SMTP re-inject failed: from=%s to=%s: %s", mail_from, rcpt_tos, exc)
         raise
@@ -525,21 +523,19 @@ def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
         _an_postfix(mail_from, rcpt_tos, content_bytes, host, port)
         return
 
-    tls_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    tls_ctx.check_hostname = False
-    tls_ctx.verify_mode = ssl.CERT_NONE
     # Client-Zert für den on-prem-Hop: das gemeinsame Zert. Das on-prem-Vertrauen
     # läuft IP-basiert (ExternalAuthoritative-Receive-Connector auf die LB-Quell-IP),
     # NICHT über den Zertnamen — daher braucht der Hop kein separates SMTP-Zert.
     # (Der cert-genaue Weg via TlsDomainCapabilities/XOORG ist bewusst zurückgestellt
     # — siehe Forschungsnotiz; STARTTLS selbst braucht nur irgendein gültiges Zert.)
-    cert_path = Path(config.SMTP_TLS_CERT)
-    key_path = Path(config.SMTP_TLS_KEY)
-    if cert_path.exists() and key_path.exists():
-        try:
-            tls_ctx.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
-        except Exception as e:                                # noqa: BLE001
-            log.debug("Could not load client cert for routing TLS: %s", e)
+    #
+    # Das Zertifikat des ZIELS wird geprüft, ausser das Ziel ist ausdrücklich
+    # anders eingestellt (tls_pruefen; Bestandsziele vor v1.10.112 übernommen
+    # ohne Prüfung, bis sie bewusst gespeichert werden).
+    import tls_ausgehend
+    tls_ctx = tls_ausgehend.kontext(pruefen=cfg["tls_pruefen"], client_zert=True)
+    if cfg["starttls"] and not cfg["tls_pruefen"]:
+        log.info("Routing-Ziel %s: TLS ohne Zertifikatsprüfung (so eingestellt)", ziel_id)
 
     import aussenadresse
     with smtplib.SMTP(host, port, timeout=30,

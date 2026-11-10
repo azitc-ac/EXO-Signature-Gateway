@@ -204,7 +204,11 @@ def deliver_inbound_imap(rcpt_to: str, content_bytes: bytes, mail_from: str = ""
     for token in tokens:
         auth_str = f"user={rcpt_to}\x01auth=Bearer {token}\x01\x01"
         try:
-            imap = imaplib.IMAP4_SSL(host, 993, timeout=30)
+            # ssl_context ist Pflicht: Die Vorgabe von imaplib prüft weder
+            # Zertifikat noch Namen, und hierüber geht ein Bearer-Token.
+            import tls_ausgehend
+            imap = imaplib.IMAP4_SSL(host, 993, timeout=30,
+                                     ssl_context=tls_ausgehend.kontext(pruefen=True))
             imap.authenticate("XOAUTH2", lambda challenge: auth_str.encode("ascii"))
             # No flags → no \Draft → MSGFLAG_UNSENT not set → no Send button
             typ, data = imap.append("INBOX", None, None, content_bytes)

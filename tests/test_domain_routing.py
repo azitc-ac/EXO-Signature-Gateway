@@ -84,7 +84,7 @@ def test_aufloesen_eigenes_ziel_mit_passwort(monkeypatch):
     })
     cfg = domain_routing.aufloesen("onprem")
     assert cfg == {"host": "ex.local", "port": 587, "starttls": True,
-                   "user": "svc", "pass": "geheim"}
+                   "tls_pruefen": True, "user": "svc", "pass": "geheim"}
 
 
 def test_public_view_maskiert_ziel_passwoerter_nicht_hosts(monkeypatch):

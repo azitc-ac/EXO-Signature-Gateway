@@ -7,7 +7,6 @@ import email.utils
 import logging
 import re
 import smtplib
-import ssl
 import time
 
 import config
@@ -326,9 +325,8 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
     except Exception as exc:
         log.warning("NDR via Graph failed (%s) — trying SMTP smarthost", exc)
 
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    import tls_ausgehend
+    ctx = tls_ausgehend.kontext(pruefen=True)
     try:
         smarthost = config.EXO_SMARTHOST or settings_store.get("EXO_SMARTHOST") or ""
         port = int(settings_store.get("EXO_PORT") or 25)
