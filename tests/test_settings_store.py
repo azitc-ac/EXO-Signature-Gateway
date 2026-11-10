@@ -250,3 +250,11 @@ def test_migrationskette_setzt_desktop_und_entfernt_alt(store):
     assert daten["STRIP_CLIENT_SIGS_DESKTOP"] is True
     assert "STRIP_CLIENT_SIGS" not in daten
     assert daten["_SCHEMA_VERSION"] == ss.SETTINGS_SCHEMA_VERSION
+
+
+def test_schemaversion_folgt_der_letzten_migration():
+    """SETTINGS_SCHEMA_VERSION steht vor der Liste und wurde in v1.10.107 beim
+    Anfügen von v6 vergessen. Tests nehmen die Konstante als neuesten Stand —
+    zeigt sie zu niedrig, prüfen sie eine Migrationskette, die es nicht gibt."""
+    import settings_store as ss
+    assert ss.SETTINGS_SCHEMA_VERSION == ss._MIGRATIONS[-1][0]

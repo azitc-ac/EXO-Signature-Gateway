@@ -49,7 +49,8 @@ def test_migration_nur_einmal():
     """Danach entscheidet der Betreiber — ein Neustart darf ein bewusstes Aus nicht
     wieder einschalten."""
     daten, geaendert = settings_store._run_migrations(
-        {"_SCHEMA_VERSION": 5, "OOO_ENABLED": True, "ABWESENHEIT_AKTIV": False})
+        {"_SCHEMA_VERSION": settings_store.SETTINGS_SCHEMA_VERSION, "OOO_ENABLED": True,
+         "ABWESENHEIT_AKTIV": False})
     assert not geaendert and daten["ABWESENHEIT_AKTIV"] is False
 
 

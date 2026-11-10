@@ -169,18 +169,24 @@ LAEUFE = [_lauf("a", "2026-11-09T20:00:00Z"), _lauf("b", "2026-11-09T22:30:00Z")
           _lauf("pr", "2026-11-09T22:50:00Z", ereignis="pull_request")]
 
 
+def _utc(text: str) -> datetime:
+    """Ausdrücklich übergebener Bezugszeitpunkt (kein „jetzt“): Die Auswahl ist
+    eine reine Funktion von Läufen und Zeitpunkt, nichts läuft hier ab."""
+    return datetime.fromisoformat(text).replace(tzinfo=timezone.utc)
+
+
 def test_juengster_gruener_stand_vor_2359_berlin():
     # Winter: 23:59 Berlin = 22:59 UTC. Lauf um 23:15 UTC (00:15 Berlin).
-    assert nightly_stand.waehle(LAEUFE, datetime(2026, 11, 9, 23, 15, tzinfo=timezone.utc)) == "b"
+    assert nightly_stand.waehle(LAEUFE, _utc("2026-11-09T23:15")) == "b"
 
 
 def test_vor_der_stichzeit_gilt_der_vortag():
     # 22:15 UTC = 23:15 Berlin: Stichzeit ist der 08.11. — da gab es nichts.
-    assert nightly_stand.waehle(LAEUFE, datetime(2026, 11, 9, 22, 15, tzinfo=timezone.utc)) is None
+    assert nightly_stand.waehle(LAEUFE, _utc("2026-11-09T22:15")) is None
 
 
 def test_sommerzeit():
-    jetzt = datetime(2026, 7, 1, 22, 15, tzinfo=timezone.utc)      # 00:15 Berlin, 2. Juli
+    jetzt = _utc("2026-07-01T22:15")      # 00:15 Berlin, 2. Juli
     grenze = nightly_stand.stichzeitpunkt(jetzt)
     assert (grenze.day, grenze.hour, grenze.minute) == (1, 23, 59)
     assert grenze.utcoffset().total_seconds() == 7200

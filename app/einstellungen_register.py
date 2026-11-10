@@ -180,6 +180,7 @@ REGISTER: dict[str, E] = {
     "DIREKT_AUSSEN_IP": E(art=OPTION, ort="/api/direkt/einstellungen"),
     "DKIM_DOMAINS": E(art=STRUKTUR, ort="/api/direkt/dkim"),
     "OOO_ENABLED": E(art=OPTION, ort="abwesenheit.html"),  # zentrale Abwesenheitsnotiz
+    "UPDATE_CHANNEL": E(art=OPTION, ort="backup.html"),  # Update-Kanal release|nightly|main
     "ABWESENHEIT_AKTIV": E(art=OPTION, ort="setup.html"),  # Funktion Abwesenheiten (Menü/Spalte/Abgleich)
     "OOO_CALENDAR_READ": E(art=OPTION, ort="abwesenheit.html"),   # Hauptschalter Kalender lesen
     "OOO_CALENDAR_AUTO": E(art=OPTION, ort="abwesenheit.html"),   # OOO aus Kalender

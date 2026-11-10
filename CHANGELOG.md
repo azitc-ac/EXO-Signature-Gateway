@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.108 — 2026-11-10 — Nachtrag zu den Update-Kanälen
+
+- Die Schemaversion der Einstellungen steht jetzt auf 6, passend zur
+  Migration aus v1.10.107. Der Kanal `UPDATE_CHANNEL` ist im
+  Einstellungsregister eingetragen (Ort: *Update & Backup*). Am Verhalten
+  einer Installation ändert das nichts: Die Migration selbst lief schon
+  richtig und nur einmal.
+
+**Zu tun:** nichts.
+
 ## v1.10.107 — 2026-11-10 — Update-Kanäle Stabil, Nightly und Entwicklung
 
 - **Neu: drei Update-Kanäle** unter *Update & Backup*:
