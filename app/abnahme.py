@@ -386,6 +386,25 @@ def _admin_passwort() -> dict:
                   "Einrichtung → Schritt 1: ein eigenes Kennwort setzen.")
 
 
+def _wartende_zertifikate() -> dict:
+    """Warten eingesammelte Empfängerzertifikate auf eine Entscheidung?
+
+    Solange eines wartet, wird an diesen Partner nicht verschlüsselt. Seit
+    v1.10.110 landen dort auch Zertifikate aus dem Bestand, die der Nachlauf
+    (`smime_harvest.bestand_nachpruefen`) beanstandet hat.
+    """
+    import cert_wartestand
+    name = "Keine Empfängerzertifikate in Warteschlange"
+    wartend = cert_wartestand.liste()
+    if not wartend:
+        return _punkt(name, OK, "Kein Zertifikat wartet auf eine Entscheidung.")
+    return _punkt(name, OFFEN,
+                  f"{len(wartend)} Empfängerzertifikat(e) warten auf eine Entscheidung; "
+                  "an diese Partner wird bis dahin nicht verschlüsselt.",
+                  "S/MIME → „Zertifikate, die auf Freigabe warten“: je Zeile den Grund "
+                  "prüfen, freigeben oder verwerfen.")
+
+
 def _fair_use() -> dict:
     """Mehr Postfächer aktiviert, als Lizenz oder Freigrenze erlauben?"""
     import license as _lic
@@ -543,7 +562,7 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _addin_rollen, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
-              _admin_passwort, _fair_use)
+              _admin_passwort, _fair_use, _wartende_zertifikate)
 
 
 def bericht() -> dict:

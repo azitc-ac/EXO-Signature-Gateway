@@ -552,28 +552,31 @@
 </div>
 
 {% if wartende_certs %}
-<div class="settings-card" style="background:#fffbeb;border:1px solid #fcd34d">
+<div class="settings-card" id="wartend" style="background:#fffbeb;border:1px solid #fcd34d">
   <h3 style="margin-top:0;color:#92400e">Zertifikate, die auf Freigabe warten
     <span style="font-weight:400;font-size:13px">({{ wartende_certs|length }})</span></h3>
   <p class="hint" style="margin-bottom:14px">
-    Diese Zertifikate kamen aus eingehenden signierten Nachrichten, ihr Aussteller liess sich
-    aber nicht auf eine bekannte Wurzel zurückführen. Sie werden <strong>nicht</strong> zum
+    Diese Zertifikate kamen aus eingehenden signierten Nachrichten, wurden aber nicht
+    übernommen — der Grund steht in der Spalte „Grund“. Sie werden <strong>nicht</strong> zum
     Verschlüsseln benutzt — Nachrichten an diese Empfänger gehen über das Portal hinaus, so
     als läge kein Zertifikat vor.<br>
-    Der häufigste Grund ist eine firmeneigene Zertifizierungsstelle beim Partner.
+    Der häufigste Grund ist eine firmeneigene Zertifizierungsstelle beim Partner. Lautet ein
+    Zertifikat auf eine andere Adresse als den Absender oder ist es kein Personenzertifikat,
+    lässt es sich nicht freigeben — nur verwerfen.
     <strong>Trotzdem prüfen:</strong> Die Absenderadresse einer Mail ist keine geprüfte
     Angabe — im Zweifel beim Partner nachfragen, ob das Zertifikat von ihm stammt.
   </p>
   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-  <table class="config-table" style="min-width:640px">
+  <table class="config-table" style="min-width:760px">
     <thead>
-      <tr><th>E-Mail</th><th>Aussteller</th><th>Gültig bis</th><th>Seit</th><th></th></tr>
+      <tr><th>E-Mail</th><th>Aussteller</th><th>Grund</th><th>Gültig bis</th><th>Seit</th><th></th></tr>
     </thead>
     <tbody>
       {% for w in wartende_certs %}
       <tr>
         <td>{{ w.adresse }}</td>
         <td style="font-size:12px">{{ w.aussteller }}</td>
+        <td style="font-size:12px">{{ w.grund or '' }}</td>
         <td>{{ (w.gueltig_bis or '')[:10] }}</td>
         <td style="font-size:12px">{{ (w.seit or '')[:10] }}{% if (w.anzahl or 1) > 1 %}, {{ w.anzahl }}× gesehen{% endif %}</td>
         <td style="white-space:nowrap">

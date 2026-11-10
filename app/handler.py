@@ -673,7 +673,7 @@ class SignatureHandler:
             harvest_rcpt = (settings_store.get("SMIME_HARVEST_RCPT") or "").lower().strip()
             if harvest_rcpt and any(r.lower() == harvest_rcpt for r in recipients):
                 import smime_harvest
-                result = smime_harvest.extract_and_store(msg)
+                result = smime_harvest.extract_and_store(msg, raw=raw)
                 log.info("S/MIME harvest-only: sender=%s cert=%s", sender, result)
                 return "250 OK"
 
@@ -807,23 +807,24 @@ class SignatureHandler:
                             inner_proto = (inner_msg.get_param("protocol") or "").lower()
                             if "pkcs7" in inner_proto:
                                 import smime_harvest
-                                stripped, signer_name = smime_harvest.strip_and_harvest(
-                                    inner_msg, sender)
+                                stripped, signer_name, _ = smime_harvest.strip_and_harvest(
+                                    inner_msg, smime_harvest.kopf_adressen(msg) or [sender],
+                                    raw=decrypted)
                                 if stripped:
                                     body_msg = email.message_from_bytes(stripped)
                                     _restore_envelope_headers(body_msg, msg)
                                     inner_msg = body_msg
                         elif inner_ct == "application/pkcs7-mime" and inner_smime == "signed-data":
                             import smime_harvest
-                            stripped, signer_name = smime_harvest.strip_signed_data(
-                                decrypted, sender)
+                            stripped, signer_name, _grund = smime_harvest.strip_signed_data(
+                                decrypted, smime_harvest.kopf_adressen(msg) or [sender])
                             if stripped:
                                 body_msg = email.message_from_bytes(stripped)
                                 _restore_envelope_headers(body_msg, msg)
                                 inner_msg = body_msg
                             else:
-                                log.warning("signed-data strip failed for %s — injecting as-is",
-                                            sender)
+                                log.warning("signed-data nicht entfernt für %s (%s) — "
+                                            "signiert zugestellt", sender, _grund)
 
                         tag = _build_subject_tag(enc=True, signer_name=signer_name)
                         _apply_subject_tag(inner_msg, tag, outer_subject)
@@ -863,7 +864,7 @@ class SignatureHandler:
                     # original external address and must not be used for routing.
                     if loop_detector.is_signed(msg):
                         import smime_harvest
-                        stripped, _ = smime_harvest.strip_and_harvest(msg, sender)
+                        stripped = smime_harvest.nur_entfernen(msg)
                         if stripped:
                             inner_msg = email.message_from_bytes(stripped)
                             _restore_envelope_headers(inner_msg, msg)
@@ -887,7 +888,8 @@ class SignatureHandler:
                         if settings_store.get("SMIME_STRIP_INBOUND") is not False:
                             import smime_harvest
                             outer_subject = _decode_subject(msg.get("Subject", ""))
-                            stripped, signer_name = smime_harvest.strip_and_harvest(msg, sender)
+                            stripped, signer_name, _grund = smime_harvest.strip_and_harvest(
+                                msg, smime_harvest.kopf_adressen(msg) or [sender], raw=raw)
                             if stripped:
                                 inner_msg = email.message_from_bytes(stripped)
                                 _restore_envelope_headers(inner_msg, msg)
@@ -901,8 +903,11 @@ class SignatureHandler:
                                 log.info("S/MIME inbound signed stripped from=%s signer=%s",
                                          sender, signer_name)
                                 return "250 OK"
-                            log.warning("S/MIME strip failed for %s — forwarding signed", sender)
-                            _fehler = "Signatur nicht entfernt, signiert zugestellt"
+                            # Nicht bestätigt → NICHT entfernen: Outlook prüft selbst und
+                            # warnt, statt dass ein Vermerk eine Prüfung bescheinigt.
+                            log.warning("S/MIME-Signatur von %s nicht bestätigt (%s) — "
+                                        "signiert zugestellt", sender, _grund)
+                            _fehler = f"Signatur nicht bestätigt ({_grund}), signiert zugestellt"
                         else:
                             log.debug("S/MIME inbound signed pass-through (strip disabled) from=%s", sender)
                             _fehler = None

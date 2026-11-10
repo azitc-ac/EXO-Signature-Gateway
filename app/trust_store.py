@@ -376,6 +376,121 @@ def bewerten(kette: list[x509.Certificate]) -> tuple[bool, str]:
     return False, "Aussteller unbekannt"
 
 
+# ── Was ein Zertifikat selbst taugt — unabhängig vom Aussteller ─────────────
+#
+# ⚠️ `bewerten()` fragt nur, ob IRGENDEIN Glied der Kette bekannt ist. Das
+# genügt nicht:
+#
+# * Ein Zertifikat einer bekannten Stelle für `x@angreifer.example` ist echt —
+#   unter `einkauf@partner.example` abgelegt, verschlüsselt das Gateway danach
+#   an den Falschen. Die Adresse muss zum Absender passen (RFC 8550 §3: From-
+#   oder Sender-Kopf gegen die Adressen im Zertifikat).
+# * Ein Endzertifikat einer bekannten Stelle kann mit seinem Schlüssel weitere
+#   Zertifikate unterschreiben. `verify_directly_issued_by` prüft nur die
+#   Unterschrift, nicht, ob der Aussteller überhaupt ausstellen DARF.
+
+def _gueltig(cert: x509.Certificate, jetzt: datetime) -> bool:
+    try:
+        von, bis = cert.not_valid_before_utc, cert.not_valid_after_utc
+    except AttributeError:                          # cryptography < 42
+        von = cert.not_valid_before.replace(tzinfo=timezone.utc)
+        bis = cert.not_valid_after.replace(tzinfo=timezone.utc)
+    return von <= jetzt <= bis
+
+
+def _grundbedingungen(cert: x509.Certificate) -> x509.BasicConstraints | None:
+    try:
+        return cert.extensions.get_extension_for_class(x509.BasicConstraints).value
+    except x509.ExtensionNotFound:
+        return None
+
+
+def zertifikat_adressen(cert: x509.Certificate) -> list[str]:
+    """Die Adressen, auf die ein Zertifikat lautet, klein geschrieben.
+
+    `rfc822Name` im subjectAltName ist der vorgesehene Ort (RFC 8550 §3);
+    `emailAddress` im Inhaber-Namen nur ersatzweise, wenn der fehlt.
+    """
+    from cryptography.x509.oid import NameOID
+    try:
+        san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        adressen = [a.strip().lower() for a in san.get_values_for_type(x509.RFC822Name)]
+    except x509.ExtensionNotFound:
+        adressen = []
+    if not adressen:
+        adressen = [str(a.value).strip().lower()
+                    for a in cert.subject.get_attributes_for_oid(NameOID.EMAIL_ADDRESS)]
+    return [a for a in adressen if a]
+
+
+def blatt_maengel(cert: x509.Certificate, adressen, jetzt: datetime | None = None,
+                  gueltigkeit: bool = True) -> str | None:
+    """Was gegen dieses Zertifikat als Empfängerzertifikat für *adressen* spricht.
+
+    `None` heisst: nichts. *gueltigkeit* = False für den Nachlauf über den
+    Bestand — abgelaufene Empfängerzertifikate bleiben dort bewusst stehen.
+    """
+    from cryptography.x509.oid import ExtendedKeyUsageOID
+    jetzt = jetzt or datetime.now(timezone.utc)
+    bc = _grundbedingungen(cert)
+    if bc is not None and bc.ca:
+        return "Zertifikat einer Zertifizierungsstelle, kein Personenzertifikat"
+    try:
+        eku = cert.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value
+        if (ExtendedKeyUsageOID.EMAIL_PROTECTION not in eku
+                and ExtendedKeyUsageOID.ANY_EXTENDED_KEY_USAGE not in eku):
+            return "nicht für E-Mail-Schutz ausgestellt"
+    except x509.ExtensionNotFound:
+        pass                                       # keine Einschränkung
+    if gueltigkeit and not _gueltig(cert, jetzt):
+        return "abgelaufen oder noch nicht gültig"
+    eigene = zertifikat_adressen(cert)
+    if not eigene:
+        return "Zertifikat nennt keine E-Mail-Adresse"
+    gesucht = {a.strip().lower() for a in adressen if a}
+    if not gesucht & set(eigene):
+        return (f"Zertifikat lautet auf {', '.join(eigene)}, "
+                f"nicht auf den Absender {', '.join(sorted(gesucht)) or '(unbekannt)'}")
+    return None
+
+
+def kette_maengel(kette: list[x509.Certificate], jetzt: datetime | None = None,
+                  gueltigkeit: bool = True) -> str | None:
+    """Darf jeder Aussteller bis zum Vertrauensanker überhaupt ausstellen?
+
+    Geprüft wird von der ersten Stufe über dem Blatt bis zum ersten bekannten
+    oder freigegebenen Glied — was darüber liegt, trägt das Vertrauen nicht
+    mehr. Je Aussteller: BasicConstraints CA:TRUE, pathLen eingehalten, gültig.
+
+    ⚠️ Einzige Ausnahme: eine selbstsignierte Wurzel aus Microsofts Liste ganz
+    OHNE BasicConstraints (Wurzeln der Version 1). Sie ist Vertrauensanker
+    kraft Liste; eine fehlende Erweiterung ist dort kein Mangel, ein
+    ausdrückliches CA:FALSE dagegen schon.
+    """
+    if not kette:
+        return "keine Kette"
+    jetzt = jetzt or datetime.now(timezone.utc)
+    bekannte = wurzeln()
+    erlaubte = freigaben()
+    if abdruck(kette[0]) in erlaubte:
+        return None                                # Einzelfreigabe des Blatts
+    for stufe, cert in enumerate(kette[1:], start=1):
+        fp = abdruck(cert)
+        bc = _grundbedingungen(cert)
+        if bc is None:
+            if not (cert.subject == cert.issuer and fp in bekannte):
+                return f"Aussteller „{_bezeichnung(cert)}“ ist keine Zertifizierungsstelle"
+        elif not bc.ca:
+            return f"Aussteller „{_bezeichnung(cert)}“ ist keine Zertifizierungsstelle"
+        elif bc.path_length is not None and stufe - 1 > bc.path_length:
+            return f"Aussteller „{_bezeichnung(cert)}“ erlaubt keine so lange Kette"
+        if gueltigkeit and not _gueltig(cert, jetzt):
+            return f"Aussteller „{_bezeichnung(cert)}“ ist abgelaufen oder noch nicht gültig"
+        if fp in erlaubte or fp in bekannte:
+            break
+    return None
+
+
 # ── Was passiert mit dem Ergebnis? ───────────────────────────────────────────
 
 ANNEHMEN = "annehmen"
@@ -400,7 +515,14 @@ def entscheiden(kette: list[x509.Certificate]) -> tuple[str, str]:
     ⚠️ `"auto"` stellt das Verhalten von vor v1.7.199 wieder her: Dann kommt
     jeder Aussteller ungefragt in den Bestand, auch ein selbst betriebener. Das
     ist eine bewusste Wahl und keine Vorgabe.
+
+    ⚠️ Ein Strukturmangel der Kette (`kette_maengel`) wartet IMMER, auch bei
+    `"auto"`: Ein Aussteller, der gar nicht ausstellen darf, ist keine Frage
+    des Vertrauens, sondern ein Fehler.
     """
+    mangel = kette_maengel(kette)
+    if mangel:
+        return WARTEN, mangel
     bekannt, grund = bewerten(kette)
     if bekannt:
         if settings_store.get("TRUST_AUTO_KNOWN") is False:

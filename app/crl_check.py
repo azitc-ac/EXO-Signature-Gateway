@@ -55,13 +55,11 @@ Diese Prüfung beantwortet damit genau eine Frage: **Stammt die Auskunft von
 derselben Stelle, die das Zertifikat ausgestellt hat?** Sie sagt NICHTS darüber,
 ob dieser Stelle zu trauen ist.
 
-⚠️ Das ist keine Spitzfindigkeit, sondern eine offene Flanke: Empfängerzertifikate
-kommen zum Teil selbsttätig herein (`smime_harvest` aus eingehenden signierten
-Mails), und dabei wird weder die Kette geprüft (`openssl smime -verify
--noverify`) noch ein Vertrauensspeicher befragt. Wer ein Zertifikat samt
-Sperrliste aus einer selbst betriebenen CA mitbringt, besteht die Prüfung hier
-tadellos. Die Frage, WELCHE Aussteller überhaupt in den Bestand dürfen, wird an
-anderer Stelle beantwortet werden.
+⚠️ Wer ein Zertifikat samt Sperrliste aus einer selbst betriebenen CA
+mitbringt, besteht die Prüfung hier tadellos. Die Frage, WELCHE Aussteller und
+welche Zertifikate überhaupt in den Bestand dürfen, beantworten `trust_store`
+(Vertrauensliste, `kette_maengel`, `blatt_maengel`) und `smime_harvest._uebernehmen`
+— nicht diese Datei.
 
 ⚠️ Nennt das Zertifikat keine Adresse seines Ausstellers, entfallen 2 und 3;
 die Liste wird dann nach Stufe 1 benutzt. Nennt es eine, die **nicht erreichbar**

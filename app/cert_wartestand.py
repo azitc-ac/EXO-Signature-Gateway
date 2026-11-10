@@ -166,10 +166,22 @@ def freigeben(fingerabdruck: str, auch_aussteller: bool = False) -> dict:
     except Exception as exc:
         return {"ok": False, "fehler": f"nicht lesbar ({exc.__class__.__name__})"}
 
+    # ⚠️ Adresse und Zertifikatsart sind keine Vertrauensfrage, die sich per
+    # Klick beantworten liesse: Ein Zertifikat für eine FREMDE Adresse unter
+    # dieser abzulegen hiesse, an den Falschen zu verschlüsseln. Wer das
+    # wirklich will, lädt es ausdrücklich hoch (S/MIME → Empfängerzertifikat).
+    mangel = trust_store.blatt_maengel(cert, [eintrag.get("adresse") or ""],
+                                       gueltigkeit=False)
+    if mangel:
+        return {"ok": False, "fehler": f"nicht freigebbar: {mangel}"}
+
     bezeichnung = ""
     if auch_aussteller:
         import crl_check
         ca = crl_check.ausstellerzertifikat(cert)
+        # Nur eine echte Zertifizierungsstelle wird als Aussteller freigegeben.
+        if ca is not None and trust_store.kette_maengel([cert, ca], gueltigkeit=False):
+            ca = None
         if ca is not None:
             bezeichnung = trust_store._bezeichnung(ca)
             trust_store.freigeben(trust_store.abdruck(ca), f"{bezeichnung} (freigegeben)")

@@ -5,6 +5,48 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.110 — 2026-11-10 — Eingehende S/MIME-Signaturen werden geprüft
+
+- **Betreff-Vermerk „signiert von …“ nur noch nach Prüfung.** Bisher kam der
+  Name aus dem beigelegten Zertifikat, und die Signatur wurde entfernt, ohne
+  dass sie geprüft war. Damit bescheinigte der Vermerk eine Prüfung, die nie
+  stattfand. Jetzt muss dreierlei stimmen: die Signatur über den Inhalt, die
+  Adresse im Zertifikat (gegen den From- oder Sender-Kopf, RFC 8550 §3) und
+  eine Kette zu einem bekannten oder freigegebenen Aussteller. Stimmt etwas
+  nicht, geht die Mail **unverändert signiert** weiter, ohne Vermerk, und
+  Outlook zeigt selbst an, was es von der Signatur hält. Das Mail-Protokoll
+  nennt den Grund.
+- **Eingesammelte Empfängerzertifikate müssen auf den Absender lauten.** Ein
+  Zertifikat kommt nur noch in den Bestand, wenn es auf die From- oder
+  Sender-Adresse lautet, ein Personenzertifikat für E-Mail-Schutz ist und
+  gilt. Außerdem muss jeder Aussteller der Kette eine Zertifizierungsstelle
+  sein (BasicConstraints, Pfadlänge, Gültigkeit). Maßgeblich war bisher der
+  Envelope-Absender. Bei Versanddiensten ist das eine Bounce-Adresse, und
+  Zertifikate landeten unter solchen Adressen. Ein Zertifikat, das nicht
+  passt, wartet mit Begründung auf eine Entscheidung. Lautet es auf eine
+  andere Adresse oder ist es kein Personenzertifikat, lässt es sich nur
+  verwerfen, nicht freigeben. Ein gewolltes Zertifikat lädst du unter
+  *S/MIME → Empfängerzertifikat* ausdrücklich hoch.
+- **Ein Weg in den Bestand.** Der Rückfall über `openssl`, der bislang am
+  Vertrauensspeicher vorbei speicherte, ist entfallen. Jedes eingesammelte
+  Zertifikat geht durch dieselbe Prüfung. Auch die Freigabe „Aussteller
+  freigeben“ nimmt nur noch eine echte Zertifizierungsstelle an.
+- **Nachprüfung des Bestands.** Einmal nach dem Update prüft das Gateway
+  die vorhandenen Empfängerzertifikate auf Adresse, Zertifikatsart und
+  Ausstellerkette. Was nicht passt, wandert in den Wartestand, und du
+  bekommst den üblichen Hinweis. Bewusst nicht beanstandet werden abgelaufene
+  Zertifikate und solche von unbekannten Ausstellern: Hochgeladene lassen
+  sich im Bestand nicht von eingesammelten unterscheiden, und ein Hochladen
+  ist deine Entscheidung.
+- Die Liste der wartenden Zertifikate zeigt jetzt den Grund. Neu ist die
+  Aufgabe „Keine Empfängerzertifikate in Warteschlange“ im Sammelpunkt.
+
+**Zu tun:** Sieh nach dem Update unter *S/MIME → Zertifikate, die auf
+Freigabe warten* nach, ob die Nachprüfung etwas verschoben hat. Der
+Sammelpunkt oben rechts führt dorthin. Verwirf, was auf eine fremde Adresse
+lautet. Ein Partner, der eine Bounce-Adresse als Absender hatte, wird beim
+nächsten signierten Eingang unter seiner richtigen Adresse eingesammelt.
+
 ## v1.10.109 — 2026-11-10 — Nightly: Abruf bei GitHub wiederholen
 
 - Die tägliche Nightly-Aktion fragt bei GitHub die CI-Läufe ab. Der erste

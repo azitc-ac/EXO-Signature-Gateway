@@ -85,7 +85,7 @@ def _aktionen(anlage):
 def test_signiert_empfangen_wird_protokolliert_und_gezaehlt(anlage):
     import smime_harvest
     anlage["mp"].setattr(smime_harvest, "strip_and_harvest",
-                         lambda msg, s: (b"Subject: Angebot\r\n\r\nHallo\r\n", "Erika Extern"))
+                         lambda msg, s, raw=None: (b"Subject: Angebot\r\n\r\nHallo\r\n", "Erika Extern", None))
     assert _lauf(SIGNIERT).startswith("250")
     assert _aktionen(anlage) == [("smime_signiert_empfangen", None)]
     assert "smime_signiert_empfangen" in anlage["zaehler"]
@@ -94,10 +94,12 @@ def test_signiert_empfangen_wird_protokolliert_und_gezaehlt(anlage):
 
 def test_signatur_nicht_entfernt_bleibt_sichtbar_mit_grund(anlage):
     import smime_harvest
-    anlage["mp"].setattr(smime_harvest, "strip_and_harvest", lambda msg, s: (None, None))
+    anlage["mp"].setattr(smime_harvest, "strip_and_harvest",
+                         lambda msg, s, raw=None: (None, None, "Aussteller unbekannt"))
     assert _lauf(SIGNIERT).startswith("250")
     (aktion, grund), = _aktionen(anlage)
-    assert aktion == "smime_signiert_empfangen" and "nicht entfernt" in grund
+    assert aktion == "smime_signiert_empfangen" and "nicht bestätigt" in grund
+    assert "Aussteller unbekannt" in grund
     assert "smime_signiert_empfangen" in anlage["zaehler"]
 
 

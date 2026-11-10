@@ -598,6 +598,13 @@ def _sync_ooo() -> None:
 def _loop() -> None:
     while True:
         try:
+            # Einmaliger Nachlauf über den Empfängerbestand nach einer
+            # Regelverschärfung (smime_harvest.NACHLAUF_KENNUNG).
+            try:
+                import smime_harvest
+                smime_harvest.bestand_nachpruefen_einmal()
+            except Exception as exc:
+                log.warning("scheduler: Nachprüfung des Empfängerbestands fehlgeschlagen: %s", exc)
             last_daily = settings_store.get("_DAILY_LAST_RUN") or ""
             if _should_run_daily(last_daily):
                 # Persist BEFORE running so a mid-report container restart

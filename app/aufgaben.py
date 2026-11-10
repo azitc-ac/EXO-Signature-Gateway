@@ -71,6 +71,8 @@ AUFGABEN: tuple[Aufgabe, ...] = (
             "/settings#benachrichtigungen"),
     Aufgabe("signaturvorlage", abnahme._signaturvorlage, "/template"),
     Aufgabe("postfaecher", abnahme._postfaecher, "/mailboxes"),
+    Aufgabe("wartende-zertifikate", abnahme._wartende_zertifikate, "/smime#wartend",
+            seit="1.10.110"),
 )
 
 _TTL_S = 10

@@ -9,11 +9,38 @@ Two operating modes:
                      Strips the signature wrapper, harvests the cert, and
                      returns the inner MIME body + signer display name so the
                      handler can re-deliver with a subject tag.
+
+ERST PRÜFEN, DANN ENTFERNEN
+---------------------------
+Bis v1.10.109 wurde die Signatur nie kryptografisch geprüft: Der Name für den
+Betreff-Vermerk „signiert von …“ kam aus dem beigelegten Zertifikat, die
+Signatur wurde entfernt und die Mail ausgeliefert — auch wenn der Inhalt nach
+dem Signieren verändert oder das Zertifikat selbst ausgestellt war. Der
+Vermerk bescheinigte damit eine Prüfung, die nie stattfand, und das Entfernen
+nahm Outlook die Möglichkeit, selbst zu warnen.
+
+Seitdem gilt (`pruefen()`):
+
+1. Die Signatur über den Inhalt muss stimmen (`openssl cms -verify`).
+2. Das Zertifikat muss zum Absender passen — From- oder Sender-Kopf, nicht
+   der Envelope (RFC 8550 §3). Der Envelope trägt bei Versanddiensten eine
+   Bounce-Adresse (VERP); im Produktivbestand lagen deshalb Zertifikate unter
+   `bounce_…@`-Adressen.
+3. Die Kette muss strukturell taugen und auf einen bekannten oder
+   freigegebenen Aussteller führen (`trust_store`).
+
+Nur wenn alles stimmt, wird die Signatur entfernt und der Vermerk gesetzt.
+Sonst geht die Mail unverändert signiert weiter, und Outlook urteilt selbst.
+
+Eingesammelt wird jedes Zertifikat mit gültiger Inhaltssignatur — aber nur
+über `_uebernehmen()`; das ist der EINZIGE Weg in den Empfängerbestand
+(`tests/test_smime_signatur_pruefung.py`).
 """
 import email.utils
 import logging
 import subprocess
 import tempfile
+from dataclasses import dataclass, field
 from email.message import Message
 from pathlib import Path
 
@@ -22,167 +49,283 @@ import smime_store
 log = logging.getLogger(__name__)
 
 
+# ── Prüfung ────────────────────────────────────────────────────────────────────
+
+@dataclass
+class Pruefung:
+    inhalt_ok: bool = False          # Signatur über den Inhalt stimmt
+    signer_pem: bytes | None = None
+    signer: object = None            # x509.Certificate
+    kette: list = field(default_factory=list)
+    adresse: str | None = None       # Kopfadresse, auf die das Zertifikat lautet
+    inhalt: bytes | None = None      # signierter Inhalt (openssl -out)
+    grund: str = ""                  # warum NICHT bestätigt; leer = bestätigt
+
+    @property
+    def bestaetigt(self) -> bool:
+        return self.inhalt_ok and not self.grund
+
+    @property
+    def name(self) -> str | None:
+        if not self.bestaetigt or self.signer is None:
+            return None
+        from cryptography.x509.oid import NameOID
+        for oid in (NameOID.COMMON_NAME, NameOID.EMAIL_ADDRESS):
+            werte = self.signer.subject.get_attributes_for_oid(oid)
+            if werte:
+                return str(werte[0].value)
+        return self.adresse
+
+
+def kopf_adressen(msg: Message) -> list[str]:
+    """From- und Sender-Adresse, klein geschrieben — gegen sie wird das
+    Zertifikat geprüft (RFC 8550 §3), nicht gegen den Envelope."""
+    adressen = []
+    for kopf in ("From", "Sender"):
+        _, adr = email.utils.parseaddr(str(msg.get(kopf, "") or ""))
+        adr = adr.strip().lower()
+        if adr and adr not in adressen:
+            adressen.append(adr)
+    return adressen
+
+
+def _openssl_pruefen(raw: bytes) -> tuple[bool, bytes, bytes, bytes, str]:
+    """`(ok, signer_pem, inhalt, mitgelieferte_pem, fehler)`.
+
+    `-noverify` schaltet NUR die Kettenprüfung von openssl ab — die Signatur
+    über den Inhalt prüft openssl trotzdem. Die Kette prüft `trust_store`,
+    gegen dieselbe Vertrauensliste wie das Einsammeln.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        signer = Path(tmp) / "signer.pem"
+        inhalt = Path(tmp) / "inhalt"
+        certs = Path(tmp) / "certs.pem"
+        try:
+            ergebnis = subprocess.run(
+                ["openssl", "cms", "-verify", "-noverify",
+                 "-signer", str(signer), "-certsout", str(certs), "-out", str(inhalt)],
+                input=raw, capture_output=True, timeout=15,
+            )
+        except Exception as exc:
+            return False, b"", b"", b"", str(exc)
+        if ergebnis.returncode != 0 or not signer.is_file():
+            return False, b"", b"", b"", ergebnis.stderr.decode(errors="replace")[:200]
+        lesen = lambda p: p.read_bytes() if p.is_file() else b""  # noqa: E731
+        return True, signer.read_bytes(), lesen(inhalt), lesen(certs), ""
+
+
+def pruefen(raw: bytes, adressen: list[str]) -> Pruefung:
+    """Signierte Nachricht (multipart/signed oder signed-data) prüfen."""
+    import trust_store
+    from cryptography import x509
+    from cryptography.hazmat.primitives.serialization import Encoding
+
+    p = Pruefung()
+    ok, signer_pem, inhalt, certs_pem, fehler = _openssl_pruefen(raw)
+    if not ok:
+        p.grund = "Signatur ungültig oder nicht lesbar"
+        log.info("S/MIME-Signatur von %s nicht bestätigt: %s", adressen, fehler.strip())
+        return p
+    try:
+        signer = x509.load_pem_x509_certificates(signer_pem)[0]
+        mitgelieferte = x509.load_pem_x509_certificates(certs_pem) if certs_pem else []
+    except Exception as exc:
+        p.grund = f"Zertifikat nicht lesbar ({exc.__class__.__name__})"
+        return p
+    p.inhalt_ok = True
+    p.inhalt = inhalt
+    p.signer = signer
+    p.signer_pem = signer.public_bytes(Encoding.PEM)
+    eigene = set(trust_store.zertifikat_adressen(signer))
+    p.adresse = next((a for a in adressen if a in eigene), None)
+    p.kette = _kette_aus_mitgeliefertem(signer, mitgelieferte) or trust_store.kette_bauen(signer)
+    mangel = trust_store.blatt_maengel(signer, adressen) or trust_store.kette_maengel(p.kette)
+    if mangel:
+        p.grund = mangel
+    else:
+        bekannt, grund = trust_store.bewerten(p.kette)
+        if not bekannt:
+            p.grund = grund
+    if p.grund:
+        log.info("S/MIME-Signatur von %s nicht bestätigt: %s", adressen, p.grund)
+    return p
+
+
+def _einsammeln(p: Pruefung, adressen: list[str]) -> None:
+    """Zertifikat einer inhaltlich gültigen Signatur dem Bestand anbieten."""
+    if not p.inhalt_ok or not p.signer_pem or not adressen:
+        return
+    _uebernehmen(p.adresse or adressen[0], p.signer_pem, kette=p.kette, adressen=adressen)
+
+
 # ── Public API ─────────────────────────────────────────────────────────────────
 
-def extract_and_store(msg: Message) -> str | None:
-    """Harvest-only: extract sender cert, return sender email or None."""
-    sender = _sender_email(msg)
-    if not sender:
-        return None
-    ct = msg.get_content_type().lower()
+def _ist_signiert(msg: Message) -> bool:
+    ct = msg.get_content_type().lower().replace("application/x-pkcs7-mime",
+                                                "application/pkcs7-mime")
     if ct == "multipart/signed":
-        protocol = (msg.get_param("protocol") or "").lower()
-        if "pkcs7" not in protocol:
-            return None
-        sig_bytes = _sig_bytes_from_multipart(msg)
-        if sig_bytes:
-            _store_cert(sig_bytes, sender)
-        return sender
-    if ct == "application/pkcs7-mime":
-        _extract_via_openssl(msg.get_payload(decode=True), sender)
-        return sender
-    return None
+        return "pkcs7" in (msg.get_param("protocol") or "").lower()
+    return (ct == "application/pkcs7-mime"
+            and (msg.get_param("smime-type") or "").lower() == "signed-data")
 
 
-def strip_signed_data(msg_bytes: bytes, sender: str) -> tuple[bytes | None, str | None]:
+def extract_and_store(msg: Message, raw: bytes | None = None) -> str | None:
+    """Harvest-only: extract sender cert, return sender email or None."""
+    adressen = kopf_adressen(msg)
+    if not adressen or not _ist_signiert(msg):
+        return None
+    p = pruefen(raw if raw is not None else msg.as_bytes(), adressen)
+    _einsammeln(p, adressen)
+    return p.adresse or adressen[0]
+
+
+def strip_signed_data(msg_bytes: bytes, adressen: list[str]
+                      ) -> tuple[bytes | None, str | None, str | None]:
     """
     Strip application/pkcs7-mime; smime-type=signed-data (one-step S/MIME signing).
     Used by Hotmail and some clients instead of the standard multipart/signed wrapper.
-    openssl smime -verify extracts the encapsulated content and outputs the inner MIME.
-    Returns (inner_mime_bytes, signer_display_name).
+    Returns (inner_mime_bytes, signer_display_name, grund) — inner only if the
+    signature is confirmed; otherwise (None, None, reason).
     """
-    try:
-        result = subprocess.run(
-            ["openssl", "smime", "-verify", "-noverify"],
-            input=msg_bytes,
-            capture_output=True,
-            timeout=15,
-        )
-        if result.returncode == 0 and result.stdout:
-            log.info("S/MIME signed-data stripped for sender=%s (%d→%d bytes)",
-                     sender, len(msg_bytes), len(result.stdout))
-            # Best-effort: harvest signer cert from the signed-data payload
-            try:
-                import email as _em
-                inner = _em.message_from_bytes(msg_bytes)
-                sig_bytes = inner.get_payload(decode=True)
-                if sig_bytes:
-                    signer_name = _signer_display_name(sig_bytes, sender)
-                    _store_cert(sig_bytes, sender)
-                    return result.stdout, signer_name
-            except Exception:
-                pass
-            return result.stdout, None
-        log.warning("strip_signed_data: openssl -verify failed for %s: %s",
-                    sender, result.stderr.decode(errors="replace")[:200])
-    except Exception as exc:
-        log.warning("strip_signed_data error for %s: %s", sender, exc)
-    return None, None
+    p = pruefen(msg_bytes, adressen)
+    _einsammeln(p, adressen)
+    if not p.bestaetigt or not p.inhalt:
+        return None, None, p.grund or "kein Inhalt"
+    log.info("S/MIME signed-data stripped for sender=%s (%d→%d bytes)",
+             p.adresse, len(msg_bytes), len(p.inhalt))
+    return p.inhalt, p.name, None
 
 
-def strip_and_harvest(msg: Message, sender: str) -> tuple[bytes | None, str | None]:
+def strip_and_harvest(msg: Message, adressen: list[str], raw: bytes | None = None
+                      ) -> tuple[bytes | None, str | None, str | None]:
     """
-    Full-process: strip S/MIME signature wrapper, harvest cert, return
-    (inner_mime_bytes, signer_display_name).  Returns (None, None) on failure.
-    """
-    ct = msg.get_content_type().lower()
-    if ct != "multipart/signed":
-        return None, None
-    protocol = (msg.get_param("protocol") or "").lower()
-    if "pkcs7" not in protocol:
-        return None, None
+    Full-process: check, harvest, strip. Returns (inner_mime_bytes,
+    signer_display_name, None) when the signature is confirmed, otherwise
+    (None, None, reason) — the caller then delivers the mail still signed.
 
+    *raw* are the bytes as received. Re-serialising the parsed message can
+    change the signed part (folding, line ends) and break a valid signature.
+    """
+    if msg.get_content_type().lower() != "multipart/signed" or not _ist_signiert(msg):
+        return None, None, "kein S/MIME"
     parts = msg.get_payload()
     if not isinstance(parts, list) or len(parts) < 2:
-        return None, None
-
-    body_part = parts[0]
-    sig_bytes = _sig_bytes_from_multipart(msg)
-
-    signer_name: str | None = None
-    if sig_bytes:
-        signer_name = _signer_display_name(sig_bytes, sender)
-        _store_cert(sig_bytes, sender)
-
+        return None, None, "unvollständig"
+    p = pruefen(raw if raw is not None else msg.as_bytes(), adressen)
+    _einsammeln(p, adressen)
+    if not p.bestaetigt:
+        return None, None, p.grund
     try:
-        inner_bytes = body_part.as_bytes()
-        return inner_bytes, signer_name
+        return parts[0].as_bytes(), p.name, None
     except Exception as exc:
-        log.error("S/MIME strip: could not serialize inner body for %s: %s", sender, exc)
-        return None, None
+        log.error("S/MIME strip: could not serialize inner body for %s: %s", adressen, exc)
+        return None, None, "Inhalt nicht lesbar"
 
+
+def nur_entfernen(msg: Message) -> bytes | None:
+    """Signaturhülle abnehmen, ohne Prüfung und ohne Einsammeln.
+
+    Nur für die EIGENE, über eine Fremdweiterleitung zurückgekehrte Post: Sie
+    wird nicht als „signiert von …“ ausgewiesen, und ihr Zertifikat gehört
+    nicht in den Bestand der Kommunikationspartner.
+    """
+    parts = msg.get_payload()
+    if msg.get_content_type().lower() != "multipart/signed" or not isinstance(parts, list) or not parts:
+        return None
+    try:
+        return parts[0].as_bytes()
+    except Exception:
+        return None
+
+
+
+# ── Nachlauf über den vorhandenen Bestand ──────────────────────────────────────
+
+# Einmal je Regelstand. Wird die Regel verschärft, bekommt der Nachlauf eine
+# neue Kennung und läuft erneut.
+NACHLAUF_KENNUNG = "1.10.110"
+
+
+def _nachlauf_marke() -> Path:
+    import config
+    return Path(config.DATA_DIR) / "smime" / f"nachlauf-{NACHLAUF_KENNUNG}.erledigt"
+
+
+def bestand_nachpruefen() -> list[dict]:
+    """Den Empfängerbestand mit den Regeln von `blatt_maengel`/`kette_maengel`
+    nachprüfen; Treffer wandern in den Wartestand.
+
+    Bis v1.10.109 kamen Zertifikate ohne Adressprüfung in den Bestand, und der
+    openssl-Rückfall ging ganz am Vertrauensspeicher vorbei. Was damals
+    hineinkam, prüft dieser Lauf mit denselben Regeln wie heute ein Neuzugang —
+    mit zwei bewussten Ausnahmen:
+
+    * **Gültigkeit** zählt nicht: Abgelaufene Empfängerzertifikate bleiben im
+      Bestand stehen (Hinweis „früher verschlüsselt“).
+    * **Unbekannte Aussteller** zählen nicht: Im Bestand lassen sich
+      eingesammelte nicht von hochgeladenen Zertifikaten unterscheiden, und ein
+      Hochladen ist eine Vertrauensentscheidung des Administrators. Neu
+      eingesammelte Zertifikate durchlaufen diese Prüfung weiterhin.
+
+    Jeder Treffer meldet sich über `cert_wartestand.merken` beim Administrator.
+    """
+    import trust_store
+    import cert_wartestand
+    from cryptography import x509
+
+    verschoben = []
+    for pfad in smime_store.alle_empfaenger_cert_pfade():
+        adresse = pfad.parent.name
+        try:
+            pem = pfad.read_bytes()
+            cert = x509.load_pem_x509_certificate(pem)
+        except Exception as exc:
+            log.warning("Nachprüfung: Zertifikat für %s nicht lesbar: %s", adresse, exc)
+            continue
+        try:
+            mangel = trust_store.blatt_maengel(cert, [adresse], gueltigkeit=False)
+            if not mangel:
+                mangel = trust_store.kette_maengel(trust_store.kette_bauen(cert),
+                                                   gueltigkeit=False)
+        except Exception as exc:
+            log.warning("Nachprüfung: %s nicht prüfbar: %s", adresse, exc)
+            continue
+        if not mangel:
+            continue
+        if cert_wartestand.merken(adresse, pem, f"Nachprüfung: {mangel}"):
+            smime_store.delete_recipient_cert(adresse)
+            verschoben.append({"adresse": adresse, "grund": mangel})
+            log.warning("Nachprüfung: Zertifikat für %s in den Wartestand (%s)", adresse, mangel)
+    return verschoben
+
+
+def bestand_nachpruefen_einmal() -> list[dict] | None:
+    """Für den Scheduler: läuft genau einmal je `NACHLAUF_KENNUNG`."""
+    marke = _nachlauf_marke()
+    if marke.is_file():
+        return None
+    ergebnis = bestand_nachpruefen()
+    marke.parent.mkdir(parents=True, exist_ok=True)
+    marke.write_text(f"{len(ergebnis)} verschoben\n", encoding="utf-8")
+    log.info("Nachprüfung des Empfängerbestands: %d in den Wartestand", len(ergebnis))
+    return ergebnis
 
 # ── Internals ──────────────────────────────────────────────────────────────────
 
-def _sender_email(msg: Message) -> str | None:
-    _, addr = email.utils.parseaddr(msg.get("From", ""))
-    return addr.lower().strip() or None
-
-
-def _sig_bytes_from_multipart(msg: Message) -> bytes | None:
-    parts = msg.get_payload()
-    if not isinstance(parts, list):
-        return None
-    sig_part = next(
-        (p for p in parts if "pkcs7" in p.get_content_type().lower()),
-        None,
-    )
-    return sig_part.get_payload(decode=True) if sig_part else None
-
-
-def _leaf_cert(certs):
-    """
-    Select the end-entity (signer) certificate from a PKCS7 chain.
-    The leaf cert's subject DN is not the issuer of any other cert in the list.
-    """
-    if len(certs) == 1:
-        return certs[0]
-    issuer_dns = {c.issuer.public_bytes() for c in certs}
-    for cert in certs:
-        if cert.subject.public_bytes() not in issuer_dns:
-            return cert
-    # Fallback: first cert without CA:True BasicConstraints
-    from cryptography.x509 import BasicConstraints, ExtensionNotFound
-    for cert in certs:
-        try:
-            bc = cert.extensions.get_extension_for_class(BasicConstraints)
-            if not bc.value.ca:
-                return cert
-        except ExtensionNotFound:
-            return cert
-    return certs[0]
-
-
-def _store_cert(sig_bytes: bytes, sender: str) -> None:
-    try:
-        from cryptography.hazmat.primitives.serialization import pkcs7 as _pkcs7
-        from cryptography.hazmat.primitives.serialization import Encoding
-
-        certs = None
-        for loader in (_pkcs7.load_der_pkcs7_certificates, _pkcs7.load_pem_pkcs7_certificates):
-            try:
-                certs = loader(sig_bytes)
-                if certs:
-                    break
-            except Exception:
-                pass
-
-        if certs:
-            _uebernehmen(sender, _leaf_cert(certs).public_bytes(Encoding.PEM), certs)
-            return
-    except Exception:
-        pass
-    _extract_via_openssl(sig_bytes, sender)
-
-
-def _uebernehmen(sender: str, cert_pem: bytes, mitgelieferte=None) -> None:
-    """In den Bestand — oder in den Wartestand, je nach Aussteller.
+def _uebernehmen(sender: str, cert_pem: bytes, mitgelieferte=None, kette=None,
+                 adressen=None) -> None:
+    """In den Bestand — oder in den Wartestand, je nach Zertifikat und Aussteller.
 
     ⚠️ Hier entscheidet sich, WESSEN Zertifikate benutzt werden. Bis v1.7.200
     landete jedes eingesammelte Zertifikat unbesehen im Bestand: Wer eine
     signierte Nachricht schicken konnte, bestimmte damit, mit welchem Schlüssel
     künftig an diese Adresse verschlüsselt wird. Der Absender einer Mail ist
     keine geprüfte Angabe.
+
+    ⚠️ Bis v1.10.109 prüfte diese Stelle nur den Aussteller. Ein echtes
+    Zertifikat einer bekannten Stelle für eine FREMDE Adresse kam so unter dem
+    Absender in den Bestand. Jetzt muss es auf den Absender lauten, ein
+    Personenzertifikat für E-Mail sein und gelten (`trust_store.blatt_maengel`).
 
     ⚠️ Die **mitgelieferte Kette** wird bevorzugt. Eine signierte Nachricht
     enthält die Zwischenzertifikate in aller Regel gleich mit; sie zu benutzen
@@ -192,6 +335,7 @@ def _uebernehmen(sender: str, cert_pem: bytes, mitgelieferte=None) -> None:
     """
     import trust_store
     import cert_wartestand
+    import stats
     from cryptography import x509
 
     try:
@@ -200,13 +344,16 @@ def _uebernehmen(sender: str, cert_pem: bytes, mitgelieferte=None) -> None:
         log.warning("Eingesammeltes Zertifikat für %s nicht lesbar: %s", sender, exc)
         return
 
-    kette = _kette_aus_mitgeliefertem(cert, mitgelieferte) or trust_store.kette_bauen(cert)
-    art, grund = trust_store.entscheiden(kette)
+    mangel = trust_store.blatt_maengel(cert, adressen or [sender])
+    if mangel:
+        art, grund = trust_store.WARTEN, mangel
+    else:
+        kette = kette or _kette_aus_mitgeliefertem(cert, mitgelieferte) or trust_store.kette_bauen(cert)
+        art, grund = trust_store.entscheiden(kette)
     if art == trust_store.ANNEHMEN:
         smime_store.store_recipient_cert(sender, cert_pem)
         return
 
-    import stats
     stats.increment("cert_wartet")
     cert_wartestand.merken(sender, cert_pem, grund)
 
@@ -243,55 +390,3 @@ def _kette_aus_mitgeliefertem(cert, mitgelieferte) -> list | None:
         rest = trust_store.kette_bauen(aktuell)
         kette.extend(rest[1:])
     return kette if len(kette) > 1 else None
-
-
-def _signer_display_name(sig_bytes: bytes, fallback: str) -> str:
-    try:
-        from cryptography.hazmat.primitives.serialization import pkcs7 as _pkcs7
-        from cryptography.x509.oid import NameOID
-
-        certs = None
-        for loader in (_pkcs7.load_der_pkcs7_certificates, _pkcs7.load_pem_pkcs7_certificates):
-            try:
-                certs = loader(sig_bytes)
-                if certs:
-                    break
-            except Exception:
-                pass
-
-        if certs:
-            cert = _leaf_cert(certs)
-            for oid in (NameOID.COMMON_NAME, NameOID.EMAIL_ADDRESS):
-                attrs = cert.subject.get_attributes_for_oid(oid)
-                if attrs:
-                    return attrs[0].value
-    except Exception:
-        pass
-    return fallback
-
-
-def _extract_via_openssl(data: bytes, sender: str) -> None:
-    if not data:
-        return
-    tmp_path = None
-    cert_path = None
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".p7s", delete=False) as tmp:
-            tmp.write(data)
-            tmp_path = Path(tmp.name)
-        cert_path = tmp_path.with_suffix(".pem")
-        result = subprocess.run(
-            ["openssl", "smime", "-verify", "-noverify",
-             "-in", str(tmp_path), "-inform", "DER",
-             "-signer", str(cert_path), "-out", "/dev/null"],
-            capture_output=True, timeout=10,
-        )
-        if result.returncode == 0 and cert_path.exists():
-            smime_store.store_recipient_cert(sender, cert_path.read_bytes())
-    except Exception as exc:
-        log.warning("S/MIME openssl harvest failed for %s: %s", sender, exc)
-    finally:
-        if tmp_path:
-            tmp_path.unlink(missing_ok=True)
-        if cert_path:
-            cert_path.unlink(missing_ok=True)

@@ -890,7 +890,8 @@ async def api_smime_wartend_freigeben(fingerabdruck: str, request: Request,
     ergebnis = cert_wartestand.freigeben(fingerabdruck,
                                          bool(daten.get("auch_aussteller")))
     if not ergebnis.get("ok"):
-        raise HTTPException(404, ergebnis.get("fehler") or "nicht gefunden")
+        fehler = ergebnis.get("fehler") or "nicht gefunden"
+        raise HTTPException(409 if fehler.startswith("nicht freigebbar") else 404, fehler)
     return JSONResponse(ergebnis)
 
 

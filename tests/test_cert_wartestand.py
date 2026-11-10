@@ -47,6 +47,10 @@ def _zert(name="partner@example.org", aussteller="Fremde CA"):
             .serial_number(x509.random_serial_number())
             .not_valid_before(JETZT - timedelta(days=1))
             .not_valid_after(JETZT + timedelta(days=200))
+            # Seit v1.10.110 muss das Zertifikat auf die Adresse lauten
+            # (trust_store.blatt_maengel) — wie jedes echte S/MIME-Zertifikat.
+            .add_extension(x509.SubjectAlternativeName([x509.RFC822Name(name)]),
+                           critical=False)
             .sign(key, hashes.SHA256()))
     return cert, cert.public_bytes(serialization.Encoding.PEM)
 
@@ -141,7 +145,7 @@ def test_unbekannter_aussteller_wandert_in_den_wartestand(monkeypatch):
     gibt: Das Zertifikat darf NICHT in den Bestand, sonst wird damit
     verschlüsselt."""
     import smime_harvest
-    cert, pem = _zert()
+    cert, pem = _zert("fremder@example.org")
     monkeypatch.setattr(trust_store, "entscheiden",
                         lambda kette: (trust_store.WARTEN, "Aussteller unbekannt"))
     im_bestand = {}
@@ -156,7 +160,7 @@ def test_wartendes_zertifikat_wird_gezaehlt(monkeypatch):
     """Ohne Zahl bliebe unbemerkt, dass eine ausstehende Entscheidung die
     Verschlüsselung verhindert."""
     import smime_harvest, stats
-    _, pem = _zert()
+    _, pem = _zert("x@y.de")
     monkeypatch.setattr(trust_store, "entscheiden", lambda k: (trust_store.WARTEN, "unbekannt"))
     monkeypatch.setattr(smime_harvest.smime_store, "store_recipient_cert", lambda a, p: None)
     vorher = stats.get().get("cert_wartet", 0)
