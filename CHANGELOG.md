@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.12 — 2026-11-11 — Postfachprüfung: Vorlagenfehler wieder vor fehlendem Konto
+
+- Die in v1.11.11 eingeführte Meldung „Entra-Konto zu dieser Adresse nicht
+  gefunden“ stand vor der Vorlagenprüfung. Eine kaputte oder fehlende Vorlage
+  wurde dadurch bei einem nicht gefundenen Konto nur als Warnung gemeldet.
+  Jetzt wird zuerst die Vorlage geprüft. Ob das Konto gefunden wurde, sagt
+  der Profilabruf selbst; eine zweite Graph-Abfrage entfällt.
+
+**Zu tun:** nichts.
+
 ## v1.11.11 — 2026-11-11 — Signatur: Benutzerdaten auch bei abweichendem UPN
 
 - **Leere Signaturdaten bei einzelnen Postfächern.** Das Gateway fragte das

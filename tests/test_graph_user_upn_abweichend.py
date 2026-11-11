@@ -88,5 +88,7 @@ def test_health_check_nennt_nicht_gefunden_statt_leerem_namen(monkeypatch):
     import health_check
     _setup(monkeypatch)
     monkeypatch.setattr(health_check, "_vorlage", lambda *a: "")
+    import signature_engine
+    monkeypatch.setattr(signature_engine, "render_fehler", lambda *a, **k: None)
     r = asyncio.run(health_check._check_template("niemand@firma.at", {}))
     assert "nicht gefunden" in str(r) and "displayName leer" not in str(r)

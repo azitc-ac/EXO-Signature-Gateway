@@ -517,6 +517,9 @@ class UserData:
     website: str = ""
     bookingsUrl: str = ""
     custom: dict = None  # populated from CUSTOM_TEMPLATE_VARS
+    # False: Graph kannte die Adresse nicht — alle Profilfelder sind leer,
+    # nicht weil Entra sie leer hat. Für Prüfungen, nicht für Vorlagen.
+    entra_gefunden: bool = True
 
     def __post_init__(self):
         if self.custom is None:
@@ -1071,7 +1074,7 @@ async def _graph_user_data(email: str) -> dict | None:
 async def get_user(email: str) -> UserData:
     data = await _graph_user_data(email)
     if data is None:
-        return UserData(mail=email)
+        return UserData(mail=email, entra_gefunden=False)
 
     ext = data.get("onPremisesExtensionAttributes") or {}
     phones = data.get("businessPhones") or []

@@ -452,13 +452,6 @@ async def _check_template(email: str, cfg: dict) -> dict:
     try:
         import graph_client
         import signature_engine
-        # Ohne Entra-Datensatz baut get_user ein LEERES Profil — die Meldung
-        # hieß dann „displayName leer", obwohl das Konto einen Namen hat und
-        # nur nicht gefunden wurde. Das eine ist ein Datenfehler, das andere
-        # ein Fehler der Zuordnung; beide getrennt melden.
-        if await graph_client._graph_user_data(email) is None:
-            return _make_result("warn", "Entra-Konto zu dieser Adresse nicht gefunden — "
-                                "Signatur ohne Benutzerdaten (Name, Variablen)")
         user = await graph_client.get_user(email)
         # ⚠️ Nicht `render()` und auf eine Ausnahme warten: render fängt jeden
         # Fehler selbst ab und liefert "" — diese Prüfung meldete bis v1.9.134
@@ -468,6 +461,13 @@ async def _check_template(email: str, cfg: dict) -> dict:
         if fehler:
             return _make_result("error", f"Vorlage {template_name or 'default'}: {fehler}")
         if not user.displayName:
+            # Ohne Entra-Datensatz baut get_user ein LEERES Profil — die Meldung
+            # hieß dann „displayName leer", obwohl das Konto einen Namen hat und
+            # nur nicht gefunden wurde. Zuordnungsfehler und Datenfehler getrennt
+            # melden.
+            if not user.entra_gefunden:
+                return _make_result("warn", "Entra-Konto zu dieser Adresse nicht gefunden — "
+                                    "Signatur ohne Benutzerdaten (Name, Variablen)")
             return _make_result("warn", "Benutzerdaten unvollständig (displayName leer)")
         return _make_result("ok", f"Signatur „{template_name or 'default'}“ mit den Daten "
                             "des Postfachs fehlerfrei erstellt")
