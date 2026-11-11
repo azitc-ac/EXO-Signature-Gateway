@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.3 — 2026-11-11 — Anmeldung: Kennwortwechsel und Rollenentzug beenden Sitzungen
+
+- Eine Anmeldung an der Weboberfläche galt bisher ihre vollen 8 Stunden,
+  auch nachdem das örtliche Kennwort geändert oder einem Entra-Konto die
+  Rolle entzogen war. Wer das Kennwort wechselte, weil es bekannt geworden
+  war, sperrte damit niemanden aus.
+- Jetzt prüft das Gateway bei jeder Anfrage: Eine örtliche Anmeldung gilt nur
+  mit dem gerade gültigen Kennwort; ein Wechsel beendet alle anderen örtlichen
+  Sitzungen, die eigene läuft mit neuem Merkmal weiter. Eine Entra-Anmeldung
+  gilt nur, solange das Konto unter *Zugangsdaten → Entra-Konten (SSO)* mit
+  derselben Rolle eingetragen ist; Entfernen oder Herabstufen wirkt sofort.
+  Self-Service-Anmeldungen aus Outlook und Teams sind nicht betroffen.
+
+**Zu tun:** nichts. Örtlich angemeldete Sitzungen enden mit dem Update
+einmalig; melde dich danach neu an.
+
 ## v1.11.2 — 2026-11-11 — Backup optional mit Passwort
 
 - Unter *Update & Backup → Backup erstellen* lässt sich jetzt ein Passwort

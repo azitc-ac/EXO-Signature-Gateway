@@ -377,7 +377,19 @@ async def api_change_password(request: Request, user: str = Depends(_require_adm
     hashed = _hash_password(new_pw)
     settings_store.update({"ADMIN_PASSWORD_HASH": hashed})
     log.info("Admin password changed by %s", user)
-    return JSONResponse({"ok": True})
+    resp = JSONResponse({"ok": True})
+    # Der Wechsel beendet alle örtlichen Sitzungen (sso._kennwort_kennung) —
+    # auch die eigene. Wer gerade örtlich angemeldet ist, bekommt deshalb sofort
+    # ein neues Merkmal; alle anderen müssen sich neu anmelden.
+    import sso as sso_mod
+    from webui.deps import LOKALER_ADMIN
+    from webui.routen.anmeldung import _cookie_secure
+    if request.cookies.get(sso_mod.SESSION_COOKIE) and user == LOKALER_ADMIN:
+        resp.set_cookie(sso_mod.SESSION_COOKIE,
+                        sso_mod.create_session_cookie(LOKALER_ADMIN, local=True),
+                        max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax",
+                        secure=_cookie_secure())
+    return resp
 
 
 @router.post("/api/setup/exo-connector")

@@ -702,6 +702,9 @@ def test_jede_seite_zeigt_admins_die_admin_sicht(client, monkeypatch):
     from fastapi.routing import APIRoute
     from webui.app import app
     monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-seiten")
+    # Widerruf (sso._noch_gueltig) ist hier nicht Gegenstand — eigene Tests
+    # in test_sitzung_widerruf.py; die Testkonten stehen in keiner ADMIN_USERS.
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
     monkeypatch.setattr(aufgaben, "offene", lambda: [])
     gesichert = dict(app.dependency_overrides)
     app.dependency_overrides.clear()

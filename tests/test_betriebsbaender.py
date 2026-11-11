@@ -97,6 +97,9 @@ def _client(monkeypatch, rolle=None):
     import sso
     from webui import app as wa
     monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-baender")
+    # Widerruf (sso._noch_gueltig) ist hier nicht Gegenstand — eigene Tests
+    # in test_sitzung_widerruf.py; die Testkonten stehen in keiner ADMIN_USERS.
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
     c = TestClient(wa.app)
     if rolle:
         c.cookies.set(sso.SESSION_COOKIE,

@@ -62,23 +62,59 @@ def normalize_users() -> list[dict]:
     return result
 
 
+# ── Widerruf (seit v1.11.3) ──────────────────────────────────────────────────
+# Ein Sitzungsmerkmal galt bis v1.11.2 seine vollen 8 Stunden — auch nachdem
+# das örtliche Kennwort geändert oder einem Entra-Konto die Rolle entzogen war.
+# Wer das Kennwort ändert, weil es bekannt geworden ist, sperrte damit niemanden
+# aus. Jetzt prüft `verify_session_cookie` bei JEDER Anfrage:
+#   * örtliche Sitzung: Kennung des gerade gültigen Kennworts (`k`) — ein
+#     Kennwortwechsel macht alle älteren Sitzungen ungültig;
+#   * Entra-Sitzung: Rolle noch dieselbe wie in ADMIN_USERS — Entzug oder
+#     Herabstufung beenden die Sitzung.
+# Self-Service-Merkmale (ROLE_SELF) stellt das Add-in für jedes Postfach aus;
+# sie hängen an keiner Verwaltungsrolle und bleiben unberührt.
+
+def _kennwort_kennung() -> str:
+    """Kurze Kennung des gültigen örtlichen Kennworts — kein Rückschluss darauf."""
+    import hashlib
+    import config
+    grundlage = (settings_store.get("ADMIN_PASSWORD_HASH")
+                 or "env:" + (getattr(config, "WEBUI_PASSWORD", "") or ""))
+    return hashlib.sha256(("sitzung|" + grundlage).encode()).hexdigest()[:16]
+
+
 def create_session_cookie(upn: str, local: bool = False, role: str = ROLE_ADMIN) -> str:
     """Return a signed cookie value for the given UPN."""
     s = URLSafeTimedSerializer(_get_secret())
     payload = {"u": upn, "t": "local" if local else "sso", "ts": int(time.time()), "r": role}
+    if local:
+        payload["k"] = _kennwort_kennung()
     return s.dumps(payload)
 
 
+def _noch_gueltig(payload: dict) -> bool:
+    if payload.get("t") == "local":
+        return payload.get("k") == _kennwort_kennung()
+    rolle = payload.get("r", ROLE_ADMIN)
+    if rolle == ROLE_SELF:
+        return True
+    return get_role(payload.get("u") or "") == rolle
+
+
 def verify_session_cookie(value: str) -> dict | None:
-    """Verify and decode a session cookie. Returns payload dict or None."""
+    """Verify and decode a session cookie. Returns payload dict or None —
+    auch dann, wenn die Sitzung inzwischen widerrufen ist (`_noch_gueltig`)."""
     try:
         s = URLSafeTimedSerializer(_get_secret())
-        return s.loads(value, max_age=SESSION_TTL)
+        payload = s.loads(value, max_age=SESSION_TTL)
     except (BadSignature, SignatureExpired):
         return None
     except Exception as exc:
         log.debug("Session cookie error: %s", exc)
         return None
+    if not isinstance(payload, dict) or not _noch_gueltig(payload):
+        return None
+    return payload
 
 
 def decode_id_token(token: str) -> dict:

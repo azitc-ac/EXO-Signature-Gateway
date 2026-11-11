@@ -95,6 +95,9 @@ def seite(browser, server, monkeypatch):
     import sso
 
     monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-oberflaeche")
+    # Widerruf (sso._noch_gueltig) ist hier nicht Gegenstand — eigene Tests
+    # in test_sitzung_widerruf.py; die Testkonten stehen in keiner ADMIN_USERS.
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
     keks = sso.create_session_cookie("chefin@example.org", role=sso.ROLE_ADMIN)
 
     def oeffnen(pfad, breite=393, hoehe=850, thema="light"):
@@ -264,6 +267,9 @@ def test_bearbeiter_sieht_nur_die_signaturen_in_der_navigation(browser, server, 
     Leere."""
     import sso
     monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-oberflaeche")
+    # Widerruf (sso._noch_gueltig) ist hier nicht Gegenstand — eigene Tests
+    # in test_sitzung_widerruf.py; die Testkonten stehen in keiner ADMIN_USERS.
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
     keks = sso.create_session_cookie("bearbeiter@example.org", role=sso.ROLE_EDITOR)
     ctx = browser.new_context(viewport={"width": 1280, "height": 900})
     ctx.add_cookies([{"name": sso.SESSION_COOKIE, "value": keks,
@@ -675,6 +681,9 @@ def test_abwesenheit_filter_und_status_knopf(browser, server, monkeypatch):
     import settings_store
     import sso
     monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-oberflaeche")
+    # Widerruf (sso._noch_gueltig) ist hier nicht Gegenstand — eigene Tests
+    # in test_sitzung_widerruf.py; die Testkonten stehen in keiner ADMIN_USERS.
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
     keks = sso.create_session_cookie("chefin@example.org", role=sso.ROLE_ADMIN)
     daten = {"ts": None, "gesamt": 3, "abwesend": 1, "kein_token": False, "ooo_enabled": True,
              "items": [

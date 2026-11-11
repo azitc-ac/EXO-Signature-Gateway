@@ -39,6 +39,9 @@ def bearbeiter_sitzung(monkeypatch):
     # Sitzungsgeheimnis festlegen statt erzeugen lassen: `_get_secret()` würde
     # sonst über settings_store.update() in die echte settings.json schreiben.
     monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-rollenpruefung")
+    # Widerruf (sso._noch_gueltig) ist hier nicht Gegenstand — eigene Tests
+    # in test_sitzung_widerruf.py; die Testkonten stehen in keiner ADMIN_USERS.
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
     keks = sso.create_session_cookie("bearbeiter@example.org", role=sso.ROLE_EDITOR)
     with TestClient(wa.app) as c:
         c.cookies.set(sso.SESSION_COOKIE, keks)
@@ -53,6 +56,9 @@ def verwaltungs_sitzung(monkeypatch):
     from webui import app as wa
 
     monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-rollenpruefung")
+    # Widerruf (sso._noch_gueltig) ist hier nicht Gegenstand — eigene Tests
+    # in test_sitzung_widerruf.py; die Testkonten stehen in keiner ADMIN_USERS.
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
     keks = sso.create_session_cookie("chefin@example.org", role=sso.ROLE_ADMIN)
     with TestClient(wa.app) as c:
         c.cookies.set(sso.SESSION_COOKIE, keks)
@@ -93,6 +99,9 @@ def self_sitzung(monkeypatch):
     import sso
     from webui import app as wa
     monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-rollenpruefung")
+    # Widerruf (sso._noch_gueltig) ist hier nicht Gegenstand — eigene Tests
+    # in test_sitzung_widerruf.py; die Testkonten stehen in keiner ADMIN_USERS.
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
     keks = sso.create_session_cookie("mig3@azitc.eu", role=sso.ROLE_SELF)
     with TestClient(wa.app) as c:
         c.cookies.set(sso.SESSION_COOKIE, keks)
@@ -135,6 +144,9 @@ def test_bearbeiter_per_addin_header_ist_kein_admin(monkeypatch):
     import sso
     from webui import app as wa
     monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-rollenpruefung")
+    # Widerruf (sso._noch_gueltig) ist hier nicht Gegenstand — eigene Tests
+    # in test_sitzung_widerruf.py; die Testkonten stehen in keiner ADMIN_USERS.
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
 
     editor = sso.create_session_cookie("bearbeiter@example.org", role=sso.ROLE_EDITOR)
     with TestClient(wa.app) as c:
@@ -156,6 +168,9 @@ def kampagnen_sitzung(monkeypatch):
     import sso
     from webui import app as wa
     monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-rollenpruefung")
+    # Widerruf (sso._noch_gueltig) ist hier nicht Gegenstand — eigene Tests
+    # in test_sitzung_widerruf.py; die Testkonten stehen in keiner ADMIN_USERS.
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
     keks = sso.create_session_cookie("marketing@example.org", role=sso.ROLE_CAMPAIGN)
     with TestClient(wa.app) as c:
         c.cookies.set(sso.SESSION_COOKIE, keks)
