@@ -248,7 +248,7 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
     # Find or create service principal
     sp_resp = await _gh(
         "get",
-        f"{GRAPH}/servicePrincipals?$filter=appId eq '{app_id}'&$select=id",
+        f"{GRAPH}/servicePrincipals?$filter=appId eq '{_ps_lit(app_id)}'&$select=id",
         token,
     )
     sp_items = sp_resp.get("value", [])
@@ -313,7 +313,7 @@ async def create_pool_app(token: str, index: int) -> dict:
     # Service principal
     sp_resp = await _gh(
         "get",
-        f"{GRAPH}/servicePrincipals?$filter=appId eq '{app_id}'&$select=id",
+        f"{GRAPH}/servicePrincipals?$filter=appId eq '{_ps_lit(app_id)}'&$select=id",
         token,
     )
     sp_items = sp_resp.get("value", [])
@@ -890,7 +890,7 @@ def _zert_hinterlegt_merken() -> None:
 async def _app_objekt_id(token: str, app_id: str) -> str:
     if not app_id:
         return ""
-    d = await _gh("get", f"{GRAPH}/applications?$filter=appId eq '{app_id}'&$select=id", token)
+    d = await _gh("get", f"{GRAPH}/applications?$filter=appId eq '{_ps_lit(app_id)}'&$select=id", token)
     werte = d.get("value") or []
     return werte[0]["id"] if werte else ""
 
@@ -1137,7 +1137,7 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
     try:
         r = _req.get(
             f"https://graph.microsoft.com/v1.0/servicePrincipals"
-            f"?$filter=appId eq '{app_id}'&$select=id",
+            f"?$filter=appId eq '{_ps_lit(app_id)}'&$select=id",
             headers={"Authorization": f"Bearer {token}"},
             timeout=15,
         )
@@ -1159,32 +1159,32 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
     # auf alle. Als PS-Array-Literal (Adressen einfach-gequotet).
     import regel_split
     _aktiv = regel_split.aktive_adressen(settings_store.get("MAILBOX_CONFIG"))
-    _members_ps = ", ".join("'" + a.replace("'", "''") + "'" for a in _aktiv)
+    import ps_text
 
     ps_lines = [
         "$ErrorActionPreference = 'Stop'",
         "",
         "# Zertifikat laden (PFX ohne Passwort)",
         f"$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(",
-        f"    '{_AUTH_CERT_PATH}', [string]$null,",
+        f"    '{_ps_lit(_AUTH_CERT_PATH)}', [string]$null,",
         "    ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet -bor",
         "     [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable))",
         "",
-        f"Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert"
-        f" -Organization '{tenant_domain}' -ShowBanner:$false -ShowProgress:$false",
+        f"Connect-ExchangeOnline -AppId '{_ps_lit(app_id)}' -Certificate $cert"
+        f" -Organization '{_ps_lit(tenant_domain)}' -ShowBanner:$false -ShowProgress:$false",
         "",
         "# 1. Service Principal in EXO registrieren",
-        f"$sp = Get-ServicePrincipal | Where-Object {{ $_.AppId -eq '{app_id}' }}",
+        f"$sp = Get-ServicePrincipal | Where-Object {{ $_.AppId -eq '{_ps_lit(app_id)}' }}",
         "if (-not $sp) {",
-        f"    $sp = New-ServicePrincipal -AppId '{app_id}'"
-        f" -ObjectId '{sp_object_id}' -DisplayName 'EXO Signature Gateway'",
+        f"    $sp = New-ServicePrincipal -AppId '{_ps_lit(app_id)}'"
+        f" -ObjectId '{_ps_lit(sp_object_id)}' -DisplayName 'EXO Signature Gateway'",
         "    Write-Host \"Service Principal registriert: $($sp.ObjectId)\"",
         "} else {",
         "    Write-Host \"Service Principal bereits vorhanden: $($sp.ObjectId)\"",
         "}",
         "",
         "# 2. FullAccess NUR auf die aktiven Postfächer (Least Privilege)",
-        f"$mailboxes = @({_members_ps})",
+        f"$mailboxes = {ps_text.array(_aktiv)}",
         "$count = 0",
         "$failed = 0",
         "foreach ($m in $mailboxes) {",
@@ -1406,14 +1406,14 @@ def run_fetch_bookings_urls(app_id: str, tenant_domain: str, emails: list[str]) 
     if not emails:
         return {"ok": False, "urls": {}, "output": "Keine Postfächer konfiguriert."}
 
-    emails_ps = ",".join(f'"{e}"' for e in emails)
+    import ps_text
     ps_cmd = f"""
 Import-Module ExchangeOnlineManagement
 $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
-    "{_AUTH_CERT_PATH}", [string]$null,
+    '{_ps_lit(_AUTH_CERT_PATH)}', [string]$null,
     ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
-Connect-ExchangeOnline -AppId "{app_id}" -Certificate $cert -Organization "{tenant_domain}" -ShowBanner:$false
-$emails = @({emails_ps})
+Connect-ExchangeOnline -AppId '{_ps_lit(app_id)}' -Certificate $cert -Organization '{_ps_lit(tenant_domain)}' -ShowBanner:$false
+$emails = {ps_text.array(emails)}
 $results = $emails | ForEach-Object {{
     try {{
         $m = Get-Mailbox -Identity $_ -ErrorAction Stop
@@ -1488,17 +1488,17 @@ def run_notification_dg_update(members: list[str],
     ps_script = f"""
 $ErrorActionPreference = 'Stop'
 $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
-    '{cert}', [string]$null,
+    '{_ps_lit(cert)}', [string]$null,
     ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
-Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}' -ShowBanner:$false -ShowProgress:$false
-$dgName = "{gateway_name} - Notification recipients"
-$dgAlias = "{dg_alias}"
+Connect-ExchangeOnline -AppId '{_ps_lit(app_id)}' -Certificate $cert -Organization '{_ps_lit(org)}' -ShowBanner:$false -ShowProgress:$false
+$dgName = '{_ps_lit(gateway_name)} - Notification recipients'
+$dgAlias = '{_ps_lit(dg_alias)}'
 $dg = Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue
 if (-not $dg) {{
     $dg = New-DistributionGroup -Name $dgName -Alias $dgAlias -Type Distribution -MemberJoinRestriction Closed -MemberDepartRestriction Closed -ErrorAction Stop
 }}
 Set-DistributionGroup -Identity $dg.Identity -RequireSenderAuthenticationEnabled {require_auth} -HiddenFromAddressListsEnabled $true -ErrorAction Stop
-$membersStr = '{members_csv}'
+$membersStr = '{_ps_lit(members_csv)}'
 $desired = @()
 if ($membersStr) {{
     $desired = $membersStr -split ',' | ForEach-Object {{ $_.Trim() }} | Where-Object {{ $_ -ne '' }}
@@ -1567,15 +1567,15 @@ def run_create_notification_mailbox() -> dict:
     ps_script = f"""
 $ErrorActionPreference = 'Stop'
 $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
-    '{cert}', [string]$null,
+    '{_ps_lit(cert)}', [string]$null,
     ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
-Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}' -ShowBanner:$false -ShowProgress:$false
-$mbx = Get-Mailbox -Identity '{alias}' -ErrorAction SilentlyContinue
+Connect-ExchangeOnline -AppId '{_ps_lit(app_id)}' -Certificate $cert -Organization '{_ps_lit(org)}' -ShowBanner:$false -ShowProgress:$false
+$mbx = Get-Mailbox -Identity '{_ps_lit(alias)}' -ErrorAction SilentlyContinue
 if (-not $mbx) {{
-    $mbx = New-Mailbox -Shared -Name '{display_name}' -DisplayName '{display_name}' -Alias '{alias}' -ErrorAction Stop
+    $mbx = New-Mailbox -Shared -Name '{_ps_lit(display_name)}' -DisplayName '{_ps_lit(display_name)}' -Alias '{_ps_lit(alias)}' -ErrorAction Stop
 }}
 # Aus den Adresslisten ausblenden: ein reines Betriebs-Postfach, im Adressbuch irrelevant.
-Set-Mailbox -Identity '{alias}' -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
+Set-Mailbox -Identity '{_ps_lit(alias)}' -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
 $email = if ($mbx.PrimarySmtpAddress) {{ $mbx.PrimarySmtpAddress }} else {{ '' }}
 Write-Output (@{{ok=$true; email=$email}} | ConvertTo-Json -Compress)
 Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
@@ -1605,12 +1605,10 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
 
 
 def _ps_lit(wert: str) -> str:
-    """Einen Wert für ein PowerShell-Single-Quote-Literal absichern.
-
-    In PS wird ein `'` durch Verdopplung maskiert; Zeilenumbrüche entfernen wir,
-    damit ein Feldwert (etwa der Anzeigename) keine PS-Zeile einschieben kann.
-    """
-    return (wert or "").replace("\r", " ").replace("\n", " ").replace("'", "''")
+    """Einen Wert für ein PowerShell-Single-Quote-Literal absichern — siehe
+    `ps_text.lit`, der einzige Weg (`tests/test_ps_text.py`)."""
+    import ps_text
+    return ps_text.lit(wert)
 
 
 def run_create_shared_mailbox(alias: str, display_name: str,
@@ -1640,25 +1638,25 @@ def run_create_shared_mailbox(alias: str, display_name: str,
                 "output": "Keine gültige Primäradresse übergeben"}
 
     cert = str(_AUTH_CERT_PATH)
-    alias_l = _ps_lit(alias)
-    display_l = _ps_lit(display_name or alias)
-    primary_l = _ps_lit(primary_smtp)
+    alias_l = alias
+    display_l = display_name or alias
+    primary_l = primary_smtp
 
     ps_script = f"""
 $ErrorActionPreference = 'Stop'
 $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
-    '{cert}', [string]$null,
+    '{_ps_lit(cert)}', [string]$null,
     ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
-Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}' -ShowBanner:$false -ShowProgress:$false
-$mbx = Get-Mailbox -Identity '{primary_l}' -ErrorAction SilentlyContinue
+Connect-ExchangeOnline -AppId '{_ps_lit(app_id)}' -Certificate $cert -Organization '{_ps_lit(org)}' -ShowBanner:$false -ShowProgress:$false
+$mbx = Get-Mailbox -Identity '{_ps_lit(primary_l)}' -ErrorAction SilentlyContinue
 $created = $false
 if (-not $mbx) {{
-    $mbx = New-Mailbox -Shared -Name '{alias_l}' -DisplayName '{display_l}' -Alias '{alias_l}' -PrimarySmtpAddress '{primary_l}' -ErrorAction Stop
+    $mbx = New-Mailbox -Shared -Name '{_ps_lit(alias_l)}' -DisplayName '{_ps_lit(display_l)}' -Alias '{_ps_lit(alias_l)}' -PrimarySmtpAddress '{_ps_lit(primary_l)}' -ErrorAction Stop
     $created = $true
 }}
 # Aus den Adresslisten ausblenden: eine Sende-Identität ist ein Betriebs-Postfach,
 # im Adressbuch irrelevant (Antworten laufen über die From-Adresse, nicht die GAL).
-Set-Mailbox -Identity '{primary_l}' -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
+Set-Mailbox -Identity '{_ps_lit(primary_l)}' -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
 $email = if ($mbx.PrimarySmtpAddress) {{ $mbx.PrimarySmtpAddress }} else {{ '' }}
 Write-Output (@{{ok=$true; email="$email"; created=$created}} | ConvertTo-Json -Compress)
 Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
@@ -1705,10 +1703,10 @@ def _run_verify_ps(body: str) -> dict:
     connect = (
         "$ErrorActionPreference = 'SilentlyContinue'\n"
         "$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new("
-        f"'{cert}', [string]$null, "
+        f"'{_ps_lit(cert)}', [string]$null, "
         "([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet -bor "
         "[System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable))\n"
-        f"Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}'"
+        f"Connect-ExchangeOnline -AppId '{_ps_lit(app_id)}' -Certificate $cert -Organization '{_ps_lit(org)}'"
         " -ShowBanner:$false -ShowProgress:$false\n"
     )
     full = connect + body + "\nDisconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue"
@@ -1806,23 +1804,23 @@ def list_accepted_domains(refresh: bool = False) -> dict:
 def verify_connector(smtp_mode: bool = False) -> dict:
     """Check EXO connectors and transport rule. Inbound Connector only required in SMTP mode."""
     import waechter_regel
-    gw = (settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway").replace('"', '`"')
+    gw = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     # Regelname aus der EINEN Quelle; auch der frühere Name gilt (vor der Migration),
     # damit die Prüfung während der Umstellung nicht fälschlich fehlschlägt.
-    rule_ident = waechter_regel.regelname().replace('"', '`"')
-    rule_old = waechter_regel.basis_regelname().replace('"', '`"')
+    rule_ident = waechter_regel.regelname()
+    rule_old = waechter_regel.basis_regelname()
     if smtp_mode:
         ps = (
-            f'$out  = $null -ne (Get-OutboundConnector -Identity "{gw} - Outbound" -ErrorAction SilentlyContinue)\n'
-            f'$in   = $null -ne (Get-InboundConnector  -Identity "{gw} - Inbound"  -ErrorAction SilentlyContinue)\n'
-            f'$rule = ($null -ne (Get-TransportRule -Identity "{rule_ident}" -ErrorAction SilentlyContinue)) -or ($null -ne (Get-TransportRule -Identity "{rule_old}" -ErrorAction SilentlyContinue))\n'
+            f"$out  = $null -ne (Get-OutboundConnector -Identity '{_ps_lit(gw)} - Outbound' -ErrorAction SilentlyContinue)\n"
+            f"$in   = $null -ne (Get-InboundConnector  -Identity '{_ps_lit(gw)} - Inbound'  -ErrorAction SilentlyContinue)\n"
+            f"$rule = ($null -ne (Get-TransportRule -Identity '{_ps_lit(rule_ident)}' -ErrorAction SilentlyContinue)) -or ($null -ne (Get-TransportRule -Identity '{_ps_lit(rule_old)}' -ErrorAction SilentlyContinue))\n"
             'Write-Output (@{ok=$out -and $in -and $rule; outbound=$out; inbound=$in; rule=$rule} | ConvertTo-Json -Compress)\n'
         )
     else:
         ps = (
-            f'$out  = $null -ne (Get-OutboundConnector -Identity "{gw} - Outbound" -ErrorAction SilentlyContinue)\n'
-            f'$in   = $null -ne (Get-InboundConnector  -Identity "{gw} - Inbound"  -ErrorAction SilentlyContinue)\n'
-            f'$rule = ($null -ne (Get-TransportRule -Identity "{rule_ident}" -ErrorAction SilentlyContinue)) -or ($null -ne (Get-TransportRule -Identity "{rule_old}" -ErrorAction SilentlyContinue))\n'
+            f"$out  = $null -ne (Get-OutboundConnector -Identity '{_ps_lit(gw)} - Outbound' -ErrorAction SilentlyContinue)\n"
+            f"$in   = $null -ne (Get-InboundConnector  -Identity '{_ps_lit(gw)} - Inbound'  -ErrorAction SilentlyContinue)\n"
+            f"$rule = ($null -ne (Get-TransportRule -Identity '{_ps_lit(rule_ident)}' -ErrorAction SilentlyContinue)) -or ($null -ne (Get-TransportRule -Identity '{_ps_lit(rule_old)}' -ErrorAction SilentlyContinue))\n"
             'Write-Output (@{ok=$out -and $rule; outbound=$out; inbound=$in; rule=$rule} | ConvertTo-Json -Compress)\n'
         )
     return _run_verify_ps(ps)
@@ -1832,7 +1830,7 @@ def verify_imap() -> dict:
     """Check that the Gateway app is registered as an EXO ServicePrincipal."""
     app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
     body = (
-        f'$sp   = Get-ServicePrincipal -AppId "{app_id}" -ErrorAction SilentlyContinue\n'
+        f"$sp   = Get-ServicePrincipal -AppId '{_ps_lit(app_id)}' -ErrorAction SilentlyContinue\n"
         '$ok   = $null -ne $sp\n'
         '$name = if ($sp) { $sp.DisplayName } else { "" }\n'
         'Write-Output (@{ok=$ok; displayName=$name} | ConvertTo-Json -Compress)\n'
@@ -1842,10 +1840,10 @@ def verify_imap() -> dict:
 
 def verify_smime_rules() -> dict:
     """Check that both S/MIME inbound transport rules exist."""
-    gw = (settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway").replace('"', '`"')
+    gw = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     return _run_verify_ps(
-        f'$signed = $null -ne (Get-TransportRule -Identity "{gw} - SMIME Signed Inbound"    -ErrorAction SilentlyContinue)\n'
-        f'$enc    = $null -ne (Get-TransportRule -Identity "{gw} - SMIME Encrypted Inbound" -ErrorAction SilentlyContinue)\n'
+        f"$signed = $null -ne (Get-TransportRule -Identity '{_ps_lit(gw)} - SMIME Signed Inbound'    -ErrorAction SilentlyContinue)\n"
+        f"$enc    = $null -ne (Get-TransportRule -Identity '{_ps_lit(gw)} - SMIME Encrypted Inbound' -ErrorAction SilentlyContinue)\n"
         'Write-Output (@{ok=$signed -and $enc; signed=$signed; encrypted=$enc} | ConvertTo-Json -Compress)\n'
     )
 

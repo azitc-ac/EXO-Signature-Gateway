@@ -77,13 +77,14 @@ def _parse_mailboxes(raw_json: str) -> list[dict]:
 
 
 def _ps_script(app_id: str, org: str) -> str:
+    import ps_text
     return "\n".join([
         "$ErrorActionPreference = 'Stop'",
         "Import-Module ExchangeOnlineManagement",
         "$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(",
-        f"    '{_AUTH_CERT_PATH}', [string]$null,",
+        f"    '{ps_text.lit(_AUTH_CERT_PATH)}', [string]$null,",
         "    ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))",
-        f"Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}'"
+        f"Connect-ExchangeOnline -AppId '{ps_text.lit(app_id)}' -Certificate $cert -Organization '{ps_text.lit(org)}'"
         " -ShowBanner:$false | Out-Null",
         "Get-EXOMailbox -RecipientTypeDetails UserMailbox,SharedMailbox -ResultSize Unlimited"
         " -Properties ExchangeGuid,EmailAddresses |",

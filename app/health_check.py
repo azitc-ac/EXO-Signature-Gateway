@@ -139,32 +139,33 @@ def _check_exo_batch_sync(emails: list[str]) -> dict:
     # Build email list as JSON for PS
     emails_json = json.dumps(emails)
 
+    import ps_text
     ps_check_imap = "1" if check_imap else "0"
     addin_ids_json = json.dumps([a["id"] for a in _addin_soll()])
 
     ps_script = f"""
 $ErrorActionPreference = 'SilentlyContinue'
 $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
-    '{_AUTH_CERT_PATH}', [string]$null,
+    '{ps_text.lit(_AUTH_CERT_PATH)}', [string]$null,
     ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet -bor
      [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable))
 try {{
-    Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{tenant_domain}' -ShowBanner:$false -ShowProgress:$false -ErrorAction Stop
+    Connect-ExchangeOnline -AppId '{ps_text.lit(app_id)}' -Certificate $cert -Organization '{ps_text.lit(tenant_domain)}' -ShowBanner:$false -ShowProgress:$false -ErrorAction Stop
 }} catch {{
     @{{error="EXO-Verbindung fehlgeschlagen: $($_.Exception.Message)"}} | ConvertTo-Json -Compress
     exit 1
 }}
 
-$dgName = '{dg_name}'
+$dgName = '{ps_text.lit(dg_name)}'
 $checkImap = [int]'{ps_check_imap}'
-$emailsJson = '{emails_json.replace("'", "''")}'
+$emailsJson = '{ps_text.lit(emails_json)}'
 $emails = $emailsJson | ConvertFrom-Json
-$addinIds = @('{addin_ids_json.replace("'", "''")}' | ConvertFrom-Json)
+$addinIds = @('{ps_text.lit(addin_ids_json)}' | ConvertFrom-Json)
 
 # Get SP for IMAP permission checks
 $sp = $null
 if ($checkImap -eq 1) {{
-    $sp = Get-ServicePrincipal | Where-Object {{ $_.AppId -eq '{app_id}' }}
+    $sp = Get-ServicePrincipal | Where-Object {{ $_.AppId -eq '{ps_text.lit(app_id)}' }}
 }}
 
 # Get current DG members

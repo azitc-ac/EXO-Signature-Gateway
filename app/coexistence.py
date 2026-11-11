@@ -85,13 +85,20 @@ def _server_liste(servers) -> list[str]:
 
 
 def _ps_str(wert: str) -> str:
-    """Als PowerShell-Single-Quote-Literal einbetten (das einzige Sonderzeichen
-    dort ist das einfache Anführungszeichen, verdoppelt es sich)."""
-    return "'" + wert.replace("'", "''") + "'"
+    """Als PowerShell-Single-Quote-Literal einbetten — `ps_text.quoted`."""
+    import ps_text
+    return ps_text.quoted(wert)
+
+
+def _kommentar(wert: str) -> str:
+    """In einer Kommentarzeile genügt: kein Zeilenumbruch."""
+    import ps_text
+    return ps_text.kommentar(wert)
 
 
 def _ps_array(werte: list[str]) -> str:
-    return "@(" + ", ".join(_ps_str(w) for w in werte) + ")"
+    import ps_text
+    return ps_text.array(werte)
 
 
 def baue_skript(gateway_name: str, source_ip: str, servers=None) -> dict:
@@ -108,7 +115,7 @@ def baue_skript(gateway_name: str, source_ip: str, servers=None) -> dict:
     server_zeile = (_ps_array(srv) if srv
                     else "@($env:COMPUTERNAME)   # kein Server angegeben → lokaler Server")
 
-    build = f"""# {name} — AUFBAU
+    build = f"""# {_kommentar(name)} — AUFBAU
 # In der Exchange Management Shell (on-prem) ausführen.
 # Legt je Server einen Empfangsconnector an, der der Quell-IP des Gateways
 # vertraut, sodass dessen Post als intern (AuthAs: Internal) ankommt.
@@ -145,7 +152,7 @@ foreach ($s in $server) {{
 }}
 """
 
-    teardown = f"""# {name} — ABRISS
+    teardown = f"""# {_kommentar(name)} — ABRISS
 # Entfernt den Empfangsconnector wieder (je Server). Die Post läuft danach wie
 # vor der Koexistenz-Einrichtung.
 

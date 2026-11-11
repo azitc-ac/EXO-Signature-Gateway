@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.117 — 2026-11-11 — PowerShell: Einstellungswerte nur noch als Literal im Skript
+
+- Die Skripte für Exchange Online entstehen im Gateway als Text. Einige
+  setzten Einstellungswerte roh ein: den Gateway-Namen und die Mitgliederliste
+  beim Verteiler für Benachrichtigungen, Gateway- und Regelnamen bei den
+  Prüfungen von Connector und S/MIME-Regeln, die Postfachliste beim Abruf der
+  Bookings-Adressen. Teils standen sie in doppelten Anführungszeichen, in denen
+  PowerShell Ausdrücke auswertet. Ein Gateway-Name mit Sonderzeichen konnte so
+  das Skript brechen oder einen Befehl einschleusen, mit den Rechten der
+  Exchange-Anmeldung. Ändern konnte den Namen nur, wer als Administrator
+  angemeldet ist.
+- Jetzt geht jeder Wert über einen gemeinsamen Baustein und steht in
+  einfachen Anführungszeichen. Ein Test prüft alle Skripttexte im Gateway
+  darauf.
+
+**Zu tun:** nichts.
+
 ## v1.10.116 — 2026-11-11 — SECURITY.md: unterstützte Fassungen nach Kanal
 
 - `SECURITY.md` nannte noch `1.8.x` als unterstützte Fassung. Jetzt steht
