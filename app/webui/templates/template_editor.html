@@ -901,9 +901,14 @@ function buildBlockForm(b) {
   // Schriftschnitt-Zeilen, gemeinsam fuer Feld-, Anschrift- und Link-Bloecke.
   // Vorher gab es sie nur beim Feld — die Link-Bausteine liessen sich deshalb
   // nicht formatieren.
+  // Fett/Kursiv/Unterstrichen an EINER Stelle — `fett === null` lässt Fett weg
+  // (Grußformel), der Name ist ohne Angabe fett.
+  const schnittZeilen = (fett = b.bold) =>
+    (fett === null ? '' : row('Fett', chk('bold', fett)))
+    + row('Kursiv', chk('italic', b.italic))
+    + row('Unterstrichen', chk('underline', b.underline));
   const stilZeilen = (mitFarbe, farbVorgabe) => {
-    let r = row('Fett', chk('bold', b.bold)) + row('Kursiv', chk('italic', b.italic))
-      + row('Unterstrichen', chk('underline', b.underline));
+    let r = schnittZeilen();
     if (mitFarbe) r += row('Farbe', colorSelect(b.color || farbVorgabe, 'color', b.id));
     return r + row('Größe', txt('size', b.size, 'z.B. 10pt'));
   };
@@ -912,22 +917,17 @@ function buildBlockForm(b) {
     rows += row('Text', txt('text', b.text, 'Freundliche Grüße'));
     rows += row('Farbe', colorSelect(b.color||'base','color',b.id));
     rows += row('Größe', txt('size', b.size, 'z.B. 10pt'));
-    rows += row('Kursiv', chk('italic', b.italic));
-    rows += row('Unterstrichen', chk('underline', b.underline));
+    rows += schnittZeilen(null);
   } else if (t === 'spacer') {
     rows += row('Höhe (px)', txt('height', b.height, '8'));
   } else if (t === 'name_field') {
-    rows += row('Fett', chk('bold', b.bold !== false));
-    rows += row('Kursiv', chk('italic', b.italic));
-    rows += row('Unterstrichen', chk('underline', b.underline));
+    rows += schnittZeilen(b.bold !== false);
     rows += row('Farbe', colorSelect(b.color||'base','color',b.id));
     rows += row('Größe', txt('size', b.size, ''));
   } else if (t === 'field') {
     rows += row('Entra-Feld', fieldSelect(b.field||'jobTitle','field',b.id));
     rows += row('Präfix', txt('prefix', b.prefix, 'z.B. Abt.:'));
-    rows += row('Fett', chk('bold', b.bold));
-    rows += row('Kursiv', chk('italic', b.italic));
-    rows += row('Unterstrichen', chk('underline', b.underline));
+    rows += schnittZeilen();
     rows += row('Farbe', colorSelect(b.color||'muted','color',b.id));
     rows += row('Größe', txt('size', b.size, ''));
   } else if (t === 'address') {
@@ -1002,9 +1002,7 @@ function buildBlockForm(b) {
     rows += row('Schriftfarbe', farbFeld('color', b.color || 'base', b.id));
     rows += row('Schriftgröße', txt('size', b.size, 'z.B. 9pt — leer = wie global'));
     rows += row('Schriftart', txt('font', b.font, 'leer = wie global'));
-    rows += row('Fett', chk('bold', b.bold));
-    rows += row('Kursiv', chk('italic', b.italic));
-    rows += row('Unterstrichen', chk('underline', b.underline));
+    rows += schnittZeilen();
     rows += row('Ausrichtung', `<select name="align" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)">`
       + [['','links (Vorgabe)'],['center','zentriert'],['right','rechts']]
         .map(([v,l]) => `<option value="${v}"${(b.align||'')===v?' selected':''}>${esc(l)}</option>`).join('')

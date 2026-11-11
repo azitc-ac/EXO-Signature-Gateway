@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.10 — 2026-11-11 — Baukasten: Schriftschnitt-Felder aus einer Quelle
+
+- Die Felder Fett, Kursiv und Unterstrichen entstehen im Editor an einer
+  Stelle für alle Bausteine. Im Aussehen ändert sich nichts.
+
+**Zu tun:** nichts.
+
 ## v1.11.9 — 2026-11-11 — Baukasten: Unterstreichung, verlinktes Logo, sortierte Postfachliste
 
 - **Unterstreichung in allen Bausteinen mit Schriftschnitt.** Bisher bot nur
