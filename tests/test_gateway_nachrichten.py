@@ -66,7 +66,7 @@ def test_portal_nachricht_vorgabe_traegt_link_absender_und_frist(monkeypatch):
     m = g[0]
     assert m["to"] == "max@partner.example"
     assert m["sender"] == "erika@example.org"           # aus dem Absenderpostfach
-    assert m["subject"] == "Vertrag (Nachricht von Erika Muster)"
+    assert m["subject"] == "Verschlüsselte Nachricht von Erika Muster: Vertrag"
     assert 'href="https://p.example/portal/m/abc"' in m["html"]
     assert "Erika Muster &lt;erika@example.org&gt;" in m["html"]
     assert "30 Tage" in m["html"]
@@ -92,13 +92,13 @@ def test_fremdtext_wird_maskiert_betreff_aber_nicht(monkeypatch):
     assert "<script>" not in g[0]["html"]
     assert "&lt;script&gt;x&lt;/script&gt; &amp; Co" in g[0]["html"]
     assert "&amp;lt;" not in g[0]["html"], "doppelt maskiert"
-    assert g[0]["subject"] == "<script>x</script> & Co (Nachricht von A&B)"
+    assert g[0]["subject"] == "Verschlüsselte Nachricht von A&B: <script>x</script> & Co"
 
 
 def test_ohne_namen_steht_die_adresse(monkeypatch):
     g = _abfangen(monkeypatch)
     _portal(sender_name="")
-    assert g[0]["subject"].endswith("(Nachricht von erika@example.org)")
+    assert g[0]["subject"].startswith("Verschlüsselte Nachricht von erika@example.org:")
 
 
 # ── Zugangscode und Lesebestätigung ──────────────────────────────────────────

@@ -253,27 +253,26 @@ VORLAGEN: dict[str, dict] = {
             "tage": 30,
             "zugangscode": True,
         },
-        # Betreff und Text bewusst ohne „Verschlüsselte Nachricht“ vorneweg und
-        # ohne Schloss-Emojis: In dieser Form (Hinweis + Knopf + später ein
-        # Zugangscode) stufte Microsofts Filter die Benachrichtigung als Spam
-        # ein (SCL 5, gemessen 11.11.2026), obwohl SPF/DKIM/DMARC bestanden.
-        "betreff": "{{ betreff }} (Nachricht von {{ absender_name }})",
+        # ⚠️ Wortlaut ist NICHT der Grund für eine Junk-Einstufung: Gemessen
+        # 11.11.2026 landete bei einem Absender-Tenant mit schlechtem Ruf auch
+        # eine gewöhnliche OWA-Mail ohne Link im Junk (SCL 5), eine neutral
+        # formulierte Benachrichtigung ebenso. Nicht auf Verdacht umformulieren.
+        "betreff": "Verschlüsselte Nachricht von {{ absender_name }}: {{ betreff }}",
         "farbe": "#2563eb",
         # Weiss, weil der einzige Link der Knopf auf blauem Grund ist.
         "global": {"link_color": "#ffffff"},
         "bloecke": [
-            _abs('Eine Nachricht von {{ absender_name }}', bold=True, size="15pt",
+            _abs('🔒 Verschlüsselte Nachricht für Sie', bold=True, size="15pt",
                  color="#2563eb"),
             {"type": "spacer", "height": 10},
-            _abs('**{{ absender }}** hat Ihnen eine vertrauliche Nachricht '
-                 'geschickt. Sie wird geschützt bereitgestellt und erst in Ihrem '
-                 'Browser lesbar gemacht.'),
+            _abs('Sie haben eine verschlüsselte Nachricht von **{{ absender }}** '
+                 'erhalten.'),
             _abs('Betreff: **{{ betreff }}**'),
             {"type": "spacer", "height": 14},
             {"type": "box", "filled": True, "fill_color": "#2563eb",
              "border_width": 0, "radius": 6, "padding": 10, "padding_x": 20,
              "children": [
-                 _abs('[Nachricht öffnen]({{ link }})', bold=True),
+                 _abs('[🔒 Verschlüsselte Nachricht öffnen]({{ link }})', bold=True),
              ]},
             {"type": "spacer", "height": 14},
             _abs('Der Link ist {{ tage }} Tage gültig. '

@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.40 — 2026-11-11 — Portal-Benachrichtigung: bisheriger Wortlaut zurück
+
+- Der in v1.11.38 geänderte Wortlaut der Portal-Benachrichtigung ist
+  zurückgenommen. Anlass der Änderung war eine Junk-Einstufung beim
+  Empfänger; die weitere Messung zeigte, dass sie am Ruf des absendenden
+  Tenants lag, nicht am Text: Auch eine gewöhnliche Mail ohne Link aus
+  demselben Tenant landete im Junk-Ordner. Der bisherige Betreff
+  „Verschlüsselte Nachricht von …“ sagt dem Empfänger klarer, was ihn
+  erwartet.
+
+**Zu tun:** nichts.
+
 ## v1.11.39 — 2026-11-11 — Betreff-Hinweise sichtbar in der Unterhaltungsansicht; „#enc“ bleibt im Haus
 
 - Mails aus Outlook tragen neben dem Betreff die Kopfzeile `Thread-Topic`
