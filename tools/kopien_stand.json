@@ -2,8 +2,6 @@
  "min": 60,
  "tokens_in_kopien": {
   "app/webui/templates/abwesenheit.html": 275,
-  "app/webui/templates/advanced.html": 70,
-  "app/webui/templates/backup.html": 70,
   "app/webui/templates/base.html": 136,
   "app/webui/templates/preview.html": 63,
   "app/webui/templates/relay.html": 246,

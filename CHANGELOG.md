@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.2 — 2026-11-11 — Backup optional mit Passwort
+
+- Unter *Update & Backup → Backup erstellen* lässt sich jetzt ein Passwort
+  angeben. Das Backup wird dann als Ganzes verschlüsselt (AES-256-GCM,
+  Schlüssel per scrypt aus dem Passwort) und als `.gwbak` heruntergeladen.
+  Ohne das Passwort ist es nicht lesbar; es lässt sich auch nicht
+  zurücksetzen. Ohne Passwort entsteht wie bisher ein ZIP.
+- Wiederherstellen (auch in der Ersteinrichtung) erkennt ein verschlüsseltes
+  Backup am Dateianfang und fragt nach dem Passwort. Ein falsches Passwort
+  oder eine veränderte Datei wird abgewiesen, bevor etwas geschrieben wird.
+- Das Passwort geht nur im Rumpf einer Anfrage an das Gateway, nie in eine
+  Adresse; die fertige Datei lässt sich genau einmal abholen.
+
+**Zu tun:** nichts. Bewahrst du Backups außerhalb des Gateways auf, nutze
+künftig ein Passwort und verwahre es getrennt vom Backup.
+
 ## v1.11.1 — 2026-11-11 — Portal-Benachrichtigung: Gateway-Markierung gesetzt
 
 - Die Benachrichtigung über eine Nachricht im Secure Message Portal geht vom

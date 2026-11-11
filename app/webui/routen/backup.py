@@ -7,7 +7,7 @@ keine geteilten Hilfsfunktionen. Die eigentliche Arbeit liegt ohnehin nicht
 hier, sondern in `backup_manager` — diese Routen nehmen die Datei entgegen,
 prüfen die Auswahl und reichen weiter.
 
-⚠️ ALLE VIER HÄNGEN AN `_require_admin`, und das ist hier keine Formalie:
+⚠️ ALLE HÄNGEN AN `_require_admin`, und das ist hier keine Formalie:
 `/api/backup/download` gibt den gesamten Datenbestand heraus — Einstellungen
 mit dem Anmeldegeheimnis, private Schlüssel, Postfachkonfiguration.
 `/api/backup/restore` schreibt ihn zurück. Eine Route, die beim Verschieben
@@ -53,25 +53,75 @@ async def backup_page(request: Request, user: str = Depends(_require_admin)):
     )
 
 
-@router.get("/api/backup/download")
-async def api_backup_download(user: str = Depends(_require_admin)):
-    """Vollständiges Backup als ZIP herunterladen."""
+# Verschlüsselte Backups: Das Passwort gehört nicht in eine URL (Protokolle,
+# Verlauf). Deshalb erst POST mit Passwort → fertige Datei liegt kurz unter
+# einer Einmal-Kennung, dann GET mit dieser Kennung (der gemeinsame
+# Download-Baustein `dateiHerunterladen` kann nur GET).
+_ABRUFE: dict[str, tuple[float, bytes, str]] = {}
+_ABRUF_TTL_S = 300
+
+
+@router.post("/api/backup/erstellen")
+async def api_backup_erstellen(request: Request, user: str = Depends(_require_admin)):
+    """Verschlüsseltes Backup erstellen; liefert eine Einmal-Kennung zum Abholen."""
+    import secrets
+    import time
     import backup_manager as _bm
-    import asyncio as _aio
+    try:
+        daten = await request.json()
+    except Exception:
+        daten = {}
+    passwort = str(daten.get("passwort") or "")
+    if len(passwort) < _bm.MIN_PASSWORT:
+        raise HTTPException(400, f"Passwort zu kurz (mindestens {_bm.MIN_PASSWORT} Zeichen).")
+    inhalt, filename = await asyncio.get_event_loop().run_in_executor(
+        None, _bm.create_backup, passwort)
+    jetzt = time.monotonic()
+    for k in [k for k, (t, _, _) in _ABRUFE.items() if jetzt - t > _ABRUF_TTL_S]:
+        _ABRUFE.pop(k, None)
+    abruf = secrets.token_urlsafe(24)
+    _ABRUFE[abruf] = (jetzt, inhalt, filename)
+    return JSONResponse({"ok": True, "abruf": abruf, "name": filename})
+
+
+@router.get("/api/backup/download")
+async def api_backup_download(abruf: str = "", user: str = Depends(_require_admin)):
+    """Backup herunterladen — ohne `abruf` ein neues, unverschlüsseltes ZIP;
+    mit `abruf` die zuvor verschlüsselt erstellte Datei (genau einmal)."""
+    import time
+    import backup_manager as _bm
     from fastapi.responses import Response as _Resp
-    zip_bytes, filename = await _aio.get_event_loop().run_in_executor(
-        None, _bm.create_backup
-    )
+    if abruf:
+        eintrag = _ABRUFE.pop(abruf, None)
+        if eintrag is None or time.monotonic() - eintrag[0] > _ABRUF_TTL_S:
+            raise HTTPException(404, "Abruf abgelaufen — Backup bitte neu erstellen.")
+        _, inhalt, filename = eintrag
+        art = "application/octet-stream"
+    else:
+        inhalt, filename = await asyncio.get_event_loop().run_in_executor(
+            None, _bm.create_backup)
+        art = "application/zip"
     return _Resp(
-        content=zip_bytes,
-        media_type="application/zip",
+        content=inhalt,
+        media_type=art,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _oeffnen(data: bytes, passwort: str) -> bytes | dict:
+    """Hochgeladene Datei entschlüsseln — oder die Fehlerantwort liefern."""
+    import backup_manager as _bm
+    try:
+        return _bm.oeffnen(data, passwort)
+    except _bm.PasswortFehler as exc:
+        return {"ok": False, "error": str(exc), "passwort_noetig": True,
+                "gruppen": [], "restored_files": 0, "warnings": []}
 
 
 @router.post("/api/backup/inspect")
 async def api_backup_inspect(
     file: UploadFile = File(...),
+    passwort: str = Form(""),
     _user: str = Depends(_require_admin),
 ):
     """Inhalt eines Backups anzeigen, OHNE etwas zu schreiben.
@@ -81,7 +131,10 @@ async def api_backup_inspect(
     der nichts verändert, soll auch nicht so heissen wie einer, der es tut.
     """
     import backup_manager as _bm
-    data = await file.read()
+    data = await asyncio.get_event_loop().run_in_executor(
+        None, _oeffnen, await file.read(), passwort)
+    if isinstance(data, dict):
+        return JSONResponse(data)
     ergebnis = await asyncio.get_event_loop().run_in_executor(
         None, _bm.inspect_backup, data
     )
@@ -92,6 +145,7 @@ async def api_backup_inspect(
 async def api_backup_restore(
     file: UploadFile = File(...),
     auswahl: str = Form(""),
+    passwort: str = Form(""),
     _user: str = Depends(_require_admin),
 ):
     """Backup-ZIP hochladen und wiederherstellen.
@@ -103,7 +157,10 @@ async def api_backup_restore(
     """
     import backup_manager as _bm
     import json as _json
-    data = await file.read()
+    data = await asyncio.get_event_loop().run_in_executor(
+        None, _oeffnen, await file.read(), passwort)
+    if isinstance(data, dict):
+        return JSONResponse(data)
 
     gewaehlt = None
     if auswahl.strip():

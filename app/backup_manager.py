@@ -12,6 +12,15 @@ Nicht enthalten (werden auf dem Zielsystem neu erstellt):
   data/le-logs/
   data/le-work/
   data/acme-webroot/
+
+PASSWORT (optional, seit v1.11.2)
+---------------------------------
+Das ZIP enthält alle Geheimnisse des Gateways im Klartext. Mit Passwort wird es
+als Ganzes verschlüsselt (`verschluesseln`): AES-256-GCM, Schlüssel per scrypt
+aus dem Passwort, Datei `*.gwbak`. Ohne Passwort bleibt es ein ZIP wie bisher —
+am 08.11.2026 bewusst so entschieden, weil ein Backup mit vergessenem Passwort
+wertlos ist; das Passwort ist deshalb ein Angebot, keine Pflicht.
+Wiederherstellen erkennt die Art am Dateianfang (`MAGIE`), nicht am Namen.
 """
 
 import io
@@ -33,11 +42,63 @@ DATA_DIR = Path(config.DATA_DIR)
 TEMPLATE_DIR = Path(config.TEMPLATE_DIR)
 
 _EXCLUDE_DATA_SUBDIRS = {"logs", "le-config", "le-logs", "le-work", "acme-webroot"}
+
+# ── Verschlüsselung ──────────────────────────────────────────────────────────
+MAGIE = b"EXOGW-BACKUP-1\n"
+_SALZ, _NONCE = 16, 12
+# scrypt: 2^15 × 8 × 128 B = 32 MB Speicher je Ableitung — tragbar auch auf
+# kleinen Maschinen, teuer genug gegen Raten.
+_SCRYPT = {"n": 2 ** 15, "r": 8, "p": 1}
+MIN_PASSWORT = 8
+
+
+class PasswortFehler(ValueError):
+    """Passwort fehlt, ist falsch, oder die Datei ist beschädigt."""
+
+
+def _schluessel(passwort: str, salz: bytes) -> bytes:
+    from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+    return Scrypt(salt=salz, length=32, **_SCRYPT).derive(passwort.encode("utf-8"))
+
+
+def ist_verschluesselt(daten: bytes) -> bool:
+    return daten[:len(MAGIE)] == MAGIE
+
+
+def verschluesseln(zip_bytes: bytes, passwort: str) -> bytes:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    if len(passwort or "") < MIN_PASSWORT:
+        raise PasswortFehler(f"Passwort zu kurz (mindestens {MIN_PASSWORT} Zeichen).")
+    salz, nonce = secrets.token_bytes(_SALZ), secrets.token_bytes(_NONCE)
+    # Kopf (Magie+Salz+Nonce) als zugehörige Daten: verändert ihn jemand,
+    # scheitert die Entschlüsselung, statt still einen anderen Schlüssel zu nehmen.
+    kopf = MAGIE + salz + nonce
+    return kopf + AESGCM(_schluessel(passwort, salz)).encrypt(nonce, zip_bytes, kopf)
+
+
+def entschluesseln(daten: bytes, passwort: str) -> bytes:
+    from cryptography.exceptions import InvalidTag
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    if not passwort:
+        raise PasswortFehler("Dieses Backup ist verschlüsselt — Passwort angeben.")
+    a = len(MAGIE)
+    salz, nonce = daten[a:a + _SALZ], daten[a + _SALZ:a + _SALZ + _NONCE]
+    kopf = daten[:a + _SALZ + _NONCE]
+    try:
+        return AESGCM(_schluessel(passwort, salz)).decrypt(nonce, daten[len(kopf):], kopf)
+    except (InvalidTag, ValueError):
+        raise PasswortFehler("Passwort falsch oder Datei beschädigt.") from None
+
+
+def oeffnen(daten: bytes, passwort: str = "") -> bytes:
+    """Hochgeladene Datei → ZIP-Bytes. Unverschlüsselt: unverändert."""
+    return entschluesseln(daten, passwort) if ist_verschluesselt(daten) else daten
 _EXCLUDE_DATA_FILES   = {"settings.bak"}
 
 
-def create_backup() -> tuple[bytes, str]:
-    """Erstellt vollständiges ZIP-Backup. Returns (zip_bytes, filename)."""
+def create_backup(passwort: str = "") -> tuple[bytes, str]:
+    """Erstellt vollständiges ZIP-Backup. Returns (bytes, filename) — mit
+    *passwort* verschlüsselt (`*.gwbak`), sonst ein ZIP."""
     import socket
     ts        = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     rand      = secrets.token_hex(2)
@@ -95,8 +156,13 @@ def create_backup() -> tuple[bytes, str]:
                                     or f.name.endswith(".meta.json")):
                     zf.write(f, f"templates/{f.name}")
 
-    log.info("Backup created: %s (%d KB)", filename, len(buf.getvalue()) // 1024)
-    return buf.getvalue(), filename
+    daten = buf.getvalue()
+    if passwort:
+        daten = verschluesseln(daten, passwort)
+        filename = filename[:-len(".zip")] + ".gwbak"
+    log.info("Backup created: %s (%d KB, %s)", filename, len(daten) // 1024,
+             "verschlüsselt" if passwort else "unverschlüsselt")
+    return daten, filename
 
 
 def validate_backup(zip_bytes: bytes) -> list[str]:

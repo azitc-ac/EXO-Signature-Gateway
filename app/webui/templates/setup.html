@@ -63,8 +63,10 @@
         Nach der Wiederherstellung ist ein Neustart erforderlich.
       </p>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
-        <input type="file" id="setup-restore-file" accept=".zip"
+        <input type="file" id="setup-restore-file" accept=".zip,.gwbak"
                style="font-size:13px;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;background:#fff">
+        <input type="password" id="setup-restore-passwort" autocomplete="off"
+               placeholder="Passwort (nur .gwbak)" style="font-size:13px;max-width:200px">
         <button class="btn danger" id="setup-restore-btn" onclick="setupRestoreConfirm()"
 >
           Wiederherstellen
@@ -2596,6 +2598,7 @@ async function setupRestore() {
   result.style.display  = 'none';
   var fd = new FormData();
   fd.append('file', input.files[0]);
+  fd.append('passwort', document.getElementById('setup-restore-passwort').value);
   var d = await knopfAktion(btn, 'Wird wiederhergestellt…', function() {
     return sendeFormular('/api/backup/restore', fd);
   }, {anzeige: 'setup-restore-spinner'});

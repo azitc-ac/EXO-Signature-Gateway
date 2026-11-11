@@ -287,6 +287,13 @@
     "name": "api_backup_download"
   },
   {
+    "pfad": "/api/backup/erstellen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_backup_erstellen"
+  },
+  {
     "pfad": "/api/backup/inspect",
     "methoden": [
       "POST"

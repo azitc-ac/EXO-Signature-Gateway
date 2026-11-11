@@ -149,7 +149,24 @@
     </div>
   </div>
 
-  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+  <h3>Passwort (optional)</h3>
+  <p class="hint" style="margin-bottom:10px">
+    Mit Passwort wird das Backup verschlüsselt (AES-256, Datei <code>.gwbak</code>) und
+    lässt sich nur mit diesem Passwort wiederherstellen. <strong>Ohne das Passwort ist es
+    wertlos</strong> — es lässt sich nicht zurücksetzen. Leer lassen ergibt ein ZIP wie bisher.
+  </p>
+  <div class="settings-row">
+    <label for="backup-passwort">Passwort</label>
+    <div class="settings-control"><input type="password" id="backup-passwort"
+         autocomplete="new-password" minlength="8" placeholder="leer = unverschlüsselt"></div>
+  </div>
+  <div class="settings-row">
+    <label for="backup-passwort2">Passwort wiederholen</label>
+    <div class="settings-control"><input type="password" id="backup-passwort2"
+         autocomplete="new-password"></div>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px">
     <button class="btn secondary" id="backup-dl-btn" onclick="backupDownload()">
       Backup herunterladen
     </button>
@@ -176,10 +193,16 @@
   </p>
 
   <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-    <input type="file" id="backup-file-input" accept=".zip"
+    <input type="file" id="backup-file-input" accept=".zip,.gwbak"
            onchange="backupInhaltLaden()"
            style="font-size:13px;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;background:#fff">
     <span id="backup-inspect-spinner" hidden></span>
+  </div>
+  <div class="settings-row" id="backup-restore-pw-zeile" style="display:none">
+    <label for="backup-restore-passwort">Passwort des Backups</label>
+    <div class="settings-control"><input type="password" id="backup-restore-passwort"
+         autocomplete="off" onkeydown="if (event.key === 'Enter') backupInhaltLaden()">
+      <button type="button" class="btn secondary btn-sm" onclick="backupInhaltLaden()">Öffnen</button></div>
   </div>
 
   <!-- Auswahlbaum — erscheint erst, wenn ein Backup gelesen wurde -->
@@ -675,8 +698,19 @@ async function importConfig(input) {
 async function backupDownload() {
   const result = document.getElementById('backup-dl-result');
   result.style.display = 'none';
-  const d = await knopfAktion('backup-dl-btn', 'Erstelle ZIP…',
-    () => dateiHerunterladen('/api/backup/download', 'backup.zip'), {anzeige: 'backup-dl-spinner'});
+  const pw  = document.getElementById('backup-passwort');
+  const pw2 = document.getElementById('backup-passwort2');
+  fieldClear(pw); fieldClear(pw2);
+  if (pw.value && pw.value.length < 8) { fieldMsg(pw, 'Mindestens 8 Zeichen.', false); return; }
+  if (pw.value !== pw2.value) { fieldMsg(pw2, 'Die Passwörter stimmen nicht überein.', false); return; }
+  const d = await knopfAktion('backup-dl-btn', pw.value ? 'Erstelle und verschlüssele…' : 'Erstelle ZIP…',
+    async () => {
+      if (!pw.value) return dateiHerunterladen('/api/backup/download', 'backup.zip');
+      const e = await postJSON('/api/backup/erstellen', { passwort: pw.value });
+      if (!e.ok) return { ok: false, error: errText(e) };
+      return dateiHerunterladen('/api/backup/download?abruf=' + encodeURIComponent(e.abruf), e.name);
+    }, {anzeige: 'backup-dl-spinner'});
+  if (d.ok) { pw.value = ''; pw2.value = ''; }
   result.innerHTML = d.ok
     ? `<div class="alert success"><strong>${esc(d.name)}</strong> heruntergeladen (${Math.round(d.groesse / 1024)} KB).</div>`
     : `<div class="alert error"><strong>Fehler:</strong> ${esc(d.error)}</div>`;
@@ -724,10 +758,19 @@ async function backupInhaltLaden() {
   // Kein eigener Knopf: Die Dateiauswahl löst das Lesen aus.
   const fd = new FormData();
   fd.append('file', input.files[0]);
+  const pwFeld = document.getElementById('backup-restore-passwort');
+  fieldClear(pwFeld);
+  fd.append('passwort', pwFeld.value);
   const d = await knopfAktion(null, 'Inhalt wird gelesen…', () => sendeFormular('/api/backup/inspect', fd),
                               {anzeige: 'backup-inspect-spinner'});
   if (!d.ok) {
-    fieldMsg(input, errText(d), false);
+    if (d.passwort_noetig) {
+      document.getElementById('backup-restore-pw-zeile').style.display = '';
+      fieldMsg(pwFeld, errText(d), false);
+      pwFeld.focus();
+    } else {
+      fieldMsg(input, errText(d), false);
+    }
     return;
   }
   _backupGruppen = d.gruppen || [];
@@ -860,6 +903,7 @@ async function backupRestore() {
   const fd = new FormData();
   fd.append('file', input.files[0]);
   fd.append('auswahl', JSON.stringify(backupGewaehlteDateien()));
+  fd.append('passwort', document.getElementById('backup-restore-passwort').value);
   const d = await knopfAktion('backup-restore-btn', 'Wird wiederhergestellt…',
                               () => sendeFormular('/api/backup/restore', fd), {anzeige: 'backup-restore-spinner'});
   if (d.ok) {
