@@ -41,6 +41,7 @@ class _Umschlag:
 
 def _mail(betreff):
     return (f"From: {ABS}\r\nTo: {EMPF}\r\nSubject: {betreff}\r\n"
+            f"Thread-Topic: {betreff}\r\n"
             "Message-ID: <x1@firma.de>\r\nMIME-Version: 1.0\r\n"
             "Content-Type: text/plain; charset=utf-8\r\n\r\nGeheimer Inhalt\r\n").encode()
 
@@ -98,8 +99,10 @@ def _lauf(betreff):
 def _verschluesselung(anlage, ergebnis):
     import smime_encrypt
     aufrufe = []
+    anlage["innen"] = []
     anlage["mp"].setattr(smime_encrypt, "encrypt",
-                         lambda raw, r: aufrufe.append(r) or ergebnis)
+                         lambda raw, r: aufrufe.append(r) or anlage["innen"].append(raw)
+                         or ergebnis)
     return aufrufe
 
 
@@ -168,3 +171,25 @@ def test_smime_aus_und_nur_antwort_tag_bleibt_unverschluesselt(anlage):
     _verschluesselung(anlage, (ENC, []))
     assert _lauf("AW: [enc-tag] Vertrag").startswith("250")
     assert len(anlage["zugestellt"]) == 1 and anlage["ndr"] == []
+
+
+def test_trigger_verlaesst_das_haus_nicht_auch_nicht_in_der_huelle(anlage):
+    """Verschlüsselt wird die ganze Nachricht samt Kopf. Bis v1.11.38 stand
+    „#enc“ darin noch in Betreff und Thread-Topic — beim Empfänger nach dem
+    Entschlüsseln sichtbar (Thread-Topic als Unterhaltungsthema)."""
+    _verschluesselung(anlage, (ENC, []))
+    assert _lauf("Vertrag #enc").startswith("250")
+    import email
+    innen = email.message_from_bytes(anlage["innen"][0])
+    assert innen["Subject"] == "Vertrag" and innen["Thread-Topic"] == "Vertrag"
+    (_, _, roh), = [z[:3] for z in anlage["zugestellt"]]
+    aussen = email.message_from_bytes(roh)
+    assert "#enc" not in aussen["Subject"]
+
+
+def test_portal_betreff_ohne_trigger(anlage):
+    anlage["werte"]["SECURE_PORTAL_ENABLED"] = True
+    _verschluesselung(anlage, (None, []))
+    assert _lauf("Vertrag #enc").startswith("250")
+    (_, _, _, betreff, _), = anlage["portal"]
+    assert betreff == "Vertrag"

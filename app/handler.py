@@ -259,6 +259,29 @@ def _strip_subject_tags(subject: str) -> str:
     return re.sub(pattern, "", subject, flags=re.IGNORECASE).strip()
 
 
+# Antwort-/Weiterleitungspräfix nach MS-OXCMAIL („Normalizing the Subject“):
+# ein bis drei Zeichen, Doppelpunkt, Leerzeichen — „AW:“, „RE:“, „WG:“.
+_BETREFF_PRAEFIX = re.compile(r"^\s*[^\s:\[\]]{1,3}:\s*")
+
+
+def _betreff_setzen(msg: email.message.Message, betreff: str) -> None:
+    """Betreff setzen und einen vorhandenen Thread-Topic angleichen.
+
+    Exchange nimmt Thread-Topic als Unterhaltungsthema, wenn der Betreff
+    darauf ENDET (MS-OXCMAIL, Conversation Topic), und behandelt alles davor
+    wie „AW:“. Ein vorangestellter Tag „[signiert von …] Betreff“ verschwand
+    dadurch in OWA, wenn Thread-Topic noch den alten Betreff trug; ein aus dem
+    Betreff entfernter Trigger („#enc“) blieb im Thread-Topic sichtbar.
+    Thread-Topic SOLL der Betreff ohne Präfix sein — so wird er gesetzt. Fehlt
+    er, wird keiner angelegt."""
+    if "Subject" in msg:
+        del msg["Subject"]
+    msg["Subject"] = _encode_subject(betreff)
+    if "Thread-Topic" in msg:
+        del msg["Thread-Topic"]
+        msg["Thread-Topic"] = _encode_subject(_BETREFF_PRAEFIX.sub("", betreff, count=1))
+
+
 def _apply_subject_tag(msg: email.message.Message, tag: str, outer_subject: str) -> None:
     if not tag:
         return
@@ -274,9 +297,7 @@ def _apply_subject_tag(msg: email.message.Message, tag: str, outer_subject: str)
     else:
         new_subj = f"{tag} {decoded}".strip()
     log.debug("Subject tag (inbound): %r → %r", outer_subject, new_subj)
-    if "Subject" in msg:
-        del msg["Subject"]
-    msg["Subject"] = _encode_subject(new_subj)
+    _betreff_setzen(msg, new_subj)
 
 
 def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
@@ -1092,9 +1113,7 @@ class SignatureHandler:
                                          cleaned, flags=re.IGNORECASE)
                 cleaned = cleaned.strip()
                 subject = cleaned
-                if "Subject" in msg:
-                    del msg["Subject"]
-                msg["Subject"] = _encode_subject(cleaned)
+                _betreff_setzen(msg, cleaned)
                 log.info("Betreff-Trigger für %s: HTML-Sig unterdrücken=%s, S/MIME unterdrücken=%s",
                          sender, suppress_html_sig, suppress_smime_sig)
 
@@ -1360,6 +1379,19 @@ class SignatureHandler:
                          "aus — unverschlüsselt", sender)
             if wants_encryption:
                 import smime_encrypt
+                # Trigger und alte Tags VOR dem Verschlüsseln aus Betreff und
+                # Thread-Topic der inneren Nachricht nehmen — sonst trägt die
+                # Hülle „#enc“ zum Empfänger, der es nach dem Entschlüsseln sieht.
+                new_subject = re.sub(
+                    r"\s*" + re.escape(enc_trigger) + r"#?\s*", " ",
+                    subject, flags=re.IGNORECASE).strip()
+                # Strip inbound gateway tags (e.g. [verschlüsselt, signiert von ...])
+                # that appear in replies/forwards — they accumulate on each hop.
+                if settings_store.get("STRIP_SUBJECT_TAGS") is not False:
+                    new_subject = _strip_subject_tags(new_subject)
+                _innen = email.message_from_bytes(outbound)
+                _betreff_setzen(_innen, new_subject)
+                outbound = _smtp_bytes(_innen)
                 encrypted, missing = smime_encrypt.encrypt(outbound, recipients)
                 # Verschlüsselung gescheitert, obwohl alle Zertifikate da sind
                 # (bis v1.11.35: EC-Zertifikat). Dann NIE Klartext — wie
@@ -1377,11 +1409,7 @@ class SignatureHandler:
                         _sender_name = user_data.displayName or sender
                         # Trigger-Keyword aus dem Betreff entfernen — der Empfänger
                         # soll "#enc" nie sehen (analog zum Verschlüsselungspfad unten)
-                        _p_subject = re.sub(
-                            r"\s*" + re.escape(enc_trigger) + r"#?\s*", " ",
-                            subject, flags=re.IGNORECASE).strip()
-                        if settings_store.get("STRIP_SUBJECT_TAGS") is not False:
-                            _p_subject = _strip_subject_tags(_p_subject)
+                        _p_subject = new_subject
                         _portal_payload = _extract_mime_payload(
                             outbound,
                             _decode_subject(msg.get("From", "")),
@@ -1424,13 +1452,6 @@ class SignatureHandler:
                         stats.increment("errors")
                         return "250 OK"
                 if encrypted:
-                    new_subject = re.sub(
-                        r"\s*" + re.escape(enc_trigger) + r"#?\s*", " ",
-                        subject, flags=re.IGNORECASE).strip()
-                    # Strip inbound gateway tags (e.g. [verschlüsselt, signiert von ...])
-                    # that appear in replies/forwards — they accumulate on each hop.
-                    if settings_store.get("STRIP_SUBJECT_TAGS") is not False:
-                        new_subject = _strip_subject_tags(new_subject)
                     log.debug(
                         "Subject (outbound enc): %r → delivery %r (trigger stripped)",
                         subject, new_subject,
@@ -1454,9 +1475,7 @@ class SignatureHandler:
                     _restore_envelope_headers(enc_msg, msg)
                     # Mark so the outbound transport rule doesn't re-route through us
                     loop_detector.mark_as_signed(enc_msg)
-                    if "Subject" in enc_msg:
-                        del enc_msg["Subject"]
-                    enc_msg["Subject"] = _encode_subject(new_subject)
+                    _betreff_setzen(enc_msg, new_subject)
                     outbound = _smtp_bytes(enc_msg)
                     _verschluesselt = True
                     log.info("Mail encrypted for %s", recipients)

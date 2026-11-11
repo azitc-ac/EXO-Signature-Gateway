@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.39 — 2026-11-11 — Betreff-Hinweise sichtbar in der Unterhaltungsansicht; „#enc“ bleibt im Haus
+
+- Mails aus Outlook tragen neben dem Betreff die Kopfzeile `Thread-Topic`
+  (Betreff ohne „AW:“). Exchange nimmt sie als Thema der Unterhaltung, wenn
+  der Betreff auf ihr **endet**, und behandelt alles davor wie ein „AW:“.
+  Ein vorangestellter Hinweis wie „[signiert von …] Angebot“ verschwand
+  deshalb in der Unterhaltungsansicht von Outlook/OWA, obwohl er im Betreff
+  stand. Wo das Gateway den Betreff umschreibt (Hinweise bei eingehender
+  S/MIME-Post, entfernte Trigger wie „#nosig“, verschlüsselte Post), passt es
+  `Thread-Topic` jetzt an.
+- Bei verschlüsselter Post wird die ganze Nachricht samt Kopf verschlüsselt.
+  „#enc“ wurde bisher erst danach aus dem äußeren Betreff entfernt; in der
+  verschlüsselten Nachricht stand es weiter in Betreff und `Thread-Topic`
+  und war beim Empfänger nach dem Entschlüsseln zu sehen. Es wird jetzt vor
+  dem Verschlüsseln entfernt.
+
+**Zu tun:** nichts.
+
 ## v1.11.38 — 2026-11-11 — „#enc“ ohne freigegebenes S/MIME: nicht versandt statt Klartext; Portal-Benachrichtigung neu formuliert
 
 - **„#enc“ bei abgeschaltetem S/MIME:** Ist S/MIME für das Postfach des
