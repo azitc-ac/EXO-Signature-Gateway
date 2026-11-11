@@ -1058,6 +1058,11 @@ class SignatureHandler:
             subject = _decode_subject(msg.get("Subject", ""))
             enc_trigger = (settings_store.get("ENC_TRIGGER") or "#enc").lower()
             wants_encryption = enc_trigger in subject.lower()
+            # Ausdrücklich verlangt (Betreff-Trigger oder Verschlüsselungsregel)
+            # — anders als der Antwort-Tag „[verschlüsselt“, den auch ein
+            # fremder Betreff tragen kann. Nur Ausdrückliches endet, wenn S/MIME
+            # für den Absender aus ist, in einer Unzustellbarkeitsmeldung.
+            _enc_ausdruecklich = wants_encryption
 
             # Auto-encrypt replies/forwards to encrypted mails:
             # The gateway tags decrypted inbound mails with [verschlüsselt] (configurable).
@@ -1097,6 +1102,8 @@ class SignatureHandler:
             # Priorität: Betreff-Trigger (#nodigsig) > Regel "nosign" >
             # Regel "sign" > globaler/Postfach-Default
             _rule_hits = _eval_smime_rules(sender, recipients)
+            if _rule_hits["encrypt"]:
+                _enc_ausdruecklich = True
             if _rule_hits["encrypt"] and not wants_encryption:
                 wants_encryption = True
                 log.info("S/MIME-Regel: automatische Verschlüsselung %s → %s",
@@ -1336,8 +1343,21 @@ class SignatureHandler:
             _sent_subject = subject  # updated below when encryption succeeds
             _verschluesselt = False
             if wants_encryption and not _smime_erlaubt:
+                if _enc_ausdruecklich:
+                    # Bis v1.11.37 ging die Mail hier im Klartext hinaus.
+                    _send_ndr(sender, recipients, override_body=(
+                        "Ihre E-Mail wurde NICHT versandt: Sie haben Verschlüsselung "
+                        "verlangt, S/MIME ist für Ihr Postfach aber nicht freigegeben.\n\n"
+                        "Bitte wenden Sie sich an Ihren Administrator oder entfernen Sie "
+                        f"{enc_trigger} aus dem Betreff, um die Mail unverschlüsselt zu senden.\n"))
+                    log.warning("Encryption requested by %s, but S/MIME is disabled for "
+                                "this mailbox — not sent, NDR", sender)
+                    stats.increment("smime_encrypt_fehler")
+                    _audit("smime_encrypt_fehler", error="S/MIME für den Absender nicht freigegeben")
+                    return "250 OK"
                 wants_encryption = False
-                log.debug("S/MIME disabled for %s in MAILBOX_CONFIG — skipping encryption", sender)
+                log.info("Antwort-Tag verlangt Verschlüsselung, S/MIME ist für %s aber "
+                         "aus — unverschlüsselt", sender)
             if wants_encryption:
                 import smime_encrypt
                 encrypted, missing = smime_encrypt.encrypt(outbound, recipients)

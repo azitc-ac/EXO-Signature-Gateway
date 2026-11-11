@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.38 — 2026-11-11 — „#enc“ ohne freigegebenes S/MIME: nicht versandt statt Klartext; Portal-Benachrichtigung neu formuliert
+
+- **„#enc“ bei abgeschaltetem S/MIME:** Ist S/MIME für das Postfach des
+  Absenders (oder insgesamt) nicht freigegeben, ignorierte das Gateway „#enc“
+  und schickte die Mail **im Klartext**. Jetzt wird sie nicht versandt; der
+  Absender erhält eine Unzustellbarkeitsmeldung („S/MIME ist für Ihr Postfach
+  nicht freigegeben“). Das gilt für ausdrückliches Verlangen: den
+  Betreff-Trigger und Verschlüsselungsregeln. Der automatische Weg über den
+  Antwort-Tag „[verschlüsselt]“ bleibt in diesem Fall unverschlüsselt, weil
+  den Tag auch ein fremder Betreff tragen kann.
+- **Portal-Benachrichtigung:** Microsofts Spamfilter stufte die Benachrichtigung
+  trotz bestandener SPF-, DKIM- und DMARC-Prüfung als Spam ein. Die Vorgabe
+  ist neu formuliert: Betreff „<Betreff> (Nachricht von <Absender>)“ statt
+  „Verschlüsselte Nachricht von …“, keine Schloss-Symbole, Knopf „Nachricht
+  öffnen“, ein persönlicher Einleitungssatz. Der Satz, dass die Nachricht erst
+  im Browser lesbar wird, bleibt. Hast du die Vorlage unter *Nutzer-Mails*
+  angepasst, bleibt deine Fassung unverändert.
+
+**Zu tun:** nichts.
+
 ## v1.11.37 — 2026-11-11 — Prüfstand nachgezogen
 
 - Der Stand der Kopien-Prüfung enthält die neue Zeile der Aktionstabelle

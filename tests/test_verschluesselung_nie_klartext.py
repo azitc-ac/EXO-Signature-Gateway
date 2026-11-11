@@ -139,3 +139,32 @@ def test_enc_mit_nodigsig_verschluesselt_trotzdem(anlage):
     assert aufrufe == [[EMPF]]
     (_, _, roh), = [z[:3] for z in anlage["zugestellt"]]
     assert b"Geheimer Inhalt" not in roh
+
+
+def test_smime_aus_und_enc_verlangt_ndr_statt_klartext(anlage):
+    anlage["werte"]["MAILBOX_CONFIG"][ABS]["smime"] = False
+    aufrufe = _verschluesselung(anlage, (ENC, []))
+    assert _lauf("Vertrag #enc").startswith("250")
+    assert anlage["zugestellt"] == [] and aufrufe == []
+    (s, m, text), = anlage["ndr"]
+    assert s == ABS and "nicht freigegeben" in text
+    assert anlage["ereignisse"] == ["smime_encrypt_fehler"]
+
+
+def test_antwort_tag_loest_verschluesselung_aus(anlage):
+    # Gegenprobe: ohne sie bewiese der nächste Test nichts (der Tag-Zweig
+    # muss tatsächlich durchlaufen werden).
+    anlage["werte"]["SMIME_TAG_ENCRYPTED"] = "enc-tag"
+    aufrufe = _verschluesselung(anlage, (ENC, []))
+    assert _lauf("AW: [enc-tag] Vertrag").startswith("250")
+    assert aufrufe == [[EMPF]]
+
+
+def test_smime_aus_und_nur_antwort_tag_bleibt_unverschluesselt(anlage):
+    # Den Tag „[verschlüsselt“ kann auch ein fremder Betreff tragen — das ist
+    # kein ausdrückliches Verlangen, die Mail geht wie bisher hinaus.
+    anlage["werte"]["SMIME_TAG_ENCRYPTED"] = "enc-tag"
+    anlage["werte"]["MAILBOX_CONFIG"][ABS]["smime"] = False
+    _verschluesselung(anlage, (ENC, []))
+    assert _lauf("AW: [enc-tag] Vertrag").startswith("250")
+    assert len(anlage["zugestellt"]) == 1 and anlage["ndr"] == []
