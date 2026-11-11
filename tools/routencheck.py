@@ -58,6 +58,8 @@ ACCEPTED: dict[str, str] = {
         "Wird vom Add-in im Outlook-Client geladen.",
     "/api/watchdog/heartbeat":
         "Der externe Bypass-Wächter ruft ihn auf (Token im Kopffeld), nicht die Oberfläche.",
+    "/api/csp-bericht":
+        "Der Browser ruft ihn selbst auf (report-uri im CSP-Kopf), nicht das Skript der Oberfläche.",
     "/api/watchdog/status":
         "Dashboard-/Wizard-Kachel folgt in der nächsten Phase des Bypass-Wächters; Endpunkt steht bereit.",
     "/api/watchdog/token/rotate":

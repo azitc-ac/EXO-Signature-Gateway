@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.8 — 2026-11-11 — Prüfskript: Berichtsadresse der CSP als bekannter Endpunkt
+
+- Die Routenprüfung führt die neue Berichtsadresse der Content-Security-Policy
+  als Endpunkt, den der Browser selbst aufruft.
+
+**Zu tun:** nichts.
+
 ## v1.11.7 — 2026-11-11 — Content-Security-Policy: Verstöße werden gesammelt
 
 - Die Weboberfläche schickt seit Längerem eine Content-Security-Policy im
