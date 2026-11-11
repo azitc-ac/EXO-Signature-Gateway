@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.37 — 2026-11-11 — Prüfstand nachgezogen
+
+- Der Stand der Kopien-Prüfung enthält die neue Zeile der Aktionstabelle
+  („Verschl. fehlgeschl.“, v1.11.36). Keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
 ## v1.11.36 — 2026-11-11 — Sicherheit: „#enc“ ging bei gescheiterter Verschlüsselung im Klartext hinaus; S/MIME mit EC-Zertifikaten
 
 - **Fehler (sicherheitsrelevant):** Scheiterte die Verschlüsselung, obwohl für
