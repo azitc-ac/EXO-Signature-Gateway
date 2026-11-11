@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.33 — 2026-11-11 — Abwesenheit aus dem Kalender: wird zurückgenommen, wenn der Termin entfällt
+
+- Die Kalender-Automatik schaltete die Abwesenheit nur **ein**: Bei einem
+  Abwesend-Termin setzte sie sie für dessen Zeitraum auf „geplant“. Wurde der
+  Termin danach gelöscht, blieb die Abwesenheit trotzdem stehen.
+- Jetzt nimmt das Gateway eine Abwesenheit, die es selbst aus dem Kalender
+  gesetzt hat, wieder zurück, sobald der Termin entfällt. Ist der Termin
+  verschoben oder folgt ein weiterer, übernimmt es dessen Zeitraum. Hat
+  jemand den Zeitraum von Hand geändert, bleibt er unangetastet.
+- Wirkt beim nächsten Kalenderlesen, sofort mit *Kalender jetzt lesen*.
+  Kann der Kalender nicht gelesen werden (kein Zugriff), wird nichts
+  zurückgenommen.
+
+**Zu tun:** nichts.
+
 ## v1.11.32 — 2026-11-11 — Abwesenheit: richtige Ursache bei fehlendem Zugriff, Band erst nach 2 Stunden
 
 - Konnte das Gateway die Abwesenheit eines Postfachs nicht lesen, hieß es

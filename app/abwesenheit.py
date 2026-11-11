@@ -627,8 +627,9 @@ async def _kalender_oof_events(upn: str, token: str) -> list[dict]:
     das maßgebliche Fenster, die Ankündigung die kommenden Termine.
 
     ⚠️ Rückgabe-Vertrag für den Cache: Eine Liste (auch leer) heißt „zuverlässig
-    gelesen" (inkl. 403 → leere Liste — der Zustand ändert sich nicht in Minuten,
-    also cachebar). Ein ECHTER Fehler (Netzwerk, 5xx) wird GEWORFEN — sonst würde
+    gelesen". 403 wird als PermissionError geworfen (seit v1.11.33); kalender_events
+    speichert dann eine leere Liste MIT Fehlermarke — cachebar wie bisher, aber
+    nicht mit „keine Termine" zu verwechseln. Ein ECHTER Fehler (Netzwerk, 5xx) wird GEWORFEN — sonst würde
     der Cache ein vorübergehendes Problem als „keine Termine" für Stunden
     festschreiben."""
     from datetime import datetime, timezone, timedelta
@@ -647,7 +648,10 @@ async def _kalender_oof_events(upn: str, token: str) -> list[dict]:
             grund = ("Zugriffsrichtlinie der App" if zugriff_ursache(resp.text) == RICHTLINIE
                      else "Berechtigung Calendars.Read fehlt")
             log.warning("OOO-Kalender: kein Zugriff auf %s (%s)", upn, grund)
-            return []
+            # NICHT [] liefern: Das hieße „keine Termine“, und die Rücknahme einer
+            # Auto-Abwesenheit (setze_fuer_postfach) hielte es für einen gelöschten
+            # Termin. kalender_events speichert es mit Fehlermarke.
+            raise PermissionError(f"Kalender {upn}: {grund}")
         resp.raise_for_status()
         events = resp.json().get("value", [])
     except Exception as exc:                                       # noqa: BLE001
@@ -682,6 +686,27 @@ def _ganztaegig_utc(wert: dict | None) -> dict | None:
     if not d:
         return wert
     return als_utc(f"{d:%Y-%m-%d}", "00:00:00")
+
+
+def _fenster_schluessel(start: dict | None, ende: dict | None) -> str:
+    """Kennung eines Auto-Abwesenheitsfensters (auto_win) — EINE Bildungsregel."""
+    return f"{(start or {}).get('dateTime')}|{(ende or {}).get('dateTime')}"
+
+
+def _von_uns_geplant(setting: dict, auto_win: str | None) -> bool:
+    """Entspricht die geplante Abwesenheit in Exchange genau dem Fenster, das die
+    Kalender-Automatik gesetzt hat? Nur dann darf sie es zurücknehmen — einen von
+    Hand geänderten Zeitraum rührt das Gateway nicht an. Verglichen auf die Sekunde
+    (Exchange hängt Nachkommastellen an); andere Zeitzone → nicht gleich."""
+    if not auto_win or "|" not in auto_win:
+        return False
+    a_start, a_ende = auto_win.split("|", 1)
+    s = setting.get("scheduledStartDateTime") or {}
+    e = setting.get("scheduledEndDateTime") or {}
+    if any((x.get("timeZone") or "UTC") != "UTC" for x in (s, e)):
+        return False
+    return ((s.get("dateTime") or "")[:19] == a_start[:19]
+            and (e.get("dateTime") or "")[:19] == a_ende[:19])
 
 
 def _fenster_aus_events(events: list[dict]) -> tuple[dict, dict] | None:
@@ -767,6 +792,12 @@ async def kalender_events(upn: str, token: str, state: dict,
             pass   # unlesbarer Zeitstempel → als abgelaufen behandeln
     try:
         events = await _kalender_oof_events(upn, token)
+    except PermissionError:
+        # 403: ändert sich nicht in Minuten → wie bisher zwischenspeichern (sonst
+        # jeder Poll ein calendarView-Aufruf), aber als FEHLER markiert — die
+        # Rücknahme einer Auto-Abwesenheit darf das nicht als „Termin gelöscht" lesen.
+        merk["kal"] = {"ts": jetzt.isoformat(), "events": [], "v": _KAL_STAND, "fehler": "403"}
+        return []
     except Exception:                                              # noqa: BLE001
         # Echter Fehler: Cache NICHT anfassen; vorige (ggf. veraltete) Liste liefern.
         return list(kal.get("events") or [])
@@ -1009,11 +1040,34 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
             and setting.get("status") in (None, "disabled")):
         fenster = await kalender_fenster(upn, token, state)
         if fenster:
-            win_key = f"{(fenster[0] or {}).get('dateTime')}|{(fenster[1] or {}).get('dateTime')}"
+            win_key = _fenster_schluessel(*fenster)
             if auto_win != win_key:
                 setze_status, setze_start, setze_ende = "scheduled", fenster[0], fenster[1]
                 auto_win = win_key
                 z = _fenster_texte(fenster[0], fenster[1])
+    elif (_kalender_auto_an(sender_cfg) and setting.get("status") == "scheduled"
+            and _von_uns_geplant(setting, auto_win)):
+        # Rücknahme (11.11.2026 gemeldet: Termin gelöscht, Abwesenheit blieb an).
+        # Bis dahin schaltete die Automatik nur EIN. Jetzt: Gehört das von uns
+        # gesetzte Fenster zu keinem Termin mehr, folgt die Abwesenheit dem
+        # nächsten Termin — oder wird ausgeschaltet. NUR nach einem erfolgreichen
+        # Kalenderlesen (Cache mit Zeitstempel): Ein Lesefehler ist kein
+        # gelöschter Termin.
+        events = await kalender_events(upn, token, state)
+        _kal = merk.get("kal") or {}
+        if _kal.get("ts") and not _kal.get("fehler"):
+            vorhanden = {_fenster_schluessel(ev.get("start"), ev.get("end")) for ev in events}
+            if auto_win not in vorhanden:
+                fenster = _fenster_aus_events(events)
+                if fenster:
+                    setze_status, setze_start, setze_ende = "scheduled", fenster[0], fenster[1]
+                    auto_win = _fenster_schluessel(*fenster)
+                    z = _fenster_texte(fenster[0], fenster[1])
+                else:
+                    setze_status, auto_win = "disabled", None
+                    z = zeitraum({**setting, "status": "disabled"})
+                log.info("OOO-Kalender: Termin für %s entfallen — Abwesenheit %s", upn,
+                         "auf den nächsten Termin verlegt" if fenster else "ausgeschaltet")
 
     # Intern/extern getrennt rendern (Ankündigung ggf. nur intern) — gemeinsamer Weg
     # mit dem Self-Service, damit beide denselben Text erzeugen.
