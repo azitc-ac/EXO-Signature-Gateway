@@ -57,8 +57,38 @@ class _LenientSMTP(_BaseSMTP):
         Die Entscheidung faellt bei JEDER Verbindung neu. Wird ein Geraet
         gesperrt oder aus der Liste genommen, gilt fuer die naechste Verbindung
         wieder die Pflicht — ohne Neustart.
+
+        PROXY-Protokoll (smtp_proxy.py): Kommt die Verbindung von einer
+        eingetragenen Firewall/einem Proxy, verlangt aiosmtpd vor dem Gruss den
+        Vorspann mit der Ursprungsadresse (`_proxy_timeout` wird je Verbindung
+        gesetzt, nicht fuer den ganzen Listener — sonst scheiterte jedes Geraet,
+        das direkt einliefert). `handle_PROXY` im Handler setzt `session.peer`
+        auf die Ursprungsadresse.
+
+        ⚠️ Nach STARTTLS ruft aiosmtpd diese Methode ERNEUT auf und legt eine
+        NEUE Sitzung an — mit der Adresse des Proxys. Exchange liefert immer
+        mit STARTTLS; ohne das Zurücksetzen unten sähe der Handler wieder nur
+        die Firewall. Die Ursprungsadresse haengt deshalb an der Verbindung
+        (`_echte_quelle`), nicht an der Sitzung.
+
+        Die STARTTLS-Lockerung fuer Relay-Geraete (unten) entscheidet vor dem
+        Vorspann, also nach der Adresse des Proxys: Ein Geraet HINTER dem Proxy
+        muss STARTTLS koennen. Der Regelfall dahinter ist Exchange Online.
         """
+        starttls_wechsel = getattr(self, "_original_transport", None) is not None
+        if not starttls_wechsel:
+            self._echte_quelle = None
+            try:
+                ip_roh = (transport.get_extra_info("peername") or ("",))[0]
+                import smtp_proxy
+                self._proxy_timeout = (smtp_proxy.WARTEZEIT_S
+                                       if smtp_proxy.ist_proxy(ip_roh) else None)
+            except Exception as exc:     # noqa: BLE001
+                log.warning("SMTP: PROXY-Pruefung fehlgeschlagen: %s", exc)
+                self._proxy_timeout = None
         super().connection_made(transport)
+        if starttls_wechsel and getattr(self, "_echte_quelle", None):
+            self.session.peer = self._echte_quelle
         if not self.require_starttls:
             return                       # ohne Zertifikat gibt es keine Pflicht
         try:

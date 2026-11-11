@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.14 — 2026-11-11 — Port 25 hinter einer Firewall: PROXY-Protokoll
+
+- **Gateway hinter einer Firewall mit Source-NAT.** Leitet eine Firewall Port 25
+  weiter und schreibt dabei die Absenderadresse auf ihre eigene um, sieht das
+  Gateway Exchange Online nur als diese interne Adresse. Die Quell-IP-Prüfung
+  weist dann jede Mail eines aktivierten Postfachs mit `554 5.7.1` ab. In der
+  Liste *Abgewiesen* erscheint die Firewall mit „nicht in der Geräteliste“.
+- Das Gateway versteht jetzt das **PROXY-Protokoll** (v1 und v2), mit dem eine
+  vorgeschaltete Firewall oder ein Proxy die ursprüngliche Absenderadresse
+  mitliefert. Neu unter *Einstellungen → Erweitert → SMTP-Quell-IP-Allowlist*:
+  das Feld *Vorgeschaltete Firewall (PROXY-Protokoll)*. Nur von dort
+  eingetragenen Adressen wird der Vorspann angenommen, und von ihnen wird er
+  verlangt. Andere Verbindungen, etwa Geräte im eigenen Netz, bleiben
+  unberührt. Die Ursprungsadresse gilt für die ganze Sitzung, auch nach
+  STARTTLS: für die Quell-IP-Prüfung, das Relay, die Herkunftsprüfung und das
+  Protokoll. Ungültige Angaben werden beim Speichern abgelehnt.
+- Der bessere Weg bleibt eine Weiterleitung ohne Source-NAT. Die
+  Betriebsdokumentation nennt beides. Die interne Adresse der Firewall gehört
+  nicht in die Geräteliste: Über sie käme sonst alles, was die Firewall an
+  Port 25 durchlässt.
+
+**Zu tun:** nichts. Die Einstellung ist leer und damit aus.
+
 ## v1.11.13 — 2026-11-11 — Baukasten: Variablen-Vorschläge auch in einzeiligen Feldern
 
 - Die Vorschlagsliste für `user.…` und `custom.…` erschien nur in

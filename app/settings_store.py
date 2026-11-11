@@ -180,6 +180,10 @@ DEFAULTS: dict = {
     # werden gecacht + periodisch aktualisiert. FAIL-SAFE: leere Liste = alles
     # erlaubt (kein Blockieren), Loopback + Extra-CIDRs immer erlaubt.
     "SMTP_SOURCE_ACL_ENABLED": True,   # False = Prüfung aus (nur Netzwerk-Firewall)
+    # Firewalls/Proxys, die vor die SMTP-Sitzung den PROXY-Vorspann mit der
+    # Ursprungsadresse setzen (smtp_proxy.py). Leer = aus. Nur diese Adressen
+    # dürfen den Absender angeben — und müssen es dann auch.
+    "SMTP_PROXY_QUELLEN": [],
     # ── SMTP-Relay für Geräte im eigenen Netz ────────────────────────────────
     # Drucker und Anwendungen liefern anonym ein, das Gateway reicht an Exchange
     # weiter — Ersatz für einen Exchange vor Ort. Siehe smtp_relay.py.

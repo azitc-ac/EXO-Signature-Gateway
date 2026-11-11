@@ -50,6 +50,19 @@ Exchange Online (EXO) → Zustellung an Empfänger
 > Intern hört der Container auf Port 8080; Docker mappt `443:8080`. Am Router / in der VM-Firewall
 > nur Port 443 (nicht 8080) öffnen.
 
+> ⚠️ **Port 25 ohne Source-NAT weiterleiten.** Das Gateway lässt an Port 25 nur
+> Microsofts Exchange-Online-Adressbereiche zu. Schreibt die Firewall bei der
+> Weiterleitung die Absenderadresse auf ihre eigene um, sieht das Gateway nur die
+> Firewall und weist jede Mail mit `554 5.7.1` ab. In der Liste *Abgewiesen* auf
+> der Relay-Seite steht dann die interne Adresse der Firewall mit „nicht in der
+> Geräteliste“. Abhilfe: reine Portweiterleitung (Destination-NAT), die
+> Absenderadresse bleibt erhalten. Lässt sich das nicht abschalten und
+> beherrscht die Firewall das **PROXY-Protokoll** (v1/v2), trage ihre interne
+> Adresse unter *Einstellungen → Erweitert → SMTP-Quell-IP-Allowlist →
+> Vorgeschaltete Firewall* ein. Das Gateway prüft dann die mitgelieferte
+> Ursprungsadresse. Nimm die Firewall-Adresse **nicht** in die Geräteliste auf:
+> Über sie käme dann alles, was die Firewall an Port 25 durchlässt.
+
 ### Outbound (Container → Internet)
 
 | Port | Protokoll | Ziel | Zweck | Re-inject-Modus |

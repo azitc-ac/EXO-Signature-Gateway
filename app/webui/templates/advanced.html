@@ -1274,6 +1274,27 @@ async function saveSmtpSubmit() {
       <span id="tenant-zahlen">…</span>
     </p>
 
+    <div class="settings-row">
+      <label for="proxy-quellen">Vorgeschaltete Firewall (PROXY-Protokoll)</label>
+      <div class="settings-control">
+        <input type="text" id="proxy-quellen" placeholder="z.B. 10.99.0.1"
+               value="{{ (s.SMTP_PROXY_QUELLEN or []) | join(', ') }}">
+        <button class="btn btn-sm" id="proxy-quellen-btn" data-wache="proxy-quellen" data-wache-hinweis="proxy-quellen-result"
+                onclick="proxyQuellenSpeichern()">Speichern</button>
+        <span id="proxy-quellen-result" class="speicher-hinweis"></span>
+      </div>
+    </div>
+    <p class="hint" style="margin:0 0 12px 0">
+      Läuft das Gateway hinter einer Firewall, die bei Port 25 die Absenderadresse
+      auf ihre eigene umschreibt (Source-NAT), sieht es Exchange Online nur als
+      diese Adresse und weist ab. Unterstützt die Firewall das PROXY-Protokoll
+      (v1 oder v2), trage hier ihre interne Adresse ein und schalte es dort für
+      die Weiterleitung an Port 25 ein. Das Gateway prüft dann die mitgelieferte
+      Ursprungsadresse. Von hier eingetragenen Adressen muss der Vorspann
+      kommen, sonst wird die Verbindung geschlossen. Andere Geräte sind nicht
+      betroffen. Leer lassen, wenn die Firewall die Absenderadresse nicht ändert.
+    </p>
+
     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px;margin-bottom:14px">
       <div>Geladene Bereiche: <strong id="acl-count">…</strong></div>
       <div>Letzte Aktualisierung: <strong id="acl-refresh">…</strong></div>
@@ -1333,6 +1354,14 @@ async function tenantStrengToggle() {
   // Sofort-Schalter wie die Allowlist (Speicher-Linie Regel 4/5)
   await savePartial({RELAY_TENANT_STRENG: document.getElementById('tenant-streng').checked},
                     'tenant-streng-result', 'advanced:tenant');
+}
+async function proxyQuellenSpeichern() {
+  const werte = feldWert('proxy-quellen').split(/[\s,]+/).filter(Boolean);
+  const ok = await savePartial({SMTP_PROXY_QUELLEN: werte}, 'proxy-quellen-result');
+  wacheFertig('proxy-quellen-btn', ok);
+  // savePartial nennt den Grund nicht; abgelehnt wird hier nur eine ungültige Angabe.
+  if (!ok) document.getElementById('proxy-quellen-result').textContent =
+    '✗ nicht gespeichert — nur IP-Adressen oder Netze wie 10.99.0.1 oder 10.99.0.0/24';
 }
 async function aclRefresh(btn) {
   const el = 'acl-refresh-result';

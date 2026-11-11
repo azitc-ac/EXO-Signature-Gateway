@@ -395,6 +395,27 @@ def _restore_envelope_headers(inner_msg: email.message.Message,
 
 
 class SignatureHandler:
+    async def handle_PROXY(self, server, session, envelope, proxy_data):
+        """PROXY-Vorspann einer eingetragenen Firewall (smtp_proxy.py).
+
+        Wird nur gerufen, wenn der Listener den Vorspann verlangt hat — also nur
+        für Verbindungen von eingetragenen Adressen. Ab hier gilt für die ganze
+        Sitzung die Ursprungsadresse: Quell-IP-Prüfung, Relay, Tenant-Gate und
+        Protokoll sehen Exchange, nicht die Firewall. False schließt die
+        Verbindung (aiosmtpd), etwa beim v2-Befehl LOCAL ohne Ursprungsadresse.
+        """
+        import smtp_proxy
+        ueber = (session.peer or ("",))[0]
+        quelle = smtp_proxy.echte_quelle(proxy_data)
+        if quelle is None:
+            log.warning("SMTP: PROXY-Vorspann von %s ohne verwertbare Ursprungsadresse "
+                        "— Verbindung geschlossen", ueber)
+            return False
+        session.peer = quelle
+        server._echte_quelle = quelle       # überlebt STARTTLS (main._LenientSMTP)
+        log.info("SMTP: Verbindung über Proxy %s, Ursprung %s", ueber, quelle[0])
+        return True
+
     async def handle_DATA(self, server, session, envelope):
         # Trace-ID: ab hier trägt jede Log-Zeile dieser Transaktion den
         # "[mail:xxxxxxxx]"-Prefix (mail_trace.TraceFilter) — Suche nach der

@@ -254,6 +254,12 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
     if unbekannt:
         log.warning("/settings: unbekannte Schlüssel verworfen: %s", unbekannt)
     _loop_header_konsequenzen(clean)
+    if "SMTP_PROXY_QUELLEN" in clean:
+        import smtp_proxy
+        try:
+            clean["SMTP_PROXY_QUELLEN"] = smtp_proxy.normalisieren(clean["SMTP_PROXY_QUELLEN"])
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     settings_store.update(clean)
     import aufgaben
     aufgaben.vergessen()        # der Sammelpunkt soll die Änderung gleich zeigen
