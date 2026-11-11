@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.20 — 2026-11-11 — Protokollzeile bei TLS-Abbruch wie zuvor
+
+- Die in v1.11.19 ergänzte Prüfmeldung in der Zeile „ohne Datenübergabe
+  beendet“ ist zurückgenommen. Die zuständige Datei wird mit dem SMTP-Relay
+  gemeinsam gepflegt und muss in beiden gleich bleiben. Die Ergänzung kommt
+  wieder, wenn sie in beiden übernommen wird.
+
+**Zu tun:** nichts.
+
 ## v1.11.19 — 2026-11-11 — Port 25: genauer Grund bei abgebrochenem TLS, Wurzel für das Exchange-Client-Zertifikat
 
 - Bricht ein TLS-Aufbau an Port 25 an einem Zertifikat ab, nennt die
