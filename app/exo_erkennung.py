@@ -118,6 +118,98 @@ def pruefe(ip: str, session) -> tuple[bool, str]:
     return ok, merkmal
 
 
+# ── Abgewiesene EIGENE Exchange-Post ─────────────────────────────────────────
+# Eine abgewiesene Mail mit der Tenant-Kennung des EIGENEN Tenants ist mit
+# Sicherheit eigene Exchange-Post — kein Scanner aus dem Internet. Das ist der
+# Fall, in dem etwas zu tun ist (Firewall mit Source-NAT ohne Zertifikat,
+# Microsoft hat das Zertifikat gewechselt, strenge Stufe greift zu hart). Er
+# erscheint als Band auf jeder Seite (webui/deps.py) und in der Abnahme.
+FENSTER_STUNDEN = 24
+_MAX_EINTRAEGE = 50
+
+
+def _abweisungen_datei():
+    from pathlib import Path
+    import config
+    return Path(config.DATA_DIR) / "exo_abgewiesen.json"
+
+
+def _abweisungen_laden() -> list[dict]:
+    import json
+    try:
+        daten = json.loads(_abweisungen_datei().read_text(encoding="utf-8"))
+        return [e for e in daten if isinstance(e, dict)] if isinstance(daten, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _im_fenster(eintraege: list[dict]) -> list[dict]:
+    from datetime import datetime, timedelta, timezone
+    grenze = datetime.now(timezone.utc) - timedelta(hours=FENSTER_STUNDEN)
+    behalten = []
+    for e in eintraege:
+        try:
+            if datetime.fromisoformat(e.get("ts", "")) >= grenze:
+                behalten.append(e)
+        except ValueError:
+            pass
+    return behalten
+
+
+def _eigener_tenant() -> str:
+    import config
+    return (config.TENANT_ID or settings_store.get("TENANT_ID") or "").strip().lower()
+
+
+def merke_abweisung(ip: str, raw: bytes) -> bool:
+    """Eine an der Erkennung abgewiesene Mail festhalten — aber NUR, wenn sie die
+    Tenant-Kennung des eigenen Tenants trägt. True, wenn festgehalten."""
+    eigen = _eigener_tenant()
+    if not eigen or not raw:
+        return False
+    try:
+        from email.parser import BytesHeaderParser
+        kopf = BytesHeaderParser().parsebytes(raw)
+        kennung = str(kopf.get("X-MS-Exchange-CrossTenant-Id") or "").strip().lower()
+    except Exception:                                    # noqa: BLE001
+        return False
+    if kennung != eigen:
+        return False
+    import json
+    from datetime import datetime, timezone
+    eintraege = _im_fenster(_abweisungen_laden())
+    eintraege.append({"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "ip": ip})
+    eintraege = eintraege[-_MAX_EINTRAEGE:]
+    ziel = _abweisungen_datei()
+    try:
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ziel.with_suffix(".tmp")
+        tmp.write_text(json.dumps(eintraege), encoding="utf-8")
+        tmp.chmod(0o600)
+        tmp.replace(ziel)
+    except OSError as exc:
+        log.warning("Abweisung eigener Exchange-Post nicht gespeichert: %s", exc)
+    try:
+        import stats
+        stats.increment("exo_eigene_abgewiesen")
+    except Exception:                                    # noqa: BLE001
+        pass
+    log.warning("SMTP: Post aus dem EIGENEN Exchange Online von %s abgewiesen — "
+                "Absenderadresse nicht von Microsoft und kein gültiges Zertifikat "
+                "(Stufe %s). Häufigste Ursache: Firewall mit Source-NAT.", ip, stufe())
+    return True
+
+
+def abweisungen_gemeldet() -> dict | None:
+    """{anzahl, ip, zuletzt} der abgewiesenen eigenen Exchange-Post der letzten
+    FENSTER_STUNDEN — oder None. Für Band und Abnahme."""
+    eintraege = _im_fenster(_abweisungen_laden())
+    if not eintraege:
+        return None
+    letzte = eintraege[-1]
+    return {"anzahl": len(eintraege), "ip": letzte.get("ip", "?"), "zuletzt": letzte.get("ts", "")}
+
+
 def _zaehlen(ok: bool, adresse: bool, zert: bool) -> None:
     try:
         import stats

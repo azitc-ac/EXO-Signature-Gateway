@@ -233,6 +233,9 @@ def anlage(monkeypatch, tmp_path):
     monkeypatch.setattr(reinject, "send", lambda *a, **kw: zugestellt.append(a) or True)
     import mail_audit
     monkeypatch.setattr(mail_audit, "log_event", lambda **kw: None)
+    import config
+    monkeypatch.setattr(config, "TENANT_ID", "")
+    monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     werte["_zugestellt"] = zugestellt
     return werte
 
@@ -269,3 +272,30 @@ def test_alternative_firewall_als_vorgelagertes_gateway(anlage):
     relay_hosts.speichern("10.99.0.1", gateway=True, kommentar="Firewall")
     assert _lauf("10.99.0.1").startswith("250")
     assert anlage["_zugestellt"]
+
+
+# ── Abgewiesene eigene Exchange-Post → Band und Abnahme ──────────────────────
+
+def test_abgewiesene_eigene_post_wird_gemeldet(anlage):
+    assert exo_erkennung.abweisungen_gemeldet() is None
+    assert _lauf("10.99.0.1") == "554 5.7.1 Access denied"
+    ab = exo_erkennung.abweisungen_gemeldet()
+    assert ab and ab["anzahl"] == 1 and ab["ip"] == "10.99.0.1"
+    import abnahme
+    assert abnahme._exo_erkennung()["zustand"] == abnahme.OFFEN
+
+
+def test_fremde_abgewiesene_post_meldet_nichts(anlage):
+    """Scanner und fremde Tenants gehören nicht ins Band — nur eigene Post."""
+    assert _lauf("10.99.0.1", tenant=FREMD).startswith("554")
+    assert exo_erkennung.abweisungen_gemeldet() is None
+
+
+def test_alte_abweisungen_fallen_heraus(anlage, tmp_path):
+    import json
+    from datetime import timedelta, timezone
+    alt = (datetime.datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+    (tmp_path / "exo_abgewiesen.json").write_text(json.dumps([{"ts": alt, "ip": "1.2.3.4"}]))
+    assert exo_erkennung.abweisungen_gemeldet() is None
+    import abnahme
+    assert abnahme._exo_erkennung()["zustand"] == abnahme.OK

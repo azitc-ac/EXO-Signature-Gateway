@@ -508,9 +508,17 @@ def _exo_erkennung() -> dict:
                                           "exo_nur_zertifikat"))
     stufe = {"eins": "Adresse oder Zertifikat", "beide": "Adresse und Zertifikat",
              "adresse": "nur Adresse"}[exo_erkennung.stufe()]
-    return _punkt(name, OK, f"Stufe: {stufe}. {ok} Exchange-Mails angenommen, davon "
-                  f"{mit} mit geprüftem Client-Zertifikat und {nur} nur am Zertifikat "
-                  "erkannt.")
+    ab = exo_erkennung.abweisungen_gemeldet()
+    if ab:
+        return _punkt(name, OFFEN,
+                      f"{ab['anzahl']} Mail(s) aus dem eigenen Exchange Online in den "
+                      f"letzten 24 Stunden abgewiesen, zuletzt von {ab['ip']} (Stufe: {stufe}).",
+                      "Erweitert → SMTP-Quell-IP-Allowlist: Stufe „Adresse oder Zertifikat“ "
+                      "wählen; läuft das Gateway hinter einer Firewall mit Source-NAT, dort "
+                      "die Weiterleitung von Port 25 prüfen.")
+    return _punkt(name, OK, f"Stufe: {stufe}. {ok} Exchange-Mails angenommen; davon {mit} mit "
+                  f"geprüftem Zertifikat, {nur} über das Zertifikat, obwohl die Absenderadresse "
+                  "nicht von Microsoft war (etwa hinter einer Firewall mit NAT).")
 
 
 def _quell_ip_liste() -> dict:

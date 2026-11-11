@@ -186,6 +186,18 @@ def _zustellfehler_anzahl() -> int:
 
 templates.env.globals["zustellfehler_anzahl"] = _zustellfehler_anzahl
 
+
+def _exo_abgewiesen_gemeldet() -> dict | None:
+    """Wurde in den letzten 24 h eigene Exchange-Post an Port 25 abgewiesen?"""
+    try:
+        import exo_erkennung
+        return exo_erkennung.abweisungen_gemeldet()
+    except Exception:                                       # noqa: BLE001
+        return None
+
+
+templates.env.globals["exo_abgewiesen_gemeldet"] = _exo_abgewiesen_gemeldet
+
 # Der Wächter meldet sich alle 5 Minuten; nach 15 gilt er als verstummt.
 WAECHTER_STILL_MIN = 15
 

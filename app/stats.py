@@ -104,6 +104,9 @@ KEYS = (
     "exo_erkannt",
     "exo_per_zertifikat",
     "exo_nur_zertifikat",
+    # Abgewiesene Post mit der Kennung des EIGENEN Tenants — eigene Exchange-Post,
+    # die verloren ging (exo_erkennung.merke_abweisung). Tagesbericht + Band.
+    "exo_eigene_abgewiesen",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}

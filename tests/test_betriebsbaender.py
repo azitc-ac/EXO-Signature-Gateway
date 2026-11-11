@@ -26,6 +26,7 @@ def _alles_gemeldet(monkeypatch, wartung=None, fehler=0, waechter=None, lern=0, 
     monkeypatch.setitem(g, "waechter_gemeldet", lambda: waechter)
     monkeypatch.setitem(g, "lernmodus_rest_min", lambda: lern)
     monkeypatch.setitem(g, "bypass_gemeldet", lambda: bypass)
+    monkeypatch.setitem(g, "exo_abgewiesen_gemeldet", lambda: None)
 
 
 def _seite(monkeypatch, rolle="admin", wartung=None, fehler=0, waechter=None,
@@ -201,3 +202,18 @@ def test_wartung_zaehlt_zustellfehler_nicht_mit(monkeypatch):
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: d)
     assert deps._wartung_gemeldet() is None
 
+
+
+def test_band_bei_abgewiesener_eigener_exchange_post(monkeypatch):
+    """Eigene Exchange-Post an Port 25 abgewiesen (exo_erkennung) — rotes Band
+    mit Anzahl, Adresse und Ziel; ohne Befund kein Band."""
+    assert 'id="exo-abgewiesen-banner"' not in _seite(monkeypatch)
+    html = _seite(monkeypatch)
+    monkeypatch.setitem(deps.templates.env.globals, "exo_abgewiesen_gemeldet",
+                        lambda: {"anzahl": 3, "ip": "10.99.0.1", "zuletzt": "x"})
+    req = SimpleNamespace(state=SimpleNamespace(user_role="admin", angemeldet=True),
+                          url=SimpleNamespace(path="/"))
+    html = deps.templates.env.get_template("base.html").render(request=req, active="")
+    assert 'id="exo-abgewiesen-banner"' in html
+    assert "3 Mails in den letzten" in html and "10.99.0.1" in html
+    assert 'href="/advanced#quell-ip"' in html

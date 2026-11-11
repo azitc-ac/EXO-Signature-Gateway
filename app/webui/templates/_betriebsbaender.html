@@ -70,6 +70,21 @@
   <a href="/advanced#maintenance" style="color:#991b1b;font-weight:700;margin-left:auto">Zur Warteschlange</a>
 </div>
 {% endif %}
+{# Eigene Exchange-Post an Port 25 abgewiesen (exo_erkennung.merke_abweisung):
+   nur Mails mit der Kennung des EIGENEN Tenants — kein Scanner-Rauschen. #}
+{% set _exo_ab = exo_abgewiesen_gemeldet() %}
+{% if _exo_ab %}
+<div id="exo-abgewiesen-banner"
+     style="background:#fef2f2;border-bottom:2px solid #fca5a5;padding:9px 16px;
+            font-size:13px;color:#991b1b;display:flex;gap:10px;
+            align-items:center;flex-wrap:wrap">
+  <strong>Post aus deinem Exchange Online wird abgewiesen</strong>
+  <span>{{ _exo_ab.anzahl }} Mail{{ '' if _exo_ab.anzahl == 1 else 's' }} in den letzten
+    24 Stunden, zuletzt von {{ _exo_ab.ip }}. Die Absender bekommen eine Unzustellbarkeitsmeldung.
+    Häufigste Ursache: eine Firewall, die die Absenderadresse umschreibt.</span>
+  <a href="/advanced#quell-ip" style="color:#991b1b;font-weight:700;margin-left:auto">Zur Quell-IP-Prüfung</a>
+</div>
+{% endif %}
 {% set _waechter = waechter_gemeldet() %}
 {% if _waechter %}
 <div id="waechter-banner"

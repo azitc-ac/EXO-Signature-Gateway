@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.31 — 2026-11-11 — Warnband, wenn eigene Exchange-Post abgewiesen wird
+
+- Neues Band auf jeder Verwaltungsseite: **Post aus deinem Exchange Online
+  wird abgewiesen**. Es erscheint, wenn das Gateway in den letzten 24 Stunden
+  an Port 25 eine Mail abgewiesen hat, die die Kennung deines eigenen Tenants
+  trägt. Das ist mit Sicherheit eigene Post und kein Scanner aus dem
+  Internet; die Absender bekommen eine Unzustellbarkeitsmeldung. Häufigste
+  Ursache ist eine Firewall, die die Absenderadresse umschreibt. Der Link
+  führt zur Quell-IP-Prüfung.
+- Die Abnahme meldet denselben Befund unter *Exchange Online wird am Eingang
+  erkannt*, und der Tagesbericht hat eine Zeile *Eigene Exchange-Post
+  abgewiesen*, sobald es vorkam. Der Text der Abnahme zur Erkennung am
+  Zertifikat ist verständlicher formuliert.
+
+**Zu tun:** nichts.
+
 ## v1.11.30 — 2026-11-11 — Postfächer: Spaltenbreiten der Gruppenrichtlinien
 
 - In der Tabelle *Benutzerdefinierte Richtlinien* klaffte je nach

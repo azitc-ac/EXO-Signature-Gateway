@@ -497,6 +497,8 @@ class SignatureHandler:
                 log.warning("SMTP: rejected connection from %s — not an allowed "
                             "source (Exchange Online allowlist; Merkmal: %s, Stufe %s)",
                             peer_ip, _exo_merkmal, exo_erkennung.stufe())
+                # Eigene Exchange-Post (eigene Tenant-Kennung)? → Band + Abnahme.
+                exo_erkennung.merke_abweisung(peer_ip, raw)
                 smtp_acl.record_reject(peer_ip)
                 # Auch im übergreifenden Angriffs-Indikator vermerken (Tagesbericht
                 # + Live-Panel), nicht nur in der ACL-eigenen Liste.
