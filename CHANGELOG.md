@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.28 — 2026-11-11 — Doku: Add-in-Cache in Outlook leeren
+
+- Die Betriebsdokumentation (*Outlook-Add-in und App bereitstellen*) erklärt
+  jetzt, wann der Add-in-Cache eines Outlook-Clients zu leeren ist und wie:
+  klassisches und neues Outlook unter Windows, Outlook im Web und Outlook für
+  Mac, nach Microsofts Anleitung. Nach einem Gateway-Update ist das nicht nötig,
+  weil das Gateway die Add-in-Seiten ohne Zwischenspeicherung ausliefert. Nötig
+  ist es nur nach einem neu hochgeladenen Paket oder bei Ladefehlern.
+
+**Zu tun:** nichts.
+
 ## v1.11.27 — 2026-11-11 — Baukasten: Bausteine in Kasten und Spalten verschieben
 
 - Jeder Baustein hat in seinen Einstellungen ein Feld **Verschieben nach**.
