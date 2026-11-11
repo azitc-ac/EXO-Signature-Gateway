@@ -343,7 +343,7 @@ async def sign_smime_keyvault(
 
     # Build the outer multipart/signed message
     outer_lines = []
-    outer_lines.append(f"MIME-Version: 1.0")
+    outer_lines.append("MIME-Version: 1.0")
     outer_lines.append(
         f'Content-Type: multipart/signed; protocol="application/pkcs7-signature"; '
         f'micalg=sha-256; boundary="{boundary}"'

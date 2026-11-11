@@ -350,7 +350,8 @@ async def api_smime_cert_details(
         key_info = type(pub).__name__
 
     der = cert.public_bytes(__import__("cryptography").hazmat.primitives.serialization.Encoding.DER)
-    sha1 = ":".join(f"{b:02X}" for b in hashlib.sha1(der).digest())
+    # Fingerabdruck zur Anzeige (wie Windows ihn nennt), kein Schutzzweck.
+    sha1 = ":".join(f"{b:02X}" for b in hashlib.sha1(der, usedforsecurity=False).digest())
 
     san_emails: list[str] = []
     try:

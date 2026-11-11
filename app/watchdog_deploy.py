@@ -228,7 +228,6 @@ async def deploy_code(sub: str, rg: str, app: str, token: str,
     if resp.status_code not in (200, 201):
         return False, f"Publishing-Creds (HTTP {resp.status_code}): {_err(resp)}"
     props = resp.json().get("properties", {})
-    scm = props.get("scmUri", "")           # enthält user:pass@host
     user = props.get("publishingUserName", "")
     pw = props.get("publishingPassword", "")
     scm_host = f"{app}.scm.azurewebsites.net"

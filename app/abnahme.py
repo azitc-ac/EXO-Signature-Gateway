@@ -262,7 +262,7 @@ def _exchange() -> dict:
             "Anwendungsberechtigungen erteilen.")
     return _punkt(
         "Exchange erreichbar", OK,
-        f"Zugangsdaten, Graph- und Exchange-Berechtigungen vorhanden",
+        "Zugangsdaten, Graph- und Exchange-Berechtigungen vorhanden",
         deckt_nicht=exo_hinweis)
 
 

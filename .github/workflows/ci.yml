@@ -13,6 +13,10 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Wöchentlich auch ohne Push: Neue Lücken in den festgenagelten
+  # Abhängigkeiten (pip-audit unten) entstehen, ohne dass sich der Code ändert.
+  schedule:
+    - cron: "17 4 * * 1"
 
 jobs:
   tests:
@@ -43,6 +47,31 @@ jobs:
 
       - name: Tests
         run: pytest tests/ -v
+
+      # Standardwerkzeuge (seit v1.11.6). Fassungen gepinnt wie alles andere.
+      # pip-audit prüft GENAU den Baum, der im Container läuft (Lock-Datei);
+      # --no-deps, weil die Lock-Datei bereits vollständig aufgelöst ist.
+      - name: Bekannte Lücken in Abhängigkeiten (pip-audit)
+        run: |
+          pip install pip-audit==2.10.1
+          pip-audit -r app/requirements.lock --no-deps --disable-pip --progress-spinner off
+
+      # Nur hohe Schwere UND hohe Sicherheit — sonst geht das Signal im
+      # Rauschen unter (subprocess, assert …). Bewusste Ausnahmen stehen
+      # als `# nosec Bxxx` mit Begründung an der Stelle.
+      - name: Sicherheitsmuster (bandit)
+        run: |
+          pip install bandit==1.9.4
+          bandit -q -r app -lll -iii
+
+      # Fehlerklassen, die zur Laufzeit erst knallen (undefinierte Namen,
+      # unbenutzte Zuweisungen …). F401/F811 (unbenutzte bzw. doppelte
+      # Importe) bleiben vorerst aus: 100 kosmetische Altfälle, darunter
+      # gespiegelte Dateien.
+      - name: Python-Fehlerklassen (ruff)
+        run: |
+          pip install ruff==0.17.4
+          ruff check app --select F --ignore F401,F811
 
       # driftcheck vergleicht normalerweise Gateway UND Hub. Das Hub-Repo ist
       # privat und hier nicht ausgecheckt — deshalb der eingeschränkte Modus,

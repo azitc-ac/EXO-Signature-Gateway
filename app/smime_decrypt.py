@@ -185,7 +185,9 @@ async def _decrypt_keyvault(message_bytes: bytes, recipient: str) -> bytes | Non
             cipher: Cipher = Cipher(algorithms.AES(session_key), modes.CBC(iv))
             block_bits = 128
         elif "des" in algo_lower:
-            cipher = Cipher(algorithms.TripleDES(session_key), modes.CBC(iv))
+            # Eingehend vorgegeben: Absender, die noch 3DES verschlüsseln, lassen
+            # sich nur so lesen. Das Gateway selbst verschlüsselt nie mit 3DES.
+            cipher = Cipher(algorithms.TripleDES(session_key), modes.CBC(iv))  # nosec B304
             block_bits = 64
         else:
             log.error("KV decrypt: unsupported cipher '%s' for %s", algo_name, recipient)

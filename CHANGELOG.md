@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.6 — 2026-11-11 — Abhängigkeiten mit bekannten Lücken angehoben, Prüfwerkzeuge in der CI
+
+- Vier festgenagelte Pakete hatten veröffentlichte Lücken und sind
+  angehoben:
+  - `cryptography` 50.0.0: Die betroffene PKCS#7-Entschlüsselung benutzt das
+    Gateway nicht.
+  - `PyJWT` 2.15.0.
+  - `urllib3` 2.8.0.
+  - `certifi` 2026.10.18: Entfernt eine Zertifizierungsstelle, deren
+    Zwischenzertifikate kompromittiert sind.
+- Die CI prüft jetzt bei jedem Push und wöchentlich die Lock-Datei auf
+  bekannte Lücken (`pip-audit`). Dazu kommen Sicherheitsmuster hoher
+  Schwere (`bandit`) und Python-Fehlerklassen wie undefinierte Namen
+  (`ruff`).
+- Die fünf Funde von `bandit` sind keine Lücken, aber jetzt ausdrücklich
+  begründet:
+  - Zwei Prüfsummen dienen nur der Änderungserkennung bzw. der Anzeige.
+  - 3DES bleibt nur zum Lesen eingehender Post erlaubt; das Gateway selbst
+    verschlüsselt nie damit.
+  - Zwei Vorlagen werden nur auf Syntax geprüft, nicht gerendert.
+
+**Zu tun:** nichts. Die neuen Fassungen kommen mit dem Update.
+
 ## v1.11.5 — 2026-11-11 — Abnahme: Wortlaut
 
 - Ein Erklärtext zur neuen Herkunftsprüfung in der Abnahme ist umformuliert.

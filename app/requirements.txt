@@ -29,7 +29,7 @@ tnefparse==1.4.0
 asn1crypto==1.5.1
 
 # ── Kryptografie (S/MIME, Zertifikate) ───────────────────────────────────────
-cryptography==49.0.0
+cryptography==50.0.0
 
 # ── Direktversand (DKIM-Signatur, DNS-Prüfung) ───────────────────────────────
 dkimpy==1.1.8

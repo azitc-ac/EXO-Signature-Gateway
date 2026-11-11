@@ -1165,7 +1165,7 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
         "$ErrorActionPreference = 'Stop'",
         "",
         "# Zertifikat laden (PFX ohne Passwort)",
-        f"$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(",
+        "$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(",
         f"    '{_ps_lit(_AUTH_CERT_PATH)}', [string]$null,",
         "    ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet -bor",
         "     [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable))",

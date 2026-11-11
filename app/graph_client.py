@@ -226,8 +226,9 @@ def _rebuild_pool_if_needed() -> None:
     global _pool_entries, _pool_hash, _pool_idx
     tenant = config.TENANT_ID or settings_store.get("TENANT_ID") or ""
     raw_pool = _roher_pool()
-    new_hash = hashlib.md5(
-        f"{tenant}:{_pfx_stand()}:{json.dumps(raw_pool, sort_keys=True)}".encode()
+    new_hash = hashlib.md5(            # Änderungserkennung, kein Schutzzweck
+        f"{tenant}:{_pfx_stand()}:{json.dumps(raw_pool, sort_keys=True)}".encode(),
+        usedforsecurity=False,
     ).hexdigest()
     if new_hash == _pool_hash:
         return

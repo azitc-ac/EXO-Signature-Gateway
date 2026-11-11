@@ -37,7 +37,7 @@ class DigiCertDirectBackend(CABackend):
 
     def get_instructions_html(self, email: str, days_left: int, expiry_str: str,
                               upload_url: str, user_config: dict) -> str:
-        return f"""
+        return """
 <p>Die Erneuerung wurde automatisch über Ihr <strong>DigiCert-CertCentral-Konto</strong>
 beauftragt — Sie müssen nichts weiter tun. Das neue Zertifikat wird nach
 Ausstellung automatisch eingespielt.</p>

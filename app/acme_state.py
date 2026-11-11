@@ -428,7 +428,7 @@ async def complete_order_after_challenge(order: dict) -> None:
         # Finalize: submit CSR
         save_order(email, {**order, "status": "finalizing"})
         csr_der = b64url_decode_csr(order["csr_der_b64"])
-        finalized = await client.finalize(order_data["finalize"], csr_der)
+        await client.finalize(order_data["finalize"], csr_der)
 
         # Poll until "valid"
         for _ in range(60):

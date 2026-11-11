@@ -413,8 +413,9 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
     # pruefen und die Datei gar nicht erst schreiben.
     try:
         import jinja2
-        jinja2.Environment().parse(html_content)
-        jinja2.Environment().parse(txt_content)
+        # Nur Syntaxprüfung (parse), kein Rendern — Autoescape spielt keine Rolle.
+        jinja2.Environment().parse(html_content)  # nosec B701
+        jinja2.Environment().parse(txt_content)   # nosec B701
     except Exception as exc:
         log.error("Template '%s' waere unbrauchbar geworden: %s", safe, exc)
         raise HTTPException(400, f"Die erzeugte Vorlage ist kein gültiges "
