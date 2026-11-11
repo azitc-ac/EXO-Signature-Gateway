@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.0 — 2026-11-11 — Release: Sicherheit bei S/MIME und TLS, Update-Kanäle, Azure Marketplace, Direktversand
+
+Mit v1.11.0 beginnt eine neue Release-Reihe. Sie fasst die Entwicklung seit
+v1.10.0 zusammen und bringt vor allem die Sicherheitskorrekturen aus
+v1.10.110 bis v1.10.117 in den Kanal *Stabil*: Prüfung eingehender
+S/MIME-Signaturen, Adress- und Ausstellerprüfung der Empfängerzertifikate,
+Zertifikatsprüfung bei ausgehendem TLS, Sperre des Auslieferungs-Kennworts
+und Literale in PowerShell-Skripten. Dazu kommen die Update-Kanäle, das
+Angebot im Azure Marketplace, der Direktversand und der Sammelpunkt für
+offene Aufgaben. Die Einzelheiten stehen in den Einträgen v1.10.1 bis
+v1.10.117.
+
+**Zu tun:** nichts über die Einträge v1.10.1 bis v1.10.117 hinaus. Was dort
+zu tun ist, erscheint im Sammelpunkt *Offene Aufgaben* oben rechts.
+
 ## v1.10.117 — 2026-11-11 — PowerShell: Einstellungswerte nur noch als Literal im Skript
 
 - Die Skripte für Exchange Online entstehen im Gateway als Text. Einige
