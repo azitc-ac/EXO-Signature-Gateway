@@ -131,6 +131,15 @@ def _clientzert_anfordern(ctx: ssl.SSLContext) -> None:
     Zertifikat vorlegt, das sich nicht gegen die CA-Liste prüfen lässt. Geräte
     legen üblicherweise keines vor, Exchange eines einer öffentlichen CA. Wirkt
     erst nach einem Neustart (der Kontext entsteht beim Start). Vorgabe aus.
+
+    ⚠️ ERGEBNIS DES LIVE-TESTS (Raspi, 11.11.2026, 14:22): Exchange Online legt
+    ein Zertifikat vor, die Prüfung scheitert aber (SSLCertVerificationError)
+    und der Handshake bricht ab — die Mail kam nicht an. Ursache sehr
+    wahrscheinlich: Das EXO-Zertifikat (CN=mail.protection.outlook.com,
+    Microsoft TLS G2) hat als Extended Key Usage NUR serverAuth; OpenSSL
+    verlangt für ein Client-Zertifikat clientAuth. Mit dem Standard-ssl ist
+    eine Prüfung daher nicht möglich — der Schalter darf NICHT eingeschaltet
+    werden, solange das nicht durch eine eigene Prüfung ersetzt ist.
     """
     import settings_store
     if not settings_store.get("SMTP_CLIENTZERT_BEOBACHTEN"):

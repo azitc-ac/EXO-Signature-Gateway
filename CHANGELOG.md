@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.18 — 2026-11-11 — Messschalter für Client-Zertifikate: Ergebnis
+
+- Der Test mit `SMTP_CLIENTZERT_BEOBACHTEN` hat ergeben: Exchange Online legt
+  beim Einliefern ein Zertifikat vor, aber eines, das nur für Server
+  ausgestellt ist. Die Standardprüfung lehnt es als Client-Zertifikat ab und
+  bricht den TLS-Aufbau ab; die Mail wird dann nicht übergeben. Schalte den
+  Schalter deshalb **nicht** ein. Er bleibt aus und dokumentiert.
+
+**Zu tun:** nichts.
+
 ## v1.11.17 — 2026-11-11 — Port 25: Messschalter für Client-Zertifikate
 
 - Neuer Schalter `SMTP_CLIENTZERT_BEOBACHTEN`, nur in der Konfigurationsdatei,
