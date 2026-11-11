@@ -1093,6 +1093,7 @@ function buildBlockForm(b) {
       ${unterPicker(b.id, 'children', KASTEN_TYPEN)}
     </div>`;
   }
+  rows += verschiebeZeile(b);
   return rows;
 }
 
@@ -1296,6 +1297,90 @@ function kindListen(b) {
   if (b.type === 'box')     return ['children'];
   return [];
 }
+
+// ── Zwischen Ebenen verschieben ──────────────────────────────────────────────
+// Bausteine in einen Kasten oder eine Spalte hinein- und wieder herausnehmen
+// (Wunsch aus einem Kundentermin, 11.11.2026: bisher ging das nur durch
+// Löschen und Neuanlegen). Erlaubt ist, was „+ Block hinzufügen“ am Ziel auch
+// anbietet (UNTER_TYPEN bzw. KASTEN_TYPEN) — ein Verschieben darf keine Lage
+// erzeugen, die sich nicht auch von Hand bauen ließe. Nie in sich selbst oder
+// einen eigenen Unterbaustein.
+const LISTEN_NAMEN = {left: 'linke Spalte', right: 'rechte Spalte', children: 'Inhalt'};
+
+function elternListe(id, list) {
+  const src = list || blocks;
+  if (src.some(b => b.id === id)) return src;
+  for (const b of src) {
+    for (const k of kindListen(b)) {
+      const f = elternListe(id, b[k] || []);
+      if (f) return f;
+    }
+  }
+  return null;
+}
+
+function enthaelt(b, id) {
+  return kindListen(b).some(k => (b[k] || []).some(c => c.id === id || enthaelt(c, id)));
+}
+
+function zielTypen(behaelter) {
+  return behaelter.type === 'box' ? KASTEN_TYPEN : UNTER_TYPEN;
+}
+
+function verschiebeZiele(b) {
+  const ziele = [];
+  const aktuell = elternListe(b.id);
+  if (aktuell !== blocks) ziele.push({wert: 'oben', text: 'Hauptebene (ans Ende)'});
+  const nummer = {};
+  const lauf = liste => liste.forEach(c => {
+    if (!kindListen(c).length) return;
+    nummer[c.type] = (nummer[c.type] || 0) + 1;
+    const nr = nummer[c.type];
+    if (c.id !== b.id && !enthaelt(b, c.id) && zielTypen(c).includes(b.type)) {
+      kindListen(c).forEach(k => {
+        if (c[k] && c[k] === aktuell) return;
+        ziele.push({wert: c.id + ':' + k, text: `${TYPE_LABELS[c.type]} ${nr} – ${LISTEN_NAMEN[k]}`});
+      });
+    }
+    kindListen(c).forEach(k => lauf(c[k] || []));
+  });
+  lauf(blocks);
+  return ziele;
+}
+
+// Reine Datenoperation — true, wenn verschoben wurde. Prüft das Ziel erneut
+// gegen verschiebeZiele(): Die Auswahl im Formular kann veraltet sein.
+function verschiebeDaten(id, ziel) {
+  const b = findBlock(id);
+  const quelle = elternListe(id);
+  if (!b || !quelle || !verschiebeZiele(b).some(z => z.wert === ziel)) return false;
+  let zielListe;
+  if (ziel === 'oben') {
+    zielListe = blocks;
+  } else {
+    const [pid, k] = ziel.split(':');
+    const p = findBlock(pid);
+    p[k] = p[k] || [];
+    zielListe = p[k];
+  }
+  quelle.splice(quelle.indexOf(b), 1);
+  zielListe.push(b);
+  return true;
+}
+
+function verschiebeZeile(b) {
+  const ziele = verschiebeZiele(b);
+  if (!ziele.length) return '';
+  return `<div class="prop-row"><label>Verschieben nach</label><div>`
+    + `<select data-bid="${escAttr(b.id)}" onchange="bausteinVerschieben(this)">`
+    + `<option value="">— Ziel wählen —</option>`
+    + ziele.map(z => `<option value="${escAttr(z.wert)}">${esc(z.text)}</option>`).join('')
+    + `</select></div></div>`;
+}
+
+window.bausteinVerschieben = function(sel) {
+  if (sel.value && verschiebeDaten(sel.dataset.bid, sel.value)) renderBlockList();
+};
 
 function findBlock(id, list) {
   const src = list || blocks;

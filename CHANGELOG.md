@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.27 — 2026-11-11 — Baukasten: Bausteine in Kasten und Spalten verschieben
+
+- Jeder Baustein hat in seinen Einstellungen ein Feld **Verschieben nach**.
+  Damit lässt er sich in einen Kasten oder eine Spalte eines Zweispalters
+  bringen und wieder heraus auf die Hauptebene. Bisher ging das nur durch
+  Löschen und Neuanlegen.
+- Angeboten werden nur Ziele, die auch *+ Block hinzufügen* dort anbietet: Ein
+  Kasten bleibt auf der Hauptebene, ein Zweispalter kann in einen Kasten, aber
+  nicht in eine Spalte.
+
+**Zu tun:** nichts.
+
 ## v1.11.26 — 2026-11-11 — Abwesenheit: „Kalender jetzt lesen“ und wann ein Termin wirkt
 
 - Die Abwesenheits-Übersicht zeigt jetzt, wann der Abgleich zuletzt lief, wie
