@@ -752,6 +752,8 @@ async def api_smtp_acl_status(_: str = Depends(_require_admin)):
         "recent_rejects": rejects,
         "tenant_geprueft": stats.get().get("tenant_geprueft", 0),
         "tenant_ohne_kopf": stats.get().get("tenant_ohne_kopf", 0),
+        **{k: stats.get().get(k, 0)
+           for k in ("exo_erkannt", "exo_per_zertifikat", "exo_nur_zertifikat")},
     })
 
 

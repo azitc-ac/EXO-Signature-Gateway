@@ -89,7 +89,7 @@ class _LenientSMTP(_BaseSMTP):
         super().connection_made(transport)
         if starttls_wechsel and getattr(self, "_echte_quelle", None):
             self.session.peer = self._echte_quelle
-        if starttls_wechsel:
+        if starttls_wechsel and getattr(self, "_zert_angefordert", False):
             self._clientzert_protokollieren()
         if not self.require_starttls:
             return                       # ohne Zertifikat gibt es keine Pflicht
@@ -106,14 +106,35 @@ class _LenientSMTP(_BaseSMTP):
         except Exception as exc:         # noqa: BLE001
             log.warning("SMTP: Relay-Pruefung fuer %s fehlgeschlagen: %s", ip, exc)
 
-    def _clientzert_protokollieren(self) -> None:
-        """Messschalter SMTP_CLIENTZERT_BEOBACHTEN (smtp_cert._clientzert_anfordern):
-        nach STARTTLS festhalten, ob und welches Client-Zertifikat vorlag.
-        Nur Protokoll — entschieden wird darauf (noch) nichts."""
+    @syntax('STARTTLS', when='tls_context')
+    async def smtp_STARTTLS(self, arg):
+        """TLS-Kontext je Verbindung wählen: mit Anforderung eines
+        Client-Zertifikats nur, wo exo_erkennung es braucht — die Anforderung
+        bricht bei unprüfbaren Zertifikaten ab, sie darf keine Verbindung
+        treffen, die ohne sie durchginge. Hier statt in connection_made, weil
+        erst jetzt die endgültige Absenderadresse feststeht (PROXY-Vorspann)."""
+        if not hasattr(self, "_tls_kontext_normal"):
+            self._tls_kontext_normal = self.tls_context
+        self._zert_angefordert = False
         try:
-            import settings_store
-            if not settings_store.get("SMTP_CLIENTZERT_BEOBACHTEN"):
-                return
+            import exo_erkennung
+            import runtime_state
+            anfordern = getattr(runtime_state, "tls_kontext_anfordern", None)
+            ip = (self.session.peer or ("",))[0]
+            if anfordern is not None and exo_erkennung.zertifikat_anfordern(ip):
+                self.tls_context = anfordern
+                self._zert_angefordert = True
+            else:
+                self.tls_context = self._tls_kontext_normal
+        except Exception as exc:         # noqa: BLE001
+            log.warning("SMTP: Auswahl des TLS-Kontexts fehlgeschlagen: %s", exc)
+            self.tls_context = self._tls_kontext_normal
+        return await super().smtp_STARTTLS(arg)
+
+    def _clientzert_protokollieren(self) -> None:
+        """Nach STARTTLS mit angefordertem Client-Zertifikat festhalten, ob und
+        welches vorlag (Seriennummer und SHA-1 für einen eindeutigen Vergleich)."""
+        try:
             import smtp_cert
             extra = getattr(self.session, "ssl", None) or {}
             ip = (self.session.peer or ("?",))[0]
@@ -256,6 +277,11 @@ def _build_tls_context() -> ssl.SSLContext | None:
     gemeinsam = (str(config.SMTP_TLS_CERT), str(config.SMTP_TLS_KEY))
     if gemeinsam != sep and Path(gemeinsam[0]).exists() and Path(gemeinsam[1]).exists():
         kandidaten.append(gemeinsam)
+    # Zweite Fassung, die ein Client-Zertifikat anfordert (exo_erkennung):
+    # gewählt je Verbindung in _LenientSMTP.smtp_STARTTLS.
+    import runtime_state
+    runtime_state.tls_kontext_anfordern = smtp_cert.baue_listener_kontext(
+        kandidaten, client_zert=True)
     return smtp_cert.baue_listener_kontext(kandidaten)
 
 

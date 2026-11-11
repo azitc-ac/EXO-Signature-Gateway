@@ -492,6 +492,27 @@ def _tenant_herkunft() -> dict:
                   "Erweitert → Quell-IP-Allowlist → „Post ohne Tenant-Kennung abweisen“.")
 
 
+def _exo_erkennung() -> dict:
+    """Woran wird Exchange Online am Eingang erkannt, und wie oft am Zertifikat?
+    (exo_erkennung.py). Die Zahl steht immer da — fällt der Anteil mit
+    Zertifikat plötzlich, hat Microsoft das Zertifikat gewechselt.
+
+    Grenze: In der Stufe „eins“ wird das Zertifikat nur angefordert, wo die
+    Adresse nicht reicht — wie viele Verbindungen eines vorlegen WÜRDEN, zeigt
+    die Zahl dort nicht. Bewusst kein fester deckt_nicht-Text (test_abnahme_ton)."""
+    import exo_erkennung
+    import stats
+    name = "Exchange Online wird am Eingang erkannt"
+    g = stats.get()
+    ok, mit, nur = (g.get(k, 0) for k in ("exo_erkannt", "exo_per_zertifikat",
+                                          "exo_nur_zertifikat"))
+    stufe = {"eins": "Adresse oder Zertifikat", "beide": "Adresse und Zertifikat",
+             "adresse": "nur Adresse"}[exo_erkennung.stufe()]
+    return _punkt(name, OK, f"Stufe: {stufe}. {ok} Exchange-Mails angenommen, davon "
+                  f"{mit} mit geprüftem Client-Zertifikat und {nur} nur am Zertifikat "
+                  "erkannt.")
+
+
 def _quell_ip_liste() -> dict:
     """Ist die Liste der Exchange-Adressbereiche geladen? Leer lässt die
     Quell-IP-Prüfung alles durch (fail-safe, smtp_acl.is_allowed)."""
@@ -684,7 +705,7 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _addin_rollen, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg,
-              _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste,
+              _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,
               _csp_berichte)
 
 

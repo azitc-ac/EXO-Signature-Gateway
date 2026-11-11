@@ -5,6 +5,39 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.24 — 2026-11-11 — Exchange Online am Zertifikat erkennen (auch hinter einer Firewall mit Source-NAT)
+
+- **Neu: Das Gateway erkennt Exchange Online auch am Client-Zertifikat.**
+  Exchange Online legt beim Einliefern ein Zertifikat auf
+  `mail.protection.outlook.com` vor. Es ist dasselbe, an dem ein Exchange vor
+  Ort im Hybrid-Betrieb Exchange Online erkennt (am 11.11.2026 an beiden Stellen
+  mit gleicher Seriennummer gemessen). Bisher galt allein die Absenderadresse.
+  Ein Gateway hinter einer Firewall, die die Absenderadresse auf ihre eigene
+  umschreibt, wies deshalb jede Mail mit `554 5.7.1 Access denied` ab.
+- Neu unter *Einstellungen → Erweitert → SMTP-Quell-IP-Allowlist*: **Exchange
+  Online erkennen an**
+  - *Adresse oder Zertifikat* (Vorgabe): Eines von beiden genügt. Das
+    Zertifikat wird nur angefordert, wenn die Adresse nicht reicht. Verbindungen,
+    die bisher angenommen wurden, laufen unverändert.
+  - *Adresse und Zertifikat*: Beides wird verlangt.
+  - *nur Adresse*: Verhalten bis v1.11.23.
+- Erkannt wird am Namen und an der Zertifikatskette, nicht an einem bestimmten
+  Zertifikat. Ein Zertifikatswechsel bei Microsoft bleibt so ohne Folgen,
+  solange die Kette zu einer bekannten Wurzel führt. Mitgeliefert wird die
+  Wurzel „DigiCert Global Root CA“, auf die das heutige Zertifikat zurückgeht
+  und die in der allgemeinen CA-Liste nicht mehr steht.
+- Die Prüfung der Tenant-Kennung bleibt in jeder Stufe bestehen: Das
+  Zertifikat belegt „aus Exchange Online“, nicht „aus deinem Tenant“.
+- Die Abnahme zeigt unter *Exchange Online wird am Eingang erkannt* die Stufe
+  und wie viele Mails am Zertifikat bzw. nur am Zertifikat erkannt wurden.
+- Der Messschalter `SMTP_CLIENTZERT_BEOBACHTEN` entfällt; ein gesetzter Wert
+  wird beim Start entfernt.
+
+**Zu tun:** nichts. Läuft dein Gateway hinter einer Firewall mit Source-NAT
+und hast du dafür die Firewall-Adresse als *vorgelagertes Gateway* oder im
+Feld *Vorgeschaltete Firewall* eingetragen, kannst du den Eintrag nach einer
+erfolgreichen Testmail wieder entfernen.
+
 ## v1.11.23 — 2026-11-11 — Wurzel für das Exchange-Client-Zertifikat: Hinweis zur Pflege
 
 - Die mitgelieferte Wurzel für das Client-Zertifikat von Exchange Online

@@ -120,17 +120,8 @@ def _altgeraete_zulassen(ctx: ssl.SSLContext) -> None:
 
 
 def _clientzert_anfordern(ctx: ssl.SSLContext) -> None:
-    """Messschalter SMTP_CLIENTZERT_BEOBACHTEN: Client-Zertifikat ANFORDERN,
-    nicht verlangen — um zu sehen, ob Exchange Online beim Einliefern eines
-    vorlegt (Hybrid-Empfangsconnectoren erkennen EXO so: TlsDomainCapabilities
-    mail.protection.outlook.com:AcceptCloudServicesMail). Bestätigt sich das,
-    könnte das Gateway Exchange am Zertifikat erkennen statt an der Quell-IP,
-    und eine Firewall mit Source-NAT bräuchte keine Einstellung mehr.
-
-    ⚠️ CERT_OPTIONAL bricht den Handshake ab, wenn eine Gegenstelle ein
-    Zertifikat vorlegt, das sich nicht gegen die CA-Liste prüfen lässt. Geräte
-    legen üblicherweise keines vor, Exchange eines einer öffentlichen CA. Wirkt
-    erst nach einem Neustart (der Kontext entsteht beim Start). Vorgabe aus.
+    """Client-Zertifikat ANFORDERN (nicht verlangen) — für die Erkennung von
+    Exchange Online am Zertifikat (exo_erkennung.py).
 
     ERGEBNIS (11.11.2026, belegt):
     * EXO legt beim Einliefern ein Client-Zertifikat vor: CN=mail.protection.
@@ -140,15 +131,14 @@ def _clientzert_anfordern(ctx: ssl.SSLContext) -> None:
       DASSELBE Zertifikat (gleiche Serial/SHA-1) und validiert es.
     * Erster Raspi-Versuch 14:22: Abbruch, weil die Wurzel DigiCert Global
       Root CA in certifi fehlt (Mozilla-Entzug), NICHT wegen des
-      Verwendungszwecks. Mit smtp_clientzert_wurzeln.pem zweiter Versuch
-      15:53: Prüfung erfolgreich, Mail zugestellt.
-    Weiter gilt: CERT_OPTIONAL bricht bei JEDER Gegenstelle mit unprüfbarem
-    Zertifikat ab — nicht für den Regelbetrieb, bis daraus ein Feature mit
-    eigener Prüfung wird.
+      Verwendungszwecks. Mit smtp_clientzert_wurzeln.pem 15:53: Prüfung
+      erfolgreich, Mail zugestellt.
+
+    ⚠️ CERT_OPTIONAL bricht den Handshake ab, wenn eine Gegenstelle ein
+    Zertifikat vorlegt, das sich nicht prüfen lässt. Dieser Kontext wird
+    deshalb nur für Verbindungen gewählt, bei denen exo_erkennung es verlangt
+    (main._LenientSMTP.smtp_STARTTLS).
     """
-    import settings_store
-    if not settings_store.get("SMTP_CLIENTZERT_BEOBACHTEN"):
-        return
     try:
         import certifi
         ctx.load_verify_locations(cafile=certifi.where())
@@ -157,8 +147,6 @@ def _clientzert_anfordern(ctx: ssl.SSLContext) -> None:
     # Die Wurzel des EXO-Client-Zertifikats fehlt in certifi (siehe Datei).
     ctx.load_verify_locations(cafile=str(Path(__file__).with_name("smtp_clientzert_wurzeln.pem")))
     ctx.verify_mode = ssl.CERT_OPTIONAL
-    log.warning("SMTP-Listener: Client-Zertifikate werden angefordert "
-                "(SMTP_CLIENTZERT_BEOBACHTEN, nur Beobachtung)")
 
 
 def clientzert_beschreibung(peercert, der: bytes | None = None) -> str:
@@ -185,7 +173,7 @@ def clientzert_beschreibung(peercert, der: bytes | None = None) -> str:
             f"Serial={peercert.get('serialNumber', '?')} SHA1={fp}")
 
 
-def baue_listener_kontext(kandidaten: list[tuple[str, str]]):
+def baue_listener_kontext(kandidaten: list[tuple[str, str]], client_zert: bool = False):
     """SSLContext für den SMTP-Listener aus einer Vorrang-Liste von (cert, key).
 
     Das ERSTE ladbare Zert ist der Default (bisheriges Verhalten). Liegen
@@ -199,7 +187,8 @@ def baue_listener_kontext(kandidaten: list[tuple[str, str]]):
             ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             _altgeraete_zulassen(ctx)
             ctx.load_cert_chain(certfile=cert, keyfile=key)
-            _clientzert_anfordern(ctx)
+            if client_zert:
+                _clientzert_anfordern(ctx)
             geladen.append((ctx, zert_namen(cert), cert))
         except Exception as exc:                          # noqa: BLE001
             log.error("Listener-Zert nicht ladbar (%s) — übersprungen: %s", cert, exc)

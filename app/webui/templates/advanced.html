@@ -1275,6 +1275,28 @@ async function saveSmtpSubmit() {
     </p>
 
     <div class="settings-row">
+      <label for="exo-erkennung">Exchange Online erkennen an</label>
+      <div class="settings-control">
+        <select id="exo-erkennung" onchange="exoErkennungSpeichern()">
+          <option value="eins"{% if (s.EXO_ERKENNUNG or 'eins') == 'eins' %} selected{% endif %}>Adresse oder Zertifikat (empfohlen)</option>
+          <option value="beide"{% if s.EXO_ERKENNUNG == 'beide' %} selected{% endif %}>Adresse und Zertifikat (streng)</option>
+          <option value="adresse"{% if s.EXO_ERKENNUNG == 'adresse' %} selected{% endif %}>nur Adresse (bisheriges Verhalten)</option>
+        </select>
+        <span id="exo-erkennung-result" style="font-size:12px;margin-left:6px"></span>
+      </div>
+    </div>
+    <p class="hint" style="margin:0 0 12px 0">
+      Exchange Online legt beim Einliefern ein Zertifikat auf
+      <code>mail.protection.outlook.com</code> vor — dasselbe, an dem ein Exchange vor Ort
+      im Hybrid-Betrieb Exchange Online erkennt. <em>Adresse oder Zertifikat</em> nimmt
+      Post an, wenn eines davon passt; damit läuft das Gateway auch hinter einer Firewall,
+      die die Absenderadresse umschreibt. Das Zertifikat wird dabei nur angefordert, wenn die
+      Adresse nicht reicht. <em>Adresse und Zertifikat</em> verlangt beides. Die
+      Tenant-Kennung wird in jeder Stufe geprüft.
+      <span id="exo-zahlen"></span>
+    </p>
+
+    <div class="settings-row">
       <label for="proxy-quellen">Vorgeschaltete Firewall (PROXY-Protokoll)</label>
       <div class="settings-control">
         <input type="text" id="proxy-quellen" placeholder="z.B. 10.99.0.1"
@@ -1322,6 +1344,10 @@ async function aclLoadStatus() {
   try {
     const d = await getJSON('/api/smtp-acl/status'); if (!d.ok) return;
     document.getElementById('acl-count').textContent = d.range_count;
+    document.getElementById('exo-zahlen').textContent = d.exo_erkannt
+      ? 'Bisher ' + d.exo_erkannt + ' Exchange-Mails angenommen, davon ' + d.exo_per_zertifikat
+        + ' mit geprüftem Zertifikat, ' + d.exo_nur_zertifikat + ' nur am Zertifikat erkannt.'
+      : '';
     document.getElementById('tenant-zahlen').textContent =
       d.tenant_ohne_kopf + ' von ' + (d.tenant_geprueft + d.tenant_ohne_kopf)
       + ' Mails ohne Kennung angenommen (seit Beginn der Zählung).';
@@ -1357,6 +1383,11 @@ async function tenantStrengToggle() {
   // Sofort-Schalter wie die Allowlist (Speicher-Linie Regel 4/5)
   await savePartial({RELAY_TENANT_STRENG: document.getElementById('tenant-streng').checked},
                     'tenant-streng-result', 'advanced:tenant');
+}
+async function exoErkennungSpeichern() {
+  // Auswahl ohne Begleitfeld: speichert sofort (Speicher-Linie Regel 4/5)
+  await savePartial({EXO_ERKENNUNG: document.getElementById('exo-erkennung').value},
+                    'exo-erkennung-result', 'advanced:exo');
 }
 async function proxyQuellenSpeichern() {
   const werte = feldWert('proxy-quellen').split(/[\s,]+/).filter(Boolean);

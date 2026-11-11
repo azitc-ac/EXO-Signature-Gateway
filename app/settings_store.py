@@ -184,9 +184,9 @@ DEFAULTS: dict = {
     # Ursprungsadresse setzen (smtp_proxy.py). Leer = aus. Nur diese Adressen
     # dürfen den Absender angeben — und müssen es dann auch.
     "SMTP_PROXY_QUELLEN": [],
-    # Messschalter: Client-Zertifikat am Port 25 anfordern (nicht verlangen) und
-    # protokollieren, wer welches vorlegt (smtp_cert._clientzert_anfordern).
-    "SMTP_CLIENTZERT_BEOBACHTEN": False,
+    # Woran Exchange Online an Port 25 erkannt wird (exo_erkennung.py):
+    # "eins" = Adresse ODER Client-Zertifikat, "beide" = beides, "adresse" = nur Adresse.
+    "EXO_ERKENNUNG": "eins",
     # ── SMTP-Relay für Geräte im eigenen Netz ────────────────────────────────
     # Drucker und Anwendungen liefern anonym ein, das Gateway reicht an Exchange
     # weiter — Ersatz für einen Exchange vor Ort. Siehe smtp_relay.py.
@@ -470,6 +470,7 @@ INTERNAL_KEYS = frozenset({
 # Oberfläche, um sie zu löschen. Wer vorher Sectigo oder SwissSign konfiguriert
 # hatte, dessen Zugangsdaten lagen weiter in der Datei.
 OBSOLETE_KEYS = {
+    "SMTP_CLIENTZERT_BEOBACHTEN":  "Messschalter der Untersuchung vom 11.11.2026 — durch EXO_ERKENNUNG ersetzt (v1.11.24), das das Client-Zertifikat nur anfordert, wo die Adresse nicht reicht",
     "WEBUI_USERNAME":              "örtliche Anmeldung nur mit Kennwort (v1.10.77) — es gibt genau ein örtliches Konto",
     "STRIP_CLIENT_SIGS":           "in STRIP_CLIENT_SIGS_MOBILE (sicher, an) und _DESKTOP (experimentell, aus) aufgeteilt (v1.8.56); Migration v2→v3 übernimmt den Wert nach _DESKTOP",
     "SMTP_ACL_EXTRA_CIDRS":        "Zusatzliste erlaubter Quellnetze — durch das SMTP-Relay ersetzt (v1.8.15), das Absender und Ziel mitprüft",

@@ -97,6 +97,13 @@ KEYS = (
     # auf 0, lässt sich RELAY_TENANT_STRENG gefahrlos einschalten.
     "tenant_geprueft",
     "tenant_ohne_kopf",
+    # Erkennung von Exchange Online am Eingang (exo_erkennung.py): zugelassene
+    # Exchange-Verbindungen (Bezugsgröße), davon mit geprüftem Client-Zertifikat,
+    # davon NUR am Zertifikat erkannt (Adresse allein hätte abgewiesen — der Fall
+    # einer Firewall mit Source-NAT).
+    "exo_erkannt",
+    "exo_per_zertifikat",
+    "exo_nur_zertifikat",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}

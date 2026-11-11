@@ -484,10 +484,19 @@ class SignatureHandler:
                                 "Einlieferung läuft weiter (weiches Limit)",
                                 _ident.get("login") or "?", _heute_n, _kont)
         elif peer_ip and not aus_relay_netz and not vorgelagert:
+            import exo_erkennung
             import smtp_acl
-            if not smtp_acl.is_allowed(peer_ip):
+            # Exchange Online an Adresse und/oder Client-Zertifikat erkennen
+            # (Stufe EXO_ERKENNUNG). Vorgabe: eins von beiden genügt — hinter
+            # einer Firewall mit Source-NAT trägt das Zertifikat.
+            _exo_ok, _exo_merkmal = exo_erkennung.pruefe(peer_ip, session)
+            if _exo_ok and not smtp_acl.is_allowed(peer_ip):
+                log.info("SMTP: %s am Client-Zertifikat als Exchange Online erkannt "
+                         "(Adresse allein nicht zugelassen)", peer_ip)
+            if not _exo_ok:
                 log.warning("SMTP: rejected connection from %s — not an allowed "
-                            "source (Exchange Online allowlist)", peer_ip)
+                            "source (Exchange Online allowlist; Merkmal: %s, Stufe %s)",
+                            peer_ip, _exo_merkmal, exo_erkennung.stufe())
                 smtp_acl.record_reject(peer_ip)
                 # Auch im übergreifenden Angriffs-Indikator vermerken (Tagesbericht
                 # + Live-Panel), nicht nur in der ACL-eigenen Liste.
