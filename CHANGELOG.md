@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.30 — 2026-11-11 — Postfächer: Spaltenbreiten der Gruppenrichtlinien
+
+- In der Tabelle *Benutzerdefinierte Richtlinien* klaffte je nach
+  Fensterbreite eine große Lücke zwischen *Gruppe* und *Betrifft*. Jetzt haben
+  *Gruppe* und *Betrifft* eine feste Breite, und der übrige Platz geht an die
+  Spalte *Vorlage*, in der auch die Add-in-Auswahl aufklappt.
+
+**Zu tun:** nichts.
+
 ## v1.11.29 — 2026-11-11 — Add-in: wählbare Vorlagen je Gruppe
 
 - Unter *Postfächer → Benutzerdefinierte Richtlinien* gibt es bei *Betrifft*
