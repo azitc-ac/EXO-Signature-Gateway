@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.21 — 2026-11-11 — Port 25: genauer Grund bei abgebrochenem TLS
+
+- Bricht ein TLS-Aufbau an Port 25 an einem Zertifikat ab, nennt die
+  Protokollzeile jetzt auch die Prüfmeldung, etwa „unable to get local issuer
+  certificate“ (Wurzel unbekannt) oder „unsuitable certificate purpose“
+  (falscher Verwendungszweck). Bisher stand dort nur
+  „SSLCertVerificationError“. Die Datei wird mit dem SMTP-Relay gemeinsam
+  gepflegt; dort gilt dieselbe Änderung.
+
+**Zu tun:** nichts.
+
 ## v1.11.20 — 2026-11-11 — Protokollzeile bei TLS-Abbruch wie zuvor
 
 - Die in v1.11.19 ergänzte Prüfmeldung in der Zeile „ohne Datenübergabe
