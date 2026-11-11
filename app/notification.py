@@ -66,6 +66,65 @@ def _get_sender() -> str | None:
     return None
 
 
+def _extern_umgeleitet(to: str) -> bool:
+    """Führt die Routing-Einstellung diesen Empfänger an Exchange vorbei
+    (Direktversand oder ein eigenes Ziel)?
+
+    Dann darf auch die Post des Gateways selbst nicht über Graph gehen: Graph
+    gibt sie in den Exchange-Transport, die Markierung lässt sie an der
+    Transportregel und damit am Gateway vorbei, und Exchange stellt sie über
+    Microsofts eigenen Ausgang zu — genau den Weg, den der Betreiber mit der
+    Route umgangen hat (im DEV-Tenant: 550 5.7.708, Absender-IP gesperrt).
+    Routing wirkt nur im smtp-Modus (reinject.send), deshalb hier dieselbe
+    Bedingung."""
+    try:
+        if settings_store.reinject_mode() != "smtp":
+            return False
+        import domain_routing
+        return domain_routing.EXO not in domain_routing.gruppiere([to])
+    except Exception as exc:                             # noqa: BLE001
+        log.warning("notification: Routing für %s nicht bestimmbar (%s) — Graph", to, exc)
+        return False
+
+
+def _mime_bauen(to: str, subject: str, html: str, reply_to: str, sender: str,
+                attachments: list[dict] | None) -> bytes:
+    import base64
+    import email.policy
+    import email.utils
+    from email.message import EmailMessage
+    m = EmailMessage(policy=email.policy.SMTP)
+    m["From"] = sender
+    m["To"] = to
+    m["Subject"] = subject
+    m["Date"] = email.utils.formatdate(usegmt=True)
+    m["Message-ID"] = email.utils.make_msgid(domain=sender.rsplit("@", 1)[-1])
+    if reply_to:
+        m["Reply-To"] = reply_to
+    m[loop_detector.header_name()] = loop_detector.marker_wert()
+    m.set_content(html, subtype="html", charset="utf-8")
+    for a in attachments or []:
+        haupt, _, unter = (a.get("type") or "application/octet-stream").partition("/")
+        m.add_attachment(base64.b64decode(a["data"]), maintype=haupt,
+                         subtype=unter or "octet-stream", filename=a["name"])
+    return m.as_bytes()
+
+
+def _ueber_route_senden(to: str, subject: str, html: str, reply_to: str, sender: str,
+                        attachments: list[dict] | None) -> bool:
+    """Gateway-eigene Post an einen umgeleiteten Empfänger: als MIME über
+    reinject.send — derselbe Weg wie jede andere ausgehende Post (Direktversand
+    signiert DKIM). Fehlschläge übernimmt die Warteschlange."""
+    try:
+        import reinject
+        reinject.send(sender, [to], _mime_bauen(to, subject, html, reply_to, sender, attachments))
+        log.info("Notification über Routing-Ziel übergeben from=%s to=%s: %s", sender, to, subject)
+        return True
+    except Exception as exc:                             # noqa: BLE001
+        log.error("notification: Versand über Routing-Ziel an %s fehlgeschlagen: %s", to, exc)
+        return False
+
+
 def _graph_send(to: str, subject: str, html: str, reply_to: str = "",
                 sender: str = "", attachments: list[dict] | None = None) -> bool:
     """
@@ -78,6 +137,8 @@ def _graph_send(to: str, subject: str, html: str, reply_to: str = "",
     ~4 MB Gesamt-Request — Aufrufer muss die Größe begrenzen).
     """
     sender = sender or _get_sender() or to
+    if _extern_umgeleitet(to):
+        return _ueber_route_senden(to, subject, html, reply_to, sender, attachments)
     token = graph_client._acquire_token()
     if not token:
         log.warning("notification: no Graph token — skipping")

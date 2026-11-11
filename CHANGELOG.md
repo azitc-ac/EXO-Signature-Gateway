@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.34 — 2026-11-11 — Benachrichtigungen an externe Empfänger folgen dem Direktversand
+
+- Gateway-eigene Mails (Portal-Benachrichtigung, Einmalcode fürs Portal und
+  alle übrigen Benachrichtigungen) gingen immer per Graph `sendMail` hinaus.
+  Graph übergibt sie an den Exchange-Transport; dank der Gateway-Markierung
+  laufen sie an der Transportregel vorbei und verlassen Exchange über
+  Microsofts eigenen Ausgang. Steht die Route für externe Empfänger auf
+  *Direktversand* oder einem eigenen Ziel, ist genau dieser Ausgang der Weg,
+  den die Route umgehen soll — ist er für den Tenant gesperrt, kam die
+  Benachrichtigung nie an (`550 5.7.708`), obwohl das Portal angelegt war.
+- Jetzt geht eine Benachrichtigung an einen Empfänger, den die Route an
+  Exchange vorbeiführt, als MIME denselben Weg wie jede andere ausgehende
+  Post (Direktversand mit DKIM-Signatur). Für alle anderen Empfänger und in
+  den Rückwegen Graph-only und Graph++ (dort wirkt Routing nicht) bleibt es
+  bei Graph.
+
+**Zu tun:** nichts.
+
 ## v1.11.33 — 2026-11-11 — Abwesenheit aus dem Kalender: wird zurückgenommen, wenn der Termin entfällt
 
 - Die Kalender-Automatik schaltete die Abwesenheit nur **ein**: Bei einem
