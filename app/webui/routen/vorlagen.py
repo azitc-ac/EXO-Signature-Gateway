@@ -99,8 +99,14 @@ def _vorlagenverweise_umbenennen(alt: str, neu: str) -> dict:
     n_cp = 0
     if isinstance(cp, list):
         for pol in cp:
-            if isinstance(pol, dict) and pol.get("template") == alt:
+            if not isinstance(pol, dict):
+                continue
+            wert = pol.get("template")
+            if wert == alt:
                 pol["template"] = neu
+                n_cp += 1
+            elif isinstance(wert, list) and alt in wert:   # Add-in-Auswahl einer Gruppe
+                pol["template"] = [neu if x == alt else x for x in wert]
                 n_cp += 1
     if n_cp:
         aenderungen["CUSTOM_POLICIES"] = cp

@@ -79,7 +79,10 @@ def _addin_cfg(email: str) -> dict:
     mb_all = settings_store.get("MAILBOX_CONFIG") or {}
     cfg = dict(mailbox_match.match_sender(mb_all, email) or {})
     if cfg.get("use_policy", True):
-        cfg["addin_templates"] = (settings_store.get("TEMPLATE_POLICIES") or {}).get("addin", "*")
+        # Gruppen-Regel „Add-in-Auswahl“ vor der globalen Freigabe (policies.addin_freigabe).
+        gruppe = policies.addin_freigabe(email, mb_all)
+        cfg["addin_templates"] = (gruppe if gruppe is not None else
+                                  (settings_store.get("TEMPLATE_POLICIES") or {}).get("addin", "*"))
     cfg["template"] = policies.vorlage_fuer(email, "sig", mb_all, cfg)
     return cfg
 

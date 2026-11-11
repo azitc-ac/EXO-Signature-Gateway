@@ -75,7 +75,10 @@ def zuweisungen_nach_art() -> dict[str, set[str]]:
             continue
         art = art_von_slot.get(pol.get("applies_to", ""))
         if art:
-            merke(pol.get("template"), art)
+            wert = pol.get("template")
+            # „Add-in-Auswahl“ trägt eine Namensliste (oder "*"), wie TEMPLATE_POLICIES["addin"].
+            for n in (wert if isinstance(wert, list) else [] if wert == "*" else [wert]):
+                merke(n, art)
 
     # 3) Postfach-Übersteuerungen: {email: {template, min_template, ...}}
     slot_feld = {

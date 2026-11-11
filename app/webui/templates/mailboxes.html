@@ -444,6 +444,12 @@ async function ankerAnwenden() {
       Benutzerdefinierte Richtlinien
       <span style="font-size:11px;font-weight:400;color:#888">(höhere Priorität · werden in Reihenfolge ausgewertet)</span>
     </div>
+    <p class="hint" style="margin:0 0 6px;max-width:640px">
+      <em>Add-in-Auswahl</em> legt fest, welche Vorlagen Mitglieder der Gruppe im
+      Outlook-Add-in wählen können. Ist jemand in mehreren solchen Gruppen, kann er
+      die Vorlagen aller dieser Gruppen wählen. Wer in keiner ist, bekommt die Auswahl
+      aus <em>Vorlagenrichtlinien → Add-in</em>.
+    </p>
     <div style="overflow-x:auto;margin-bottom:6px">
     <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:500px">
       <thead>
@@ -1605,7 +1611,7 @@ async function saveGroups() {
 
 var _customPolicies = []; // [{condition_type, group_name, applies_to, template}]
 
-var _APPLIES_TO_LABELS = {sig: 'Standardsignatur', min: 'Minimalsignatur', banner: 'Banner', disclaimer: 'Disclaimer', oof: 'Abwesenheit'};
+var _APPLIES_TO_LABELS = {sig: 'Standardsignatur', min: 'Minimalsignatur', banner: 'Banner', disclaimer: 'Disclaimer', oof: 'Abwesenheit', addin: 'Add-in-Auswahl'};
 // Welchen Vorlagentyp der jeweilige Slot zuweist — spiegelt signature_engine.SLOT_ART.
 var _SLOT_ART = {sig: 'signatur', min: 'signatur', banner: 'banner', disclaimer: 'disclaimer', oof: 'oof'};
 
@@ -1658,7 +1664,10 @@ function _renderCustomPoliciesTable() {
     appSel.style.cssText = 'font-size:12px;width:130px';
     // „Abwesenheit" nur bei eingeschalteter Funktion anbieten — eine bestehende
     // Regel dieser Art bleibt aber sichtbar (sonst kippte sie beim Speichern um).
-    ['sig','min','banner','disclaimer','oof'].filter(function(slot) {
+    // „Add-in-Auswahl“: welche Vorlagen Mitglieder der Gruppe im Knopf-Add-in
+    // wählen dürfen (Liste statt einer Vorlage; mehrere Gruppen = Vereinigung,
+    // policies.addin_freigabe).
+    ['sig','min','banner','disclaimer','oof','addin'].filter(function(slot) {
       return slot !== 'oof' || _abwesenheitAktiv || pol.applies_to === 'oof';
     }).forEach(function(slot) {
       var opt = document.createElement('option');
@@ -1667,7 +1676,15 @@ function _renderCustomPoliciesTable() {
       appSel.appendChild(opt);
     });
     appSel.addEventListener('change', function() {
+      var warAddin = _customPolicies[i].applies_to === 'addin';
       _customPolicies[i].applies_to = this.value;
+      // Wechsel zwischen Einzelvorlage und Auswahlliste: Wertart passt nicht
+      // mehr — neu belegen und die Zeile neu zeichnen.
+      if (warAddin !== (this.value === 'addin')) {
+        _customPolicies[i].template = this.value === 'addin' ? '*' : '';
+        _renderCustomPoliciesTable();
+        return;
+      }
       // „Betrifft" bestimmt die Art — Vorlagenliste danach neu filtern, den
       // aktuellen Wert als Sicherheitsnetz behalten.
       _fuelleVorlagenSelect(tplSel, _SLOT_ART[this.value] || 'signatur',
@@ -1680,10 +1697,15 @@ function _renderCustomPoliciesTable() {
     var tdTpl = document.createElement('td');
     tdTpl.style.padding = '6px 8px';
     var tplSel = document.createElement('select');
-    tplSel.style.cssText = 'font-size:12px;width:130px';
-    _fuelleVorlagenSelect(tplSel, _SLOT_ART[pol.applies_to] || 'signatur', pol.template, {mitLeer: true});
-    tplSel.addEventListener('change', function() { _customPolicies[i].template = this.value; });
-    tdTpl.appendChild(tplSel);
+    if (pol.applies_to === 'addin') {
+      tdTpl.appendChild(_addinAuswahl(Array.isArray(pol.template) ? pol.template : '*',
+                                      {idx: i, allKlasse: 'cpol-addin-all', tplKlasse: 'cpol-addin-tpl'}));
+    } else {
+      tplSel.style.cssText = 'font-size:12px;width:130px';
+      _fuelleVorlagenSelect(tplSel, _SLOT_ART[pol.applies_to] || 'signatur', pol.template, {mitLeer: true});
+      tplSel.addEventListener('change', function() { _customPolicies[i].template = this.value; });
+      tdTpl.appendChild(tplSel);
+    }
     tr.appendChild(tdTpl);
 
     // Remove button
@@ -1721,8 +1743,22 @@ async function loadCustomPolicies() {
   } catch(_) { ursache(_, 'mailboxes:1256'); }
 }
 
+// Auswahllisten der Regeln „Add-in-Auswahl“ aus den Kästchen lesen — "*" oder Namensliste.
+function _cpolAddinLesen() {
+  var tbody = document.getElementById('cpol-tbody');
+  _customPolicies.forEach(function(pol, i) {
+    if (pol.applies_to !== 'addin') return;
+    var alle = tbody.querySelector('.cpol-addin-all[data-idx="' + i + '"]');
+    if (!alle) return;
+    pol.template = alle.checked ? '*' : Array.prototype.map.call(
+      tbody.querySelectorAll('.cpol-addin-tpl[data-idx="' + i + '"]:checked'),
+      function(cb) { return cb.value; });
+  });
+}
+
 async function saveCustomPolicies() {
   var res = document.getElementById('cpol-save-result');
+  _cpolAddinLesen();
   try {
     var d = await postJSON('/api/settings/custom-policies/save', {policies: _customPolicies});
     // Farbe über die Wache, nicht über style.color — siehe saveGroups().

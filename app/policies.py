@@ -60,9 +60,51 @@ def _gruppen_overrides(sender: str, mailbox_cfg: dict) -> dict[str, str]:
             continue
         if sender_key in (groups.get(pol.get("group_name", "")) or []):
             slot = pol.get("applies_to", "")
+            if slot == "addin":
+                continue        # Auswahlliste, kein Einzelwert — addin_freigabe()
             if slot and slot not in overrides:
                 overrides[slot] = pol.get("template", "") or ""
     return overrides
+
+
+def addin_freigabe(sender: str, mailbox_cfg: dict | None = None):
+    """Welche Vorlagen darf der Absender im Knopf-Add-in wählen — laut GRUPPEN?
+
+    Gruppen-Regeln mit `applies_to == "addin"` tragen in `template` eine Liste
+    von Vorlagennamen oder "*" (alle). Ist der Absender in mehreren solchen
+    Gruppen, gilt die VEREINIGUNG (Wunsch aus einem Kundentermin, 11.11.2026:
+    drei Firmen mit eigenem Markenauftritt, je Gruppe die passenden Vorlagen).
+    Anders als bei den Einzelwert-Slots gibt es hier kein first-match-wins —
+    eine Auswahl, die von der Regelreihenfolge abhängt, wäre nicht vorhersehbar.
+
+    None = keine Gruppen-Regel greift; dann gilt die globale Freigabe
+    (TEMPLATE_POLICIES["addin"]).
+    """
+    custom = settings_store.get("CUSTOM_POLICIES") or []
+    if not custom:
+        return None
+    if mailbox_cfg is None:
+        mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    sender_key = mailbox_match.match_sender_key(mailbox_cfg, sender)
+    if not sender_key:
+        return None
+    groups = gruppen.interne_gruppen()
+    treffer = False
+    namen: list[str] = []
+    for pol in custom:
+        if (not isinstance(pol, dict) or pol.get("condition_type") != "group"
+                or pol.get("applies_to") != "addin"):
+            continue
+        if sender_key not in (groups.get(pol.get("group_name", "")) or []):
+            continue
+        treffer = True
+        wert = pol.get("template")
+        if wert == "*":
+            return "*"
+        for n in (wert if isinstance(wert, list) else []):
+            if isinstance(n, str) and n not in namen:
+                namen.append(n)
+    return namen if treffer else None
 
 
 def _norm(slot: str, wert) -> str:

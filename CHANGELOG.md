@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.29 — 2026-11-11 — Add-in: wählbare Vorlagen je Gruppe
+
+- Unter *Postfächer → Benutzerdefinierte Richtlinien* gibt es bei *Betrifft*
+  die neue Option **Add-in-Auswahl**. Damit legst du je Gruppe fest, welche
+  Vorlagen ihre Mitglieder im Outlook-Add-in wählen können, etwa je Firma die
+  Vorlagen mit dem passenden Markenauftritt. Bisher ging das nur für einzelne
+  Postfächer oder für alle.
+- Ist jemand in mehreren solchen Gruppen, kann er die Vorlagen aller dieser
+  Gruppen wählen. Wer in keiner ist, bekommt wie bisher die Auswahl aus
+  *Vorlagenrichtlinien → Add-in*. Die Standardvorlage des Postfachs bleibt immer
+  wählbar.
+- Durchgesetzt wird die Auswahl auf dem Server: Das Add-in liefert eine nicht
+  freigegebene Vorlage nicht aus. Umbenannte Vorlagen werden in den Listen
+  mitgeführt.
+
+**Zu tun:** nichts.
+
 ## v1.11.28 — 2026-11-11 — Doku: Add-in-Cache in Outlook leeren
 
 - Die Betriebsdokumentation (*Outlook-Add-in und App bereitstellen*) erklärt
