@@ -510,6 +510,22 @@ def _quell_ip_liste() -> dict:
     return _punkt(name, OK, f"{n} Exchange-Adressbereiche geladen.")
 
 
+def _csp_berichte() -> dict:
+    """Würde die geplante CSP etwas brechen? Grundlage, um sie von
+    „nur berichtend" auf „durchgesetzt" umzustellen (csp_berichte.py)."""
+    import csp_berichte
+    name = "Keine Verstöße gegen die geplante Content-Security-Policy"
+    arten = csp_berichte.liste()
+    if not arten:
+        return _punkt(name, OK, "Seit v1.11.7 hat kein Browser einen Verstoß gemeldet.")
+    beispiele = "; ".join(f"{e['direktive']} {e['quelle']} auf {e['seite']} ({e['anzahl']}×)"
+                          for e in arten[:3])
+    return _punkt(name, OFFEN,
+                  f"{len(arten)} Art(en) von Verstößen gemeldet, u. a. {beispiele}.",
+                  "Nichts zu tun für den Betrieb — die Richtlinie ist nur berichtend. "
+                  "Die Liste ist die Arbeitsgrundlage, bevor sie durchgesetzt wird.")
+
+
 def _fair_use() -> dict:
     """Mehr Postfächer aktiviert, als Lizenz oder Freigrenze erlauben?"""
     import license as _lic
@@ -668,7 +684,8 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _addin_rollen, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg,
-              _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste)
+              _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste,
+              _csp_berichte)
 
 
 def bericht() -> dict:

@@ -378,6 +378,13 @@
     "name": "api_config_import"
   },
   {
+    "pfad": "/api/csp-bericht",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_csp_bericht"
+  },
+  {
     "pfad": "/api/digicert/config",
     "methoden": [
       "GET"

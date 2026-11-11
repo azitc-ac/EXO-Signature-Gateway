@@ -103,6 +103,8 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
 
     # ── Betrieb
     "/health": "Gesundheitsprüfung für Container und Überwachung",
+    "/api/csp-bericht": "CSP-Verstoßberichte senden Browser ohne Sitzung; nur Zähler, "
+                        "begrenzt in csp_berichte.merken()",
 }
 
 

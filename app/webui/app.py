@@ -246,8 +246,25 @@ async def _sicherheits_header(request: Request, call_next):
         "https://outlook.office365.com https://*.office.com "
         # Microsoft-365-Hosts für Tabs (Doku „Extend Personal Tab to Microsoft 365"):
         "https://*.cloud.microsoft https://teams.microsoft.com "
-        "https://*.teams.microsoft.com https://*.microsoft365.com")
+        "https://*.teams.microsoft.com https://*.microsoft365.com; "
+        # Ohne Berichtsadresse meldet der Browser nichts — „keine Berichte"
+        # war dann keine Aussage (csp_berichte.py).
+        "report-uri /api/csp-bericht")
     return response
+
+
+@app.post("/api/csp-bericht")
+async def api_csp_bericht(request: Request):
+    """Verstoß gegen die (berichtende) CSP. Ohne Anmeldung: Der Browser sendet
+    die Berichte ohne Sitzung. Begrenzt in csp_berichte.merken()."""
+    import csp_berichte
+    rumpf = await request.body()
+    if len(rumpf) <= 16_384:
+        try:
+            csp_berichte.merken(_json_mod.loads(rumpf))
+        except Exception:                                  # noqa: BLE001
+            pass
+    return Response(status_code=204)
 
 
 # ── Herkunftsprüfung gegen CSRF ─────────────────────────────────────────────────

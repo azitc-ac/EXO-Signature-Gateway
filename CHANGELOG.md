@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.7 — 2026-11-11 — Content-Security-Policy: Verstöße werden gesammelt
+
+- Die Weboberfläche schickt seit Längerem eine Content-Security-Policy im
+  Modus „nur berichten“ mit, aber ohne Adresse für die Berichte. Kein Browser
+  hat deshalb je einen Verstoß gemeldet, und es ließ sich nicht sagen, was
+  die Richtlinie brechen würde, wenn man sie durchsetzt.
+- Jetzt melden Browser Verstöße an das Gateway. Es zählt sie je Art
+  (Direktive, blockierte Quelle, Seite) und speichert keine vollständigen
+  Adressen, damit dort keine Tokens landen. Die Liste ist auf 100 Arten
+  begrenzt.
+- Die Abnahme nennt die gemeldeten Arten unter *Keine Verstöße gegen die
+  geplante Content-Security-Policy*. Durchgesetzt wird die Richtlinie
+  weiterhin nicht. Die Liste ist die Grundlage dafür.
+
+**Zu tun:** nichts.
+
 ## v1.11.6 — 2026-11-11 — Abhängigkeiten mit bekannten Lücken angehoben, Prüfwerkzeuge in der CI
 
 - Vier festgenagelte Pakete hatten veröffentlichte Lücken und sind
