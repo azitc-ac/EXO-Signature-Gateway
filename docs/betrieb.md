@@ -60,8 +60,15 @@ Exchange Online (EXO) → Zustellung an Empfänger
 > beherrscht die Firewall das **PROXY-Protokoll** (v1/v2), trage ihre interne
 > Adresse unter *Einstellungen → Erweitert → SMTP-Quell-IP-Allowlist →
 > Vorgeschaltete Firewall* ein. Das Gateway prüft dann die mitgelieferte
-> Ursprungsadresse. Nimm die Firewall-Adresse **nicht** in die Geräteliste auf:
-> Über sie käme dann alles, was die Firewall an Port 25 durchlässt.
+> Ursprungsadresse. Ohne PROXY-Protokoll: die Firewall-Adresse auf der
+> Relay-Seite in die Geräteliste aufnehmen, mit der Rolle **vorgelagertes
+> Gateway**. Sie gilt dann wie der Exchange-Connector, und die
+> Herkunftsprüfung (Tenant-Kennung) bleibt wirksam. Das Gateway verlässt sich
+> damit auf die Firewall: Sie muss Port 25 nur aus Microsofts
+> Exchange-Online-Bereichen weiterleiten. Schalte zusätzlich *Post ohne
+> Tenant-Kennung abweisen* ein. **Nicht** als gewöhnliches Gerät eintragen:
+> Dann gelten die Relay-Grenzen, und eingehende Post mit fremdem Absender wird
+> abgewiesen.
 
 ### Outbound (Container → Internet)
 

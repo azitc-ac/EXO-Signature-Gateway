@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.16 — 2026-11-11 — Firewall mit Source-NAT: Weg ohne PROXY-Protokoll benannt
+
+- Doku und Hinweis unter *Erweitert* nennen jetzt den Weg für Firewalls ohne
+  PROXY-Protokoll: Trage ihre Adresse auf der Relay-Seite mit der Rolle
+  *vorgelagertes Gateway* ein. Sie gilt dann wie der Exchange-Connector, die
+  Herkunftsprüfung bleibt wirksam. Voraussetzung ist, dass die Firewall Port 25
+  nur aus Microsofts Exchange-Online-Bereichen weiterleitet. Schalte dazu
+  *Post ohne Tenant-Kennung abweisen* ein.
+- v1.11.14 riet pauschal davon ab, die Adresse in die Geräteliste aufzunehmen.
+  Das gilt nur für die Rolle *Gerät*: Dort greifen die Relay-Grenzen, und
+  eingehende Post mit fremdem Absender wird abgewiesen.
+
+**Zu tun:** nichts.
+
 ## v1.11.15 — 2026-11-11 — Erweitert: Knopf des Firewall-Felds in der üblichen Form
 
 - Der Speichern-Knopf beim Feld *Vorgeschaltete Firewall* hat jetzt dieselbe
