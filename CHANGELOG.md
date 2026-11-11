@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.9 — 2026-11-11 — Baukasten: Unterstreichung, verlinktes Logo, sortierte Postfachliste
+
+- **Unterstreichung in allen Bausteinen mit Schriftschnitt.** Bisher bot nur
+  der Freitext „Unterstrichen“ an. Jetzt haben es auch Grußformel, Name, Feld,
+  Anschrift und die Link-Bausteine (Telefon, Mobil, E-Mail, Website,
+  Buchungslink, Social Media). Der Name lässt sich außerdem kursiv setzen.
+  Bei Links liegt die Unterstreichung am Link selbst, ein Präfix wie „Tel:“
+  bleibt ohne. Beim Übernehmen einer vorhandenen Signatur wird eine
+  Unterstreichung jetzt mit übernommen.
+- **Logo mit Link.** Der Logo-Baustein hat ein optionales Feld „Link“. Ein
+  Klick aufs Logo öffnet dann das Ziel, etwa die Firmenwebseite. Erlaubt sind
+  dieselben Ziele wie im Freitext (`https://`, `http://`, `mailto:`, `tel:`)
+  oder ein Platzhalter wie `{{ user.website }}`. Ein anderes Ziel wird
+  verworfen, das Logo bleibt stehen. Beim Übernehmen einer vorhandenen
+  Signatur wurde der Link eines verlinkten Logos zwar erkannt, beim Erzeugen
+  aber nicht ausgegeben. Er bleibt jetzt erhalten.
+- **Postfachliste der Live-Vorschau alphabetisch.** Exchange liefert die
+  Postfächer in keiner verlässlichen Reihenfolge. Die Liste im
+  Signatur-Editor und auf der Vorschau-Seite ist jetzt nach Anzeigename
+  sortiert. Groß-/Kleinschreibung spielt keine Rolle, Umlaute zählen wie ihr
+  Grundbuchstabe („Özdemir“ unter O). Dieselbe Sortierung gilt für die
+  Postfachverwaltung.
+
+**Zu tun:** nichts.
+
 ## v1.11.8 — 2026-11-11 — Prüfskript: Berichtsadresse der CSP als bekannter Endpunkt
 
 - Die Routenprüfung führt die neue Berichtsadresse der Content-Security-Policy

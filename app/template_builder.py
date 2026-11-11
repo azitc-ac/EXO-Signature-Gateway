@@ -197,6 +197,17 @@ def _link_farbe(b, g) -> str:
     return _farbe(b.get("color"), g["link_color"], g)
 
 
+def _link_stil(b, g) -> str:
+    """Stil des <a>-Elements eines Link-Bausteins: Farbe und Unterstreichung.
+
+    Die Unterstreichung gehört an den Link, nicht an die Zelle — an der Zelle
+    unterstriche sie auch den Präfix („Tel:"), und ein `text-decoration:none`
+    am Link höbe sie dort nicht auf.
+    """
+    deko = "underline" if b.get("underline") else "none"
+    return f"color:{_link_farbe(b, g)};text-decoration:{deko}"
+
+
 _LAENGE_RE = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*(px|pt|em|rem|%)?\s*$", re.I)
 
 
@@ -281,6 +292,8 @@ def _greeting(b, g, pad, _ind):
         parts.append(f"font-size:{groesse}")
     if b.get("italic"):
         parts.append("font-style:italic")
+    if b.get("underline"):
+        parts.append("text-decoration:underline")
     return f'{pad}<tr><td style="{";".join(parts)}">{text}</td></tr>'
 
 
@@ -304,6 +317,8 @@ def _field(b, g, pad, _ind):
         parts.append("font-weight:bold")
     if b.get("italic"):
         parts.append("font-style:italic")
+    if b.get("underline"):
+        parts.append("text-decoration:underline")
     color = _farbe(b.get("color") or "base", g["base_color"], g)
     if color != g["base_color"]:
         parts.append(f"color:{color}")
@@ -335,13 +350,12 @@ def _phone(b, g, pad, _ind):
         return ""
     praefix, anzeige = _praefix_anzeige(
         b, "Mobil:" if b.get("type") == "mobile" else "Tel:")
-    lc = _link_farbe(b, g)
     var = "{{ " + path + " }}"
     text = _htmllib.escape(anzeige) if anzeige else var
     inner = (
         f'<tr><td style="{_zell_stil(b, g)}">'
         + (f"{_htmllib.escape(praefix)} " if praefix else "")
-        + f'<a href="tel:{var}" style="color:{lc};text-decoration:none">{text}</a>'
+        + f'<a href="tel:{var}" style="{_link_stil(b, g)}">{text}</a>'
         f'</td></tr>'
     )
     return pad + _wrap_cond(path, inner)
@@ -352,13 +366,12 @@ def _email_link(b, g, pad, _ind):
     if not path:
         return ""
     praefix, anzeige = _praefix_anzeige(b)
-    lc = _link_farbe(b, g)
     var = "{{ " + path + " }}"
     text = _htmllib.escape(anzeige) if anzeige else var
     inner = (
         f'<tr><td style="{_zell_stil(b, g)}">'
         + (f"{_htmllib.escape(praefix)} " if praefix else "")
-        + f'<a href="mailto:{var}" style="color:{lc};text-decoration:none">{text}</a>'
+        + f'<a href="mailto:{var}" style="{_link_stil(b, g)}">{text}</a>'
         f'</td></tr>'
     )
     return pad + _wrap_cond(path, inner)
@@ -369,13 +382,12 @@ def _web_link(b, g, pad, _ind):
     if not path:
         return ""
     praefix, anzeige = _praefix_anzeige(b)
-    lc = _link_farbe(b, g)
     var = "{{ " + path + " }}"
     text = _htmllib.escape(anzeige) if anzeige else var
     inner = (
         f'<tr><td style="{_zell_stil(b, g)}">'
         + (f"{_htmllib.escape(praefix)} " if praefix else "")
-        + f'<a href="{var}" style="color:{lc};text-decoration:none">{text}</a>'
+        + f'<a href="{var}" style="{_link_stil(b, g)}">{text}</a>'
         f'</td></tr>'
     )
     return pad + _wrap_cond(path, inner)
@@ -395,23 +407,29 @@ def _logo(b, _g, pad, _ind):
     alt = b.get("alt")
     alt_html = (_htmllib.escape(alt) if alt is not None
                 else "{{ user.companyName }}")
-    return (
-        f'{pad}<tr><td style="padding:0">'
-        f'<img src="{url}" width="{width}" alt="{alt_html}"'
-        f' style="display:block;max-width:{width}px">'
-        f'</td></tr>'
-    )
+    bild = (f'<img src="{url}" width="{width}" alt="{alt_html}"'
+            f' style="display:block;max-width:{width}px;border:0">')
+    # Optionaler Link: Ein Klick aufs Logo führt zum Ziel. Dieselbe
+    # Erlaubnisliste wie im Textbaustein (`_ERLAUBTE_ZIELE`), dazu EIN
+    # Platzhalter wie `{{ user.website }}`. Ein unbrauchbares Ziel lässt nur
+    # den Link fallen, nicht das Bild. `border:0`: ältere Outlook-Fassungen
+    # rahmen verlinkte Bilder sonst blau. Der Import (`template_parser._als_logo`)
+    # liefert `link` schon seit Langem — bis hierher fiel er beim Rendern weg.
+    ziel = (b.get("link") or "").strip()
+    if ziel and (ziel.lower().startswith(_ERLAUBTE_ZIELE) or _AUS_PLATZHALTER.match(ziel)):
+        bild = (f'<a href="{_htmllib.escape(ziel, quote=True)}"'
+                f' style="text-decoration:none">{bild}</a>')
+    return f'{pad}<tr><td style="padding:0">{bild}</td></tr>'
 
 
 def _booking_link(b, g, pad, _ind):
     praefix, anzeige = _praefix_anzeige(b)
-    lc = _link_farbe(b, g)
     var = "{{ user.bookingsUrl }}"
     text = _htmllib.escape(anzeige or "Termin buchen")
     inner = (
         f'<tr><td style="{_zell_stil(b, g)}">'
         + (f"{_htmllib.escape(praefix)} " if praefix else "")
-        + f'<a href="{var}" style="color:{lc};text-decoration:none">{text}</a>'
+        + f'<a href="{var}" style="{_link_stil(b, g)}">{text}</a>'
         f'</td></tr>'
     )
     return pad + _wrap_cond("user.bookingsUrl", inner)
@@ -424,11 +442,10 @@ def _social(b, g, pad, _ind):
     platform = (b.get("platform") or "").strip()
     praefix, anzeige = _praefix_anzeige(b)
     text = _htmllib.escape(anzeige or platform or "Link")
-    lc = _link_farbe(b, g)
     return (
         f'{pad}<tr><td style="{_zell_stil(b, g)}">'
         + (f"{_htmllib.escape(praefix)} " if praefix else "")
-        + f'<a href="{url}" style="color:{lc};text-decoration:none">{text}</a>'
+        + f'<a href="{url}" style="{_link_stil(b, g)}">{text}</a>'
         f'</td></tr>'
     )
 
@@ -576,6 +593,8 @@ def _anschrift(b, g, pad, _ind):
     """
     farbe = _farbe(b.get("color") or "base", g["base_color"], g)
     extra = [f"color:{farbe}"] if farbe != g["base_color"] else []
+    if b.get("underline"):
+        extra.append("text-decoration:underline")
     stil = _zell_stil(b, g, extra)
 
     return "\n".join(

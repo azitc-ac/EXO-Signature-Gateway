@@ -160,7 +160,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "health_checks": h.get("checks", {}),
                 "bookings_url": bookings_map.get(cemail, ""),
             })
-    result.sort(key=lambda r: (r.get("name") or r["email"]).lower())
+    result.sort(key=lambda r: _namens_schluessel(r.get("name") or r["email"]))
     return {"mailboxes": result}
 
 
@@ -177,9 +177,24 @@ async def api_mailbox_namen(_=Depends(_check_auth)):
     import asyncio
     import exo_mailboxes
     raw = await asyncio.to_thread(exo_mailboxes.list_mailboxes)
-    return JSONResponse({"mailboxes": [
-        {"email": m["primary"], "name": m.get("display_name") or m["primary"]}
-        for m in raw if m.get("primary")]})
+    liste = [{"email": m["primary"], "name": m.get("display_name") or m["primary"]}
+             for m in raw if m.get("primary")]
+    # Alphabetisch nach Anzeigename: EXO liefert in keiner verlässlichen
+    # Reihenfolge, und beide Auswahllisten (Editor, Vorschau) zeigen den Namen vorn.
+    liste.sort(key=lambda m: _namens_schluessel(m["name"]))
+    return JSONResponse({"mailboxes": liste})
+
+
+def _namens_schluessel(name: str) -> str:
+    """Sortierschlüssel für Namen: ohne Groß-/Kleinschreibung und Akzente.
+
+    Mit bloßem `.lower()` landete „Özdemir" hinter „Zander" — `ö` liegt im
+    Zeichensatz nach `z`. Zerlegt (NFKD) und ohne Kombinationszeichen sortiert
+    es als „Ozdemir", wie im Telefonbuch.
+    """
+    import unicodedata
+    zerlegt = unicodedata.normalize("NFKD", name or "")
+    return "".join(z for z in zerlegt if not unicodedata.combining(z)).casefold()
 
 
 @router.get("/api/mailboxes/migrate/preview")

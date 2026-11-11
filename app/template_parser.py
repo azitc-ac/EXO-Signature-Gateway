@@ -645,6 +645,8 @@ def _block_aus_zelle(td: Knoten, erster: bool, oberste_ebene: bool = True) -> di
             b["bold"] = True
         if "font-style:italic" in stil:
             b["italic"] = True
+        if "text-decoration:underline" in stil:
+            b["underline"] = True
         return b
     # Fettung, Kursivstellung und Links lassen sich als Auszeichnung
     # ausdruecken — derselbe Weg wie bei gesammeltem Fliesstext.

@@ -7,7 +7,7 @@
 - **Volles HTML** über Jinja2-Vorlagen — ohne die Grenzen der EXO-Transportregeln.
 - **Signatur-Baukasten** — Signaturen aus Bausteinen zusammensetzen (Name, Kontaktzeilen, Logo, Trennlinie, Zwei-Spalten, Kasten mit runden Ecken, Social-Links, Anschrift, Badge, freies HTML) mit Live-Vorschau in der Weboberfläche.
 - **HTML → Baukasten (Rück-Konvertierung)** — bestehendes Signatur-HTML wird in bearbeitbare Bausteine zerlegt: eine vorhandene Signatur übernehmen statt neu bauen.
-- **Eingebettete Logos** — hochgeladene Bilder werden als Base64-Data-URI eingebettet (kein externes Hotlinking; rendert in Outlook und offline).
+- **Eingebettete Logos** — hochgeladene Bilder werden als Base64-Data-URI eingebettet (kein externes Hotlinking; rendert in Outlook und offline). Optional mit Link: Ein Klick aufs Logo öffnet z. B. die Firmenwebseite.
 - **Banner & Disclaimer** — eigene Banner- und Disclaimer-Vorlagen, unabhängig von der Signatur zuweisbar. Sie kommen immer vom Gateway beim Versand, auch wenn die Signatur schon beim Verfassen eingefügt wurde.
 - **`#nosig` im Betreff** — die Mail geht ohne Signatur hinaus; einstellbar, ob Banner und/oder Disclaimer trotzdem bleiben. Dasselbe lässt sich für Antworten in einer schon signierten Kette festlegen.
 
