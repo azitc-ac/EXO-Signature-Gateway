@@ -331,7 +331,14 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         _txt = f"{_aktiv} von {_n} Postfächern mit zentralem Text"
         _col = ""
         if _kz:
-            _txt += f" · kein Zugriff auf {_kz} (MailboxSettings-Consent fehlt)"
+            # Ursache je Postfach aus dem Graph-Fehlertext (abwesenheit.zugriff_stand):
+            # Zugriffsrichtlinie der App (nach Freigabe bis 2 h normal) oder fehlende Zustimmung.
+            _zs = _abw.zugriff_stand()
+            _r = sum(e["grund"] == _abw.RICHTLINIE for e in _zs)
+            _z = sum(e["grund"] == _abw.ZUSTIMMUNG for e in _zs)
+            _teile = ([f"{_r} durch die Zugriffsrichtlinie der App"] if _r else []) + \
+                     ([f"{_z} ohne Berechtigung MailboxSettings.ReadWrite"] if _z else [])
+            _txt += f" · kein Zugriff auf {_kz}" + (f" ({', '.join(_teile)})" if _teile else "")
             _col = "#e74c3c"
         ooo_row = _row("Zentrale Abwesenheit", _txt, _col)
 

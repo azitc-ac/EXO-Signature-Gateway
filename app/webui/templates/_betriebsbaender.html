@@ -85,6 +85,23 @@
   <a href="/advanced#quell-ip" style="color:#991b1b;font-weight:700;margin-left:auto">Zur Quell-IP-Prüfung</a>
 </div>
 {% endif %}
+{# Abwesenheit: seit über 2 h kein Zugriff auf Postfächer. Die ersten 2 h sind
+   nach einer Freigabe normal (Zwischenspeicher bei Microsoft) — dann kein Band. #}
+{% set _ooo_zg = ooo_zugriff_gemeldet() %}
+{% if _ooo_zg %}
+<div id="ooo-zugriff-banner"
+     style="background:#fffbeb;border-bottom:2px solid #fcd34d;padding:9px 16px;
+            font-size:13px;color:#92400e;display:flex;gap:10px;
+            align-items:center;flex-wrap:wrap">
+  <strong>Abwesenheit: kein Zugriff auf {{ _ooo_zg.anzahl }} Postfach{{ '' if _ooo_zg.anzahl == 1 else 'fächer' }}</strong>
+  <span>{{ _ooo_zg.postfaecher | join(', ') }}{% if _ooo_zg.anzahl > 3 %} …{% endif %} — seit über 2 Stunden.
+    {% if _ooo_zg.richtlinie %}Die Zugriffsrichtlinie der Gateway-App sperrt
+    {{ 'es' if _ooo_zg.richtlinie == 1 else 'sie' }}: Speichere unter Postfächer, damit das Gateway
+    {{ 'es' if _ooo_zg.richtlinie == 1 else 'sie' }} in die Gruppe „{{ _ooo_zg.gruppe }}“ einträgt.{% endif %}
+    {% if _ooo_zg.zustimmung %}Die Berechtigung MailboxSettings.ReadWrite fehlt (Admin-Zustimmung).{% endif %}</span>
+  <a href="/abwesenheit" style="color:#92400e;font-weight:700;margin-left:auto">Zur Abwesenheit</a>
+</div>
+{% endif %}
 {% set _waechter = waechter_gemeldet() %}
 {% if _waechter %}
 <div id="waechter-banner"

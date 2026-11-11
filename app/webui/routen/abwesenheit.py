@@ -146,6 +146,7 @@ async def api_abwesenheit_postfach(email: str, _user: str = Depends(_require_adm
                 daten["ooo"]["ende_zeit"] = ez or "17:00"
         elif status_lese == "kein_zugriff":
             daten["zugriff"] = False
+            daten["zugriff_meldung"] = abwesenheit.zugriff_meldung(email)
     else:
         daten["zugriff"] = False
     return JSONResponse(daten)
@@ -195,7 +196,7 @@ async def api_abwesenheit_postfach_setzen(request: Request, _user: str = Depends
         raise HTTPException(503, "Kein Graph-Zugriff möglich.")
     status_lese, setting = await abwesenheit._get_setting(email, token)
     if status_lese == "kein_zugriff":
-        raise HTTPException(403, "Kein Zugriff auf die Postfacheinstellungen (Consent fehlt).")
+        raise HTTPException(403, abwesenheit.zugriff_meldung(email))
     if status_lese != "ok" or setting is None:
         raise HTTPException(502, "Postfacheinstellungen nicht lesbar.")
 

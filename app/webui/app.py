@@ -486,6 +486,13 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "gesamt": _ol.get("gesamt", 0),
             "kein_zugriff": _ol.get("kein_zugriff", 0),
         }
+        _zs = _abw.zugriff_stand()
+        ooo_status.update({
+            "richtlinie_neu": sum(e["grund"] == _abw.RICHTLINIE and not e["lange"] for e in _zs),
+            "richtlinie_lange": sum(e["grund"] == _abw.RICHTLINIE and e["lange"] for e in _zs),
+            "zustimmung": sum(e["grund"] == _abw.ZUSTIMMUNG for e in _zs),
+            "geduld_h": _abw.ZUGRIFF_GEDULD_STUNDEN,
+        })
     signing_certs = _smime_store.list_certs()
     warn_days = int(settings_store.get("CERT_WARN_DAYS") or 14)
     # Nur eigene Signatur-Zertifikate im Störer — Partner-Zertifikate

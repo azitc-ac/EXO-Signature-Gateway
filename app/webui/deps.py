@@ -198,6 +198,18 @@ def _exo_abgewiesen_gemeldet() -> dict | None:
 
 templates.env.globals["exo_abgewiesen_gemeldet"] = _exo_abgewiesen_gemeldet
 
+
+def _ooo_zugriff_gemeldet() -> dict | None:
+    """Abwesenheit: seit über 2 h kein Zugriff auf Postfächer (abwesenheit.zugriff_gemeldet)."""
+    try:
+        import abwesenheit
+        return abwesenheit.zugriff_gemeldet()
+    except Exception:                                       # noqa: BLE001
+        return None
+
+
+templates.env.globals["ooo_zugriff_gemeldet"] = _ooo_zugriff_gemeldet
+
 # Der Wächter meldet sich alle 5 Minuten; nach 15 gilt er als verstummt.
 WAECHTER_STILL_MIN = 15
 

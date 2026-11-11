@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.32 — 2026-11-11 — Abwesenheit: richtige Ursache bei fehlendem Zugriff, Band erst nach 2 Stunden
+
+- Konnte das Gateway die Abwesenheit eines Postfachs nicht lesen, hieß es
+  überall „MailboxSettings.ReadWrite ist nicht per Admin-Consent erteilt“. Das
+  war geraten. Häufig sperrt stattdessen die **Zugriffsrichtlinie der
+  Gateway-App** das Postfach (Graph meldet `[RAOP] … AppOnly AccessPolicy`),
+  etwa gleich nach dem Aktivieren eines neuen Postfachs. Das Gateway trägt es
+  dann zwar in die Gruppe *… - App Scope* ein, Microsoft übernimmt die Freigabe
+  aber erst nach bis zu 2 Stunden.
+- Jetzt liest das Gateway die Ursache aus der Antwort von Graph. Übersicht,
+  Bearbeiten-Fenster, Self-Service und Tagesbericht nennen sie richtig. Eine
+  frische Freigabe gilt als normaler Übergang und nicht als Warnung.
+- Neues Band **Abwesenheit: kein Zugriff auf … Postfach**, wenn der Zugriff
+  länger als 2 Stunden fehlt, mit Postfach, Ursache und Abhilfe.
+
+**Zu tun:** nichts.
+
 ## v1.11.31 — 2026-11-11 — Warnband, wenn eigene Exchange-Post abgewiesen wird
 
 - Neues Band auf jeder Verwaltungsseite: **Post aus deinem Exchange Online

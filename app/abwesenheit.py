@@ -56,7 +56,7 @@ _GRAPH = "https://graph.microsoft.com/v1.0"
 GESETZT = "gesetzt"
 UNVERAENDERT = "unveraendert"
 KEINE_VORLAGE = "keine_vorlage"  # dem Postfach ist keine oof-Vorlage zugewiesen
-KEIN_ZUGRIFF = "kein_zugriff"  # 403 — Consent fehlt
+KEIN_ZUGRIFF = "kein_zugriff"  # 403 — Ursache: zugriff_ursache() (Richtlinie oder Zustimmung)
 FEHLER = "fehler"
 
 _STATE_KEY = "_OOO_STATE"       # {mailbox_key: {"intern": <kanonisch>, "extern": <kanonisch>}}
@@ -441,6 +441,119 @@ def _oof_anhang(user_data, sender: str, mailbox_cfg: dict, sender_cfg: dict) -> 
     return "".join(parts_html), "\n".join(parts_txt)
 
 
+# ── Kein Zugriff: Ursache und Dauer ───────────────────────────────────────────
+# ANLASS (11.11.2026): Nach dem Aktivieren eines Shared Mailbox meldete die
+# Übersicht „MailboxSettings.ReadWrite ist nicht per Admin-Consent erteilt“. Das
+# war geraten und falsch: Graph antwortete `ErrorAccessDenied … [RAOP] : Blocked
+# by tenant configured AppOnly AccessPolicy settings`. Das Gateway hatte das
+# Postfach korrekt in die Scope-Gruppe der App eingetragen (Test-Application-
+# AccessPolicy: Granted), Graph hält App-Berechtigungen aber 30 Minuten bis
+# 2 Stunden im Zwischenspeicher (Microsoft, „RBAC for Applications“, Limitations).
+# Deshalb: Ursache aus dem Fehlertext, und erst nach ZUGRIFF_GEDULD_STUNDEN als
+# Band (webui/deps.py) — vorher ist es der normale Übergang.
+ZUGRIFF_GEDULD_STUNDEN = 2
+RICHTLINIE = "richtlinie"      # Zugriffsrichtlinie der App (Scope-Gruppe)
+ZUSTIMMUNG = "zustimmung"      # Berechtigung fehlt (Admin-Zustimmung)
+
+
+def _zugriff_datei():
+    from pathlib import Path
+    return Path(config.DATA_DIR) / "ooo_kein_zugriff.json"
+
+
+def _zugriff_laden() -> dict:
+    import json
+    try:
+        d = json.loads(_zugriff_datei().read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _zugriff_schreiben(d: dict) -> None:
+    import json
+    ziel = _zugriff_datei()
+    try:
+        ziel.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ziel.with_suffix(".tmp")
+        tmp.write_text(json.dumps(d), encoding="utf-8")
+        tmp.chmod(0o600)
+        tmp.replace(ziel)
+    except OSError as exc:
+        log.warning("Zugriffsstand der Abwesenheit nicht gespeichert: %s", exc)
+
+
+def zugriff_ursache(fehlertext: str) -> str:
+    t = fehlertext or ""
+    return RICHTLINIE if ("RAOP" in t or "AccessPolicy" in t) else ZUSTIMMUNG
+
+
+def _zugriff_merken(upn: str, fehlertext: str) -> None:
+    from datetime import datetime, timezone
+    grund = zugriff_ursache(fehlertext)
+    d = _zugriff_laden()
+    e = d.get(upn.lower())
+    if e and e.get("grund") == grund:
+        return                                   # „seit" bleibt stehen
+    d[upn.lower()] = {"seit": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                      "grund": grund}
+    _zugriff_schreiben(d)
+
+
+def _zugriff_ok(upn: str) -> None:
+    d = _zugriff_laden()
+    if upn.lower() in d:
+        del d[upn.lower()]
+        _zugriff_schreiben(d)
+
+
+def zugriff_stand() -> list[dict]:
+    """[{upn, grund, seit, stunden, lange}] der aktiven Postfächer ohne Zugriff."""
+    from datetime import datetime, timezone
+    aktiv = {u.lower() for u, _c in _aktive_postfaecher(settings_store.get("MAILBOX_CONFIG") or {})}
+    jetzt = datetime.now(timezone.utc)
+    stand = []
+    for upn, e in sorted(_zugriff_laden().items()):
+        if upn not in aktiv or not isinstance(e, dict):
+            continue
+        try:
+            stunden = (jetzt - datetime.fromisoformat(e.get("seit", ""))).total_seconds() / 3600
+        except ValueError:
+            stunden = 0.0
+        stand.append({"upn": upn, "grund": e.get("grund", ZUSTIMMUNG), "seit": e.get("seit", ""),
+                      "stunden": round(stunden, 1),
+                      "lange": stunden >= ZUGRIFF_GEDULD_STUNDEN})
+    return stand
+
+
+def zugriff_meldung(upn: str) -> str:
+    """Kurzer Text für eine 403 beim Lesen/Speichern — nach der erkannten Ursache.
+    EINE Quelle für Admin-Seite und Self-Service (bis v1.11.31 stand dort fest
+    „Consent fehlt“, auch wenn es die Zugriffsrichtlinie war)."""
+    e = _zugriff_laden().get(upn.lower()) or {}
+    if e.get("grund") == RICHTLINIE:
+        return ("Kein Zugriff auf die Postfacheinstellungen: Die Zugriffsrichtlinie der "
+                "Gateway-App sperrt dieses Postfach. Nach einer neuen Freigabe dauert es bei "
+                "Microsoft bis zu 2 Stunden, bis sie wirkt.")
+    return ("Kein Zugriff auf die Postfacheinstellungen: Die Berechtigung "
+            "MailboxSettings.ReadWrite fehlt (Admin-Zustimmung).")
+
+
+def zugriff_gemeldet() -> dict | None:
+    """Für das Band: Postfächer, auf die seit mindestens ZUGRIFF_GEDULD_STUNDEN
+    kein Zugriff besteht — {anzahl, postfaecher, richtlinie, zustimmung} oder None."""
+    if not zentral_aktiv():
+        return None
+    lange = [e for e in zugriff_stand() if e["lange"]]
+    if not lange:
+        return None
+    # Derselbe Name wie setup_wizard.run_app_access_policy_sync ihn vergibt.
+    gruppe = f"{settings_store.get('GATEWAY_NAME') or 'EXO Signature Gateway'} - App Scope"
+    return {"anzahl": len(lange), "postfaecher": [e["upn"] for e in lange[:3]], "gruppe": gruppe,
+            "richtlinie": sum(e["grund"] == RICHTLINIE for e in lange),
+            "zustimmung": sum(e["grund"] == ZUSTIMMUNG for e in lange)}
+
+
 # ── Graph: lesen / schreiben ──────────────────────────────────────────────────
 
 async def _get_setting(upn: str, token: str) -> tuple[str, dict | None]:
@@ -450,8 +563,10 @@ async def _get_setting(upn: str, token: str) -> tuple[str, dict | None]:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
         if resp.status_code == 403:
+            _zugriff_merken(upn, resp.text)
             return "kein_zugriff", None
         resp.raise_for_status()
+        _zugriff_ok(upn)
         return "ok", resp.json()
     except Exception as exc:                                       # noqa: BLE001
         log.warning("OOO lesen für %s fehlgeschlagen: %s", upn, exc)
@@ -529,7 +644,9 @@ async def _kalender_oof_events(upn: str, token: str) -> list[dict]:
                 "Authorization": f"Bearer {token}",
                 "Prefer": 'outlook.timezone="UTC"'})   # → start/end kommen in UTC
         if resp.status_code == 403:
-            log.warning("OOO-Kalender: kein Zugriff auf %s (Calendars.Read-Consent fehlt)", upn)
+            grund = ("Zugriffsrichtlinie der App" if zugriff_ursache(resp.text) == RICHTLINIE
+                     else "Berechtigung Calendars.Read fehlt")
+            log.warning("OOO-Kalender: kein Zugriff auf %s (%s)", upn, grund)
             return []
         resp.raise_for_status()
         events = resp.json().get("value", [])
@@ -1052,8 +1169,11 @@ async def poll_alle(kalender_frisch: bool = False) -> dict:
         _state_speichern(state)
 
     if zaehlung[KEIN_ZUGRIFF]:
-        log.warning("OOO: %d von %d Postfächern ohne Zugriff (MailboxSettings.ReadWrite — "
-                    "Admin-Consent fehlt)", zaehlung[KEIN_ZUGRIFF], zaehlung_gesamt)
+        _stand = zugriff_stand()
+        log.warning("OOO: %d von %d Postfächern ohne Zugriff (%d Zugriffsrichtlinie der App, "
+                    "%d fehlende Berechtigung)", zaehlung[KEIN_ZUGRIFF], zaehlung_gesamt,
+                    sum(e["grund"] == RICHTLINIE for e in _stand),
+                    sum(e["grund"] == ZUSTIMMUNG for e in _stand))
     log.info("OOO-Poll: von %d Postfächern %d Text gesetzt, %d unverändert, "
              "%d ohne Vorlage, %d kein Zugriff, %d Fehler",
              zaehlung_gesamt, zaehlung[GESETZT], zaehlung[UNVERAENDERT],

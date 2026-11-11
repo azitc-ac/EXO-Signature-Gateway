@@ -448,7 +448,7 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
         raise HTTPException(503, "Kein Graph-Zugriff möglich.")
     status_lese, setting = await abwesenheit._get_setting(email, token)
     if status_lese == "kein_zugriff":
-        raise HTTPException(403, "Kein Zugriff auf die Postfacheinstellungen (Consent fehlt).")
+        raise HTTPException(403, abwesenheit.zugriff_meldung(email))
     if status_lese != "ok" or setting is None:
         raise HTTPException(502, "Postfacheinstellungen nicht lesbar.")
 

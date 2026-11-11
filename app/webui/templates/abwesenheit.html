@@ -197,7 +197,7 @@
     <p class="muted" id="abm-sub" style="margin-top:0;font-size:12px"></p>
 
     <div id="abm-kein-zugriff" class="alert warn" style="display:none">
-      Kein Zugriff auf die Postfacheinstellungen (MailboxSettings-Consent fehlt).
+      Kein Zugriff auf die Postfacheinstellungen.
     </div>
 
     <div id="abm-body">
@@ -411,6 +411,8 @@ async function abOeffne(i) {
   var d = await getJSON('/api/abwesenheit/postfach?email=' + encodeURIComponent(it.upn));
   if (!d.ok) { abm('abm-result').textContent = 'Fehler beim Laden: ' + errText(d); return; }
   abm('abm-kein-zugriff').style.display = d.zugriff === false ? 'block' : 'none';
+  // Ursache vom Server (abwesenheit.zugriff_meldung) — Richtlinie oder Zustimmung.
+  if (d.zugriff === false && d.zugriff_meldung) abm('abm-kein-zugriff').textContent = d.zugriff_meldung;
   abm('abm-body').style.opacity = d.zugriff === false ? '0.5' : '1';
   var st = (d.ooo && d.ooo.status) || 'disabled';
   var rb = document.querySelector('input[name=abm-status][value="' + st + '"]'); if (rb) rb.checked = true;

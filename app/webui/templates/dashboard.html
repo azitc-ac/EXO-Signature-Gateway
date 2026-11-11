@@ -42,13 +42,25 @@ function dismissWelcome() {
 {% endif %}
 
 {% if ooo_status %}
-<div class="alert {{ 'warn' if ooo_status.kein_zugriff else '' }}" style="margin-bottom:20px">
+{# Ursache aus dem Graph-Fehlertext (abwesenheit.zugriff_ursache). Eine frisch
+   freigegebene Zugriffsrichtlinie ist der normale Übergang (bis zu 2 h
+   Zwischenspeicher bei Microsoft) — kein Warnzustand. #}
+<div class="alert {{ 'warn' if (ooo_status.richtlinie_lange or ooo_status.zustimmung) else '' }}" style="margin-bottom:20px">
   <strong>Zentrale Abwesenheit:</strong>
   {{ ooo_status.aktiv }} von {{ ooo_status.gesamt }} Postfächern mit zentralem Text hinterlegt.
-  {% if ooo_status.kein_zugriff %}
-  Kein Zugriff auf {{ ooo_status.kein_zugriff }} Postfach(e) — die Berechtigung
-  <code>MailboxSettings.ReadWrite</code> ist nicht per Admin-Consent erteilt; bis
-  dahin bleibt die Notiz dort unverändert.
+  {% if ooo_status.richtlinie_neu %}
+  {{ ooo_status.richtlinie_neu }} Postfach{{ '' if ooo_status.richtlinie_neu == 1 else 'fächer' }}
+  neu freigegeben: Microsoft übernimmt die Freigabe für die Gateway-App innerhalb von bis zu
+  {{ ooo_status.geduld_h }} Stunden, bis dahin bleibt die Notiz dort unverändert.
+  {% endif %}
+  {% if ooo_status.richtlinie_lange %}
+  Auf {{ ooo_status.richtlinie_lange }} Postfach{{ '' if ooo_status.richtlinie_lange == 1 else 'fächer' }}
+  sperrt die Zugriffsrichtlinie der Gateway-App seit über {{ ooo_status.geduld_h }} Stunden den Zugriff.
+  <a href="/abwesenheit">Prüfen</a>
+  {% endif %}
+  {% if ooo_status.zustimmung %}
+  Kein Zugriff auf {{ ooo_status.zustimmung }} Postfach{{ '' if ooo_status.zustimmung == 1 else 'fächer' }}:
+  Die Berechtigung <code>MailboxSettings.ReadWrite</code> fehlt (Admin-Zustimmung).
   <a href="/abwesenheit#ooo-einstellungen">Prüfen und beheben</a>
   {% endif %}
 </div>
