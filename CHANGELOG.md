@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.35 — 2026-11-11 — Benachrichtigungen im Direktversand mit Textfassung
+
+- Benachrichtigungen, die seit v1.11.34 über den Direktversand gehen, bestanden
+  nur aus einem HTML-Teil. Sie tragen jetzt zusätzlich eine Textfassung
+  (`multipart/alternative`), wie es jedes Mailprogramm schickt. Reines HTML
+  ohne Textteil ist ein verbreitetes Merkmal, an dem Spamfilter ansetzen. Die
+  Links stehen in der Textfassung ausgeschrieben.
+
+**Zu tun:** nichts.
+
 ## v1.11.34 — 2026-11-11 — Benachrichtigungen an externe Empfänger folgen dem Direktversand
 
 - Gateway-eigene Mails (Portal-Benachrichtigung, Einmalcode fürs Portal und

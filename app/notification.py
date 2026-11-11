@@ -102,7 +102,11 @@ def _mime_bauen(to: str, subject: str, html: str, reply_to: str, sender: str,
     if reply_to:
         m["Reply-To"] = reply_to
     m[loop_detector.header_name()] = loop_detector.marker_wert()
-    m.set_content(html, subtype="html", charset="utf-8")
+    # Textfassung + HTML als multipart/alternative, wie jedes Mailprogramm es
+    # schickt. Reines HTML ohne Textteil ist ein verbreitetes Spam-Merkmal.
+    import signature_engine
+    m.set_content(signature_engine.html_zu_text(html).strip() + "\n", charset="utf-8")
+    m.add_alternative(html, subtype="html", charset="utf-8")
     for a in attachments or []:
         haupt, _, unter = (a.get("type") or "application/octet-stream").partition("/")
         m.add_attachment(base64.b64decode(a["data"]), maintype=haupt,

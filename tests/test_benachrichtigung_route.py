@@ -55,6 +55,11 @@ def test_umgeleiteter_empfaenger_geht_ueber_reinject(monkeypatch, umgebung):
     assert m["Reply-To"] == "r@firma.example" and m["Subject"] == "Betreff ä"
     assert m["Message-ID"] and m["Date"]
     assert "<p>Hallo</p>" in m.get_body(("html",)).get_content()
+    # Textfassung daneben (multipart/alternative), nicht nur HTML
+    text = m.get_body(("plain",))
+    assert text is not None and text.get_content().strip() == "Hallo"
+    alt = [t for t in m.walk() if t.get_content_type() == "multipart/alternative"]
+    assert len(alt) == 1
     teile = list(m.iter_attachments())
     assert [t.get_filename() for t in teile] == ["a.txt"]
     assert teile[0].get_content() == "Inhalt"
