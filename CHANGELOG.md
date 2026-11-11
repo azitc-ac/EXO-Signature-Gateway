@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.22 — 2026-11-11 — Client-Zertifikat von Exchange Online: Ergebnis korrigiert
+
+- Die Aussage aus v1.11.18 („nur für Server ausgestellt“) ist widerlegt.
+  Exchange Online legt beim Einliefern ein Client-Zertifikat aus der
+  DigiCert-Kette vor, dasselbe wie einem Exchange vor Ort mit
+  Hybrid-Connector. Der erste Versuch scheiterte an der fehlenden Wurzel
+  „DigiCert Global Root CA“. Mit ihr ist die Prüfung erfolgreich.
+- Der Messschalter `SMTP_CLIENTZERT_BEOBACHTEN` bleibt aus und gehört
+  weiterhin nicht in den Regelbetrieb.
+
+**Zu tun:** nichts.
+
 ## v1.11.21 — 2026-11-11 — Port 25: genauer Grund bei abgebrochenem TLS
 
 - Bricht ein TLS-Aufbau an Port 25 an einem Zertifikat ab, nennt die

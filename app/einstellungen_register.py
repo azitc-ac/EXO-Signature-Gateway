@@ -218,10 +218,11 @@ REGISTER: dict[str, E] = {
               "Einliefern ein Client-Zertifikat vor? Nur Protokoll, keine "
               "Entscheidung. Bewusst nicht in der Oberfläche — er kann einen "
               "TLS-Aufbau mit unprüfbarem Zertifikat scheitern lassen und gehört "
-              "nicht in den Regelbetrieb. Ergebnis (11.11.2026): EXO legt ein "
-              "Zertifikat vor, das nur für Server ausgestellt ist; die "
-              "Standardprüfung lehnt es ab und bricht die Zustellung ab. Nicht "
-              "einschalten (smtp_cert._clientzert_anfordern)."),
+              "nicht in den Regelbetrieb. Ergebnis (11.11.2026): EXO legt "
+              "dasselbe Client-Zertifikat vor wie dem Hybrid-Empfang von "
+              "Exchange vor Ort; mit der DigiCert-Wurzel prüfbar. Nicht für den "
+              "Regelbetrieb: bricht bei Gegenstellen mit unprüfbarem Zertifikat "
+              "ab (smtp_cert._clientzert_anfordern)."),
     "RELAY_TENANT_CHECK": E(
         art=NOTNAGEL,
         grund="Sicherheits-Gate: Post aus dem EXO-IP-Raum (den sich alle "

@@ -132,14 +132,19 @@ def _clientzert_anfordern(ctx: ssl.SSLContext) -> None:
     legen üblicherweise keines vor, Exchange eines einer öffentlichen CA. Wirkt
     erst nach einem Neustart (der Kontext entsteht beim Start). Vorgabe aus.
 
-    ⚠️ ERGEBNIS DES LIVE-TESTS (Raspi, 11.11.2026, 14:22): Exchange Online legt
-    ein Zertifikat vor, die Prüfung scheitert aber (SSLCertVerificationError)
-    und der Handshake bricht ab — die Mail kam nicht an. Ursache sehr
-    wahrscheinlich: Das EXO-Zertifikat (CN=mail.protection.outlook.com,
-    Microsoft TLS G2) hat als Extended Key Usage NUR serverAuth; OpenSSL
-    verlangt für ein Client-Zertifikat clientAuth. Mit dem Standard-ssl ist
-    eine Prüfung daher nicht möglich — der Schalter darf NICHT eingeschaltet
-    werden, solange das nicht durch eine eigene Prüfung ersetzt ist.
+    ERGEBNIS (11.11.2026, belegt):
+    * EXO legt beim Einliefern ein Client-Zertifikat vor: CN=mail.protection.
+      outlook.com, Aussteller DigiCert SHA2 Secure Server CA → DigiCert Global
+      Root CA, Serial 0B3937694B175E269928529C54B662D0, SHA-1 C88E32B4…08FE.
+    * Exchange vor Ort (EX11, Hybrid-Empfang, „Received certificate“) bekommt
+      DASSELBE Zertifikat (gleiche Serial/SHA-1) und validiert es.
+    * Erster Raspi-Versuch 14:22: Abbruch, weil die Wurzel DigiCert Global
+      Root CA in certifi fehlt (Mozilla-Entzug), NICHT wegen des
+      Verwendungszwecks. Mit smtp_clientzert_wurzeln.pem zweiter Versuch
+      15:53: Prüfung erfolgreich, Mail zugestellt.
+    Weiter gilt: CERT_OPTIONAL bricht bei JEDER Gegenstelle mit unprüfbarem
+    Zertifikat ab — nicht für den Regelbetrieb, bis daraus ein Feature mit
+    eigener Prüfung wird.
     """
     import settings_store
     if not settings_store.get("SMTP_CLIENTZERT_BEOBACHTEN"):
