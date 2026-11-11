@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.15 — 2026-11-11 — Erweitert: Knopf des Firewall-Felds in der üblichen Form
+
+- Der Speichern-Knopf beim Feld *Vorgeschaltete Firewall* hat jetzt dieselbe
+  Darstellung wie die übrigen Speichern-Knöpfe der Seite.
+
+**Zu tun:** nichts.
+
 ## v1.11.14 — 2026-11-11 — Port 25 hinter einer Firewall: PROXY-Protokoll
 
 - **Gateway hinter einer Firewall mit Source-NAT.** Leitet eine Firewall Port 25

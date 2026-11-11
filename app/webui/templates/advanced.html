@@ -1279,7 +1279,7 @@ async function saveSmtpSubmit() {
       <div class="settings-control">
         <input type="text" id="proxy-quellen" placeholder="z.B. 10.99.0.1"
                value="{{ (s.SMTP_PROXY_QUELLEN or []) | join(', ') }}">
-        <button class="btn btn-sm" id="proxy-quellen-btn" data-wache="proxy-quellen" data-wache-hinweis="proxy-quellen-result"
+        <button class="btn secondary btn-sm" id="proxy-quellen-btn" data-wache="proxy-quellen" data-wache-hinweis="proxy-quellen-result"
                 onclick="proxyQuellenSpeichern()">Speichern</button>
         <span id="proxy-quellen-result" class="speicher-hinweis"></span>
       </div>
