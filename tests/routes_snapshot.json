@@ -112,6 +112,13 @@
     "name": "api_abnahme"
   },
   {
+    "pfad": "/api/abwesenheit/jetzt-lesen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_abwesenheit_jetzt_lesen"
+  },
+  {
     "pfad": "/api/abwesenheit/postfach",
     "methoden": [
       "GET"

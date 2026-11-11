@@ -999,9 +999,13 @@ def zentral_aktiv() -> bool:
     return funktion_aktiv() and bool(settings_store.get("OOO_ENABLED"))
 
 
-async def poll_alle() -> dict:
+async def poll_alle(kalender_frisch: bool = False) -> dict:
     """Alle aktivierten Postfächer normalisieren. Gibt eine Zählung je Ergebnis
-    zurück (mit Bezugsgröße für den Tagesbericht)."""
+    zurück (mit Bezugsgröße für den Tagesbericht).
+
+    `kalender_frisch=True` (Knopf „Kalender jetzt lesen“): Der Kalender-Cache der
+    aktiven Postfächer gilt als abgelaufen — sonst wirkt ein neuer
+    Abwesend-Termin erst nach OOO_CALENDAR_REFRESH_HOURS (Vorgabe 6 h) plus Takt."""
     zaehlung = {k: 0 for k in (GESETZT, UNVERAENDERT, KEINE_VORLAGE, KEIN_ZUGRIFF, FEHLER)}
     if not zentral_aktiv():
         return {"aktiv": False, **zaehlung, "gesamt": 0}
@@ -1022,6 +1026,11 @@ async def poll_alle() -> dict:
         return ergebnis
 
     state = _state()
+    if kalender_frisch:
+        for upn, _cfg in postfaecher:
+            kal = (state.get(upn.lower()) or {}).get("kal")
+            if kal:
+                kal["ts"] = ""       # leer = abgelaufen (kalender_events liest neu)
     sem = asyncio.Semaphore(_POLL_PARALLEL)
 
     async def _einen(upn: str, sender_cfg: dict) -> str:
@@ -1052,6 +1061,43 @@ async def poll_alle() -> dict:
     ergebnis = {"aktiv": True, **zaehlung, "gesamt": zaehlung_gesamt}
     _persist_last(ergebnis)
     return ergebnis
+
+
+def abgleich_stand() -> dict:
+    """Wann lief der Abgleich, wann wurde der Kalender gelesen, wann wieder?
+
+    Anlass (11.11.2026): Ein Betreiber konnte nicht nachvollziehen, wann ein
+    neuer Abwesend-Termin wirkt. Der Abgleich läuft im Takt des Schedulers, den
+    Kalender liest er aber nur alle OOO_CALENDAR_REFRESH_HOURS. Maßgeblich für
+    „spätestens wieder" ist der ÄLTESTE Kalenderstand unter den aktiven
+    Postfächern."""
+    from datetime import datetime, timedelta
+    refresh_h = float(settings_store.get("OOO_CALENDAR_REFRESH_HOURS") or 6)
+    letzter = (settings_store.get(_LAST_KEY) or {}).get("ts") or ""
+    state = _state()
+    staende = []
+    for upn, _cfg in _aktive_postfaecher(settings_store.get("MAILBOX_CONFIG") or {}):
+        ts = ((state.get(upn.lower()) or {}).get("kal") or {}).get("ts") or ""
+        if ts:
+            try:
+                staende.append(datetime.fromisoformat(ts))
+            except ValueError:
+                pass
+    aeltester = min(staende) if staende else None
+    try:
+        import scheduler
+        takt_min = int(scheduler._OOO_INTERVAL // 60)
+    except Exception:                                              # noqa: BLE001
+        takt_min = 10
+    return {
+        "takt_min": takt_min,
+        "letzter_lauf": letzter,
+        "kalender_lesen": kalender_lesen(),
+        "kalender_refresh_h": refresh_h,
+        "kalender_aeltester": aeltester.isoformat() if aeltester else "",
+        "kalender_spaetestens": (aeltester + timedelta(hours=refresh_h)).isoformat()
+                                if aeltester else "",
+    }
 
 
 # ── Status-Übersicht fürs Admin-Dashboard ─────────────────────────────────────

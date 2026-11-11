@@ -93,8 +93,21 @@ async def api_abwesenheit_uebersicht(force: int = 0, _user: str = Depends(_requi
         "abwesend": daten.get("abwesend", 0),
         "kein_token": bool(daten.get("kein_token")),
         "ooo_enabled": bool(settings_store.get("OOO_ENABLED")),
+        "abgleich": abwesenheit.abgleich_stand(),
         "items": items,
     })
+
+
+@router.post("/api/abwesenheit/jetzt-lesen")
+async def api_abwesenheit_jetzt_lesen(user: str = Depends(_require_admin)):
+    """Kalender aller aktiven Postfächer sofort neu lesen und die Abwesenheit
+    abgleichen — statt auf Takt und Kalender-Cache zu warten."""
+    if not abwesenheit.zentral_aktiv():
+        return JSONResponse({"ok": False, "error": "Der zentrale Abgleich ist ausgeschaltet."},
+                            status_code=409)
+    ergebnis = await abwesenheit.poll_alle(kalender_frisch=True)
+    log.info("Abwesenheit: Kalender jetzt gelesen durch %s: %s", user, ergebnis)
+    return JSONResponse({"ok": True, **ergebnis})
 
 
 # ── Zentrale Einstellung je Nutzer ────────────────────────────────────────────

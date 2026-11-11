@@ -32,8 +32,14 @@
       <strong id="ab-summe">—</strong> gerade abwesend
       <span class="muted" id="ab-stand" style="margin-left:10px"></span>
     </div>
-    <button class="btn secondary btn-sm" id="ab-refresh" onclick="abLaden(true)">Aktualisieren</button>
+    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <button class="btn secondary btn-sm" id="ab-refresh" onclick="abLaden(true)">Aktualisieren</button>
+      <button class="btn secondary btn-sm" id="ab-jetzt" onclick="abJetztLesen(this)"
+              title="Kalender aller Postfächer sofort neu lesen und die Abwesenheit abgleichen">Kalender jetzt lesen</button>
+      <span id="ab-jetzt-result" class="fortschritt" hidden></span>
+    </span>
   </div>
+  <p class="hint" id="ab-abgleich" style="margin:6px 0 0"></p>
   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
     {{ filterfeld("ab-filter") }}
     <button type="button" class="btn secondary btn-sm" id="ab-nur-an" aria-pressed="false"
@@ -275,6 +281,34 @@ function abKalender(v) {
   return '<span class="muted">Vorgabe</span>';
 }
 
+// Wann wirkt ein neuer Abwesend-Termin? Takt des Abgleichs und Kalenderstand.
+function abAbgleichZeigen(a) {
+  var el = document.getElementById('ab-abgleich');
+  if (!a) { el.textContent = ''; return; }
+  var zeit = function (iso) {
+    return iso ? new Date(iso).toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'}) : '—';
+  };
+  var t = 'Abgleich alle ' + a.takt_min + ' Min., zuletzt ' + zeit(a.letzter_lauf) + '.';
+  if (a.kalender_lesen) {
+    t += ' Kalender alle ' + a.kalender_refresh_h + ' Std. gelesen'
+      + (a.kalender_aeltester ? ', ältester Stand ' + zeit(a.kalender_aeltester)
+         + ' — ein neuer Abwesend-Termin wirkt spätestens ' + zeit(a.kalender_spaetestens)
+         + ' (plus Takt) oder sofort mit „Kalender jetzt lesen“.' : '.');
+  }
+  el.textContent = t;
+}
+
+async function abJetztLesen(btn) {
+  var d = await knopfAktion(btn, 'Liest…', function () {
+    return postJSON('/api/abwesenheit/jetzt-lesen', {});
+  }, {anzeige: 'ab-jetzt-result'});
+  showMsg('ab-jetzt-result', d.ok
+    ? '✓ ' + (d.gesetzt || 0) + ' gesetzt, ' + (d.unveraendert || 0) + ' unverändert'
+      + ((d.fehler || 0) ? ', ' + d.fehler + ' Fehler' : '')
+    : '✗ ' + errText(d), d.ok);
+  if (d.ok) abLaden(true);
+}
+
 async function abLaden(force) {
   var tbody = document.getElementById('ab-tbody');
   var d = await getJSON('/api/abwesenheit/uebersicht' + (force ? '?force=1' : ''));
@@ -285,6 +319,7 @@ async function abLaden(force) {
   if (d.kein_token) stand.textContent = '· kein Graph-Zugriff';
   else if (d.ts) stand.textContent = '· Stand: ' + new Date(d.ts).toLocaleString('de-DE');
   else stand.textContent = '';
+  abAbgleichZeigen(d.abgleich);
   if (!d.items || !d.items.length) {
     tabelleHinweis(tbody, 7, 'Keine aktivierten Postfächer.'); return;
   }

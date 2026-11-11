@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.26 — 2026-11-11 — Abwesenheit: „Kalender jetzt lesen“ und wann ein Termin wirkt
+
+- Die Abwesenheits-Übersicht zeigt jetzt, wann der Abgleich zuletzt lief, wie
+  oft der Kalender gelesen wird und **bis wann** ein neuer Abwesend-Termin
+  spätestens wirkt. Der Abgleich läuft alle 10 Minuten, den Kalender liest er
+  aber nur alle *Kalender neu lesen alle* Stunden (Vorgabe 6). Ein neuer Termin
+  wirkte deshalb erst nach bis zu gut sechs Stunden, ohne dass das irgendwo
+  stand.
+- Neuer Knopf **Kalender jetzt lesen**: Er liest die Kalender aller
+  aktivierten Postfächer sofort neu und gleicht die Abwesenheit ab.
+
+**Zu tun:** nichts.
+
 ## v1.11.25 — 2026-11-11 — Vor- und Nachname als Standardvariablen
 
 - `user.givenName` (Vorname) und `user.surname` (Nachname) stehen jetzt wie
