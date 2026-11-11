@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.11 — 2026-11-11 — Signatur: Benutzerdaten auch bei abweichendem UPN
+
+- **Leere Signaturdaten bei einzelnen Postfächern.** Das Gateway fragte das
+  Entra-Profil mit der Mailadresse ab (`GET /users/{adresse}`). Graph nimmt
+  dort aber nur Objekt-ID oder UPN an. Wich der UPN von der Mailadresse ab
+  (z. B. `…@firma.onmicrosoft.com` oder eine andere Schreibweise des Namens),
+  kam 404 zurück. Die Signatur entstand dann mit leerem Profil: kein Name,
+  keine Funktion, keine auf Entra-Felder gemappten Variablen wie Vor- und
+  Nachname. Betroffen waren immer nur genau diese Postfächer.
+  Jetzt sucht das Gateway in diesem Fall über die Mailadresse und die
+  Proxy-Adressen (`mail`, `proxyAddresses`) und nimmt den Treffer, wenn es
+  genau einer ist. Eine Aliasadresse als Absender findet damit ebenfalls das
+  richtige Konto.
+- **Health-Check sagt, was fehlt.** Statt „Benutzerdaten unvollständig
+  (displayName leer)“ meldet die Prüfung jetzt „Entra-Konto zu dieser Adresse
+  nicht gefunden“, wenn kein Profil gefunden wird. Die alte Meldung ließ auf
+  einen fehlenden Namen in Entra schließen, obwohl einer da war.
+- **CSP-Berichte:** Der erste gemeldete Verstoß wird sofort gespeichert. Bisher
+  blieb er in der ersten Minute nach einem Systemstart nur im Speicher.
+
+**Zu tun:** nichts. Ein nicht gefundenes Profil wurde nie zwischengespeichert;
+die nächste Mail nach dem Update bekommt die vollständigen Daten.
+
 ## v1.11.10 — 2026-11-11 — Baukasten: Schriftschnitt-Felder aus einer Quelle
 
 - Die Felder Fett, Kursiv und Unterstrichen entstehen im Editor an einer

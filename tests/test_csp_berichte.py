@@ -12,7 +12,7 @@ import csp_berichte
 def leer(tmp_path, monkeypatch):
     monkeypatch.setattr(csp_berichte.config, "DATA_DIR", str(tmp_path))
     monkeypatch.setattr(csp_berichte, "_arten", None)
-    monkeypatch.setattr(csp_berichte, "_geschrieben", 0.0)
+    monkeypatch.setattr(csp_berichte, "_geschrieben", None)
     return tmp_path
 
 
@@ -30,6 +30,12 @@ def test_gleiche_art_wird_gezaehlt_ohne_pfad_und_query(leer):
     assert arten[0]["quelle"] == "https://appsforoffice.microsoft.com"
     assert arten[0]["seite"] == "/addin/taskpane", "keine Query (Tokens) speichern"
     assert "geheim" not in (leer / "csp_berichte.json").read_text()
+
+
+def test_erster_bericht_wird_sofort_geschrieben_auch_kurz_nach_systemstart(leer, monkeypatch):
+    monkeypatch.setattr(csp_berichte.time, "monotonic", lambda: 5.0)   # 5 s nach Systemstart
+    csp_berichte.merken(_bericht())
+    assert (leer / "csp_berichte.json").exists()
 
 
 def test_obergrenze(leer):

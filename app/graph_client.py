@@ -1008,6 +1008,28 @@ def _resolve_entra_field(field: str, data: dict, ext: dict, phones: list) -> str
     return str(data.get(field) or "")
 
 
+async def _graph_user_per_adresse(client, headers: dict, email: str) -> dict | None:
+    """Nutzer über `mail` oder eine Proxy-Adresse finden — der Weg, wenn der UPN
+    nicht der Mailadresse entspricht. Genau EIN Treffer, sonst None."""
+    adr = (email or "").strip().replace("'", "''")
+    if not adr:
+        return None
+    filt = f"mail eq '{adr}' or proxyAddresses/any(p:p eq 'smtp:{adr}')"
+    resp = await client.get(f"{GRAPH}/users", headers=headers, params={
+        "$filter": filt, "$select": _build_select_fields()})
+    if not resp.is_success:
+        log.warning("Graph: Suche nach %s über Mail-/Proxy-Adresse: HTTP %d %s",
+                    email, resp.status_code, resp.text[:200])
+        return None
+    treffer = resp.json().get("value") or []
+    if len(treffer) != 1:
+        log.warning("Graph: %d Nutzer mit Adresse %s", len(treffer), email)
+        return None
+    log.info("Graph: %s über Mail-/Proxy-Adresse gefunden (UPN %s)",
+             email, treffer[0].get("userPrincipalName"))
+    return treffer[0]
+
+
 async def _graph_user_data(email: str) -> dict | None:
     """Rohes Graph-Nutzerprofil — der EINZIGE Graph-Call in get_user —, prozessweit
     per TTL gecacht. None bei fehlendem Token / 404 / Fehler (NICHT gecacht, damit
@@ -1026,11 +1048,19 @@ async def _graph_user_data(email: str) -> dict | None:
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(url, headers=headers)
-        if resp.status_code == 404:
-            log.warning("Graph: user not found: %s", email)
-            return None
-        resp.raise_for_status()
-        data = resp.json()
+            if resp.status_code == 404:
+                # `/users/{x}` nimmt nur Objekt-ID oder UPN an. Weicht der UPN
+                # von der Mailadresse ab, kam hier 404 — und die Signatur wurde
+                # mit LEEREM Datensatz gebaut: kein Name, keine Entra-Variablen,
+                # nur bei genau diesem Postfach. Deshalb über Mail- und
+                # Proxy-Adresse nachschlagen.
+                data = await _graph_user_per_adresse(client, headers, email)
+                if data is None:
+                    log.warning("Graph: user not found (weder UPN noch Mail-/Proxy-Adresse): %s", email)
+                    return None
+            else:
+                resp.raise_for_status()
+                data = resp.json()
     except Exception as exc:
         log.error("Graph API error for %s: %s", email, exc)
         return None

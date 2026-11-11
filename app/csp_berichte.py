@@ -33,7 +33,7 @@ MAX_ARTEN = 100
 SCHREIB_ABSTAND_S = 60
 _lock = threading.Lock()
 _arten: dict[str, dict] | None = None
-_geschrieben = 0.0
+_geschrieben: float | None = None      # None = noch nie: sofort schreiben
 
 
 def _datei() -> Path:
@@ -85,7 +85,10 @@ def merken(bericht: dict) -> None:
             log.info("CSP-Verstoß (neu): %s %s auf %s", direktive, quelle, seite)
         e["anzahl"] += 1
         e["zuletzt"] = jetzt
-        if time.monotonic() - _geschrieben >= SCHREIB_ABSTAND_S:
+        # Nicht mit 0.0 beginnen: `monotonic()` zählt ab Systemstart und liegt
+        # auf einem frisch gestarteten Rechner unter SCHREIB_ABSTAND_S — der
+        # erste Bericht wäre dann nur im Speicher gelandet.
+        if _geschrieben is None or time.monotonic() - _geschrieben >= SCHREIB_ABSTAND_S:
             _schreiben(arten)
             _geschrieben = time.monotonic()
 
