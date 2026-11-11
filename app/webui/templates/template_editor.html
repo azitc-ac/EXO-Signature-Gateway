@@ -672,8 +672,13 @@ function colorSelect(val, name, bid, extra) {
 // ── Variablen-Autocomplete ──────────────────────────────────────────────────
 // Tippt man in einem Textfeld „custom." oder „user.", erscheint eine Vorschlagsliste
 // der bekannten Variablen (wie IntelliSense). Verhindert Tippfehler/Namens-
-// Mismatches. Wirkt in allen <textarea> des Editors (Bausteine + Roh-HTML/-Text).
+// Mismatches. Wirkt in allen <textarea> des Editors (Bausteine + Roh-HTML/-Text)
+// und in den einzeiligen Textfeldern der Bausteine (Link des Logos, Präfix,
+// Anzeigetext, URL) — dort werden Platzhalter genauso ausgewertet. Bis v1.11.12
+// nur in <textarea>; im Link-Feld des Logos kam deshalb keine Liste.
 (function () {
+  const mitVorschlag = el => el && (el.tagName === 'TEXTAREA'
+    || (el.tagName === 'INPUT' && el.type === 'text' && el.dataset && el.dataset.bid !== undefined));
   // oof.-Variablen nur bei Abwesenheits-Vorlagen vorschlagen.
   const OOF_FIELDS = (TEMPLATE_KIND === 'oof')
     ? ['oof.name', 'oof.zeitraum', 'oof.period', 'oof.abwesend_ab', 'oof.abwesend_bis',
@@ -721,7 +726,7 @@ function colorSelect(val, name, bid, extra) {
     t.focus();
   }
   document.addEventListener('input', e => {
-    if (e.target && e.target.tagName === 'TEXTAREA') zeigen(e.target);
+    if (mitVorschlag(e.target)) zeigen(e.target);
   });
   document.addEventListener('keydown', e => {
     if (!box || box.style.display === 'none') return;

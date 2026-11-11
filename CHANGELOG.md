@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.13 — 2026-11-11 — Baukasten: Variablen-Vorschläge auch in einzeiligen Feldern
+
+- Die Vorschlagsliste für `user.…` und `custom.…` erschien nur in
+  mehrzeiligen Feldern (Freitext, HTML-Code). In den einzeiligen Feldern der
+  Bausteine fehlte sie: Link des Logos, Präfix, Anzeigetext, Social-URL.
+  Platzhalter wurden dort trotzdem richtig ausgewertet. Jetzt erscheint die
+  Liste auch dort.
+
+**Zu tun:** nichts.
+
 ## v1.11.12 — 2026-11-11 — Postfachprüfung: Vorlagenfehler wieder vor fehlendem Konto
 
 - Die in v1.11.11 eingeführte Meldung „Entra-Konto zu dieser Adresse nicht
