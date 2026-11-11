@@ -371,7 +371,8 @@
 
   <div class="hint" style="margin-top:16px">
     <strong>Verfügbare Variablen:</strong>
-    <code>user.displayName</code>, <code>user.jobTitle</code>, <code>user.department</code>,
+    <code>user.displayName</code>, <code>user.givenName</code>, <code>user.surname</code>,
+    <code>user.jobTitle</code>, <code>user.department</code>,
     <code>user.companyName</code>, <code>user.mail</code>, <code>user.phone</code>,
     <code>user.mobilePhone</code>, <code>user.officeLocation</code>,
     <code>user.website</code>, <code>user.bookingsUrl</code>{% if custom_vars %},
@@ -631,7 +632,7 @@ window.addBlock = function(type, targetList, afterId) {
 
 // ── Field options ─────────────────────────────────────────────────────────────
 const USER_FIELDS = [
-  'displayName','jobTitle','department','companyName',
+  'displayName','givenName','surname','jobTitle','department','companyName',
   'mail','phone','mobilePhone','officeLocation',
   'streetAddress','postalCode','city','state','country',
   'website','bookingsUrl',

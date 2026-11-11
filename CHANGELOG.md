@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.25 — 2026-11-11 — Vor- und Nachname als Standardvariablen
+
+- `user.givenName` (Vorname) und `user.surname` (Nachname) stehen jetzt wie
+  `user.displayName` als Standardvariablen bereit: im Baustein *Feld*, in der
+  Vorschlagsliste beim Tippen, in der Variablenübersicht unter
+  *Einstellungen → Signatur* und als Postfach-Überschreibung. Bisher ließen sie
+  sich nur als eigene Variable auf das Entra-Feld abbilden. Solche eigenen
+  Variablen funktionieren unverändert weiter.
+
+**Zu tun:** nichts.
+
 ## v1.11.24 — 2026-11-11 — Exchange Online am Zertifikat erkennen (auch hinter einer Firewall mit Source-NAT)
 
 - **Neu: Das Gateway erkennt Exchange Online auch am Client-Zertifikat.**

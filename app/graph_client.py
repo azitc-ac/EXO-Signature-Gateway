@@ -502,6 +502,8 @@ def frisches_app_token(scope: str = _SCOPES[0]) -> str | None:
 @dataclass
 class UserData:
     displayName: str = ""
+    givenName: str = ""
+    surname: str = ""
     jobTitle: str = ""
     department: str = ""
     companyName: str = ""
@@ -1103,6 +1105,8 @@ async def get_user(email: str) -> UserData:
 
     ud = UserData(
         displayName=user_overrides.get("user.displayName") or data.get("displayName") or "",
+        givenName=user_overrides.get("user.givenName") or data.get("givenName") or "",
+        surname=user_overrides.get("user.surname") or data.get("surname") or "",
         jobTitle=user_overrides.get("user.jobTitle") or data.get("jobTitle") or "",
         department=user_overrides.get("user.department") or data.get("department") or "",
         companyName=user_overrides.get("user.companyName") or data.get("companyName") or "",

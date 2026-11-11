@@ -260,6 +260,8 @@
       </thead>
       <tbody>
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.displayName</code></td><td style="padding:4px 16px;color:#555">displayName</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.givenName</code></td><td style="padding:4px 16px;color:#555">givenName (Vorname)</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.surname</code></td><td style="padding:4px 16px;color:#555">surname (Nachname)</td></tr>
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.jobTitle</code></td><td style="padding:4px 16px;color:#555">jobTitle</td></tr>
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.phone</code></td><td style="padding:4px 16px;color:#555">businessPhones[0]</td></tr>
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.mobilePhone</code></td><td style="padding:4px 16px;color:#555">mobilePhone</td></tr>
@@ -470,6 +472,8 @@ async function saveCustomVars() {
 const _orMailboxes = {{ sender_mailboxes | tojson }};
 const _orVarOptions = [
   {key:"user.displayName",label:"user.displayName"},
+  {key:"user.givenName",label:"user.givenName"},
+  {key:"user.surname",label:"user.surname"},
   {key:"user.jobTitle",label:"user.jobTitle"},
   {key:"user.department",label:"user.department"},
   {key:"user.companyName",label:"user.companyName"},

@@ -41,7 +41,7 @@ from typing import Any
 
 _ALWAYS_PRESENT = {"user.displayName", "user.mail"}
 _USER_FIELDS = {
-    "displayName", "jobTitle", "department", "companyName",
+    "displayName", "givenName", "surname", "jobTitle", "department", "companyName",
     "mail", "phone", "mobilePhone", "officeLocation",
     "streetAddress", "postalCode", "city", "state", "country",
     "website", "bookingsUrl",

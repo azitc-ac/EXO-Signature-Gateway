@@ -52,7 +52,7 @@ LEER_TAGS = {"br", "img", "hr", "input", "meta", "link", "source", "col"}
 # zu einem Feldblock — sonst entstuende ein Block, den der Editor nicht
 # anbieten kann und der beim naechsten Speichern verschwaende.
 BEKANNTE_FELDER = {
-    "displayName", "jobTitle", "department", "companyName", "mail", "phone",
+    "displayName", "givenName", "surname", "jobTitle", "department", "companyName", "mail", "phone",
     "mobilePhone", "officeLocation", "streetAddress", "postalCode", "city",
     "state", "country", "website", "bookingsUrl",
 }
