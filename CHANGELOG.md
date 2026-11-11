@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.5 — 2026-11-11 — Abnahme: Wortlaut
+
+- Ein Erklärtext zur neuen Herkunftsprüfung in der Abnahme ist umformuliert.
+  An der Prüfung ändert sich nichts.
+
+**Zu tun:** nichts.
+
 ## v1.11.4 — 2026-11-11 — Herkunftsprüfung: Zähler, strenger Modus, Abnahme
 
 - Post aus dem Exchange-Weg mit der Kennung eines **fremden** Tenants weist

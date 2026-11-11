@@ -463,8 +463,8 @@ def _tenant_herkunft() -> dict:
 
     Die Herkunftsprüfung (handler.py, Tenant-Gate) weist eine FREMDE Kennung
     ab, nimmt eine FEHLENDE aber an — eine Vorgabe, die Mailfluss vor Strenge
-    stellt. Ob bei diesem Tenant je Post ohne Kennung kommt, zeigt erst der
-    Betrieb (stats tenant_ohne_kopf, Bezugsgröße tenant_geprueft)."""
+    stellt. Ob bei diesem Tenant Post ohne Kennung kommt, messen die Zähler
+    (stats tenant_ohne_kopf, Bezugsgröße tenant_geprueft)."""
     import settings_store
     import stats
     name = "Herkunftsprüfung streng (Tenant-Kennung Pflicht)"
