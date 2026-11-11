@@ -89,6 +89,8 @@ class _LenientSMTP(_BaseSMTP):
         super().connection_made(transport)
         if starttls_wechsel and getattr(self, "_echte_quelle", None):
             self.session.peer = self._echte_quelle
+        if starttls_wechsel:
+            self._clientzert_protokollieren()
         if not self.require_starttls:
             return                       # ohne Zertifikat gibt es keine Pflicht
         try:
@@ -103,6 +105,22 @@ class _LenientSMTP(_BaseSMTP):
                          "STARTTLS wird angeboten, aber nicht verlangt", ip)
         except Exception as exc:         # noqa: BLE001
             log.warning("SMTP: Relay-Pruefung fuer %s fehlgeschlagen: %s", ip, exc)
+
+    def _clientzert_protokollieren(self) -> None:
+        """Messschalter SMTP_CLIENTZERT_BEOBACHTEN (smtp_cert._clientzert_anfordern):
+        nach STARTTLS festhalten, ob und welches Client-Zertifikat vorlag.
+        Nur Protokoll — entschieden wird darauf (noch) nichts."""
+        try:
+            import settings_store
+            if not settings_store.get("SMTP_CLIENTZERT_BEOBACHTEN"):
+                return
+            import smtp_cert
+            extra = getattr(self.session, "ssl", None) or {}
+            ip = (self.session.peer or ("?",))[0]
+            log.info("SMTP-TLS von %s: %s", ip,
+                     smtp_cert.clientzert_beschreibung(extra.get("peercert")))
+        except Exception as exc:         # noqa: BLE001
+            log.warning("SMTP: Client-Zertifikat nicht lesbar: %s", exc)
 
     @syntax('MAIL FROM: <address>', extended=' [SP <mail-parameters>]')
     async def smtp_MAIL(self, arg):

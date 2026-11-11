@@ -212,6 +212,14 @@ REGISTER: dict[str, E] = {
     "REINJECT_MODE": E(art=OPTION, ort="setup.html"),
     "RELAY_TENANT_STRENG": E(art=OPTION, ort="advanced.html"),
     "SMTP_PROXY_QUELLEN": E(art=OPTION, ort="advanced.html"),
+    "SMTP_CLIENTZERT_BEOBACHTEN": E(
+        art=NOTNAGEL,
+        grund="Messschalter für eine Untersuchung: Legt Exchange Online beim "
+              "Einliefern ein Client-Zertifikat vor? Nur Protokoll, keine "
+              "Entscheidung. Bewusst nicht in der Oberfläche — er kann einen "
+              "TLS-Aufbau mit unprüfbarem Zertifikat scheitern lassen und gehört "
+              "nicht in den Regelbetrieb. Ergebnis entscheidet, ob daraus ein "
+              "Feature wird oder der Schalter entfällt."),
     "RELAY_TENANT_CHECK": E(
         art=NOTNAGEL,
         grund="Sicherheits-Gate: Post aus dem EXO-IP-Raum (den sich alle "

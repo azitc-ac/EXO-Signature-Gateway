@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.17 — 2026-11-11 — Port 25: Messschalter für Client-Zertifikate
+
+- Neuer Schalter `SMTP_CLIENTZERT_BEOBACHTEN`, nur in der Konfigurationsdatei,
+  Vorgabe aus. Ist er an, fordert der SMTP-Listener beim TLS-Aufbau ein
+  Client-Zertifikat an, ohne es zu verlangen, und schreibt ins Protokoll, wer
+  welches vorlegt. Entschieden wird darauf nichts.
+- Hintergrund: Exchange-Server vor Ort erkennen Exchange Online an dessen
+  Zertifikat (`mail.protection.outlook.com`). Legt Exchange Online es auch dem
+  Gateway vor, könnte das Gateway Exchange künftig daran erkennen statt an der
+  Absenderadresse. Hinter einer Firewall mit Source-NAT wäre dann nichts mehr
+  einzustellen.
+- Wirkt erst nach einem Neustart. Legt eine Gegenstelle ein Zertifikat vor,
+  das sich nicht gegen die bekannten Zertifizierungsstellen prüfen lässt,
+  scheitert ihr TLS-Aufbau. Der Schalter gehört deshalb nicht in den
+  Regelbetrieb.
+
+**Zu tun:** nichts.
+
 ## v1.11.16 — 2026-11-11 — Firewall mit Source-NAT: Weg ohne PROXY-Protokoll benannt
 
 - Doku und Hinweis unter *Erweitert* nennen jetzt den Weg für Firewalls ohne

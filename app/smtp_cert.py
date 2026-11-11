@@ -119,6 +119,49 @@ def _altgeraete_zulassen(ctx: ssl.SSLContext) -> None:
         log.warning("Listener: TLS für Altgeräte nicht einstellbar, bleibt bei den Vorgaben: %s", exc)
 
 
+def _clientzert_anfordern(ctx: ssl.SSLContext) -> None:
+    """Messschalter SMTP_CLIENTZERT_BEOBACHTEN: Client-Zertifikat ANFORDERN,
+    nicht verlangen — um zu sehen, ob Exchange Online beim Einliefern eines
+    vorlegt (Hybrid-Empfangsconnectoren erkennen EXO so: TlsDomainCapabilities
+    mail.protection.outlook.com:AcceptCloudServicesMail). Bestätigt sich das,
+    könnte das Gateway Exchange am Zertifikat erkennen statt an der Quell-IP,
+    und eine Firewall mit Source-NAT bräuchte keine Einstellung mehr.
+
+    ⚠️ CERT_OPTIONAL bricht den Handshake ab, wenn eine Gegenstelle ein
+    Zertifikat vorlegt, das sich nicht gegen die CA-Liste prüfen lässt. Geräte
+    legen üblicherweise keines vor, Exchange eines einer öffentlichen CA. Wirkt
+    erst nach einem Neustart (der Kontext entsteht beim Start). Vorgabe aus.
+    """
+    import settings_store
+    if not settings_store.get("SMTP_CLIENTZERT_BEOBACHTEN"):
+        return
+    try:
+        import certifi
+        ctx.load_verify_locations(cafile=certifi.where())
+    except Exception:                                     # noqa: BLE001
+        ctx.load_default_certs(ssl.Purpose.CLIENT_AUTH)
+    ctx.verify_mode = ssl.CERT_OPTIONAL
+    log.warning("SMTP-Listener: Client-Zertifikate werden angefordert "
+                "(SMTP_CLIENTZERT_BEOBACHTEN, nur Beobachtung)")
+
+
+def clientzert_beschreibung(peercert) -> str:
+    """Kurzfassung eines von ssl gelieferten Peer-Zertifikats fürs Protokoll."""
+    if not peercert:
+        return "kein Client-Zertifikat"
+    def _feld(teil, schluessel):
+        for rdn in peercert.get(teil, ()):
+            for k, v in rdn:
+                if k == schluessel:
+                    return v
+        return "?"
+    sans = [v for k, v in peercert.get("subjectAltName", ()) if k == "DNS"]
+    return (f"CN={_feld('subject', 'commonName')} "
+            f"SAN={','.join(sans[:6])}{'…' if len(sans) > 6 else ''} "
+            f"Aussteller={_feld('issuer', 'organizationName')}/{_feld('issuer', 'commonName')} "
+            f"gültig bis {peercert.get('notAfter', '?')}")
+
+
 def baue_listener_kontext(kandidaten: list[tuple[str, str]]):
     """SSLContext für den SMTP-Listener aus einer Vorrang-Liste von (cert, key).
 
@@ -133,6 +176,7 @@ def baue_listener_kontext(kandidaten: list[tuple[str, str]]):
             ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             _altgeraete_zulassen(ctx)
             ctx.load_cert_chain(certfile=cert, keyfile=key)
+            _clientzert_anfordern(ctx)
             geladen.append((ctx, zert_namen(cert), cert))
         except Exception as exc:                          # noqa: BLE001
             log.error("Listener-Zert nicht ladbar (%s) — übersprungen: %s", cert, exc)

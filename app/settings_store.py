@@ -184,6 +184,9 @@ DEFAULTS: dict = {
     # Ursprungsadresse setzen (smtp_proxy.py). Leer = aus. Nur diese Adressen
     # dürfen den Absender angeben — und müssen es dann auch.
     "SMTP_PROXY_QUELLEN": [],
+    # Messschalter: Client-Zertifikat am Port 25 anfordern (nicht verlangen) und
+    # protokollieren, wer welches vorlegt (smtp_cert._clientzert_anfordern).
+    "SMTP_CLIENTZERT_BEOBACHTEN": False,
     # ── SMTP-Relay für Geräte im eigenen Netz ────────────────────────────────
     # Drucker und Anwendungen liefern anonym ein, das Gateway reicht an Exchange
     # weiter — Ersatz für einen Exchange vor Ort. Siehe smtp_relay.py.
