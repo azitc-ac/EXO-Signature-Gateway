@@ -94,7 +94,12 @@ def encrypt(message_bytes: bytes, recipients: list[str]) -> tuple[bytes | None, 
     if missing:
         return None, missing
 
-    # Primary: native Python CMS — preserves every MIME part inside the CMS envelope
+    # Primary: native Python CMS — nur RSA (KeyTransRecipientInfo). EC-Empfänger
+    # (z. B. CASTLE, P-256) brauchen KeyAgreeRecipientInfo (ECDH, RFC 5753) —
+    # das kann `openssl cms`, und es geht dann gleich dorthin.
+    if not all(_ist_rsa(p) for p in cert_paths):
+        log.info("S/MIME: Empfänger mit Nicht-RSA-Zertifikat — Verschlüsselung über openssl cms")
+        return _encrypt_openssl(message_bytes, [str(p) for p in cert_paths])
     try:
         result = _encrypt_cms(message_bytes, cert_paths)
         if result:
@@ -105,8 +110,18 @@ def encrypt(message_bytes: bytes, recipients: list[str]) -> tuple[bytes | None, 
     except Exception as exc:
         log.warning("CMS encrypt failed — falling back to openssl: %s", exc)
 
-    # Fallback: openssl smime (only preserves first MIME part — CID images lost)
+    # Fallback: openssl cms -binary — verschlüsselt die Bytes unverändert (alle Teile)
     return _encrypt_openssl(message_bytes, [str(p) for p in cert_paths])
+
+
+def _ist_rsa(cert_path: Path) -> bool:
+    from cryptography import x509 as _x509
+    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
+    try:
+        cert = _x509.load_der_x509_certificate(_pem_to_der(cert_path.read_bytes()))
+        return isinstance(cert.public_key(), RSAPublicKey)
+    except Exception:                                    # noqa: BLE001
+        return False
 
 
 def _encrypt_cms(message_bytes: bytes, cert_paths: list[Path]) -> bytes | None:
@@ -205,14 +220,19 @@ def _encrypt_cms(message_bytes: bytes, cert_paths: list[Path]) -> bytes | None:
 def _encrypt_openssl(
     message_bytes: bytes, cert_path_strs: list[str]
 ) -> tuple[bytes | None, list[str]]:
-    """Fallback via openssl smime -encrypt. Only preserves first MIME part."""
+    """Verschlüsseln über `openssl cms` — für Nicht-RSA-Empfänger und als
+    Rückfall. NICHT `openssl smime`: Das baut PKCS#7 und kennt nur RSA
+    (KeyTransRecipientInfo); an einem EC-Zertifikat scheitert es mit „Error
+    creating PKCS#7 structure“. `-binary` gibt die Bytes unverändert hinein,
+    sodass alle MIME-Teile erhalten bleiben (gemessen: Entschlüsselt
+    byte-identisch zum Original)."""
     try:
         with tempfile.NamedTemporaryFile(suffix=".eml", delete=False) as tmp:
             tmp.write(message_bytes)
             tmp_path = Path(tmp.name)
 
         result = subprocess.run(
-            ["openssl", "smime", "-encrypt", "-aes256",
+            ["openssl", "cms", "-encrypt", "-aes256", "-binary",
              "-in", str(tmp_path)] + cert_path_strs,
             capture_output=True,
             timeout=15,
@@ -220,13 +240,13 @@ def _encrypt_openssl(
         tmp_path.unlink(missing_ok=True)
 
         if result.returncode != 0:
-            log.error("openssl smime -encrypt failed: %s",
+            log.error("openssl cms -encrypt failed: %s",
                       result.stderr.decode(errors="replace")[:400])
             return None, []
 
         import stats
         stats.increment("smime_encrypted")
-        log.info("S/MIME encrypted (openssl fallback) for %d recipient(s)",
+        log.info("S/MIME encrypted (openssl cms) for %d recipient(s)",
                  len(cert_path_strs))
         out = result.stdout.replace(b"application/x-pkcs7-mime",
                                     b"application/pkcs7-mime")

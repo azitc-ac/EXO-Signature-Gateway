@@ -1311,6 +1311,10 @@ class SignatureHandler:
                 settings_store.get("SMIME_SIGNING_ENABLED") is not False
                 and (not _mailbox_cfg or _sender_cfg.get("smime", True))
             )
+            # Vor #nodigsig festhalten: Die Signatur zu unterdrücken ist kein
+            # Verzicht auf Verschlüsselung. Bis v1.11.35 schaltete „#enc #nodigsig“
+            # die Verschlüsselung mit ab — die Mail ging im Klartext hinaus.
+            _smime_erlaubt = _smime_ok
             if _smime_ok and suppress_smime_sig:
                 _smime_ok = False
                 log.info("S/MIME-Signierung durch %r-Trigger unterdrückt für %s", _nodigsig_kw, sender)
@@ -1330,12 +1334,22 @@ class SignatureHandler:
 
             # ── S/MIME encryption (#enc# in subject) ─────────────────────────
             _sent_subject = subject  # updated below when encryption succeeds
-            if wants_encryption and not _smime_ok:
+            _verschluesselt = False
+            if wants_encryption and not _smime_erlaubt:
                 wants_encryption = False
                 log.debug("S/MIME disabled for %s in MAILBOX_CONFIG — skipping encryption", sender)
             if wants_encryption:
                 import smime_encrypt
                 encrypted, missing = smime_encrypt.encrypt(outbound, recipients)
+                # Verschlüsselung gescheitert, obwohl alle Zertifikate da sind
+                # (bis v1.11.35: EC-Zertifikat). Dann NIE Klartext — wie
+                # „Zertifikat fehlt“ behandeln: Portal, sonst Unzustellbarkeit.
+                _enc_fehler = not encrypted and not missing
+                if _enc_fehler:
+                    missing = list(recipients)
+                    stats.increment("smime_encrypt_fehler")
+                    log.error("S/MIME: Verschlüsselung für %s fehlgeschlagen — "
+                              "Mail geht NICHT im Klartext hinaus", recipients)
                 if missing:
                     if settings_store.get("SECURE_PORTAL_ENABLED"):
                         import portal_store as _portal
@@ -1364,13 +1378,24 @@ class SignatureHandler:
                                 _notif.send_portal_notification(
                                     sender, _sender_name, _rcpt, _p_subject,
                                     _portal_url, _retention)
-                                log.info("Portal message created for %s (no cert)", _rcpt)
+                                log.info("Portal message created for %s (%s)", _rcpt,
+                                         "encryption failed" if _enc_fehler else "no cert")
                                 _audit("portal")
                             except Exception as _exc:
                                 log.error("Portal creation failed for %s: %s", _rcpt, _exc)
                         # All missing recipients handled via portal — no cert_rcpts since
                         # smime_encrypt returns (None, all_rcpts) when ANY cert is missing.
                         stats.increment("processed")
+                        return "250 OK"
+                    elif _enc_fehler:
+                        _send_ndr(sender, missing, override_body=(
+                            "Ihre E-Mail konnte nicht zugestellt werden: Die Verschlüsselung "
+                            "für folgende Empfänger ist fehlgeschlagen.\n\n"
+                            + "\n".join(f"  - {m}" for m in missing)
+                            + "\n\nDie Nachricht wurde NICHT unverschlüsselt versandt. "
+                            "Bitte wenden Sie sich an Ihren Administrator.\n"))
+                        log.warning("Encryption failed for %s — NDR sent to %s", missing, sender)
+                        _audit("smime_encrypt_fehler")
                         return "250 OK"
                     else:
                         _send_ndr(sender, missing)
@@ -1413,6 +1438,7 @@ class SignatureHandler:
                         del enc_msg["Subject"]
                     enc_msg["Subject"] = _encode_subject(new_subject)
                     outbound = _smtp_bytes(enc_msg)
+                    _verschluesselt = True
                     log.info("Mail encrypted for %s", recipients)
 
             # Jede Mail, die dieser Weg zurückgibt, trägt die Markierung — nicht
@@ -1420,6 +1446,16 @@ class SignatureHandler:
             # abgeschaltetem S/MIME), routet die FromMemberOf-Regel sie erneut
             # hierher; der Betreff ist dann schon ohne Trigger, und der zweite
             # Durchlauf signiert voll. Idempotent, wenn inject/S/MIME sie setzten.
+            # Letzte Sperre vor jedem Versand: Wer verschlüsseln wollte, schickt
+            # nur Verschlüsseltes. Jeder Zweig oben, der das verfehlt, endet
+            # hier — nicht beim Empfänger.
+            if wants_encryption and not _verschluesselt:
+                log.error("S/MIME: Verschlüsselung verlangt, aber nicht erfolgt — "
+                          "Versand an %s verweigert", recipients)
+                stats.increment("smime_encrypt_fehler")
+                _audit("smime_encrypt_fehler")
+                return "554 5.7.1 Verschlüsselung fehlgeschlagen"
+
             outbound = loop_detector.mark_as_signed_bytes(outbound)
 
             if settings_store.get("MAINTENANCE_MODE"):
@@ -1436,7 +1472,7 @@ class SignatureHandler:
             stats.increment("processed")
             log.info("Mail processed OK: from=%s to=%s", sender, recipients)
 
-            _action = "smime_encrypted" if wants_encryption else ("smime_signed" if _smime_signed else "signed")
+            _action = "smime_encrypted" if _verschluesselt else ("smime_signed" if _smime_signed else "signed")
             _audit(_action)
 
             # Diese Kennung merken, damit eine spätere Antwort in derselben

@@ -18,7 +18,11 @@ def _decrypt_local(message_bytes: bytes, recipient: str) -> bytes | None:
     cert_path, key_path = paths
     passin, umgebung = smime_store.openssl_passin()
     cmd = [
-        "openssl", "smime", "-decrypt",
+        # cms statt smime: `openssl smime` liest nur PKCS#7 und bricht an jeder
+        # Hülle mit EC-Empfänger ab (KeyAgreeRecipientInfo) — auch wenn der
+        # eigene Empfänger darin RSA ist. `cms` liest beides (gemessen:
+        # bisherige Formate byte-identisch).
+        "openssl", "cms", "-decrypt",
         "-recip", str(cert_path),
         "-inkey", str(key_path),
         *passin,
@@ -27,7 +31,7 @@ def _decrypt_local(message_bytes: bytes, recipient: str) -> bytes | None:
         result = subprocess.run(cmd, input=message_bytes, capture_output=True,
                                 timeout=15, env=umgebung)
         if result.returncode != 0:
-            log.error("openssl smime -decrypt failed for %s: %s",
+            log.error("openssl cms -decrypt failed for %s: %s",
                       recipient, result.stderr.decode(errors="replace")[:400])
             return None
         log.info("S/MIME decrypted (local key) for recipient=%s", recipient)

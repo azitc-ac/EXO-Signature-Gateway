@@ -336,6 +336,9 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         # ein Fehlerzähler, dessen 0 keine Aussage braucht; das Band trägt den Alarm.
         (_row("Eigene Exchange-Post abgewiesen", str(dval("exo_eigene_abgewiesen")), "#e74c3c")
          if dval("exo_eigene_abgewiesen") else ""),
+        (_row("Verschlüsselung fehlgeschlagen (nicht versandt)",
+              str(dval("smime_encrypt_fehler")), "#e74c3c")
+         if dval("smime_encrypt_fehler") else ""),
         (_row("Ohne Tenant-Kennung angenommen",
               f"{dval('tenant_ohne_kopf')} von "
               f"{dval('tenant_geprueft') + dval('tenant_ohne_kopf')}", "#e67e22")

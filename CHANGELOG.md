@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.36 — 2026-11-11 — Sicherheit: „#enc“ ging bei gescheiterter Verschlüsselung im Klartext hinaus; S/MIME mit EC-Zertifikaten
+
+- **Fehler (sicherheitsrelevant):** Scheiterte die Verschlüsselung, obwohl für
+  alle Empfänger ein Zertifikat vorlag, stellte das Gateway die Mail
+  **unverschlüsselt** zu, und das Mail-Protokoll zeigte sie als
+  „verschlüsselt“. Es galt nur der Fall „Zertifikat fehlt“ als Fehler (Portal
+  bzw. Unzustellbarkeitsmeldung); eine gescheiterte Verschlüsselung lief
+  durch. Ausgelöst wurde das von jedem Empfänger mit EC-Zertifikat (siehe
+  unten).
+- **Ebenso:** „#enc“ zusammen mit „#nodigsig“ schaltete die Verschlüsselung ab.
+  Die Signatur zu unterdrücken ist kein Verzicht auf Verschlüsselung.
+- **Jetzt:** Wer verschlüsseln will, schickt nie Klartext. Scheitert die
+  Verschlüsselung, geht die Nachricht ins Nachrichtenportal (wenn aktiv),
+  sonst erhält der Absender eine Unzustellbarkeitsmeldung „Verschlüsselung
+  fehlgeschlagen — NICHT unverschlüsselt versandt“. Eine letzte Sperre vor
+  dem Versand verweigert jede Mail, die verschlüsselt werden sollte und es
+  nicht ist. Das Protokoll zeigt „Verschl. fehlgeschl.“, der Tagesbericht
+  zählt die Fälle, „verschlüsselt“ erscheint nur noch, wenn verschlüsselt
+  wurde.
+- **EC-Zertifikate:** Zertifikate mit elliptischen Kurven (z. B. CASTLE,
+  P-256) konnte das Gateway weder zum Verschlüsseln benutzen noch eine an sie
+  verschlüsselte Mail entschlüsseln. Der eingebaute Weg kannte nur RSA, und
+  `openssl smime` baut PKCS#7 ohne ECDH; beim Entschlüsseln brach es an jeder
+  Hülle mit EC-Empfänger ab, auch wenn der eigene Empfänger darin RSA war.
+  Beides geht jetzt über `openssl cms` (RSA-Empfänger weiter über den
+  eingebauten Weg). Bisherige Formate entschlüsselt `cms` byte-identisch.
+**Zu tun:** nichts über das Update hinaus — aktualisiere zeitnah. Betroffen
+war nur Post mit „#enc“ (oder Verschlüsselungsregel bzw. Antwort auf eine
+verschlüsselte Nachricht) an Empfänger mit EC-Zertifikat. Ob das bei dir
+vorkam, zeigt das *Mail-Protokoll*: Aktion „S/MIME enc.“ an einen solchen
+Empfänger.
+
 ## v1.11.35 — 2026-11-11 — Benachrichtigungen im Direktversand mit Textfassung
 
 - Benachrichtigungen, die seit v1.11.34 über den Direktversand gehen, bestanden
