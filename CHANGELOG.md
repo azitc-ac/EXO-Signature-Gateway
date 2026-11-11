@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.23 — 2026-11-11 — Wurzel für das Exchange-Client-Zertifikat: Hinweis zur Pflege
+
+- Die mitgelieferte Wurzel für das Client-Zertifikat von Exchange Online
+  trägt jetzt den Hinweis, dass sie an Microsofts Zertifikatswahl hängt. Das
+  heutige Zertifikat läuft im Mai 2027 ab, und dann ist zu prüfen, welche
+  Wurzel das neue braucht.
+
+**Zu tun:** nichts.
+
 ## v1.11.22 — 2026-11-11 — Client-Zertifikat von Exchange Online: Ergebnis korrigiert
 
 - Die Aussage aus v1.11.18 („nur für Server ausgestellt“) ist widerlegt.
