@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import httpx
 
 import graph_client  # _acquire_token() is synchronous
+import loop_detector
 import settings_store
 
 log = logging.getLogger(__name__)
@@ -87,6 +88,13 @@ def _graph_send(to: str, subject: str, html: str, reply_to: str = "",
             "subject": subject,
             "body": {"contentType": "HTML", "content": html},
             "toRecipients": [{"emailAddress": {"address": to}}],
+            # Gateway-Markierung wie auf jedem anderen Rückweg in den Transport.
+            # Der Absender kann ein aktiviertes Postfach sein (Portal-Mails gehen
+            # vom ursprünglichen Absender aus); ohne Markierung führt ihn die
+            # FromMemberOf-Regel erneut über das Gateway. Graph verwirft
+            # Auto-Submitted, X-Kopfzeilen kommen durch (gemessen 11.10.2026).
+            "internetMessageHeaders": [{"name": loop_detector.header_name(),
+                                        "value": loop_detector.marker_wert()}],
         },
         "saveToSentItems": False,
     }

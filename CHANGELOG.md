@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.1 — 2026-11-11 — Portal-Benachrichtigung: Gateway-Markierung gesetzt
+
+- Die Benachrichtigung über eine Nachricht im Secure Message Portal geht vom
+  Postfach des ursprünglichen Absenders aus. Ist dieses Postfach im Gateway
+  aktiviert, führte die Transportregel die Benachrichtigung erneut über das
+  Gateway, weil ihr die Gateway-Markierung fehlte. Jeder andere Weg, auf dem
+  das Gateway Post an Exchange zurückgibt, setzte sie bereits. In einer
+  Testumgebung kam die Benachrichtigung beim Empfänger nicht an, und ohne sie
+  lässt sich die Nachricht im Portal nicht öffnen. Jetzt tragen alle
+  Benachrichtigungen, die das Gateway per Graph versendet, die Markierung.
+
+**Zu tun:** nichts.
+
 ## v1.11.0 — 2026-11-11 — Release: Sicherheit bei S/MIME und TLS, Update-Kanäle, Azure Marketplace, Direktversand
 
 Mit v1.11.0 beginnt eine neue Release-Reihe. Sie fasst die Entwicklung seit
