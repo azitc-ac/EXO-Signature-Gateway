@@ -649,7 +649,10 @@ class SignatureHandler:
             # Header nicht → ausgenommen. Nur über die Konfigurationsdatei
             # abschaltbar (RELAY_TENANT_CHECK, NOTNAGEL) — etwa für ein bewusst
             # mehrmandantiges Relay.
-            if (peer_ip and not aus_relay_netz
+            # `not _ident`: Eine angemeldete Einlieferung (587) kommt von einem
+            # Gerät, nicht aus Exchange — sie trägt nie eine Tenant-Kennung und
+            # gehört weder in die Zählung noch unter die strenge Prüfung.
+            if (peer_ip and not aus_relay_netz and not _ident
                     and settings_store.get("RELAY_TENANT_CHECK") is not False):
                 _own_tenant = (config.TENANT_ID or settings_store.get("TENANT_ID")
                                or "").strip().lower()
@@ -661,11 +664,22 @@ class SignatureHandler:
                     return "554 5.7.1 Access denied: message not from this tenant"
                 # Konnte NICHT geprüft werden → annehmen, aber sichtbar machen
                 # (eine still ausfallende Schutzfunktion ist das Gefährliche).
+                # Gezählt (stats tenant_ohne_kopf, Bezugsgröße tenant_geprueft):
+                # Steht die Zahl nach einer Beobachtungszeit auf 0, empfiehlt die
+                # Abnahme RELAY_TENANT_STRENG — dann wird solche Post abgewiesen.
                 if not _own_tenant:
                     log.warning("SMTP: Herkunftsprüfung übersprungen — TENANT_ID nicht "
                                 "gesetzt; Post von %s ohne CrossTenant-Prüfung angenommen", peer_ip)
                 elif not _hdr_tenant:
+                    if settings_store.get("RELAY_TENANT_STRENG") is True:
+                        log.warning("SMTP: rejected — keine CrossTenant-Id im Kopf (Post von %s, "
+                                    "strenge Herkunftsprüfung)", peer_ip)
+                        _audit("tenant_fremd", error="keine Tenant-Kennung")
+                        return "554 5.7.1 Access denied: message carries no tenant identifier"
+                    stats.increment("tenant_ohne_kopf")
                     log.warning("SMTP: keine CrossTenant-Id im Kopf — Post von %s angenommen", peer_ip)
+                else:
+                    stats.increment("tenant_geprueft")
 
             # ── Harvest-only mode (BCC to harvest address) ────────────────────
             harvest_rcpt = (settings_store.get("SMIME_HARVEST_RCPT") or "").lower().strip()

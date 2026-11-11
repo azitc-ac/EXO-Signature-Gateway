@@ -114,3 +114,82 @@ def test_notnagel_aus_laesst_fremde_post_durch(anlage):
     antwort = _lauf(_nachricht(FREMD))
     assert antwort.startswith("250"), antwort
     assert anlage["_zugestellt"], "bei abgeschaltetem Gate muss Post durchgehen"
+
+
+# ── Strenge Prüfung und Zähler (v1.11.4) ─────────────────────────────────────
+
+@pytest.fixture
+def zaehler(monkeypatch):
+    import stats
+    gezaehlt = []
+    monkeypatch.setattr(stats, "increment", lambda k: gezaehlt.append(k))
+    return gezaehlt
+
+
+def test_streng_weist_post_ohne_kennung_ab(anlage, zaehler):
+    anlage["RELAY_TENANT_STRENG"] = True
+    antwort = _lauf(_nachricht(None))
+    assert antwort.startswith("554"), antwort
+    assert anlage["_zugestellt"] == []
+    assert any(e.get("action") == "tenant_fremd" for e in anlage["_ereignisse"])
+
+
+def test_streng_laesst_eigene_post_durch(anlage, zaehler):
+    anlage["RELAY_TENANT_STRENG"] = True
+    assert _lauf(_nachricht(OWN)).startswith("250")
+
+
+def test_zaehler_mit_bezugsgroesse(anlage, zaehler):
+    _lauf(_nachricht(OWN))
+    _lauf(_nachricht(None))
+    assert zaehler.count("tenant_geprueft") == 1
+    assert zaehler.count("tenant_ohne_kopf") == 1
+
+
+def test_relay_geraete_zaehlen_nicht(anlage, zaehler, monkeypatch):
+    """Lokale Geräte tragen die Kennung nie — sie gehören nicht in die Zahl
+    und werden auch streng nicht abgewiesen."""
+    import smtp_relay
+    monkeypatch.setattr(smtp_relay, "ist_relay_quelle", lambda ip: True)
+    anlage["RELAY_TENANT_STRENG"] = True
+    anlage["SMTP_RELAY_ENABLED"] = True
+    _lauf(_nachricht(None), ip="192.168.1.50")
+    assert "tenant_ohne_kopf" not in zaehler
+    assert not any(e.get("action") == "tenant_fremd" for e in anlage["_ereignisse"])
+
+
+@pytest.mark.parametrize("geprueft,ohne,streng,erwartet", [
+    (0, 0, False, "ok"),          # Beobachtung läuft
+    (500, 0, False, "offen"),     # Empfehlung: einschalten
+    (500, 3, False, "offen"),     # erst klären
+    (500, 3, True, "ok"),
+])
+def test_abnahme_empfiehlt_nach_beobachtung(monkeypatch, geprueft, ohne, streng, erwartet):
+    import abnahme
+    import settings_store
+    import stats
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a, **kw: {"RELAY_TENANT_STRENG": streng}.get(k))
+    monkeypatch.setattr(stats, "get", lambda: {"tenant_geprueft": geprueft,
+                                               "tenant_ohne_kopf": ohne})
+    p = abnahme._tenant_herkunft()
+    assert p["zustand"] == erwartet, p
+    if ohne and not streng:
+        assert f"{ohne} von {geprueft + ohne}" in p["befund"]
+
+
+def test_angemeldete_einlieferung_587_ist_ausgenommen(anlage, zaehler, monkeypatch):
+    """Sende-Identitäten liefern ohne Tenant-Kennung ein — der strenge Modus
+    darf sie nicht treffen."""
+    import relay_stats
+    import sende_identitaeten
+    monkeypatch.setattr(sende_identitaeten, "pruefe", lambda *a: (True, "", ""))
+    monkeypatch.setattr(relay_stats, "merke", lambda *a, **kw: None)
+    anlage["RELAY_TENANT_STRENG"] = True
+    sitzung = _Sitzung("203.0.113.7")
+    sitzung.authenticated = True
+    sitzung.auth_data = {"login": "drucker", "name": "Drucker"}
+    antwort = asyncio.run(handler.SignatureHandler().handle_DATA(
+        None, sitzung, _Umschlag(_nachricht(None))))
+    assert not antwort.startswith("554"), antwort
+    assert "tenant_ohne_kopf" not in zaehler

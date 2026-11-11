@@ -721,6 +721,7 @@ async def api_license_delete(user: str = Depends(_require_admin)):
 async def api_smtp_acl_status(_: str = Depends(_require_admin)):
     """State of the SMTP source-IP allowlist for the Erweitert-Tab panel."""
     import smtp_acl
+    import stats
     from datetime import datetime, timezone
     ts = smtp_acl.last_refresh_ts()
     rejects = [
@@ -732,6 +733,8 @@ async def api_smtp_acl_status(_: str = Depends(_require_admin)):
         "range_count": smtp_acl.range_count(),
         "last_refresh": (datetime.fromtimestamp(ts, timezone.utc).isoformat() if ts else None),
         "recent_rejects": rejects,
+        "tenant_geprueft": stats.get().get("tenant_geprueft", 0),
+        "tenant_ohne_kopf": stats.get().get("tenant_ohne_kopf", 0),
     })
 
 

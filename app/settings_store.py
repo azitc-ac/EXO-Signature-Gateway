@@ -187,6 +187,7 @@ DEFAULTS: dict = {
     # ⚠️ Die FREIGABE steht in der Geräteliste (`relay_hosts`), nicht hier.
     # Bis v1.8.14 gab es daneben `SMTP_ACL_EXTRA_CIDRS` — eine zweite Liste
     # erlaubter Quellnetze ohne Absender- und Zielprüfung. Sie ist entfallen.
+    "RELAY_TENANT_STRENG": False,      # Post aus dem EXO-Weg OHNE CrossTenant-Id abweisen (554)
     "RELAY_TENANT_CHECK": True,        # Post aus EXO-IP-Raum muss aus eigenem Tenant sein (CrossTenant-Id)
     "SMTP_RELAY_ENABLED": False,       # bewusste Freischaltung, Vorgabe aus
     # Authentifizierte Einlieferung (Submission 587) durch Sende-Identitäten mit

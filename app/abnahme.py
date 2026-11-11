@@ -453,6 +453,63 @@ def _bestand_durchsicht() -> dict:
                   "im Zweifel beim Partner nachfragen.")
 
 
+# Ab so vielen geprüften Mails ohne einen Fall „ohne Kennung“ gilt die
+# Beobachtung als ausreichend, um die strenge Prüfung zu empfehlen.
+TENANT_BEOBACHTUNG_MIN = 200
+
+
+def _tenant_herkunft() -> dict:
+    """Weist das Gateway Post aus dem Exchange-Weg ohne Tenant-Kennung ab?
+
+    Die Herkunftsprüfung (handler.py, Tenant-Gate) weist eine FREMDE Kennung
+    ab, nimmt eine FEHLENDE aber an — eine Vorgabe, die Mailfluss vor Strenge
+    stellt. Ob bei diesem Tenant je Post ohne Kennung kommt, zeigt erst der
+    Betrieb (stats tenant_ohne_kopf, Bezugsgröße tenant_geprueft)."""
+    import settings_store
+    import stats
+    name = "Herkunftsprüfung streng (Tenant-Kennung Pflicht)"
+    if settings_store.get("RELAY_TENANT_CHECK") is False:
+        return _punkt(name, OFFEN, "Die Herkunftsprüfung ist in der Konfigurationsdatei "
+                      "abgeschaltet (RELAY_TENANT_CHECK).",
+                      "Nur für ein bewusst mehrmandantiges Relay so lassen.")
+    if settings_store.get("RELAY_TENANT_STRENG") is True:
+        return _punkt(name, OK, "Post aus dem Exchange-Weg ohne Tenant-Kennung wird abgewiesen.")
+    gesamt = stats.get()
+    geprueft, ohne = gesamt.get("tenant_geprueft", 0), gesamt.get("tenant_ohne_kopf", 0)
+    if ohne:
+        return _punkt(name, OFFEN,
+                      f"{ohne} von {geprueft + ohne} Mails aus dem Exchange-Weg kamen ohne "
+                      "Tenant-Kennung und wurden angenommen.",
+                      "Im Protokoll nach „keine CrossTenant-Id“ suchen und die Quelle klären; "
+                      "erst danach unter Erweitert → Quell-IP-Allowlist „Post ohne "
+                      "Tenant-Kennung abweisen“ einschalten.")
+    if geprueft < TENANT_BEOBACHTUNG_MIN:
+        return _punkt(name, OK, f"Beobachtung läuft: {geprueft} Mails geprüft, keine ohne "
+                      f"Kennung. Empfehlung folgt ab {TENANT_BEOBACHTUNG_MIN}.")
+    return _punkt(name, OFFEN,
+                  f"{geprueft} Mails geprüft, keine ohne Tenant-Kennung — die strenge "
+                  "Prüfung kann eingeschaltet werden.",
+                  "Erweitert → Quell-IP-Allowlist → „Post ohne Tenant-Kennung abweisen“.")
+
+
+def _quell_ip_liste() -> dict:
+    """Ist die Liste der Exchange-Adressbereiche geladen? Leer lässt die
+    Quell-IP-Prüfung alles durch (fail-safe, smtp_acl.is_allowed)."""
+    import settings_store
+    import smtp_acl
+    name = "Quell-IP-Allowlist geladen"
+    if settings_store.get("SMTP_SOURCE_ACL_ENABLED") is False:
+        return _punkt(name, OFFEN, "Die Quell-IP-Allowlist ist ausgeschaltet; jede Adresse "
+                      "darf an Port 25 einliefern.", "Erweitert → Quell-IP-Allowlist einschalten.")
+    n = smtp_acl.range_count()
+    if not n:
+        return _punkt(name, OFFEN, "Keine Exchange-Adressbereiche geladen — bis dahin lässt "
+                      "die Prüfung jede Quelle durch.",
+                      "Erweitert → Quell-IP-Allowlist → „Jetzt aktualisieren“; scheitert das, "
+                      "den Abruf von endpoints.office.com prüfen.")
+    return _punkt(name, OK, f"{n} Exchange-Adressbereiche geladen.")
+
+
 def _fair_use() -> dict:
     """Mehr Postfächer aktiviert, als Lizenz oder Freigrenze erlauben?"""
     import license as _lic
@@ -611,7 +668,7 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _addin_rollen, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg,
-              _bestand_durchsicht)
+              _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste)
 
 
 def bericht() -> dict:

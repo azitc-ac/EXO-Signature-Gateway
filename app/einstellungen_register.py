@@ -210,6 +210,7 @@ REGISTER: dict[str, E] = {
               "Fall mehr Angriffsfläche als Nutzen. Der Abschnitt SMTP-Smarthost "
               "in advanced.html nennt den Weg, damit er nicht unbemerkt bleibt."),
     "REINJECT_MODE": E(art=OPTION, ort="setup.html"),
+    "RELAY_TENANT_STRENG": E(art=OPTION, ort="advanced.html"),
     "RELAY_TENANT_CHECK": E(
         art=NOTNAGEL,
         grund="Sicherheits-Gate: Post aus dem EXO-IP-Raum (den sich alle "

@@ -1262,6 +1262,18 @@ async function saveSmtpSubmit() {
       <span id="acl-enabled-result" style="font-size:12px;margin-left:6px"></span>
     </label>
 
+    <label style="display:flex;gap:10px;align-items:center;margin-bottom:6px;cursor:pointer">
+      <input type="checkbox" id="tenant-streng" {% if s.RELAY_TENANT_STRENG %}checked{% endif %} onchange="tenantStrengToggle()">
+      <span style="font-size:13px">Post ohne Tenant-Kennung abweisen</span>
+      <span id="tenant-streng-result" style="font-size:12px;margin-left:6px"></span>
+    </label>
+    <p class="hint" style="margin:0 0 12px 30px">
+      Exchange Online versieht Post des eigenen Tenants mit dessen Kennung; eine fremde
+      Kennung weist das Gateway immer ab. Fehlt sie, wird die Post bisher angenommen.
+      Einschalten, wenn die Zahl unten über eine Weile bei 0 bleibt:
+      <span id="tenant-zahlen">…</span>
+    </p>
+
     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px;margin-bottom:14px">
       <div>Geladene Bereiche: <strong id="acl-count">…</strong></div>
       <div>Letzte Aktualisierung: <strong id="acl-refresh">…</strong></div>
@@ -1286,6 +1298,9 @@ async function aclLoadStatus() {
   try {
     const d = await getJSON('/api/smtp-acl/status'); if (!d.ok) return;
     document.getElementById('acl-count').textContent = d.range_count;
+    document.getElementById('tenant-zahlen').textContent =
+      d.tenant_ohne_kopf + ' von ' + (d.tenant_geprueft + d.tenant_ohne_kopf)
+      + ' Mails ohne Kennung angenommen (seit Beginn der Zählung).';
     document.getElementById('acl-refresh').textContent =
       d.last_refresh ? new Date(d.last_refresh).toLocaleString('de-DE') : 'noch nie (Cache/aus)';
     const rj = document.getElementById('acl-rejects');
@@ -1313,6 +1328,11 @@ async function aclToggle() {
   // Sofort-Schalter: speichert über savePartial (Speicher-Linie Regel 4/5)
   await savePartial({SMTP_SOURCE_ACL_ENABLED: document.getElementById('acl-enabled').checked},
                     'acl-enabled-result', 'advanced:acl');
+}
+async function tenantStrengToggle() {
+  // Sofort-Schalter wie die Allowlist (Speicher-Linie Regel 4/5)
+  await savePartial({RELAY_TENANT_STRENG: document.getElementById('tenant-streng').checked},
+                    'tenant-streng-result', 'advanced:tenant');
 }
 async function aclRefresh(btn) {
   const el = 'acl-refresh-result';

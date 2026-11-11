@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.4 — 2026-11-11 — Herkunftsprüfung: Zähler, strenger Modus, Abnahme
+
+- Post aus dem Exchange-Weg mit der Kennung eines **fremden** Tenants weist
+  das Gateway ab. Fehlte die Kennung ganz, wurde die Post angenommen und nur
+  im Protokoll vermerkt. Das bleibt die Vorgabe, ist jetzt aber sichtbar:
+  Unter *Erweitert → Quell-IP-Allowlist* steht, wie viele Mails ohne Kennung
+  angenommen wurden, gemessen an allen geprüften. Der Tagesbericht nennt
+  die Zahl, sobald sie über 0 liegt.
+- Neuer Schalter **„Post ohne Tenant-Kennung abweisen“** am selben Ort.
+  Eingeschaltet antwortet das Gateway auf solche Post mit `554`. Geräte aus
+  der Relay-Liste und angemeldete Einlieferungen über Port 587 sind
+  ausgenommen, sie tragen nie eine Kennung.
+- Die Abnahme hat zwei neue Punkte. *Herkunftsprüfung streng* empfiehlt den
+  Schalter, sobald 200 Mails ohne einen Fall ohne Kennung geprüft sind, und
+  nennt sonst die Zahl der Fälle zum Klären. *Quell-IP-Allowlist geladen*
+  meldet, wenn die Liste der Exchange-Adressbereiche leer ist; dann lässt
+  die Prüfung jede Quelle durch.
+
+**Zu tun:** nichts. Zeigt die Abnahme die Empfehlung, schalte den neuen
+Schalter ein.
+
 ## v1.11.3 — 2026-11-11 — Anmeldung: Kennwortwechsel und Rollenentzug beenden Sitzungen
 
 - Eine Anmeldung an der Weboberfläche galt bisher ihre vollen 8 Stunden,

@@ -90,6 +90,13 @@ KEYS = (
     # NICHT im Bestand — an diese Empfaenger geht die Nachricht deshalb ueber
     # das Portal, so als laege gar kein Zertifikat vor.
     "cert_wartet",
+    # Herkunftsprüfung am Eingang (Tenant-Gate, handler.py): Post aus dem
+    # Exchange-Weg MIT passender Tenant-Kennung bzw. OHNE Kennung angenommen.
+    # Die erste ist die Bezugsgröße der zweiten — „3 ohne Kennung" sagt allein
+    # nichts, „3 von 1200" schon. Steht die zweite über eine Beobachtungszeit
+    # auf 0, lässt sich RELAY_TENANT_STRENG gefahrlos einschalten.
+    "tenant_geprueft",
+    "tenant_ohne_kopf",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}

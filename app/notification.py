@@ -265,6 +265,12 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         _row("Antworten in Ketten", _ketten_text(dval("antworten"),
                                                   dval("stapel_verhindert")),
              _ketten_farbe(dval("antworten"), dval("stapel_verhindert"))),
+        # Herkunftsprüfung: nur bei Post ohne Tenant-Kennung, dann MIT
+        # Bezugsgröße — „3 von 400" ist zu deuten, „3" allein nicht.
+        (_row("Ohne Tenant-Kennung angenommen",
+              f"{dval('tenant_ohne_kopf')} von "
+              f"{dval('tenant_geprueft') + dval('tenant_ohne_kopf')}", "#e67e22")
+         if dval("tenant_ohne_kopf") else ""),
         # Angriffs-Indikator: nur zeigen, wenn es etwas gab. Eine Dauerzeile mit
         # 0 würde überlesen — hier zählt gerade der Ausschlag.
         *[(_row(_ae.LABELS.get(q, q), _abgewiesen[q], "#e67e22")
