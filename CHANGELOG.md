@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.19 — 2026-11-11 — Port 25: genauer Grund bei abgebrochenem TLS, Wurzel für das Exchange-Client-Zertifikat
+
+- Bricht ein TLS-Aufbau an Port 25 an einem Zertifikat ab, nennt die
+  Protokollzeile jetzt auch die Prüfmeldung, etwa „unable to get local issuer
+  certificate“ (Wurzel unbekannt) oder „unsuitable certificate purpose“
+  (falscher Verwendungszweck). Bisher stand dort nur
+  „SSLCertVerificationError“, und die beiden Fälle waren nicht zu
+  unterscheiden.
+- Messschalter `SMTP_CLIENTZERT_BEOBACHTEN`: Exchange Online legt beim
+  Einliefern ein Client-Zertifikat aus der DigiCert-Kette vor
+  (`CN=mail.protection.outlook.com`, Aussteller DigiCert SHA2 Secure Server CA).
+  Dessen Wurzel „DigiCert Global Root CA“ fehlt in der allgemeinen
+  CA-Liste, der Mozilla das Vertrauen entzogen hat; Windows vertraut ihr
+  weiterhin. Der Messschalter prüft jetzt zusätzlich gegen diese Wurzel und
+  protokolliert Seriennummer und Fingerabdruck. Er bleibt ausgeschaltet.
+
+**Zu tun:** nichts.
+
 ## v1.11.18 — 2026-11-11 — Messschalter für Client-Zertifikate: Ergebnis
 
 - Der Test mit `SMTP_CLIENTZERT_BEOBACHTEN` hat ergeben: Exchange Online legt

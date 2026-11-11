@@ -117,8 +117,10 @@ class _LenientSMTP(_BaseSMTP):
             import smtp_cert
             extra = getattr(self.session, "ssl", None) or {}
             ip = (self.session.peer or ("?",))[0]
+            sslobj = extra.get("ssl_object")
+            der = sslobj.getpeercert(binary_form=True) if sslobj else None
             log.info("SMTP-TLS von %s: %s", ip,
-                     smtp_cert.clientzert_beschreibung(extra.get("peercert")))
+                     smtp_cert.clientzert_beschreibung(extra.get("peercert"), der))
         except Exception as exc:         # noqa: BLE001
             log.warning("SMTP: Client-Zertifikat nicht lesbar: %s", exc)
 

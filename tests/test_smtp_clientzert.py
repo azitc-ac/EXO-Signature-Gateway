@@ -129,6 +129,25 @@ def test_vorgelegtes_zertifikat_wird_protokolliert(aufbau):
     assert merker.anzahl == 1
     treffer = [z for z in zeilen.zeilen if z.startswith("SMTP-TLS von")]
     assert treffer and "CN=mail.protection.outlook.com" in treffer[0], zeilen.zeilen
+    # Seriennummer und Fingerabdruck — nur die machen einen Vergleich eindeutig
+    import hashlib
+    from cryptography import x509
+    cert = x509.load_pem_x509_certificate(Path(client[0]).read_bytes())
+    from cryptography.hazmat.primitives.serialization import Encoding
+    fp = hashlib.sha1(cert.public_bytes(Encoding.DER)).hexdigest().upper()
+    assert f"SHA1={fp}" in treffer[0], treffer[0]
+    assert f"Serial={cert.serial_number:X}" in treffer[0], treffer[0]
+
+
+def test_wurzel_des_exo_clientzertifikats_liegt_bei():
+    """Die Wurzel fehlt in certifi; ohne die mitgelieferte Datei scheiterte die
+    Prüfung des echten EXO-Zertifikats (Raspi, 11.11.2026)."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+    datei = WURZEL / "app" / "smtp_clientzert_wurzeln.pem"
+    cert = x509.load_pem_x509_certificate(datei.read_bytes())
+    assert cert.fingerprint(hashes.SHA1()).hex().upper() == \
+        "A8985D3A65E5E5C4B2D7D66D40C6DD2FB19C5436"
 
 
 def test_ohne_zertifikat_kommt_die_mail_trotzdem_an(aufbau):

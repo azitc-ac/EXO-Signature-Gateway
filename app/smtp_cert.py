@@ -149,15 +149,23 @@ def _clientzert_anfordern(ctx: ssl.SSLContext) -> None:
         ctx.load_verify_locations(cafile=certifi.where())
     except Exception:                                     # noqa: BLE001
         ctx.load_default_certs(ssl.Purpose.CLIENT_AUTH)
+    # Die Wurzel des EXO-Client-Zertifikats fehlt in certifi (siehe Datei).
+    ctx.load_verify_locations(cafile=str(Path(__file__).with_name("smtp_clientzert_wurzeln.pem")))
     ctx.verify_mode = ssl.CERT_OPTIONAL
     log.warning("SMTP-Listener: Client-Zertifikate werden angefordert "
                 "(SMTP_CLIENTZERT_BEOBACHTEN, nur Beobachtung)")
 
 
-def clientzert_beschreibung(peercert) -> str:
-    """Kurzfassung eines von ssl gelieferten Peer-Zertifikats fürs Protokoll."""
+def clientzert_beschreibung(peercert, der: bytes | None = None) -> str:
+    """Kurzfassung eines von ssl gelieferten Peer-Zertifikats fürs Protokoll.
+
+    Mit Seriennummer und SHA-1-Fingerabdruck: Nur die machen einen Vergleich
+    eindeutig (etwa mit dem, was Exchange vor Ort als „Received certificate“
+    protokolliert) — der Name allein kann auf mehreren Zertifikaten stehen."""
     if not peercert:
         return "kein Client-Zertifikat"
+    import hashlib
+    fp = hashlib.sha1(der, usedforsecurity=False).hexdigest().upper() if der else "?"
     def _feld(teil, schluessel):
         for rdn in peercert.get(teil, ()):
             for k, v in rdn:
@@ -168,7 +176,8 @@ def clientzert_beschreibung(peercert) -> str:
     return (f"CN={_feld('subject', 'commonName')} "
             f"SAN={','.join(sans[:6])}{'…' if len(sans) > 6 else ''} "
             f"Aussteller={_feld('issuer', 'organizationName')}/{_feld('issuer', 'commonName')} "
-            f"gültig bis {peercert.get('notAfter', '?')}")
+            f"gültig bis {peercert.get('notAfter', '?')} "
+            f"Serial={peercert.get('serialNumber', '?')} SHA1={fp}")
 
 
 def baue_listener_kontext(kandidaten: list[tuple[str, str]]):
