@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.58 — 2026-11-12 — Antworten als winmail.dat: Kette und Add-in-Signatur erkannt
+
+- Manche Antworten gibt Exchange als `winmail.dat` (TNEF) an das Gateway
+  weiter, etwa solche, die über die Graph-Schnittstelle oder bestimmte
+  Clients beantwortet werden. Das Gateway entpackte sie erst beim Einsetzen der
+  Signatur. Die Prüfungen davor — „bereits in dieser Kette signiert“, Signatur
+  des Verfassen-Add-ins im Entwurf, interne Signatur — sahen dadurch kein HTML.
+  Folge: Eine solche Antwort bekam die volle Signatur erneut statt der
+  Antwort-Signatur, und eine vom Add-in gesetzte Signatur konnte ein zweites
+  Mal angehängt werden. Jetzt wird TNEF vor allen Prüfungen entpackt.
+
+**Zu tun:** nichts.
+
 ## v1.11.57 — 2026-11-12 — Prüfstand nachgezogen
 
 - Bestehende Tests an v1.11.56 angepasst (Vorlagenvariable `bearbeiter` beim

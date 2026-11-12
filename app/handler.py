@@ -1184,6 +1184,14 @@ class SignatureHandler:
                         return "250 OK"
 
             # ── Normal outbound: inject signature ─────────────────────────────
+            # TNEF (winmail.dat) ZUERST entpacken: Alle Prüfungen unten lesen das
+            # HTML — Kette („bereits in dieser Kette signiert“), Signatur des
+            # Add-ins im Entwurf, interne Signatur. Bis v1.11.57 entpackte erst
+            # inject(); davor sahen sie bei TNEF-Post gar kein HTML, und eine
+            # Antwort per Graph /reply bekam die volle Signatur ein zweites Mal
+            # (gemessen 12.11.2026, DEV-Tenant). inject() entpackt erneut — dann
+            # ohne Wirkung, weil kein TNEF-Teil mehr da ist.
+            msg = mail_processor._expand_tnef(msg)
             user_data = await graph_client.get_user(_sig_absender)
             # {{ bearbeiter.* }} in Vorlagen: wer die Mail tatsächlich schreibt —
             # bei „im Auftrag von“ die Person, sonst der Postfachinhaber selbst.

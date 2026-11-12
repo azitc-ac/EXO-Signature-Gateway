@@ -52,7 +52,9 @@ def _mail(an, von_kopf=MAX, sender_kopf="", koerper="<p>Hallo</p>", betreff="Tes
 
 
 def _sig(name, wer, bearbeiter):
-    return f"<p>Signatur {name} fuer {wer} von {bearbeiter}</p>"
+    # Zwei Zeilen: Die Ketten-Erkennung verlangt mindestens zwei Zeilen der
+    # Signatur im Zitat (mail_processor.signatur_zu_lesen).
+    return f"<p>Signatur {name} fuer {wer} von {bearbeiter}</p><p>Zeile zwei der Vorlage {name}</p>"
 
 
 @pytest.fixture
@@ -219,3 +221,35 @@ def test_ohne_sender_kopf_kein_auftrag(anlage):
     """Ein abweichendes From allein (etwa eine Weiterleitungsregel) reicht nicht."""
     _lauf(MAX, [EXTERN], von_kopf=f"Team <{TEAM}>")
     assert _sig("Sig", MAX, MAX) in _text(anlage)
+
+
+# ── TNEF (winmail.dat): Prüfungen sehen das entpackte HTML ─────────────────────
+
+def test_tnef_antwort_wird_als_kette_erkannt(anlage, monkeypatch):
+    """Antwort per Graph /reply kommt als winmail.dat. Bis v1.11.57 entpackte
+    erst inject(); die Kettenprüfung sah kein HTML → volle Signatur doppelt."""
+    import mail_processor
+    zitat = ('<div id="divRplyFwdMsg"><b>Von:</b> Erika</div>'
+             + _sig("Sig", MAX, MAX) + _sig("Min", MAX, MAX))
+
+    def _entpacken(m):
+        if m.get_content_maintype() != "multipart":
+            return m
+        neu = email.message_from_bytes(_mail([EXTERN], koerper="<p>Danke</p>" + zitat))
+        for k in ("To", "Subject", "Message-ID", "In-Reply-To", "References"):
+            if m.get(k):
+                del neu[k]
+                neu[k] = m[k]
+        return neu
+    monkeypatch.setattr(mail_processor, "_expand_tnef", _entpacken)
+    roh = (f"From: {MAX}\r\nTo: {EXTERN}\r\nSubject: AW: Test\r\n"
+           "In-Reply-To: <alt@extern.de>\r\nMessage-ID: <x2@firma.de>\r\nMIME-Version: 1.0\r\n"
+           'Content-Type: multipart/mixed; boundary="b"\r\n\r\n--b\r\n'
+           "Content-Type: text/plain\r\n\r\nDanke\r\n--b\r\n"
+           "Content-Type: application/ms-tnef\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+           "eJ8+IgAA\r\n--b--\r\n").encode()
+    h = handler.SignatureHandler()
+    asyncio.run(h.handle_DATA(None, _Sitzung(), _Umschlag(MAX, [EXTERN], roh)))
+    t = _text(anlage)
+    assert t.count("Signatur Sig") == 1          # nur die zitierte, keine neue volle
+    assert t.count("Signatur Min") == 2          # zitierte + neue Antwort-Signatur
