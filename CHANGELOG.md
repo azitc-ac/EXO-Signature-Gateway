@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.42 — 2026-11-12 — Prüfstand nachgezogen
+
+- Drei bestehende Tests an v1.11.41 angepasst: der neue Eintrag `meldung` in
+  der Laufzeit-Konfiguration des Verfassen-Add-ins, der Rückfall des
+  Aufgabenbereichs bei zu großen Signaturen, und die Begründung, warum
+  `/api/addin/meldung` ohne Anmeldung erreichbar ist.
+
+**Zu tun:** nichts.
+
 ## v1.11.41 — 2026-11-12 — Add-in: zu große Signaturen erkannt; Fehler aus Outlook und PROXY-Abbrüche im Protokoll
 
 - **Signaturen über 30.000 Zeichen.** Outlook nimmt in den Signaturbereich

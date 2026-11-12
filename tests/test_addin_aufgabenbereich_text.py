@@ -96,7 +96,8 @@ def test_nie_den_ganzen_text_durch_die_signatur_ersetzen():
 
 def test_einfuegen_nutzt_den_signaturbereich_vor_dem_textumbau():
     rumpf = _funktion(_quelle(), "_sigSetzen")  # replaceSig prüft vorher nur den Textkörper
-    assert "if (_signaturbereich()) {" in rumpf
+    # Ausnahme nur für Signaturen über Outlooks Grenze (test_addin_diagnose.py)
+    assert "if (_signaturbereich() && !_zuGross) {" in rumpf
     i_sig = rumpf.index("setSignatureAsync(_markedSig")
     assert i_sig < rumpf.index("body.getAsync("), (
         "Der Signaturbereich muss der erste Weg sein; der Textumbau ist nur der "

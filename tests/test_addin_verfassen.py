@@ -239,6 +239,7 @@ def test_laufzeit_skript_ist_eine_datei_mit_msal_konfig_und_handler(umgebung):
                     "authority": "https://login.microsoftonline.com/TID",
                     "scope": "api://CID/access_as_user",
                     "api": "https://sig.example" + av.SIGNATUR_API,
+                    "meldung": "https://sig.example" + av.MELDUNG_API,
                     "kettenkopf": "X-Exo-Sig-Kette",
                     "app": "Signatur"}          # Abwesenheit aus → App heißt „Signatur“
     assert "\nimport " not in inhalt and "\nexport " not in inhalt   # Classic: keine Importe
