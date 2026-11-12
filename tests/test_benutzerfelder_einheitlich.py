@@ -55,7 +55,7 @@ def test_get_user_fuellt_vor_und_nachname(monkeypatch):
     graph_client._user_data_cache.clear()
 
     async def daten(email):
-        return {"displayName": "Max S", "givenName": "Max", "surname": "Beispielmann",
+        return {"displayName": "Max B", "givenName": "Max", "surname": "Beispielmann",
                 "mail": email, "businessPhones": []}
     monkeypatch.setattr(graph_client, "_graph_user_data", daten)
     store = {"USER_OVERRIDES": {"b@firma.at": {"user.surname": "Anders"}}}

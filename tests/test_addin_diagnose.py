@@ -145,9 +145,9 @@ def test_taskpane_faellt_bei_zu_gross_auf_den_ganzen_text_zurueck():
 def test_editor_warnt_bei_zu_grosser_vorlage(monkeypatch):
     from webui.routen import vorlagen
     monkeypatch.setattr(signature_engine, "render", lambda u, t: (_gross(GRENZE + 1), ""))
-    assert vorlagen._outlook_zu_gross("Grossbild") == GRENZE + 1
+    assert vorlagen._outlook_zu_gross("grossbild") == GRENZE + 1
     monkeypatch.setattr(signature_engine, "render", lambda u, t: (_gross(GRENZE), ""))
-    assert vorlagen._outlook_zu_gross("Grossbild") == 0
+    assert vorlagen._outlook_zu_gross("grossbild") == 0
 
 
 def test_editor_zeigt_die_warnung():

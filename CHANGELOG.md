@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.44 — 2026-11-12 — Testdaten neutralisiert
+
+- Beispielnamen, Vorlagennamen und Netzadressen in Tests, einem Kommentar und
+  dem Platzhalter des Felds *Vorgeschaltete Firewall* durch neutrale Werte
+  ersetzt (`10.99.0.1` statt eines realen Netzes).
+
+**Zu tun:** nichts.
+
 ## v1.11.43 — 2026-11-12 — Prüfstand nachgezogen
 
 - Ein weiterer Anker im Test des Aufgabenbereichs auf die Bedingung aus

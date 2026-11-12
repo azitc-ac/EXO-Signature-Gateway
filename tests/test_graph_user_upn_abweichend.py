@@ -13,9 +13,9 @@ from urllib.parse import unquote
 
 import graph_client as gc
 
-KONTO = {"userPrincipalName": "gs@firma.onmicrosoft.com", "mail": "max.s@firma.at",
-         "proxyAddresses": ["SMTP:max.s@firma.at", "smtp:g.s@firma.at"],
-         "displayName": "Max S", "givenName": "Max", "surname": "S", "businessPhones": []}
+KONTO = {"userPrincipalName": "mb@firma.onmicrosoft.com", "mail": "max.b@firma.at",
+         "proxyAddresses": ["SMTP:max.b@firma.at", "smtp:m.b@firma.at"],
+         "displayName": "Max B", "givenName": "Max", "surname": "B", "businessPhones": []}
 
 
 class _Resp:
@@ -55,14 +55,14 @@ def _setup(monkeypatch, variablen=()):
 def test_mailadresse_statt_upn_findet_das_konto(monkeypatch):
     _setup(monkeypatch, [{"name": "vorname", "entra_field": "givenName"},
                          {"name": "nachname", "entra_field": "surname"}])
-    u = asyncio.run(gc.get_user("max.s@firma.at"))
-    assert u.displayName == "Max S"
-    assert u.custom == {"vorname": "Max", "nachname": "S"}
+    u = asyncio.run(gc.get_user("max.b@firma.at"))
+    assert u.displayName == "Max B"
+    assert u.custom == {"vorname": "Max", "nachname": "B"}
 
 
 def test_aliasadresse_findet_das_konto(monkeypatch):
     _setup(monkeypatch)
-    assert asyncio.run(gc.get_user("g.s@firma.at")).displayName == "Max S"
+    assert asyncio.run(gc.get_user("m.b@firma.at")).displayName == "Max B"
 
 
 def test_unbekannte_adresse_bleibt_leer(monkeypatch):
