@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.54 — 2026-11-12 — Einrichtung: Zertifikat wird wieder an der App hinterlegt
+
+- Beim Anmelden im Einrichtungsablauf (auch über die Aufgabe im Sammelpunkt)
+  brach das Hinterlegen des Auth-Zertifikats mit „KeyCredentialsInvalidEndDate“
+  ab. Das Gateway meldete Entra als Ablauf „jetzt + 3650 Tage“, gerechnet nach
+  dem Erzeugen des Zertifikats — damit lag das gemeldete Ende hinter dem
+  tatsächlichen Ablauf, und Entra lehnt das ab. Jetzt werden Beginn und Ende
+  aus dem Zertifikat selbst übernommen. Betraf ebenso das Hinterlegen an
+  Pool-Apps, die das vorhandene Zertifikat wiederverwenden.
+- Ein abgebrochener Versuch ließ das bisherige Zertifikat unverändert; das neue
+  wird erst nach erfolgreichem Hinterlegen gespeichert.
+
+**Zu tun:** nichts. Ist die Aufgabe zum Zertifikat im Sammelpunkt noch offen,
+führe sie nach dem Update erneut aus.
+
 ## v1.11.53 — 2026-11-12 — Diagnosepaket: Beleg der AVV-Zustimmung geht mit
 
 - Das Gateway verlangte vor jedem Diagnosepaket die Zustimmung zur

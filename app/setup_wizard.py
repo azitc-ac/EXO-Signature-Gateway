@@ -167,17 +167,35 @@ def _write_auth_pfx(pfx_bytes: bytes) -> None:
     secure_io.write_secret_bytes(_AUTH_CERT_PATH, pfx_bytes)
 
 
+def _zert_zeitraum(cert_der: bytes) -> tuple[str, str]:
+    """(Beginn, Ende) der Gültigkeit aus dem Zertifikat selbst, ISO in UTC.
+
+    Entra weist ein endDateTime hinter dem Ablauf des Zertifikats ab
+    („KeyCredentialsInvalidEndDate“). Bis v1.11.53 stand hier „jetzt + 3650
+    Tage“, gerechnet NACH dem Erzeugen — schon Sekunden später lag das hinter
+    dem notAfter, und beim Wiederverwenden einer älteren auth.pfx (Pool-Apps)
+    um Wochen."""
+    from cryptography import x509
+    zert = x509.load_der_x509_certificate(cert_der)
+    try:
+        beginn, ende = zert.not_valid_before_utc, zert.not_valid_after_utc
+    except AttributeError:                    # cryptography < 42
+        beginn, ende = zert.not_valid_before, zert.not_valid_after
+    form = "%Y-%m-%dT%H:%M:%SZ"
+    return beginn.strftime(form), ende.strftime(form)
+
+
 async def _upload_key_credential(token: str, app_object_id: str, cert_der: bytes) -> None:
     """Upload a certificate public key to an Azure AD app registration."""
-    from datetime import datetime, timezone, timedelta
     cert_b64 = base64.b64encode(cert_der).decode()
-    end_dt = (datetime.now(timezone.utc) + timedelta(days=3650)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    beginn, ende = _zert_zeitraum(cert_der)
     await _gh("patch", f"{GRAPH}/applications/{app_object_id}", token, json={
         "keyCredentials": [{
             "type": "AsymmetricX509Cert",
             "usage": "Verify",
             "key": cert_b64,
-            "endDateTime": end_dt,
+            "startDateTime": beginn,
+            "endDateTime": ende,
         }]
     })
     log.info("Auth certificate uploaded to app %s", app_object_id)
