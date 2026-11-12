@@ -1,0 +1,46 @@
+#!/bin/bash
+# Commit-msg-Hook — VERSIONIERT, aktiv über `git config core.hooksPath tools/hooks`.
+#
+# Aufgabe: Vertrauliches (Kunden, Personen, Vorlagennamen, Domänen, Netze) darf
+# weder in den Inhalt noch in die Nachricht eines Commits. Das Repository ist
+# öffentlich; was einmal gepusht ist, bleibt in der Historie.
+#
+# Die Begriffe stehen bewusst NICHT hier, sondern in einer lokalen Datei außerhalb
+# des Repositorys — eine Liste im Repo würde genau das veröffentlichen, was sie
+# schützen soll. Ein Begriff je Zeile, Groß-/Kleinschreibung egal, # = Kommentar:
+#
+#     ${EXO_VERTRAULICH:-~/.config/exo-gateway/vertraulich.txt}
+#
+# Geprüft werden die HINZUGEFÜGTEN Zeilen des Commits und die Commit-Nachricht
+# (darum commit-msg und nicht pre-commit: erst hier liegt die Nachricht vor).
+# Fehlt die Liste, warnt der Hook nur — ein frischer Klon soll committen können.
+
+liste="${EXO_VERTRAULICH:-$HOME/.config/exo-gateway/vertraulich.txt}"
+if [ ! -r "$liste" ]; then
+    echo "⚠ Keine Liste vertraulicher Begriffe ($liste) — Prüfung auf Kundendaten übersprungen."
+    exit 0
+fi
+
+muster=$(mktemp)
+trap 'rm -f "$muster"' EXIT
+grep -v '^[[:space:]]*\(#\|$\)' "$liste" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' > "$muster"
+[ -s "$muster" ] || exit 0
+
+treffer=0
+inhalt=$(git diff --cached -U0 --no-color | grep '^+' | grep -v '^+++ ')
+if [ -n "$inhalt" ] && printf '%s\n' "$inhalt" | grep -qiF -f "$muster"; then
+    echo "❌ Vertraulicher Begriff im Inhalt des Commits:"
+    git diff --cached -U0 --no-color | grep -v '^+++ ' | grep -E '^(\+|diff --git)' \
+        | grep -iF -f "$muster" -B0 | sed 's/^/   /' | head -20
+    treffer=1
+fi
+if grep -v '^#' "$1" | grep -qiF -f "$muster"; then
+    echo "❌ Vertraulicher Begriff in der Commit-Nachricht:"
+    grep -v '^#' "$1" | grep -iF -f "$muster" | sed 's/^/   /' | head -10
+    treffer=1
+fi
+if [ "$treffer" -ne 0 ]; then
+    echo "   Durch neutrale Werte ersetzen (Max Mustermann, firma.at, 10.99.0.x). Liste: $liste"
+    exit 1
+fi
+exit 0

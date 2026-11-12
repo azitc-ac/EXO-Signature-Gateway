@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.45 — 2026-11-12 — Commit-Prüfung auf vertrauliche Begriffe
+
+- Neuer versionierter Hook `tools/hooks/commit-msg`: Er prüft die
+  hinzugefügten Zeilen und die Nachricht jedes Commits gegen eine lokale
+  Liste vertraulicher Begriffe (`~/.config/exo-gateway/vertraulich.txt`,
+  abweichend über `EXO_VERTRAULICH`) und weist den Commit bei einem Treffer
+  ab. Die Liste liegt bewusst außerhalb des Repositorys. Ohne Liste warnt der
+  Hook nur. Aktiv mit `git config core.hooksPath tools/hooks`, wie der
+  bestehende pre-commit-Hook.
+
+**Zu tun:** nichts.
+
 ## v1.11.44 — 2026-11-12 — Testdaten neutralisiert
 
 - Beispielnamen, Vorlagennamen und Netzadressen in Tests, einem Kommentar und
