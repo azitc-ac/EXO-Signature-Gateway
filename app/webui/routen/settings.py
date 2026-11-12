@@ -261,6 +261,9 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
         except ValueError as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     settings_store.update(clean)
+    if "LOG_LEVEL" in clean:
+        import log_manager
+        log_manager.stufe_anwenden()    # wirkt sofort, nicht erst nach dem Neustart
     import aufgaben
     aufgaben.vergessen()        # der Sammelpunkt soll die Änderung gleich zeigen
     log.info("Settings updated by %s: %s", user, list(clean.keys()))

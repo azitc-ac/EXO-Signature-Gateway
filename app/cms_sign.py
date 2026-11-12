@@ -349,8 +349,8 @@ async def sign_smime_keyvault(
         f'micalg=sha-256; boundary="{boundary}"'
     )
     # Copy envelope headers from original message to outer wrapper
-    for hdr in ("From", "To", "Cc", "Subject", "Date", "Message-ID",
-                "Reply-To", "In-Reply-To", "References"):
+    import huelle
+    for hdr in huelle.KOPFZEILEN:
         val = original.get(hdr)
         if val:
             outer_lines.append(f"{hdr}: {val}")

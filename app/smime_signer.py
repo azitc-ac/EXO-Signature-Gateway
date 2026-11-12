@@ -66,10 +66,8 @@ def sign(message_bytes: bytes, sender: str, use_backup: bool = False) -> bytes |
         # normalise to CRLF (openssl outputs bare LF on Linux).
         original = _email_mod.message_from_bytes(message_bytes)
         signed_msg = _email_mod.message_from_bytes(result.stdout)
-        for hdr in ("From", "To", "Cc", "Subject", "Date", "Message-ID",
-                    "Reply-To", "In-Reply-To", "References"):
-            if not signed_msg.get(hdr) and original.get(hdr):
-                signed_msg[hdr] = original[hdr]
+        import huelle
+        huelle.uebernehmen(signed_msg, original)
 
         # Mark the outer wrapper so the EXO transport rule recognises this as
         # already processed and does not route it back through our connector.

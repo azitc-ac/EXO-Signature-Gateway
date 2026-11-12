@@ -52,6 +52,23 @@ def setup(retention_days: int = 30, tz_name: str = "UTC") -> None:
     _cleanup(retention_days)
 
 
+def stufe_anwenden(wert: str | None = None) -> str:
+    """Protokollstufe aus den Einstellungen auf den Wurzel-Logger anwenden —
+    beim Start und sofort beim Speichern.
+
+    Bis v1.11.55 setzte basicConfig die Stufe nur aus der Umgebungsvariable;
+    die Einstellung in der Oberfläche erreichte nur uvicorn. Wer dort DEBUG
+    wählte, bekam für den Mail-Handler weiterhin nur INFO (gemessen 12.11.2026,
+    DEV-Gateway)."""
+    import settings_store
+    name = str(wert or settings_store.get("LOG_LEVEL") or "INFO").upper()
+    stufe = getattr(logging, name, None)
+    if not isinstance(stufe, int):
+        name, stufe = "INFO", logging.INFO
+    logging.getLogger().setLevel(stufe)
+    return name
+
+
 def _cleanup(retention_days: int) -> None:
     if not LOG_DIR.exists():
         return

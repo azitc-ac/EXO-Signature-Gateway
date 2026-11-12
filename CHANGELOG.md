@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.55 — 2026-11-12 — S/MIME-Hülle behält „im Auftrag von“; Protokollstufe wirkt sofort
+
+- **S/MIME und „Senden im Auftrag von“.** Signierte und verschlüsselte Mails
+  übernahmen in die äußere Hülle nur einen Teil der Kopfzeilen; `Sender`
+  fehlte. Bei „Senden im Auftrag von“ aus einem geteilten Postfach sah der
+  Empfänger deshalb nur das geteilte Postfach, nicht die Person. Die Hülle
+  übernimmt jetzt auch `Sender`, `Thread-Topic` und `Thread-Index` (Outlook
+  ordnet Unterhaltungen danach). Die Liste steht an einer Stelle für alle
+  Hüllen — signiert lokal, signiert über den Key Vault und verschlüsselt.
+- **Protokollstufe.** Die Einstellung *Erweitert → Log-Level* erreichte bisher
+  nur den Webserver; die Mailverarbeitung blieb auf der Stufe aus der
+  Umgebungsvariable. Jetzt gilt die Einstellung für alles, und zwar sofort
+  beim Speichern.
+
+**Zu tun:** nichts.
+
 ## v1.11.54 — 2026-11-12 — Einrichtung: Zertifikat wird wieder an der App hinterlegt
 
 - Beim Anmelden im Einrichtungsablauf (auch über die Aufgabe im Sammelpunkt)

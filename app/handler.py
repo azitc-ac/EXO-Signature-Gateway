@@ -409,10 +409,8 @@ def _extract_mime_payload(msg_bytes: bytes, from_header: str, to_header: str,
 def _restore_envelope_headers(inner_msg: email.message.Message,
                                outer_msg: email.message.Message) -> None:
     """Copy outer envelope headers not present in the decrypted/stripped inner message."""
-    for hdr in ("From", "To", "Cc", "Message-ID", "Date",
-                "Reply-To", "In-Reply-To", "References"):
-        if not inner_msg.get(hdr) and outer_msg.get(hdr):
-            inner_msg[hdr] = outer_msg[hdr]
+    import huelle
+    huelle.uebernehmen(inner_msg, outer_msg)
 
 
 class SignatureHandler:

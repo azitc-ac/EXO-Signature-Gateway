@@ -826,6 +826,7 @@ def main() -> None:
         retention_days=int(settings_store.get("LOG_RETENTION_DAYS") or 30),
         tz_name=settings_store.get("LOG_TIMEZONE") or "UTC",
     )
+    log_manager.stufe_anwenden()
     import mail_trace
     mail_trace.install()
     # aiosmtpd loggt jede Verbindung mehrzeilig auf INFO — Internet-Scanner
