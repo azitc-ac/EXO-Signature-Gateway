@@ -22,8 +22,22 @@ import support_upload  # reuse build_bundle (bundle contents unchanged)
 log = logging.getLogger(__name__)
 
 
+_UNSICHER_GEMELDET: set[str] = set()
+
+
 def _base() -> str:
-    return (settings_store.get("HUB_BASE_URL") or "").strip().rstrip("/")
+    """Hub-Adresse — NUR https. Jeder Aufruf trägt den API-Schlüssel im Kopf,
+    das Diagnosepaket enthält Protokolle; beides darf nicht im Klartext gehen
+    (AVV Ziffer 6.1). Eine gespeicherte http-Adresse aus älteren Fassungen gilt
+    als nicht eingerichtet, statt still unverschlüsselt zu senden."""
+    url = (settings_store.get("HUB_BASE_URL") or "").strip().rstrip("/")
+    if url and not url.lower().startswith("https://"):
+        if url not in _UNSICHER_GEMELDET:
+            _UNSICHER_GEMELDET.add(url)
+            log.warning("Hub-Adresse %r ist nicht https — Hub-Verbindung ausgesetzt. "
+                        "Einstellungen → Hub: Adresse mit https:// eintragen.", url)
+        return ""
+    return url
 
 
 def _key() -> str:

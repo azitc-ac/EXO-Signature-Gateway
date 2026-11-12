@@ -124,8 +124,9 @@ async def api_hub_config_set(request: Request, user: str = Depends(_require_admi
         "HUB_CUSTOMER_NAME": (data.get("name") or "").strip(),
         "HUB_CUSTOMER_COMPANY": (data.get("company") or "").strip(),
     }
-    if updates["HUB_BASE_URL"] and not updates["HUB_BASE_URL"].startswith(("http://", "https://")):
-        return JSONResponse({"ok": False, "error": "Hub-Adresse muss mit http(s):// beginnen."}, status_code=400)
+    # Nur https: API-Schlüssel und Diagnosepakete gehen über diese Adresse (hub_client._base).
+    if updates["HUB_BASE_URL"] and not updates["HUB_BASE_URL"].lower().startswith("https://"):
+        return JSONResponse({"ok": False, "error": "Hub-Adresse muss mit https:// beginnen."}, status_code=400)
     settings_store.update(updates)
     return JSONResponse({"ok": True})
 

@@ -5,6 +5,37 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.47 — 2026-11-12 — Sicherheit: Diagnosepaket maskiert alle Geheimnisse; Mailprotokoll wirklich 7 Tage; Hub nur über https
+
+- **Geheimnisse im Diagnosepaket.** Das Paket für den Support maskierte
+  Einstellungen über ein eigenes Suchmuster statt über die zentrale Liste der
+  Geheimnisse. Dadurch gingen unter anderem der Hub-API-Schlüssel, der
+  Lizenzschlüssel, der DigiCert-API-Schlüssel, die SMTP-Passwörter der
+  Weiterleitungsziele und des Direktversands sowie die Client-Secrets im
+  App-Pool (eine Liste, die das Suchmuster nicht durchsuchte) im Klartext mit.
+  Jetzt gilt die zentrale Liste, zusätzlich ein Suchmuster auf jeder Ebene
+  einschließlich Listen; Zugangsdaten in Adressen (etwa beim ACME-Proxy)
+  werden entfernt.
+- **Protokolldateien im Paket** werden von Tokens, Passwortangaben und
+  privaten Schlüsseln bereinigt. Betreffzeilen bleiben enthalten; sie sind
+  für die Fehlersuche nötig und in der Vereinbarung zur Auftragsverarbeitung
+  genannt.
+- **Abwesenheitstexte und Benutzerangaben** (Telefonnummern, Titel) stehen
+  nur noch als Anzahl im Paket, nicht mehr mit Inhalt.
+- **Mailprotokoll:** Das Paket enthielt nicht die letzten sieben Tage,
+  sondern die neuesten 1.000 Einträge ohne Datumsgrenze — bei wenig Verkehr
+  bis zu zwei Jahre. Jetzt sind es die letzten sieben Tage, höchstens 1.000
+  Einträge.
+- **Hub nur über https.** Die Hub-Adresse ließ sich auch mit `http://`
+  speichern; API-Schlüssel und Diagnosepakete wären dann unverschlüsselt
+  gegangen. Speichern verlangt jetzt `https://`, und eine früher gespeicherte
+  `http://`-Adresse setzt die Hub-Verbindung aus (mit Warnung im Protokoll),
+  statt unverschlüsselt zu senden.
+
+**Zu tun:** nichts. Auf dem Hub lagen nur Pakete von Gateways des Betreibers;
+Pakete von Kunden-Gateways waren keine vorhanden. Steht bei dir unter
+*Einstellungen → Hub* eine Adresse mit `http://`, trage sie mit `https://` ein.
+
 ## v1.11.46 — 2026-11-12 — Update: neu gesetzte Release-Tags werden übernommen
 
 - Die Historie des Repositorys wurde bereinigt; dabei haben alle Commits und
