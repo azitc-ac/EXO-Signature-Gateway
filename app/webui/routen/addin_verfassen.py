@@ -327,6 +327,17 @@ async def verfassen_signatur(request: Request):
         return JSONResponse({"html": ""}, headers=_CORS)
     vorlage = _addin_cfg(email)["template"]
     plattform = _plattform(request)
+    # Von-Adresse des Entwurfs: weicht sie ab, schreibt die Person aus einem
+    # geteilten Postfach („Senden als“/„im Auftrag von“). Bisher nur im
+    # Protokoll — die Signatur bleibt die der angemeldeten Person.
+    try:
+        von = (request.query_params.get("von") or "").strip().lower()
+    except AttributeError:
+        von = ""
+    if von and "@" in von and len(von) <= 254 and von != email:
+        log.info("Verfassen-Add-in: Entwurf mit Von-Adresse %s, angemeldet ist %s (%s) — "
+                 "Signatur weiterhin für die angemeldete Person",
+                 "".join(z for z in von if z.isprintable()), email, plattform)
     kette, user_data = False, None
     antwort = _antwort(request)
     if antwort is not None:

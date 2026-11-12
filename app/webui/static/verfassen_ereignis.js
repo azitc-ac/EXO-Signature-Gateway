@@ -79,8 +79,18 @@
     try { return String(Office.context.diagnostics.platform || ''); } catch (e) { return ''; }
   }
 
-  function signaturHolen(zugriff, antwort) {
+  // Von-Adresse des Entwurfs (Mailbox 1.7) — weicht sie vom angemeldeten
+  // Nutzer ab, schreibt jemand aus einem geteilten Postfach. Fehlt die
+  // Schnittstelle oder scheitert sie: leer, alles wie bisher.
+  function vonHolen(item) {
+    if (!item.from || typeof item.from.getAsync !== 'function') return Promise.resolve('');
+    return asynk(function (cb) { item.from.getAsync(cb); })
+      .then(function (v) { return (v && v.emailAddress) || ''; }, function () { return ''; });
+  }
+
+  function signaturHolen(zugriff, antwort, von) {
     var adresse = EXO_VERFASSEN.api + '?client=' + encodeURIComponent(plattform());
+    if (von) adresse += '&von=' + encodeURIComponent(von);
     if (antwort) {
       adresse += '&art=' + encodeURIComponent(antwort.art);
       if (antwort.bezug) adresse += '&bezug=' + encodeURIComponent(antwort.bezug);
@@ -180,7 +190,10 @@
         var angaben = !antwortArt ? Promise.resolve(null)
           : antwortAngaben(item, art.composeType === 'forward' ? 'forward' : 'reply');
         return angaben.then(function (antwort) {
-          return token().then(function (z) { zugriff = z; return signaturHolen(z, antwort); });
+          return token().then(function (z) {
+            zugriff = z;
+            return vonHolen(item).then(function (von) { return signaturHolen(z, antwort, von); });
+          });
         }).then(function (d) {
           var html = (d && d.html) || '';
           vorlage = (d && d.vorlage) || '';

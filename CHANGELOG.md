@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.52 — 2026-11-12 — Diagnose für Senden aus geteilten Postfächern
+
+- Das Verfassen-Add-in übermittelt die Von-Adresse des Entwurfs. Weicht sie
+  vom angemeldeten Nutzer ab — jemand schreibt aus einem geteilten Postfach —,
+  steht das im Protokoll („Entwurf mit Von-Adresse …, angemeldet ist …“). Die
+  eingefügte Signatur ändert sich dadurch noch nicht; sie bleibt die der
+  angemeldeten Person.
+- Auf Protokollstufe DEBUG schreibt der Handler alle Kopfzeilen eingehender
+  Mails ins Protokoll (Werte gekürzt), etwa um zu sehen, welche Angaben
+  Exchange bei „Senden als“ oder „Senden im Auftrag von“ mitgibt.
+
+**Zu tun:** nichts.
+
 ## v1.11.51 — 2026-11-12 — Aufgabenbereich: 403 bei abweichendem UPN behoben
 
 - Wich der Anmeldename (UPN) eines Postfach-Nutzers von seiner Hauptadresse

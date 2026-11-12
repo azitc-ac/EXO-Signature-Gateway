@@ -267,3 +267,38 @@ def test_self_fremdes_postfach_403(self_sitzung, anmeldung, abgefragt):
     with pytest.raises(HTTPException) as e:
         addin._addin_postfach(_TaskReq(), abgefragt, anmeldung)
     assert e.value.status_code == 403
+
+
+# ── Messpunkt geteiltes Postfach: Von-Adresse des Entwurfs ──────────────────────
+
+def test_handler_schickt_die_von_adresse():
+    item = _VOLL[:-1] + ", from: {getAsync: " + _OK % "{emailAddress: 'team@firma.at'}" + "}}"
+    p = _handler_lauf(item, plattform="PC")
+    assert p["url"] == "https://x/api?client=PC&von=team%40firma.at"
+    assert p["gesetzt"] == "<p>SIG</p>"                  # Verhalten unverändert
+
+
+def test_handler_ohne_from_wie_bisher():
+    p = _handler_lauf(_VOLL, plattform="PC")
+    assert p["url"] == "https://x/api?client=PC"
+
+
+class _ReqVon(_Req):
+    def __init__(self, auth, von):
+        super().__init__(auth)
+        self.query_params = {"von": von, "client": "PC"}
+
+
+def test_abweichende_von_adresse_im_protokoll(umgebung, gross_rendern, caplog):
+    caplog.set_level(logging.INFO)
+    gross_rendern["n"] = 100
+    asyncio.run(av.verfassen_signatur(_ReqVon("Bearer " + _token(), "Team@Firma.at")))
+    zeilen = [s.getMessage() for s in caplog.records if "Von-Adresse" in s.getMessage()]
+    assert zeilen and "team@firma.at" in zeilen[0] and "erika@zarenko.net" in zeilen[0]
+
+
+def test_gleiche_von_adresse_ohne_zeile(umgebung, gross_rendern, caplog):
+    caplog.set_level(logging.INFO)
+    gross_rendern["n"] = 100
+    asyncio.run(av.verfassen_signatur(_ReqVon("Bearer " + _token(), "erika@zarenko.net")))
+    assert not [s for s in caplog.records if "Von-Adresse" in s.getMessage()]

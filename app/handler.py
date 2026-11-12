@@ -641,6 +641,12 @@ class SignatureHandler:
             # Trace-ID — Suche nach Adresse oder MID liefert die [mail:…]-ID
             log.info("Eingang: from=%s to=%s subject=%r mid=%s",
                      sender, recipients, _subject[:80], _mid)
+            # Kopfzeilen nur auf Stufe DEBUG — zur Fehlersuche, etwa ob bei
+            # „Senden als“ aus einem geteilten Postfach die Person noch erkennbar
+            # ist (Sender, X-MS-Exchange-…). Werte gekürzt, Zeilenumbrüche raus.
+            if log.isEnabledFor(logging.DEBUG):
+                for _k, _v in msg.items():
+                    log.debug("Kopfzeile: %s: %s", _k, " ".join(str(_v).split())[:300])
 
             # ── Tenant-Weiterleitung: Post eines eingetragenen FREMDEN Tenants
             # geht byte-genau an dessen Ziel (z. B. ein zweites Gateway im LAN,
