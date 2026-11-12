@@ -189,6 +189,20 @@
     "name": "api_acme_reply_method_set"
   },
   {
+    "pfad": "/api/addin/meldung",
+    "methoden": [
+      "OPTIONS"
+    ],
+    "name": "addin_meldung_vorab"
+  },
+  {
+    "pfad": "/api/addin/meldung",
+    "methoden": [
+      "POST"
+    ],
+    "name": "addin_meldung"
+  },
+  {
     "pfad": "/api/addin/signature",
     "methoden": [
       "GET"

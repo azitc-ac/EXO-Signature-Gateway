@@ -115,6 +115,9 @@
 
   <script>
     var _markedSig = '';
+    // Zeichenzahl, wenn die Signatur über der Grenze von setSignatureAsync liegt
+    // (Gateway: addin.signatur_zu_gross) — dann über den ganzen Text einfügen.
+    var _zuGross = 0;
     var _MARKER_START = '<!-- exo-sig-start -->';
     var _MARKER_END   = '<!-- exo-sig-end -->';
     var _email = '';
@@ -144,6 +147,22 @@
     var _addinSession = '';
     try { _addinSession = localStorage.getItem('exo_addin_session') || ''; } catch(_) { console.error('[addin_compose:131]', _); }
     function _authHeaders() { return _addinSession ? { 'X-Addin-Session': _addinSession } : {}; }
+
+    // Fehler auch ins Gateway-Protokoll (/api/addin/meldung) — die rote Zeile hier
+    // sieht nur der Anwender. Ein gescheiterter Bericht bleibt folgenlos.
+    function _melden(text) {
+      try {
+        var kopf = _authHeaders();
+        kopf['Content-Type'] = 'application/json';
+        var tplSel = document.getElementById('tpl-select');
+        var client = '';
+        try { client = String(Office.context.diagnostics.platform || ''); } catch (_) { /* ohne Angabe */ }
+        fetch('/api/addin/meldung', { method: 'POST', headers: kopf,
+          body: JSON.stringify({ quelle: 'aufgabenbereich', text: String(text).slice(0, 300),
+                                 client: client, vorlage: (tplSel && tplSel.value) || '' }) })
+          .catch(function(e) { console.error('[addin_compose:melden]', e); });
+      } catch (e) { console.error('[addin_compose:melden]', e); }
+    }
 
     Office.onReady(function(info) {
       if (info.host !== Office.HostType.Outlook) return;
@@ -213,6 +232,7 @@
           document.getElementById('login-required').style.display = 'none';
           _prevSigTextProbe = _sigTextProbe;  // keep old probe for template-switch detection
           _markedSig = d.marked_html || '';
+          _zuGross = d.zu_gross || 0;
           _sigTextProbe = _computeSigProbe(_markedSig);
           if (_markedSig) {
             document.getElementById('preview').innerHTML = d.preview_html || '';
@@ -232,6 +252,7 @@
           var fehler = document.createElement('span');
           fehler.className = 'err';
           fehler.textContent = 'Fehler beim Laden: ' + e.message;
+          _melden(fehler.textContent);
           var vorschau = document.getElementById('preview');
           vorschau.innerHTML = '';
           vorschau.appendChild(fehler);
@@ -451,7 +472,7 @@
       // Mailbox 1.10: nur den Signaturbereich setzen bzw. ersetzen — der Text
       // der Mail bleibt unberührt, der Cursor auch. Ganzen Text neu zu schreiben
       // (unten) ist nur der Weg für Clients ohne diese Schnittstelle.
-      if (_signaturbereich()) {
+      if (_signaturbereich() && !_zuGross) {
         var item = Office.context.mailbox.item;
         item.disableClientSignatureAsync(function() {
           item.body.setSignatureAsync(_markedSig, { coercionType: Office.CoercionType.Html }, function(wr) {
@@ -629,6 +650,8 @@
       el.textContent = msg;
       el.className = 'status ' + (cls || '');
       if (cls === 'ok') setTimeout(function() { el.textContent = ''; el.className = 'status'; }, 3000);
+      // Jede Fehlerzeile auch ins Gateway-Protokoll — EINE Stelle statt je Aufrufer.
+      if (cls === 'err') _melden(msg);
     }
   </script>
 </body>

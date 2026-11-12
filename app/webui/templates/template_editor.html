@@ -143,6 +143,14 @@
   Vorlage "{{ current_template }}" gespeichert.
 </div>
 <div id="save-err" class="alert error" style="display:none"></div>
+{% if outlook_zu_gross %}
+<div class="alert warn" id="outlook-zu-gross">
+  Diese Signatur ist für Outlooks Signaturbereich zu groß: rund
+  {{ "{:,}".format(outlook_zu_gross).replace(",", ".") }} Zeichen, Outlook nimmt höchstens 30.000.
+  Das Verfassen-Add-in fügt sie deshalb nicht ein; das Gateway hängt sie beim Versand an.
+  Meist ist ein eingebettetes Bild die Ursache — binde Logos als Bildadresse (https://…) ein.
+</div>
+{% endif %}
 
 <!-- ── Tabs ─────────────────────────────────────────────────────────────────── -->
 <div style="display:flex;gap:6px;margin-bottom:16px">

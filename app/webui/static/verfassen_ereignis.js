@@ -38,6 +38,22 @@
             (EXO_VERFASSEN.app || 'Signatur & Abwesenheit'));
   }
 
+  // Fehler auch ins Gateway-Protokoll — der Hinweis in Outlook ist nur für den
+  // Anwender sichtbar. Ein gescheiterter Bericht bleibt folgenlos.
+  function melden(text, zugriff, vorlage) {
+    try {
+      var kopf = { 'Content-Type': 'application/json' };
+      if (zugriff) kopf.Authorization = 'Bearer ' + zugriff;
+      fetch(EXO_VERFASSEN.meldung, {
+        method: 'POST', headers: kopf,
+        body: JSON.stringify({ quelle: 'verfassen', text: String(text).slice(0, 300),
+                               client: plattform(), vorlage: vorlage || '' })
+      }).catch(function () { /* Bericht ist Beiwerk */ });
+    } catch (e) { /* Bericht ist Beiwerk */ }
+  }
+
+  function tausender(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+
   function asynk(fn) {
     return new Promise(function (ok, fehler) {
       fn(function (r) {
@@ -140,6 +156,7 @@
 
   function beimVerfassen(event) {
     var item = Office.context.mailbox.item;
+    var zugriff = '', vorlage = '';   // für die Fehlermeldung ans Gateway
     // Das Manifest verlangt nur Mailbox 1.5 (Outlook mobil). Fehlen die
     // Signatur-APIs, still beenden — ein Hinweis hilft dort niemandem.
     if (typeof item.getComposeTypeAsync !== 'function' || !item.body ||
@@ -163,9 +180,16 @@
         var angaben = !antwortArt ? Promise.resolve(null)
           : antwortAngaben(item, art.composeType === 'forward' ? 'forward' : 'reply');
         return angaben.then(function (antwort) {
-          return token().then(function (z) { return signaturHolen(z, antwort); });
+          return token().then(function (z) { zugriff = z; return signaturHolen(z, antwort); });
         }).then(function (d) {
           var html = (d && d.html) || '';
+          vorlage = (d && d.vorlage) || '';
+          if (d && d.zu_gross) {
+            // Das Gateway hat es protokolliert; hier nur der Hinweis an den Anwender.
+            hinweis('Signatur \u201e' + vorlage + '\u201c ist f\u00fcr Outlook zu gro\u00df (' +
+                    tausender(d.zu_gross) + ' Zeichen, erlaubt ' + tausender(d.max) +
+                    ') \u2013 das Gateway f\u00fcgt sie beim Versand an.');
+          }
           // Nur bei einer Antwort, für die das Gateway entschieden hat ("kette"
           // vorhanden) — dann prüft es beim Versand nach (ANTWORT_LETZTES_WORT).
           var entschieden = d && typeof d.kette === 'boolean' && antwortArt;
@@ -184,7 +208,9 @@
         });
       })
       .catch(function (e) {
-        hinweis('Gateway-Signatur nicht eingefügt: ' + ((e && (e.errorCode || e.message)) || e));
+        var text = 'Gateway-Signatur nicht eingefügt: ' + ((e && (e.errorCode || e.message)) || e);
+        hinweis(text);
+        melden(text, zugriff, vorlage);
       })
       .then(function () { event.completed(); });
   }

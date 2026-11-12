@@ -558,6 +558,31 @@ async def api_usermail_standard(schluessel: str, _=Depends(_check_auth)):
 async def api_usermails(_=Depends(_check_auth)):
     return JSONResponse({"usermails": _usermail_liste()})
 
+# Beispielnutzer für die Größenprüfung: typische Längen, damit die Schätzung
+# nicht an leeren Platzhaltern zu niedrig ausfällt.
+_GROESSE_BEISPIEL = dict(
+    displayName="Maximilian Mustermann", givenName="Maximilian", surname="Mustermann",
+    jobTitle="Leitung Vertrieb und Marketing", department="Vertrieb",
+    companyName="Musterfirma GmbH", mail="maximilian.mustermann@example.org",
+    mobilePhone="+49 170 1234567", phone="+49 30 1234567-89", officeLocation="Berlin",
+    streetAddress="Musterstraße 123", postalCode="10115", city="Berlin", country="Deutschland")
+
+
+def _outlook_zu_gross(name: str) -> int:
+    """Zeichenzahl, wenn die Signatur über Outlooks Grenze für den Signaturbereich
+    liegt (addin.signatur_zu_gross — dieselbe Prüfung wie beim Abruf), sonst 0.
+    Gerendert mit einem Beispielnutzer; im Betrieb weicht es um die Länge der
+    echten Angaben ab, eingebettete Bilder machen den Großteil aus."""
+    import graph_client as _gc
+    from webui.routen.addin import markiert, signatur_zu_gross
+    try:
+        html, _txt = signature_engine.render(_gc.UserData(**_GROESSE_BEISPIEL), name)
+    except Exception as exc:                                 # noqa: BLE001
+        log.info("Größenprüfung der Vorlage %r übersprungen: %s", name, exc)
+        return 0
+    return signatur_zu_gross(markiert(html)) if html else 0
+
+
 @router.get("/template", response_class=HTMLResponse)
 async def template_editor(request: Request, user: str = Depends(_check_auth)):
     import signature_engine as _sig_engine
@@ -570,6 +595,8 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
     template_gruppen = _sig_engine.templates_nach_art()
     template_kind = _sig_engine.vorlagen_art(fname)
     custom_vars = [cv["name"] for cv in (settings_store.get("CUSTOM_TEMPLATE_VARS") or []) if cv.get("name")]
+    outlook_zu_gross = (_outlook_zu_gross(name) if template_kind == "signatur"
+                        and html_path.exists() else 0)
     return templates.TemplateResponse(
         request=request, name="template_editor.html",
         context={
@@ -608,6 +635,7 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             "template_gruppen": template_gruppen,
             "template_kind": template_kind,
             "custom_vars": custom_vars,
+            "outlook_zu_gross": outlook_zu_gross,
             "gateway_name": _gateway_name(),
             # Nachrichten an Postfachinhaber. Sie liegen im selben Verzeichnis
             # und werden im selben Baukasten bearbeitet, stehen aber in einer

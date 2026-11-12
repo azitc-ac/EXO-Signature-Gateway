@@ -106,6 +106,33 @@ class _LenientSMTP(_BaseSMTP):
         except Exception as exc:         # noqa: BLE001
             log.warning("SMTP: Relay-Pruefung fuer %s fehlgeschlagen: %s", ip, exc)
 
+    def connection_lost(self, error):
+        """Endet eine Verbindung einer eingetragenen Firewall, ohne dass ein
+        gültiger PROXY-Vorspann kam, steht das mit Abhilfe im Protokoll.
+
+        Anlass (12.11.2026): Eine Firewall ohne PROXY-Protokoll war eingetragen.
+        aiosmtpd wartete auf den Vorspann, Exchange auf den Gruß; nach der
+        Wartezeit schloss das Gateway. Exchange meldete nur „451 4.4.0 Socket
+        error: Connection closed by remote host“, das Gateway-Protokoll zeigte
+        nichts Verwertbares (mail.log läuft auf WARNING, die Zeitüberschreitung
+        auf INFO). STARTTLS gibt es erst nach angenommenem Vorspann — vorher
+        ist `_original_transport` leer."""
+        try:
+            if (getattr(self, "_proxy_timeout", None) is not None
+                    and getattr(self, "_original_transport", None) is None
+                    and not getattr(self, "_echte_quelle", None)):
+                import smtp_proxy
+                ip = ((self.session.peer if self.session else None) or ("?",))[0]
+                log.warning("SMTP: Verbindung von %s ohne gültigen PROXY-Vorspann beendet — die "
+                            "Adresse ist als vorgeschaltete Firewall eingetragen (%s), sendet aber "
+                            "kein PROXY-Protokoll. Exchange sieht „Connection closed by remote "
+                            "host“ und stellt nicht zu. Abhilfe: Einstellungen → Erweitert → SMTP-Quell-IP-Allowlist → "
+                            "„Vorgeschaltete Firewall (PROXY-Protokoll)“ leeren oder PROXY an der Firewall "
+                            "einschalten.", ip, smtp_proxy.SCHLUESSEL)
+        except Exception as exc:         # noqa: BLE001
+            log.warning("SMTP: PROXY-Auswertung beim Verbindungsende fehlgeschlagen: %s", exc)
+        super().connection_lost(error)
+
     @syntax('STARTTLS', when='tls_context')
     async def smtp_STARTTLS(self, arg):
         """TLS-Kontext je Verbindung wählen: mit Anforderung eines

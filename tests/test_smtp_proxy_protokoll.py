@@ -12,10 +12,12 @@ Ein lokal betriebenes Gateway sah Exchange Online nur als Adresse der Firewall
 """
 import asyncio
 import datetime
+import logging
 import smtplib
 import socket
 import ssl
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -125,6 +127,40 @@ def test_eingetragener_proxy_ohne_vorspann_wird_nicht_bedient(listener):
     with pytest.raises((smtplib.SMTPException, OSError)):
         _senden(port)
     assert merker.peers == []
+
+
+def _proxy_warnungen(caplog):
+    return [s for s in caplog.records
+            if s.levelno == logging.WARNING and "ohne gültigen PROXY-Vorspann" in s.getMessage()]
+
+
+def test_fehlender_vorspann_steht_mit_abhilfe_im_protokoll(listener, caplog):
+    """Exchange sieht nur „Connection closed by remote host“ (12.11.2026) — das
+    Protokoll muss Ursache und Abhilfe nennen."""
+    caplog.set_level(logging.INFO)
+    port, werte, _merker = listener
+    werte["SMTP_PROXY_QUELLEN"] = ["127.0.0.0/8"]
+    with pytest.raises((smtplib.SMTPException, OSError)):
+        _senden(port)
+    for _ in range(50):                      # connection_lost läuft im Listener-Thread
+        if _proxy_warnungen(caplog):
+            break
+        time.sleep(0.05)
+    zeilen = _proxy_warnungen(caplog)
+    assert len(zeilen) == 1
+    assert "127.0.0.1" in zeilen[0].getMessage()
+    assert "Vorgeschaltete Firewall (PROXY-Protokoll)" in zeilen[0].getMessage()
+
+
+@pytest.mark.parametrize("starttls", [False, True], ids=["klartext", "starttls"])
+def test_mit_vorspann_keine_proxy_warnung(listener, caplog, starttls):
+    caplog.set_level(logging.INFO)
+    port, werte, merker = listener
+    werte["SMTP_PROXY_QUELLEN"] = ["127.0.0.1"]
+    _senden(port, V1, starttls=starttls)
+    time.sleep(0.3)
+    assert merker.peers == [URSPRUNG]
+    assert _proxy_warnungen(caplog) == []
 
 
 def test_vorspann_von_fremder_adresse_wird_nicht_geglaubt(listener):

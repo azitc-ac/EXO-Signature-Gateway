@@ -5,6 +5,48 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.41 — 2026-11-12 — Add-in: zu große Signaturen erkannt; Fehler aus Outlook und PROXY-Abbrüche im Protokoll
+
+- **Signaturen über 30.000 Zeichen.** Outlook nimmt in den Signaturbereich
+  (`setSignatureAsync`) höchstens 30.000 Zeichen auf. Eine größere Vorlage —
+  meist mit einem eingebetteten Bild — scheiterte beim Verfassen mit einer
+  Meldung wie „Sys.ArgumentOutOfRangeException … Parameter name: data“, ohne
+  Hinweis auf die Ursache. Jetzt:
+  - Das Verfassen-Add-in fügt eine solche Signatur nicht ein und zeigt
+    „Signatur … ist für Outlook zu groß (n Zeichen, erlaubt 30.000) – das
+    Gateway fügt sie beim Versand an“. Das Gateway signiert die Mail beim
+    Versand wie ohne Add-in.
+  - Der Aufgabenbereich (Knopf „Einfügen“) setzt sie über den ganzen Text
+    statt über den Signaturbereich; dort liegt die Grenze bei 1.000.000.
+  - Der Vorlagen-Editor warnt bei einer Signaturvorlage, die über der Grenze
+    liegt. Binde Logos als Bildadresse (https://…) ein statt eingebettet.
+  - Das Protokoll nennt Vorlage, Postfach und Zeichenzahl.
+- **Fehler aus Outlook im Gateway-Protokoll.** Was in Outlook schiefgeht —
+  ein Hinweis des Verfassen-Add-ins, eine rote Zeile im Aufgabenbereich —
+  sah bisher nur der Anwender. Beide Add-ins melden solche Fehler jetzt an
+  das Gateway (`/api/addin/meldung`); sie erscheinen als Warnung
+  „Outlook-Add-in meldet …“ mit Postfach, Outlook-Variante und Vorlage.
+  Gekürzt auf 300 Zeichen, ohne Steuerzeichen, höchstens 30 Meldungen je
+  Absender und Stunde. Auch ohne Anmeldung angenommen, weil ein gescheiterter
+  Token-Abruf selbst eine der Ursachen ist; solche Zeilen sind als „ohne
+  Anmeldung“ gekennzeichnet.
+- **Aufgabenbereich: Abruf im Protokoll.** Jede gelieferte Signatur steht
+  mit Vorlage und Zeichenzahl im Protokoll, eine Abweisung „nur das eigene
+  Postfach“ mit beiden Adressen. Meldet der Aufgabenbereich einen HTTP-Fehler,
+  ohne dass eine dieser Zeilen erscheint, kam die Antwort nicht vom Gateway
+  (etwa von einer Firewall davor).
+- **PROXY-Protokoll: Abbruch im Protokoll.** Ist im Feld *Vorgeschaltete
+  Firewall (PROXY-Protokoll)* eine Adresse eingetragen, die den Vorspann nicht
+  sendet, schließt das Gateway die Verbindung nach 10 Sekunden. Exchange
+  meldet dann nur „451 4.4.0 Socket error: Connection closed by remote host“
+  und hält die Post zurück; im Gateway-Protokoll stand nichts Verwertbares.
+  Jetzt erscheint eine Warnung mit der Adresse und der Abhilfe.
+
+**Zu tun:** nichts. Findest du im Protokoll „ohne gültigen PROXY-Vorspann
+beendet“, leere unter *Einstellungen → Erweitert → SMTP-Quell-IP-Allowlist*
+das Feld *Vorgeschaltete Firewall (PROXY-Protokoll)* oder schalte das
+PROXY-Protokoll an der Firewall ein.
+
 ## v1.11.40 — 2026-11-11 — Portal-Benachrichtigung: bisheriger Wortlaut zurück
 
 - Der in v1.11.38 geänderte Wortlaut der Portal-Benachrichtigung ist

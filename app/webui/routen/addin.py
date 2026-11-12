@@ -58,8 +58,32 @@ def _addin_postfach(request: Request, email: str, user: str) -> str:
     """
     email = (email or "").strip().lower()
     if _get_session_role(request) == sso_mod.ROLE_SELF and email and email != user:
+        # Im Protokoll, damit eine 403 im Aufgabenbereich ohne Rückfrage zu deuten
+        # ist: Outlook nennt die Hauptadresse, die Anmeldung womöglich den UPN.
+        log.warning("Add-in: %s fragt die Signatur von %s ab — als Self-Sitzung nur das "
+                    "eigene Postfach erlaubt (403)", user, email)
         raise HTTPException(403, "Nur das eigene Postfach.")
     return email
+
+
+# Grenze von Office.Body.setSignatureAsync (MS Learn, Office.Body: „This string is
+# limited to 30,000 characters“, sonst DataExceedsMaximumSize). Outlook Classic
+# meldet stattdessen „Sys.ArgumentOutOfRangeException … Parameter name: data“ —
+# beides sagt dem Anwender nicht, dass die Vorlage zu groß ist. Meist steckt
+# ein eingebettetes Bild (data:-URL) darin.
+OUTLOOK_SIGNATUR_MAX = 30_000
+
+
+def signatur_laenge(html: str) -> int:
+    """Länge, wie Office.js sie zählt (UTF-16-Einheiten, nicht Codepunkte)."""
+    return len(html.encode("utf-16-le")) // 2
+
+
+def signatur_zu_gross(html: str) -> int:
+    """Länge der markierten Signatur, wenn sie über Outlooks Grenze liegt, sonst 0.
+    EINE Quelle für Aufgabenbereich, Verfassen-Ereignis und Vorlagen-Editor."""
+    n = signatur_laenge(html)
+    return n if n > OUTLOOK_SIGNATUR_MAX else 0
 
 
 def _addin_cfg(email: str) -> dict:
@@ -747,9 +771,23 @@ async def api_addin_signature(request: Request, email: str, template: str = "",
 
     sig_html, _sig_txt = signature_engine.render(user_data, template_name)
     if not sig_html:
+        log.info("Add-in-Aufgabenbereich: Vorlage %r für %s ergibt keine Signatur",
+                 template_name, email)
         return JSONResponse({"marked_html": "", "preview_html": ""})
 
-    return JSONResponse({"marked_html": markiert(sig_html), "preview_html": sig_html})
+    marked = markiert(sig_html)
+    # Zu groß für setSignatureAsync: Die Taskpane fügt dann über den ganzen Text
+    # ein (body.setAsync, Grenze 1.000.000) statt über den Signaturbereich.
+    zu_gross = signatur_zu_gross(marked)
+    if zu_gross:
+        log.warning("Add-in-Aufgabenbereich: Signatur %r für %s hat %d Zeichen — Outlooks "
+                    "Signaturbereich nimmt höchstens %d (eingebettetes Bild in der Vorlage?)",
+                    template_name, email, zu_gross, OUTLOOK_SIGNATUR_MAX)
+    else:
+        log.info("Add-in-Aufgabenbereich: Signatur %r für %s geliefert (%d Zeichen)",
+                 template_name, email, signatur_laenge(marked))
+    return JSONResponse({"marked_html": marked, "preview_html": sig_html,
+                         "zu_gross": zu_gross, "max": OUTLOOK_SIGNATUR_MAX})
 
 
 def addin_namen() -> dict[str, str]:

@@ -55,7 +55,8 @@ import sso as sso_mod
 from webui.deps import log
 from webui.hilfen import _addin_base_url
 from webui.routen.addin import (
-    _NO_STORE, _addin_cfg, _manifest_texte, _manifest_version, _ohne_adresse, markiert,
+    _NO_STORE, OUTLOOK_SIGNATUR_MAX, _addin_cfg, _manifest_texte, _manifest_version,
+    _ohne_adresse, markiert, signatur_zu_gross,
 )
 
 router = APIRouter()
@@ -67,6 +68,7 @@ HANDLER_DATEI = _STATIC / "verfassen_ereignis.js"
 LAUFZEIT_JS = "/addin/verfassen/laufzeit.js"
 LAUFZEIT_HTML = "/addin/verfassen/laufzeit.html"
 SIGNATUR_API = "/api/addin/verfassen/signatur"
+MELDUNG_API = "/api/addin/meldung"
 
 
 def addin_id(hostname: str) -> str:
@@ -208,8 +210,8 @@ def _konfiguration(base: str) -> dict:
     # Name der App, wie sie in Outlook unter „Apps“ steht (Teams-Paket name.short) —
     # für den Hinweis auf dem Handy, wo man die Signatur ändert.
     app = _html.unescape(_manifest_texte()["knopf"])
-    return {**naa_konfiguration(), "api": base + SIGNATUR_API, "kettenkopf": sig_thread.ADDIN_KOPF,
-            "app": app}
+    return {**naa_konfiguration(), "api": base + SIGNATUR_API, "meldung": base + MELDUNG_API,
+            "kettenkopf": sig_thread.ADDIN_KOPF, "app": app}
 
 
 @router.get(LAUFZEIT_JS)
@@ -388,10 +390,92 @@ async def verfassen_signatur(request: Request):
         except Exception:                                    # noqa: BLE001
             user_data = graph_client.UserData(mail=email)
     sig_html, _txt = signature_engine.render(user_data, vorlage)
+    marked = markiert(sig_html) if sig_html else ""
+    zu_gross = signatur_zu_gross(marked)
+    if zu_gross:
+        # setSignatureAsync schlüge fehl (Classic: „Parameter name: data“). Nichts
+        # einfügen — das Gateway fügt die Signatur beim Versand an.
+        log.warning("Verfassen-Add-in: Signatur %r für %s hat %d Zeichen — Outlooks "
+                    "Signaturbereich nimmt höchstens %d (eingebettetes Bild in der Vorlage?); "
+                    "nicht eingefügt, das Gateway signiert beim Versand (%s)",
+                    vorlage, email, zu_gross, OUTLOOK_SIGNATUR_MAX, plattform)
+        return JSONResponse({"html": "", "kette": kette, "vorlage": vorlage,
+                             "zu_gross": zu_gross, "max": OUTLOOK_SIGNATUR_MAX},
+                            headers=_CORS)
     log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s)", vorlage, email, plattform)
-    return JSONResponse({"html": markiert(sig_html) if sig_html else "", "kette": kette,
+    return JSONResponse({"html": marked, "kette": kette,
                          "vorlage": vorlage if sig_html else ""},
                         headers=_CORS)
+
+
+# ── Rückmeldung aus Outlook ins Gateway-Protokoll ──────────────────────────────
+# Was in Outlook schiefgeht (Office-Fehler beim Einfügen, gescheiterter Abruf),
+# sah bisher nur der Anwender — als Hinweiszeile oder rote Meldung. Für die
+# Fehlersuche musste man ihn um ein Bildschirmfoto bitten. Die Add-ins melden
+# solche Fehler jetzt hierher; sie stehen dann im Protokoll, das ein Betreiber
+# mitschicken kann.
+#
+# Annahme auch OHNE Anmeldung: Gerade ein gescheiterter Token-Abruf ist eine
+# Ursache, die sichtbar werden soll. Dagegen stehen Kürzung, entfernte
+# Steuerzeichen und eine Obergrenze je Absender und Stunde.
+
+_MELDUNG_CORS = {**_CORS, "Access-Control-Allow-Methods": "POST, OPTIONS",
+                 "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Addin-Session"}
+MELDUNG_MAX_ZEICHEN = 300
+MELDUNG_JE_STUNDE = 30
+_meldungen: dict[str, list[float]] = {}
+
+
+def _meldung_text(wert, laenge: int) -> str:
+    text = "".join(z if z.isprintable() else " " for z in str(wert or ""))
+    return " ".join(text.split())[:laenge]
+
+
+def _meldung_erlaubt(wer: str) -> bool:
+    import time
+    jetzt = time.monotonic()
+    liste = [t for t in _meldungen.get(wer, []) if jetzt - t < 3600]
+    if len(liste) >= MELDUNG_JE_STUNDE:
+        _meldungen[wer] = liste
+        return False
+    liste.append(jetzt)
+    _meldungen[wer] = liste
+    return True
+
+
+@router.options(MELDUNG_API)
+async def addin_meldung_vorab():
+    return Response(status_code=204, headers=_MELDUNG_CORS)
+
+
+@router.post(MELDUNG_API)
+async def addin_meldung(request: Request):
+    """Fehler aus Outlook ins Protokoll: {quelle, text, client?, vorlage?}.
+    Angemeldet über Bearer (Verfassen-Ereignis) oder X-Addin-Session (Taskpane)."""
+    from webui.deps import _get_session_user
+    wer = ""
+    kopf = request.headers.get("authorization") or ""
+    if kopf[:7].lower() == "bearer ":
+        claims = sso_mod.verify_access_token(kopf[7:].strip()) or {}
+        wer = (claims.get("preferred_username") or claims.get("upn") or "").strip().lower()
+    if not wer:
+        wer = (_get_session_user(request) or "").strip().lower()
+    try:
+        daten = await request.json()
+    except Exception:                                        # noqa: BLE001
+        daten = {}
+    if not isinstance(daten, dict):
+        daten = {}
+    schluessel = wer or "ohne Anmeldung"
+    if not _meldung_erlaubt(schluessel):
+        return Response(status_code=204, headers=_MELDUNG_CORS)
+    log.warning("Outlook-Add-in meldet (%s, %s, %s%s): %s",
+                _meldung_text(daten.get("quelle"), 30) or "?",
+                wer or "ohne Anmeldung",
+                _meldung_text(daten.get("client"), 30) or _plattform(request) or "?",
+                (", Vorlage " + _meldung_text(daten.get("vorlage"), 60)) if daten.get("vorlage") else "",
+                _meldung_text(daten.get("text"), MELDUNG_MAX_ZEICHEN) or "(ohne Text)")
+    return Response(status_code=204, headers=_MELDUNG_CORS)
 
 
 # ── Tab (Teams/Outlook): Anmeldung per NAA ─────────────────────────────────────
