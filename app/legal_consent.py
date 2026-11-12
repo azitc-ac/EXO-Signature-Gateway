@@ -95,6 +95,11 @@ def _conn() -> sqlite3.Connection:
             accepted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
         )
     """)
+    # Wer zugestimmt hat (seit v1.11.53) — für den AVV-Beleg an den Hub. Ältere
+    # Zeilen bleiben leer; nachträglich lässt sich das nicht ermitteln.
+    spalten = {r[1] for r in c.execute("PRAGMA table_info(consents)")}
+    if "accepted_by" not in spalten:
+        c.execute("ALTER TABLE consents ADD COLUMN accepted_by TEXT NOT NULL DEFAULT ''")
     c.commit()
     return c
 
@@ -226,13 +231,14 @@ def offene_fassungen() -> list[dict]:
 
 
 def record_consent(document_id: str, version: str, content_hash: str,
-                   context: str = "") -> bool:
+                   context: str = "", accepted_by: str = "") -> bool:
     """Append a consent record. Returns True on success."""
     try:
         with _conn() as c:
             c.execute(
-                "INSERT INTO consents (document_id, version, content_hash, context) VALUES (?,?,?,?)",
-                (document_id, version, content_hash, context or ""),
+                "INSERT INTO consents (document_id, version, content_hash, context, accepted_by) "
+                "VALUES (?,?,?,?,?)",
+                (document_id, version, content_hash, context or "", (accepted_by or "")[:200]),
             )
             return True
     except Exception as e:
@@ -304,6 +310,29 @@ def get_consent_receipts_for_hub() -> list[dict]:
     except Exception as e:
         log.error("legal_consent.get_consent_receipts_for_hub: %s", e)
     return receipts
+
+
+def avv_beleg() -> dict | None:
+    """Beleg der Zustimmung zur AVV (Diagnosepakete) in der AKTUELLEN Fassung —
+    geht mit jedem Diagnosepaket an den Hub, der ihn gegen seine eigene Kopie
+    prüft und zum Kunden ablegt. None, wenn (noch) nicht zugestimmt."""
+    doc = CURRENT_DOCUMENTS.get("dpa")
+    h = compute_document_hash("dpa")
+    if not doc or not h:
+        return None
+    try:
+        with _conn() as c:
+            row = c.execute(
+                "SELECT accepted_at, accepted_by FROM consents "
+                "WHERE document_id='dpa' AND version=? AND content_hash=? "
+                "ORDER BY id DESC LIMIT 1", (doc["version"], h)).fetchone()
+    except Exception as e:                                   # noqa: BLE001
+        log.error("legal_consent.avv_beleg: %s", e)
+        return None
+    if not row:
+        return None
+    return {"doc_id": "dpa", "doc_version": doc["version"], "doc_hash": h,
+            "accepted_at": row["accepted_at"], "accepted_by": row["accepted_by"] or ""}
 
 
 def get_consent_history(limit: int = 200) -> list[dict]:

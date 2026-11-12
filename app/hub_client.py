@@ -11,6 +11,7 @@ Hub endpoints used:
   POST {base}/api/support/upload    (X-API-Key, multipart file=…)
 """
 import asyncio
+import json
 import logging
 import secrets
 
@@ -23,6 +24,11 @@ log = logging.getLogger(__name__)
 
 
 _UNSICHER_GEMELDET: set[str] = set()
+
+
+def legal_consent_beleg() -> dict:
+    import legal_consent
+    return legal_consent.avv_beleg() or {}
 
 
 def _base() -> str:
@@ -395,7 +401,10 @@ async def upload_bundle(runtime_log_lines: list[str], note: str = "") -> dict:
                 f"{base}/api/support/upload",
                 headers=_gateway_headers(),
                 files={"file": (name, zip_bytes, "application/zip")},
-                data={"note": note or ""},
+                # Beleg der AVV-Zustimmung — der Hub prüft ihn gegen seine
+                # Kopie und legt ihn zum Kunden ab (Nachweis nach Art. 28 DSGVO).
+                data={"note": note or "",
+                      "avv_beleg": json.dumps(legal_consent_beleg(), ensure_ascii=False)},
             )
         if r.status_code == 200:
             d = r.json()

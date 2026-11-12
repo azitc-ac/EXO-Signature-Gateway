@@ -1580,7 +1580,7 @@ async def api_legal_consent(request: Request, user: str = Depends(_require_admin
     expected_hash = legal_consent.compute_document_hash(doc_id)
     if expected_hash and content_hash != expected_hash:
         raise HTTPException(409, "Inhaltsprüfsumme stimmt nicht überein.")
-    ok = legal_consent.record_consent(doc_id, version, content_hash, context)
+    ok = legal_consent.record_consent(doc_id, version, content_hash, context, accepted_by=user)
     # Beleg nachreichen, damit der Hub nicht dauerhaft die alte Fassung
     # ausweist. Best effort: die Zustimmung ist bereits erteilt und bleibt
     # gültig, auch wenn der Hub gerade nicht erreichbar ist.

@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.53 — 2026-11-12 — Diagnosepaket: Beleg der AVV-Zustimmung geht mit
+
+- Das Gateway verlangte vor jedem Diagnosepaket die Zustimmung zur
+  Vereinbarung zur Auftragsverarbeitung, übermittelte den Beleg aber nie an den
+  Hub. Der Hub konnte damit nicht nachweisen, dass vor der Übermittlung ein
+  Vertrag nach Art. 28 DSGVO bestand. Jetzt geht mit jedem Paket der Beleg mit:
+  Fassung, Prüfsumme des Texts, Zeitpunkt der Zustimmung und wer zugestimmt hat.
+  Der Hub prüft ihn gegen seine eigene Fassung der Vereinbarung und legt ihn
+  zum Kundenkonto ab.
+- Zustimmungen speichern jetzt, wer zugestimmt hat. Für ältere Zustimmungen
+  ist das nicht mehr zu ermitteln; ihr Beleg bleibt dort leer.
+
+**Zu tun:** nichts.
+
 ## v1.11.52 — 2026-11-12 — Diagnose für Senden aus geteilten Postfächern
 
 - Das Verfassen-Add-in übermittelt die Von-Adresse des Entwurfs. Weicht sie
