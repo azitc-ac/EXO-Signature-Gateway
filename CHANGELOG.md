@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.65 — 2026-11-12 — Prüfstand nachgezogen
+
+- Die Prüfung, dass jede Aufgabe auf eine vorhandene Stelle verlinkt, kennt die
+  Seite *Erweitert* (Aufgabe zum Wächter-Code aus v1.11.64).
+
+**Zu tun:** nichts.
+
 ## v1.11.64 — 2026-11-12 — Bypass-Wächter: übersteht Exchange-Störungen, Code aktualisierbar, verwaiste Wächter sichtbar
 
 - **Wächter blieb nach einer Exchange-Störung handlungsunfähig.** Brach der
