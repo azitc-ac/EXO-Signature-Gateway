@@ -57,7 +57,7 @@ def gross_rendern(monkeypatch):
         return graph_client.UserData(mail=email)
     monkeypatch.setattr(graph_client, "get_user", _user)
     monkeypatch.setattr(signature_engine, "render",
-                        lambda u, t: (_gross(groesse["n"]), ""))
+                        lambda u, t, extra=None: (_gross(groesse["n"]), ""))
     return groesse
 
 
@@ -144,9 +144,9 @@ def test_taskpane_faellt_bei_zu_gross_auf_den_ganzen_text_zurueck():
 
 def test_editor_warnt_bei_zu_grosser_vorlage(monkeypatch):
     from webui.routen import vorlagen
-    monkeypatch.setattr(signature_engine, "render", lambda u, t: (_gross(GRENZE + 1), ""))
+    monkeypatch.setattr(signature_engine, "render", lambda u, t, extra=None: (_gross(GRENZE + 1), ""))
     assert vorlagen._outlook_zu_gross("grossbild") == GRENZE + 1
-    monkeypatch.setattr(signature_engine, "render", lambda u, t: (_gross(GRENZE), ""))
+    monkeypatch.setattr(signature_engine, "render", lambda u, t, extra=None: (_gross(GRENZE), ""))
     assert vorlagen._outlook_zu_gross("grossbild") == 0
 
 
@@ -155,7 +155,7 @@ def test_editor_nennt_die_eingebetteten_bilder(monkeypatch):
     bild = "data:image/png;base64," + "A" * (GRENZE + 10)
     klein = "data:image/gif;base64,R0lGOD=="
     monkeypatch.setattr(signature_engine, "render",
-                        lambda u, t: (f'<img src="{bild}"><img src="{klein}">', ""))
+                        lambda u, t, extra=None: (f'<img src="{bild}"><img src="{klein}">', ""))
     n, bilder = vorlagen._groessenpruefung("grossbild")
     assert n > GRENZE
     assert bilder == [len(bild), len(klein)]

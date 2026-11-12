@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.57 — 2026-11-12 — Prüfstand nachgezogen
+
+- Bestehende Tests an v1.11.56 angepasst (Vorlagenvariable `bearbeiter` beim
+  Rendern, neuer Vorlagen-Slot in der Migrationsprüfung); der Abnahmepunkt zur
+  Fassung des Verfassen-Add-ins kommt ohne festen Zusatzhinweis aus.
+
+**Zu tun:** nichts.
+
 ## v1.11.56 — 2026-11-12 — Interne Signatur; Senden aus geteilten Postfächern
 
 ### Interne Signatur

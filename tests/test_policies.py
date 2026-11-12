@@ -139,6 +139,7 @@ def test_migration_haelt_die_wirksame_vorlage_bitgleich(monkeypatch, key):
     _store(monkeypatch, TEMPLATE_POLICIES=_TP, CUSTOM_POLICIES=[], INTERNAL_GROUPS={},
            MAILBOX_CONFIG=mc)
     nachher = policies.aufloesen(key, mc, mc[key])
+    assert nachher.pop("intern") == ""          # Slot seit v1.11.56, im Bestand leer
     assert nachher == vorher, f"{key}: {vorher} → {nachher}"
 
 

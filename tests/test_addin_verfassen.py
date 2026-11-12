@@ -117,7 +117,7 @@ def rendern(monkeypatch):
         aufrufe.append(email)
         return graph_client.UserData(mail=email)
     monkeypatch.setattr(graph_client, "get_user", _user)
-    monkeypatch.setattr(signature_engine, "render", lambda u, t: (f"<p>SIG {u.mail} {t}</p>", ""))
+    monkeypatch.setattr(signature_engine, "render", lambda u, t, extra=None: (f"<p>SIG {u.mail} {t}</p>", ""))
     return aufrufe
 
 

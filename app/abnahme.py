@@ -721,9 +721,8 @@ def _addin_fassung() -> dict:
                  if isinstance(h, dict)
                  and ((h.get("checks") or {}).get("addin_verfassen") or {}).get("status") == "warn")
     if not alt:
-        return _punkt(name, OK, "Keine Postfächer mit älterer Fassung gemeldet.",
-                      deckt_nicht="Stand der letzten Postfachprüfung; Postfächer ohne Add-in "
-                                  "zählen nicht.")
+        return _punkt(name, OK, "Keine Postfächer mit älterer Fassung gemeldet "
+                                "(Stand der letzten Postfachprüfung).")
     return _punkt(name, OFFEN,
                   f"{len(alt)} Postfach/Postfächer mit älterer Fassung (z. B. {alt[0]}).",
                   "Admin Center → Einstellungen → Integrierte Apps → Verfassen-Add-in → "
