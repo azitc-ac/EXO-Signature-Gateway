@@ -23,6 +23,7 @@ ARTEN: tuple[str, ...] = ("signatur", "banner", "disclaimer", "oof", "usermail")
 SLOT_ART: dict[str, str] = {
     "sig": "signatur",
     "min": "signatur",
+    "intern": "signatur",  # nur interne Empfänger
     "addin": "signatur",
     "banner": "banner",
     "disclaimer": "disclaimer",
@@ -89,7 +90,9 @@ def erkennungs_zeilen(user: UserData, vorlagen: dict) -> list[list[str]]:
     Aus dem HTML, weil die `.txt`-Fassung handgeschriebener Vorlagen oft fehlt."""
     import mail_processor
     listen = []
-    for schluessel in ("sig", "min"):
+    # Auch die interne Signatur: Wer intern geantwortet hat, steht damit
+    # ebenso in der Kette wie mit der vollen.
+    for schluessel in ("sig", "min", "intern"):
         name = (vorlagen or {}).get(schluessel)
         if not name:
             continue
@@ -143,6 +146,9 @@ def render(user: UserData, template_name: str | None = None,
     ctx = {
         "user": user,
         "custom": user.custom,
+        # Wer die Mail schreibt — bei „im Auftrag von“ die Person, sonst der
+        # Inhaber selbst (handler/Add-in reichen sie über `extra` herein).
+        "bearbeiter": user,
         **(extra or {}),
     }
 

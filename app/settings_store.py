@@ -146,6 +146,14 @@ DEFAULTS: dict = {
                                         # tenant mailbox (no external recipient at all). Needed since the
                                         # transport rule routes all sender-DG mail through the gateway
                                         # unconditionally now (see CLAUDE.md "Bifurkations-Falle").
+    # Interne Signatur (Vorlagen-Slot „intern“, seit v1.11.56):
+    # INTERN_VOR_ANTWORT — sind alle Empfänger intern, gilt die interne Vorlage
+    #   auch in einer Antwortkette (sonst hat die Antwort-Signatur Vorrang).
+    # INTERN_OHNE_ADDIN — das Gateway hängt die interne Vorlage auch ohne Add-in
+    #   an rein interne Mails (sonst bleiben sie wie bisher unsigniert, solange
+    #   SIGN_INTERNAL_ONLY_MAIL aus ist).
+    "INTERN_VOR_ANTWORT": False,
+    "INTERN_OHNE_ADDIN": False,
     # ── Re-injection ─────────────────────────────────────────────────────────
     # Rückweg an Exchange. Kanonische Werte:
     #   `smtp`       — Port 25 (klassisch, Smarthost)

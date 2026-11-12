@@ -192,6 +192,11 @@ async function ankerAnwenden() {
             Antwort-Signatur
             <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block;margin-top:2px">ab 2. eigener Mail im Thread</span>
           </th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
+              title="Signatur, solange ALLE Empfänger intern sind (Postfach des Tenants oder eigene Domäne). Ein externer Empfänger → Standardsignatur.">
+            Interne Signatur
+            <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block;margin-top:2px">nur interne Empfänger</span>
+          </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Banner</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Disclaimer</th>
           {% if abwesenheit_aktiv() %}<th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Abwesenheit</th>{% endif %}
@@ -281,6 +286,18 @@ async function ankerAnwenden() {
         <td style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
         <td style="padding:6px 8px">
           <select id="policy-min-tpl" style="font-size:12px;width:160px"></select>
+        </td>
+        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
+      </tr>
+      <!-- Interne Signatur -->
+      <tr style="border-bottom:1px solid #f0f0f0">
+        <td style="padding:6px 8px;font-size:12px;font-weight:500">
+          Interne Signatur
+          <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">nur wenn alle Empfänger intern sind</span>
+        </td>
+        <td style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
+        <td style="padding:6px 8px">
+          <select id="policy-intern-tpl" style="font-size:12px;width:160px"></select>
         </td>
         <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
@@ -653,6 +670,10 @@ async function loadPolicies() {
     var minSel = document.getElementById('policy-min-tpl');
     if (minSel) _fuelleVorlagenSelect(minSel, 'signatur', d.min, {mitLeer: true});
 
+    // Interne Signatur (— keine — + Signaturen)
+    var internSel = document.getElementById('policy-intern-tpl');
+    if (internSel) _fuelleVorlagenSelect(internSel, 'signatur', d.intern, {mitLeer: true});
+
     // Banner (— keine — + Banner-Vorlagen)
     var bannerPolSel = document.getElementById('policy-banner-tpl');
     if (bannerPolSel) _fuelleVorlagenSelect(bannerPolSel, 'banner', d.banner, {mitLeer: true});
@@ -694,12 +715,14 @@ async function savePolicies() {
   }
 
   var minSel = document.getElementById('policy-min-tpl');
+  var internPolSel = document.getElementById('policy-intern-tpl');
   var bannerPolSel = document.getElementById('policy-banner-tpl');
   var disclaimerPolSel = document.getElementById('policy-disclaimer-tpl');
   var oofPolSel = document.getElementById('policy-oof-tpl');
   var policies = {
     sig: sigSel ? sigSel.value : 'default',
     min: minSel ? minSel.value : '',
+    intern: internPolSel ? internPolSel.value : '',
     banner: bannerPolSel ? bannerPolSel.value : '',
     disclaimer: disclaimerPolSel ? disclaimerPolSel.value : '',
     oof: oofPolSel ? oofPolSel.value : '',
@@ -841,6 +864,18 @@ async function refreshMailboxStatus() {
 var STANDARD_WAHL = '__standard__';
 // Funktion „Zentrale Abwesenheiten verwalten" (Assistent) — steuert die Spalte.
 var _abwesenheitAktiv = {{ abwesenheit_aktiv() | tojson }};
+// Zelle mit einer Signatur-Wahl, die am Signatur-Haken hängt (Antwort-,
+// interne Signatur). Ohne Haken ausgegraut — gleiche Regel wie die Standardsignatur.
+function _signaturWahlZelle(idx, klasse, mb, slot, feld) {
+  var td = document.createElement('td');
+  td.style.cssText = 'text-align:center;padding:6px 8px';
+  var sel = _buildWahlSelect(idx, klasse, 'signatur', mb, slot, feld, '— keine —');
+  sel.disabled = !mb.sig;
+  sel.style.opacity = mb.sig ? '1' : '0.4';
+  td.appendChild(sel);
+  return td;
+}
+
 function _buildWahlSelect(idx, klasse, kind, mb, slot, feld, leerText) {
   var sel = document.createElement('select');
   sel.className = klasse;
@@ -1040,13 +1075,12 @@ function renderMailboxTable(mailboxes) {
     tplSel.style.opacity = mb.sig ? '1' : '0.4';
     tdTpl.appendChild(tplSel);
 
-    // Antwort-Signatur (ab 2. eigener Mail im Thread) — Wahl-Slot
-    var tdMinSig = document.createElement('td');
-    tdMinSig.style.cssText = 'text-align:center;padding:6px 8px';
-    var minSigSel = _buildWahlSelect(i, 'mb-min-sig', 'signatur', mb, 'min', 'min_template', '— keine —');
-    minSigSel.disabled = !mb.sig;
-    minSigSel.style.opacity = mb.sig ? '1' : '0.4';
-    tdMinSig.appendChild(minSigSel);
+    // Antwort-Signatur (ab 2. eigener Mail im Thread) und interne Signatur
+    // (alle Empfänger intern) — Wahl-Slots, die am Signatur-Haken hängen.
+    var tdMinSig = _signaturWahlZelle(i, 'mb-min-sig', mb, 'min', 'min_template');
+    var minSigSel = tdMinSig.firstChild;
+    var tdIntern = _signaturWahlZelle(i, 'mb-intern', mb, 'intern', 'intern_template');
+    var internSigSel = tdIntern.firstChild;
 
     // Banner und Disclaimer — Richtlinie (Vorlagenrichtlinie) statt Nutzerwahl
     var tdBanner = _richtlinienZelle(i, mb, policyActive, 'mb-banner', 'banner',
@@ -1098,6 +1132,8 @@ function renderMailboxTable(mailboxes) {
       tplSel.style.opacity = sig ? '1' : '0.4';
       minSigSel.disabled = !sig;
       minSigSel.style.opacity = sig ? '1' : '0.4';
+      internSigSel.disabled = !sig;
+      internSigSel.style.opacity = sig ? '1' : '0.4';
       _richtlinienStand(bannerSel, sig, pol, mb.banner_template, 'policy-banner-tpl');
       _richtlinienStand(disclaimerSel, sig, pol, mb.disclaimer_template, 'policy-disclaimer-tpl');
       // Abwesenheit greift für aktivierte Postfächer (Signatur ODER S/MIME).
@@ -1115,6 +1151,7 @@ function renderMailboxTable(mailboxes) {
     if (isResource) {
       tplSel.disabled = true; tplSel.style.opacity = '0.4';
       minSigSel.disabled = true; minSigSel.style.opacity = '0.4';
+      internSigSel.disabled = true; internSigSel.style.opacity = '0.4';
       bannerSel.disabled = true; bannerSel.style.opacity = '0.4';
       disclaimerSel.disabled = true; disclaimerSel.style.opacity = '0.4';
       oofSel.disabled = true; oofSel.style.opacity = '0.4';
@@ -1129,6 +1166,7 @@ function renderMailboxTable(mailboxes) {
     tr.appendChild(tdPolicy);
     tr.appendChild(tdTpl);
     tr.appendChild(tdMinSig);
+    tr.appendChild(tdIntern);
     tr.appendChild(tdBanner);
     tr.appendChild(tdDisclaimer);
     if (_abwesenheitAktiv) tr.appendChild(tdOof);
@@ -1235,6 +1273,7 @@ async function saveMailboxes() {
   var smimeBoxes = document.querySelectorAll('.mb-smime');
   var templateSelects = document.querySelectorAll('.mb-template');
   var minSigSelects = document.querySelectorAll('.mb-min-sig');
+  var internSelects = document.querySelectorAll('.mb-intern');
   var bannerSelects = document.querySelectorAll('.mb-banner');
   var disclaimerSelects = document.querySelectorAll('.mb-disclaimer');
   var oofSelects = document.querySelectorAll('.mb-oof');
@@ -1260,6 +1299,7 @@ async function saveMailboxes() {
       smime: smimeBoxes[i].checked,
       template: templateSelects[i] ? templateSelects[i].value : 'default',
       min_template: minSigSelects[i] ? minSigSelects[i].value : '',
+      intern_template: internSelects[i] ? internSelects[i].value : '',
       banner_template: bannerSelects[i] ? bannerSelects[i].value : '',
       disclaimer_template: disclaimerSelects[i] ? disclaimerSelects[i].value : '',
       addin_templates: addinTemplates,
@@ -1611,9 +1651,9 @@ async function saveGroups() {
 
 var _customPolicies = []; // [{condition_type, group_name, applies_to, template}]
 
-var _APPLIES_TO_LABELS = {sig: 'Standardsignatur', min: 'Minimalsignatur', banner: 'Banner', disclaimer: 'Disclaimer', oof: 'Abwesenheit', addin: 'Add-in-Auswahl'};
+var _APPLIES_TO_LABELS = {sig: 'Standardsignatur', min: 'Minimalsignatur', intern: 'Interne Signatur', banner: 'Banner', disclaimer: 'Disclaimer', oof: 'Abwesenheit', addin: 'Add-in-Auswahl'};
 // Welchen Vorlagentyp der jeweilige Slot zuweist — spiegelt signature_engine.SLOT_ART.
-var _SLOT_ART = {sig: 'signatur', min: 'signatur', banner: 'banner', disclaimer: 'disclaimer', oof: 'oof'};
+var _SLOT_ART = {sig: 'signatur', min: 'signatur', intern: 'signatur', banner: 'banner', disclaimer: 'disclaimer', oof: 'oof'};
 
 function _renderCustomPoliciesTable() {
   var tbody = document.getElementById('cpol-tbody');
@@ -1667,7 +1707,7 @@ function _renderCustomPoliciesTable() {
     // „Add-in-Auswahl“: welche Vorlagen Mitglieder der Gruppe im Knopf-Add-in
     // wählen dürfen (Liste statt einer Vorlage; mehrere Gruppen = Vereinigung,
     // policies.addin_freigabe).
-    ['sig','min','banner','disclaimer','oof','addin'].filter(function(slot) {
+    ['sig','min','intern','banner','disclaimer','oof','addin'].filter(function(slot) {
       return slot !== 'oof' || _abwesenheitAktiv || pol.applies_to === 'oof';
     }).forEach(function(slot) {
       var opt = document.createElement('option');

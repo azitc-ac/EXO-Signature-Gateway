@@ -88,9 +88,22 @@
       .then(function (v) { return (v && v.emailAddress) || ''; }, function () { return ''; });
   }
 
-  function signaturHolen(zugriff, antwort, von) {
+  // Alle Empfänger (An, Cc, Bcc) — das Gateway entscheidet daraus, ob die
+  // interne Signatur gilt (intern.py: Postfach des Tenants oder eigene Domäne).
+  function empfaengerHolen(item) {
+    function liste(obj) {
+      return feld(obj, function (v) {
+        return (v || []).map(function (e) { return e.emailAddress; }).filter(Boolean);
+      }).then(function (l) { return l || []; });
+    }
+    return Promise.all([liste(item.to), liste(item.cc), liste(item.bcc)])
+      .then(function (l) { return l[0].concat(l[1], l[2]).slice(0, 100).join(','); });
+  }
+
+  function signaturHolen(zugriff, antwort, von, empfaenger) {
     var adresse = EXO_VERFASSEN.api + '?client=' + encodeURIComponent(plattform());
     if (von) adresse += '&von=' + encodeURIComponent(von);
+    if (empfaenger) adresse += '&empfaenger=' + encodeURIComponent(empfaenger);
     if (antwort) {
       adresse += '&art=' + encodeURIComponent(antwort.art);
       if (antwort.bezug) adresse += '&bezug=' + encodeURIComponent(antwort.bezug);
@@ -164,9 +177,33 @@
             function () { return false; });
   }
 
-  function beimVerfassen(event) {
+  // Zuletzt gesetzte Signatur dieses Entwurfs (sessionData, Mailbox 1.11 und
+  // Outlook mobil) — bei Empfänger- oder Absenderwechsel nur neu setzen, wenn
+  // sich die Wahl ändert. Fehlt die API, wird jedes Mal gesetzt.
+  var MERKER = 'exoSignatur';
+  function gemerkt(item) {
+    if (!item.sessionData || typeof item.sessionData.getAsync !== 'function') return Promise.resolve(null);
+    return asynk(function (cb) { item.sessionData.getAsync(MERKER, cb); })
+      .then(function (v) { return v || ''; }, function () { return ''; });
+  }
+  function merken(item, wert) {
+    if (!item.sessionData || typeof item.sessionData.setAsync !== 'function') return Promise.resolve();
+    return asynk(function (cb) { item.sessionData.setAsync(MERKER, wert, cb); })
+      .catch(function () { /* Merker ist Beiwerk */ });
+  }
+
+  // EIN Ablauf für alle drei Ereignisse:
+  //   'start'      — neue Mail, Antwort, Weiterleitung (OnNewMessageCompose)
+  //   'empfaenger' — Empfänger geändert (OnMessageRecipientsChanged): interne
+  //                  Signatur, solange alle intern sind, sonst die normale
+  //   'absender'   — Von-Adresse geändert (OnMessageFromChanged): Signatur des
+  //                  geteilten Postfachs
+  // Bei den Änderungs-Ereignissen bleibt ein leerer Befund ohne Wirkung (die
+  // Signatur bleibt stehen), und gesetzt wird nur, wenn sich die Wahl ändert.
+  function signaturSetzen(event, anlass) {
     var item = Office.context.mailbox.item;
     var zugriff = '', vorlage = '';   // für die Fehlermeldung ans Gateway
+    var start = anlass === 'start';
     // Das Manifest verlangt nur Mailbox 1.5 (Outlook mobil). Fehlen die
     // Signatur-APIs, still beenden — ein Hinweis hilft dort niemandem.
     if (typeof item.getComposeTypeAsync !== 'function' || !item.body ||
@@ -192,12 +229,14 @@
         return angaben.then(function (antwort) {
           return token().then(function (z) {
             zugriff = z;
-            return vonHolen(item).then(function (von) { return signaturHolen(z, antwort, von); });
+            return Promise.all([vonHolen(item), empfaengerHolen(item)]).then(function (w) {
+              return signaturHolen(z, antwort, w[0], w[1]);
+            });
           });
         }).then(function (d) {
           var html = (d && d.html) || '';
           vorlage = (d && d.vorlage) || '';
-          if (d && d.zu_gross) {
+          if (start && d && d.zu_gross) {
             // Das Gateway hat es protokolliert; hier nur der Hinweis an den Anwender.
             hinweis('Signatur \u201e' + vorlage + '\u201c ist f\u00fcr Outlook zu gro\u00df (' +
                     tausender(d.zu_gross) + ' Zeichen, erlaubt ' + tausender(d.max) +
@@ -205,19 +244,23 @@
           }
           // Nur bei einer Antwort, für die das Gateway entschieden hat ("kette"
           // vorhanden) — dann prüft es beim Versand nach (ANTWORT_LETZTES_WORT).
-          var entschieden = d && typeof d.kette === 'boolean' && antwortArt;
+          var entschieden = start && d && typeof d.kette === 'boolean' && antwortArt;
           return (entschieden ? ketteMelden(item, d.kette) : Promise.resolve())
-            .then(function () { return { html: html, vorlage: (d && d.vorlage) || '' }; });
+            .then(function () { return { html: html, vorlage: vorlage }; });
         }).then(function (sig) {
           if (!sig.html) return null;
-          return asynk(function (cb) { item.disableClientSignatureAsync(cb); })
-            .catch(function () { /* ohne Client-Signatur weiter */ })
-            .then(function () {
-              return asynk(function (cb) {
-                item.body.setSignatureAsync(sig.html, { coercionType: Office.CoercionType.Html }, cb);
-              });
-            })
-            .then(function () { eingefuegtMelden(sig.vorlage); });
+          return gemerkt(item).then(function (alt) {
+            if (!start && alt === sig.vorlage) return null;   // Wahl unverändert
+            return asynk(function (cb) { item.disableClientSignatureAsync(cb); })
+              .catch(function () { /* ohne Client-Signatur weiter */ })
+              .then(function () {
+                return asynk(function (cb) {
+                  item.body.setSignatureAsync(sig.html, { coercionType: Office.CoercionType.Html }, cb);
+                });
+              })
+              .then(function () { return merken(item, sig.vorlage); })
+              .then(function () { eingefuegtMelden(sig.vorlage); });
+          });
         });
       })
       .catch(function (e) {
@@ -228,7 +271,13 @@
       .then(function () { event.completed(); });
   }
 
+  function beimVerfassen(event) { signaturSetzen(event, 'start'); }
+  function beiEmpfaengern(event) { signaturSetzen(event, 'empfaenger'); }
+  function beiAbsender(event) { signaturSetzen(event, 'absender'); }
+
   // OWA/neues Outlook laden die HTML-Seite und erwarten die Initialisierung.
   if (Office.onReady) Office.onReady(function () {});
   Office.actions.associate('beimVerfassen', beimVerfassen);
+  Office.actions.associate('beiEmpfaengern', beiEmpfaengern);
+  Office.actions.associate('beiAbsender', beiAbsender);
 })();

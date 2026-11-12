@@ -77,6 +77,9 @@ AUFGABEN: tuple[Aufgabe, ...] = (
             seit="1.10.112"),
     Aufgabe("bestand-durchsicht", abnahme._bestand_durchsicht, "/smime#durchsicht",
             seit="1.10.115"),
+    # Manifest des Verfassen-Add-ins geändert (interne Signatur, geteilte
+    # Postfächer) — jede Installation muss es im Admin Center neu bestätigen.
+    Aufgabe("addin-fassung", abnahme._addin_fassung, "/mailboxes", seit="1.11.56"),
 )
 
 _TTL_S = 10

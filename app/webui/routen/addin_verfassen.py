@@ -33,6 +33,16 @@ Aufbau nach Microsofts Beispielen „Outlook-Event-SSO-NAA" und
   prüft die APIs trotzdem selbst, statt sich auf die Versionsangabe zu
   verlassen. NAA ist auf iOS/Android ab 4.2433.0 allgemein verfügbar.
 
+Seit v1.11.56 zwei weitere Ereignisse, gleiche Laufzeit, gleicher Ablauf
+(`signaturSetzen` im Skript):
+- `OnMessageRecipientsChanged` (Mailbox 1.11; mobil ab 4.2425.0) — interne
+  Signatur, solange alle Empfänger intern sind (intern.py), sonst die normale.
+- `OnMessageFromChanged` (Mailbox 1.13; mobil ab 4.2502.0) — wechselt jemand
+  die Von-Adresse auf ein geteiltes Postfach, gilt dessen Signatur.
+Beide stehen im selben Manifest-Update, damit Kunden nur EINMAL neu bestätigen
+müssen. Clients ohne das Ereignis feuern es nicht; die Mindestversion bleibt
+1.5, sonst lüde Outlook mobil das Add-in gar nicht.
+
 Voraussetzung an der Bootstrap-App (Entra): SPA-Umleitung brk-multihub://<host>,
 API-URI api://<client-id> mit Bereich access_as_user, die App selbst als
 vorab berechtigter Client, requestedAccessTokenVersion = 2.
@@ -145,6 +155,8 @@ async def verfassen_manifest(request: Request):
             <ExtensionPoint xsi:type="LaunchEvent">
               <LaunchEvents>
                 <LaunchEvent Type="OnNewMessageCompose" FunctionName="beimVerfassen"/>
+                <LaunchEvent Type="OnMessageRecipientsChanged" FunctionName="beiEmpfaengern"/>
+                <LaunchEvent Type="OnMessageFromChanged" FunctionName="beiAbsender"/>
               </LaunchEvents>
               <SourceLocation resid="laufzeitHtml"/>
             </ExtensionPoint>
@@ -153,6 +165,8 @@ async def verfassen_manifest(request: Request):
             <ExtensionPoint xsi:type="LaunchEvent">
               <LaunchEvents>
                 <LaunchEvent Type="OnNewMessageCompose" FunctionName="beimVerfassen"/>
+                <LaunchEvent Type="OnMessageRecipientsChanged" FunctionName="beiEmpfaengern"/>
+                <LaunchEvent Type="OnMessageFromChanged" FunctionName="beiAbsender"/>
               </LaunchEvents>
               <SourceLocation resid="laufzeitHtml"/>
             </ExtensionPoint>
@@ -244,6 +258,12 @@ async def verfassen_signatur_vorab():
     return Response(status_code=204, headers=_CORS)
 
 
+def _adressen(roh, hoechstens: int = 100) -> list[str]:
+    """Kommagetrennte Adressliste aus einer Abfrage — beschnitten, kleingeschrieben."""
+    return [e.strip().lower() for e in (roh or "").split(",")
+            if "@" in e and len(e.strip()) <= 254][:hoechstens]
+
+
 def _plattform(request) -> str:
     """`Office.context.diagnostics.platform` aus `?client=` — nur fürs Protokoll,
     damit ein Abruf vom Handy von einem vom Desktop zu unterscheiden ist.
@@ -282,12 +302,9 @@ def _antwort(request) -> dict | None:
             return None
         art = "reply"
     betreff = "".join(z for z in (q.get("betreff") or "") if z.isprintable())[:255]
-    def adressen(roh):
-        return [e.strip().lower() for e in (roh or "").split(",")
-                if "@" in e and len(e.strip()) <= 254][:20]
-    an = adressen(q.get("an"))
+    an = _adressen(q.get("an"))
     # Cc nur, wenn der Client ihn geschickt hat (auch leer) — None = unbekannt.
-    cc = adressen(q.get("cc")) if q.get("cc") is not None else None
+    cc = _adressen(q.get("cc")) if q.get("cc") is not None else None
     import sig_thread
     bezug = (q.get("bezug") or "").strip()
     if len(bezug) > 998 or not sig_thread._MID_RE.fullmatch(bezug):
@@ -322,22 +339,36 @@ async def verfassen_signatur(request: Request):
     if "@" not in email:
         log.warning("Verfassen-Add-in: Token ohne Adresse (oid=%s)", claims.get("oid"))
         return JSONResponse({"html": ""}, headers=_CORS)
-    if not mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, email):
-        log.info("Verfassen-Add-in: %s wird vom Gateway nicht betreut — nichts einzufügen", email)
-        return JSONResponse({"html": ""}, headers=_CORS)
-    vorlage = _addin_cfg(email)["template"]
     plattform = _plattform(request)
-    # Von-Adresse des Entwurfs: weicht sie ab, schreibt die Person aus einem
-    # geteilten Postfach („Senden als“/„im Auftrag von“). Bisher nur im
-    # Protokoll — die Signatur bleibt die der angemeldeten Person.
+    import intern as _intern
+    import policies
+    # Von-Adresse des Entwurfs: weicht sie ab und ist sie ein aktiviertes
+    # Postfach, schreibt die Person aus einem geteilten Postfach („Senden als“/
+    # „im Auftrag von“). Dann gilt die Signatur DIESES Postfachs (Absender und
+    # Signatur stimmen überein); die Person steht als {{ bearbeiter.* }} bereit.
+    # Dieselbe Regel wie beim Versand (handler: _sig_absender/_bearbeiter).
     try:
         von = (request.query_params.get("von") or "").strip().lower()
+        empfaenger = _adressen(request.query_params.get("empfaenger"))
     except AttributeError:
-        von = ""
+        von, empfaenger = "", []
+    ident, bearbeiter = email, ""
     if von and "@" in von and len(von) <= 254 and von != email:
-        log.info("Verfassen-Add-in: Entwurf mit Von-Adresse %s, angemeldet ist %s (%s) — "
-                 "Signatur weiterhin für die angemeldete Person",
-                 "".join(z for z in von if z.isprintable()), email, plattform)
+        von_cfg = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, von)
+        if von_cfg.get("sig"):
+            ident, bearbeiter = von, email
+            log.info("Verfassen-Add-in: %s schreibt als/für %s — Signatur von %s (%s)",
+                     email, von, von, plattform)
+        else:
+            log.info("Verfassen-Add-in: Entwurf mit Von-Adresse %s, angemeldet ist %s (%s) — "
+                     "%s ist nicht vom Gateway betreut, Signatur der angemeldeten Person",
+                     "".join(z for z in von if z.isprintable()), email, plattform, von)
+    if not mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, ident):
+        log.info("Verfassen-Add-in: %s wird vom Gateway nicht betreut — nichts einzufügen", ident)
+        return JSONResponse({"html": ""}, headers=_CORS)
+    alle_intern = _intern.alle_intern(empfaenger)
+    vorlagen = policies.aufloesen(ident)
+    vorlage, art = policies.vorlage_waehlen(vorlagen, None, alle_intern)
     kette, user_data = False, None
     antwort = _antwort(request)
     if antwort is not None:
@@ -345,7 +376,7 @@ async def verfassen_signatur(request: Request):
         bezug = None
         if antwort["bezug"]:
             # Genau bekannt (item.inReplyTo) — keine Schätzung nötig.
-            bezug = await graph_client.bezug_per_kennung(email, antwort["bezug"])
+            bezug = await graph_client.bezug_per_kennung(ident, antwort["bezug"])
         if bezug is not None:
             log.info("Verfassen-Add-in: %s von %s — beantwortete Mail über inReplyTo (%s)",
                      art_text, email, plattform)
@@ -353,7 +384,7 @@ async def verfassen_signatur(request: Request):
             konversation, weg = antwort["konversation"], "Kennung"
             if not konversation and antwort["betreff"]:
                 konversation = await graph_client.konversation_per_betreff(
-                    email, antwort["betreff"], antwort["an"])
+                    ident, antwort["betreff"], antwort["an"])
                 weg = "Betreff"
             # Zeigt, was der Client liefert — auf iOS fehlte die Kennung (19.10.2026).
             log.info("Verfassen-Add-in: %s von %s — inReplyTo %s, Kennung %s, Betreff %s, "
@@ -364,29 +395,27 @@ async def verfassen_signatur(request: Request):
                      f"über {weg}" if konversation else "nicht gefunden", plattform)
             if not konversation:
                 return JSONResponse({"html": ""}, headers=_CORS)
-            bezug = await graph_client.antwort_bezug(email, konversation, antwort["art"],
+            bezug = await graph_client.antwort_bezug(ident, konversation, antwort["art"],
                                                      antwort["an"], antwort["cc"])
         if bezug is None:
             log.info("Verfassen-Add-in: Antwort von %s — beantwortete Mail nicht ermittelbar, "
                      "Gateway entscheidet beim Versand (%s)", email, plattform)
             return JSONResponse({"html": ""}, headers=_CORS)
         import mail_processor
-        import policies
         import sig_thread
-        vorlagen = policies.aufloesen(email)
         try:
-            user_data = await graph_client.get_user(email)
+            user_data = await graph_client.get_user(ident)
         except Exception:                                    # noqa: BLE001
-            user_data = graph_client.UserData(mail=email)
+            user_data = graph_client.UserData(mail=ident)
         # Dieselbe Prüfung wie handler.py: Ist deine Signatur in der
         # beantworteten Mail zu lesen — oder ist sie selbst deine signierte Mail?
-        in_kette = (sig_thread.kennt(email, bezug["kennungen"][:1])
+        in_kette = (sig_thread.kennt(ident, bezug["kennungen"][:1])
                     or mail_processor.signatur_zu_lesen(
                         bezug["html"], signature_engine.erkennungs_zeilen(user_data, vorlagen)))
         log.info("Verfassen-Add-in: beantwortet wird die Mail von %s (%s) — %s",
                  bezug["von"], bezug["zeit"][:16],
                  "deine Signatur ist darin zu lesen" if in_kette else "deine Signatur steht nicht darin")
-        vorlage = policies.antwort_vorlage(vorlagen, in_kette)
+        vorlage, art = policies.vorlage_waehlen(vorlagen, in_kette, alle_intern)
         if in_kette:
             # Merkmal wie im Handler, damit `grep SIG-KETTE` jeden Fall findet.
             log.info("SIG-KETTE: Add-in, deine Signatur steht schon in der beantworteten Mail — %s für %s (%s)",
@@ -397,10 +426,16 @@ async def verfassen_signatur(request: Request):
         kette = in_kette
     if user_data is None:
         try:
-            user_data = await graph_client.get_user(email)
+            user_data = await graph_client.get_user(ident)
         except Exception:                                    # noqa: BLE001
-            user_data = graph_client.UserData(mail=email)
-    sig_html, _txt = signature_engine.render(user_data, vorlage)
+            user_data = graph_client.UserData(mail=ident)
+    extra = None
+    if bearbeiter:
+        try:
+            extra = {"bearbeiter": await graph_client.get_user(bearbeiter)}
+        except Exception:                                    # noqa: BLE001
+            extra = {"bearbeiter": graph_client.UserData(mail=bearbeiter)}
+    sig_html, _txt = signature_engine.render(user_data, vorlage, extra)
     marked = markiert(sig_html) if sig_html else ""
     zu_gross = signatur_zu_gross(marked)
     if zu_gross:
@@ -413,8 +448,9 @@ async def verfassen_signatur(request: Request):
         return JSONResponse({"html": "", "kette": kette, "vorlage": vorlage,
                              "zu_gross": zu_gross, "max": OUTLOOK_SIGNATUR_MAX},
                             headers=_CORS)
-    log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s)", vorlage, email, plattform)
-    return JSONResponse({"html": marked, "kette": kette,
+    log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s%s)", vorlage, ident, plattform,
+             ", alle Empfänger intern" if art == "intern" else "")
+    return JSONResponse({"html": marked, "kette": kette, "art": art,
                          "vorlage": vorlage if sig_html else ""},
                         headers=_CORS)
 

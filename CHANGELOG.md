@@ -5,6 +5,58 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.56 — 2026-11-12 — Interne Signatur; Senden aus geteilten Postfächern
+
+### Interne Signatur
+- Neue Zuordnung **Interne Signatur** unter *Postfächer* — global, je Gruppe
+  (Gruppenregel „Interne Signatur“) und je Postfach. Sie gilt, solange
+  **alle** Empfänger intern sind; ohne Zuordnung bleibt alles wie bisher.
+- „Intern“ heißt: Postfach dieses Tenants **oder** Adresse unter einer eigenen
+  (akzeptierten) Domäne. Bisher zählten nur Postfächer; Verteiler und Kontakte
+  unter der eigenen Domäne galten als extern. Die Definition gilt jetzt auch
+  für „Rein interne Mails auch signieren“.
+- Das **Verfassen-Add-in** reagiert auf Änderungen der Empfänger: interne
+  Signatur, solange alle intern sind, sonst die normale. Gesetzt wird nur, wenn
+  sich die Wahl ändert.
+- **Beim Versand** prüft das Gateway nach: Steht eine interne Signatur im
+  Entwurf, ist aber ein externer Empfänger dabei, ersetzt es sie durch die
+  normale. Eine interne Signatur geht damit nie nach außen. Kennzahl in der
+  Übersicht: „Interne Signatur nach außen ersetzt“.
+- Zwei Schalter unter *Einstellungen → Signatur → Erweitert*:
+  - **Interne Signatur auch ohne Add-in anhängen** (Standard aus): Das Gateway
+    hängt die interne Signatur auch an rein interne Mails, die ohne Add-in
+    geschrieben wurden.
+  - **Interne Signatur hat Vorrang vor der Antwort-Signatur** (Standard aus):
+    In einer Antwortkette gilt sonst die Antwort-Signatur.
+
+### Senden aus geteilten Postfächern
+- **Im Auftrag von:** Exchange setzt dann den Umschlag-Absender auf die
+  Person, die Von-Adresse auf das geteilte Postfach. Das Gateway nahm bisher
+  Signatur und S/MIME-Zertifikat der Person. Jetzt gelten Signatur und
+  S/MIME-Einstellungen des geteilten Postfachs, wenn es aktiviert ist.
+  Signiert wird ausschließlich mit dessen Zertifikat; fehlt es bei
+  eingeschaltetem S/MIME, geht die Mail unsigniert hinaus (Hinweis im
+  Protokoll). Ist S/MIME für das geteilte Postfach aus, ist unsigniert der
+  Normalfall.
+- **Von-Adresse im Add-in:** Wechselt jemand im Entwurf die Von-Adresse auf ein
+  aktiviertes geteiltes Postfach, setzt das Verfassen-Add-in dessen Signatur.
+  Bisher blieb die persönliche stehen, und das Gateway hängte die des
+  geteilten Postfachs dazu — zwei Signaturen.
+- Neue Vorlagenvariable **`bearbeiter.*`** (dieselben Felder wie `user`, auch
+  im Baukasten unter „Schreibende Person“): die Person, die schreibt — bei
+  „im Auftrag von“ und beim Wechsel der Von-Adresse im Add-in die Person,
+  sonst der Inhaber selbst. Damit kann die Signatur eines geteilten Postfachs
+  den Namen der schreibenden Person tragen. Bei „Senden als“ ohne Add-in gibt
+  Exchange keinen Hinweis auf die Person mit; dort steht der Inhaber.
+
+**Zu tun:** Das Manifest des Verfassen-Add-ins hat zwei neue Ereignisse
+(Empfänger und Von-Adresse geändert). Microsoft verlangt für jede Änderung an
+einem Ereignis-Add-in eine neue Bestätigung: *Microsoft 365 Admin Center →
+Einstellungen → Integrierte Apps → Verfassen-Add-in → Aktualisieren* und die
+Berechtigungen bestätigen. Bis dahin arbeitet die bisherige Fassung weiter.
+Der Sammelpunkt oben rechts zeigt, solange Postfächer noch die alte Fassung
+bekommen.
+
 ## v1.11.55 — 2026-11-12 — S/MIME-Hülle behält „im Auftrag von“; Protokollstufe wirkt sofort
 
 - **S/MIME und „Senden im Auftrag von“.** Signierte und verschlüsselte Mails

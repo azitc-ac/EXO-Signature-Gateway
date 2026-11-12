@@ -72,14 +72,14 @@ def _abruf(konversation=None):
 
 def test_erste_antwort_bekommt_die_volle_signatur(antwort):
     body = _abruf(KONV)
-    assert body == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False, "vorlage": "Voll"}
+    assert body == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False, "art": "standard", "vorlage": "Voll"}
     assert antwort["graph"] == [("erika@zarenko.net", KONV)]
 
 
 def test_verweis_auf_signierte_mail_allein_reicht_nicht(antwort):
     # Echo-Dienst 17.10.2026: verweist auf die signierte Mail, zitiert sie nicht.
     antwort["bekannt"] = {"<b@x>"}
-    assert _abruf(KONV) == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False, "vorlage": "Voll"}
+    assert _abruf(KONV) == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False, "art": "standard", "vorlage": "Voll"}
 
 
 def test_antwort_auf_die_eigene_signierte_mail_die_antwort_signatur(antwort, caplog):
@@ -87,7 +87,7 @@ def test_antwort_auf_die_eigene_signierte_mail_die_antwort_signatur(antwort, cap
     import logging
     with caplog.at_level(logging.INFO):
         body = _abruf(KONV)
-    assert body == {"html": addin.markiert("<p>SIG Kurz</p>"), "kette": True, "vorlage": "Kurz"}
+    assert body == {"html": addin.markiert("<p>SIG Kurz</p>"), "kette": True, "art": "antwort", "vorlage": "Kurz"}
     assert any(r.getMessage().startswith("SIG-KETTE: Add-in") for r in caplog.records)
 
 
@@ -109,7 +109,7 @@ def test_unbrauchbare_kennung_geht_nicht_in_den_graph_filter(antwort, roh):
 
 
 def test_neue_mail_unveraendert(antwort):
-    assert _abruf() == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False, "vorlage": "Voll"}
+    assert _abruf() == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False, "art": "standard", "vorlage": "Voll"}
     assert antwort["graph"] == []
 
 
@@ -265,7 +265,7 @@ def test_ohne_kennung_schickt_betreff_und_empfaenger():
     """iOS: conversationId im Antwortentwurf leer (VM 19.10.2026)."""
     p = _handler_lauf(_item("reply", betreff="AW: Angebot & Termin",
                             an=["kunde@extern.de", "b@x.de"]))
-    assert p["url"] == ("https://x/api?client=iOS&art=reply"
+    assert p["url"] == ("https://x/api?client=iOS&empfaenger=kunde%40extern.de%2Cb%40x.de&art=reply"
                         "&betreff=AW%3A%20Angebot%20%26%20Termin&an=kunde%40extern.de%2Cb%40x.de")
     assert p["gesetzt"] == "<p>SIG</p>" and p["fertig"] == 1
 
@@ -334,8 +334,8 @@ def test_inreplyto_und_cc_gehen_mit():
         "conversationId: null", "conversationId: null, inReplyTo: '<orig@x.de>', "
         "cc: {getAsync: " + _OK % json.dumps([{"emailAddress": "c@x.de"}]) + "}", 1)
     p = _handler_lauf(item)
-    assert p["url"] == ("https://x/api?client=iOS&art=reply&bezug=%3Corig%40x.de%3E"
-                        "&betreff=AW%3A%20X&an=a%40x.de&cc=c%40x.de")
+    assert p["url"] == ("https://x/api?client=iOS&empfaenger=a%40x.de%2Cc%40x.de&art=reply"
+                        "&bezug=%3Corig%40x.de%3E&betreff=AW%3A%20X&an=a%40x.de&cc=c%40x.de")
 
 
 def test_cc_unlesbar_wird_nicht_geschickt():
@@ -565,7 +565,7 @@ def test_ohne_kennung_findet_die_konversation_ueber_den_betreff(antwort, betreff
     import logging
     with caplog.at_level(logging.INFO):
         body = _abruf_mit(antwort, art="reply", betreff="AW: Angebot", an="Kunde@Extern.de,x")
-    assert body == {"html": addin.markiert("<p>SIG Kurz</p>"), "kette": True, "vorlage": "Kurz"}
+    assert body == {"html": addin.markiert("<p>SIG Kurz</p>"), "kette": True, "art": "antwort", "vorlage": "Kurz"}
     assert betreff_suche == [("erika@zarenko.net", "AW: Angebot", ["kunde@extern.de"])]
     assert antwort["graph"] == [("erika@zarenko.net", "KB")]
     assert any("Kennung nein, Betreff ja, Konversation über Betreff" in r.getMessage()

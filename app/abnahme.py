@@ -708,9 +708,32 @@ def _addin_rollen() -> dict:
                               "prüft dieser Punkt nicht.")
 
 
+def _addin_fassung() -> dict:
+    """Liefert Exchange den Postfächern noch eine ältere Fassung des
+    Verfassen-Add-ins aus? Bei Event-Add-ins verlangt JEDE Manifest-Änderung
+    eine neue Bestätigung im Admin Center; bis dahin bleibt die alte Fassung
+    (MS Learn, „Deploy manifest updates“). Liest nur das Ergebnis der letzten
+    Postfachprüfung (MAILBOX_HEALTH → addin_verfassen), fragt nichts live ab."""
+    import settings_store
+    name = "Verfassen-Add-in aktuell"
+    gesundheit = settings_store.get("MAILBOX_HEALTH") or {}
+    alt = sorted(e for e, h in gesundheit.items()
+                 if isinstance(h, dict)
+                 and ((h.get("checks") or {}).get("addin_verfassen") or {}).get("status") == "warn")
+    if not alt:
+        return _punkt(name, OK, "Keine Postfächer mit älterer Fassung gemeldet.",
+                      deckt_nicht="Stand der letzten Postfachprüfung; Postfächer ohne Add-in "
+                                  "zählen nicht.")
+    return _punkt(name, OFFEN,
+                  f"{len(alt)} Postfach/Postfächer mit älterer Fassung (z. B. {alt[0]}).",
+                  "Admin Center → Einstellungen → Integrierte Apps → Verfassen-Add-in → "
+                  "Aktualisieren und die neuen Berechtigungen bestätigen. Exchange verteilt "
+                  "die neue Fassung danach binnen bis zu 72 Stunden.")
+
+
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
-              _addin_rollen, _benachrichtigung, _anmeldenachweis,
+              _addin_rollen, _addin_fassung, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,

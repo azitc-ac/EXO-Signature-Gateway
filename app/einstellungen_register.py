@@ -227,6 +227,8 @@ REGISTER: dict[str, E] = {
     "SENT_ITEMS_UPDATE": E(art=OPTION, ort="settings_signature.html"),
     "SETUP_COMPLETE": E(art=ZUSTAND),
     "SIGN_INTERNAL_ONLY_MAIL": E(art=OPTION, ort="settings_signature.html"),
+    "INTERN_VOR_ANTWORT": E(art=OPTION, ort="settings_signature.html"),
+    "INTERN_OHNE_ADDIN": E(art=OPTION, ort="settings_signature.html"),
     "SIG_IMAGE_MODE": E(art=OPTION, ort="settings_signature.html"),
     "SIG_STRIP_MIN_MATCH_PCT": E(art=OPTION, ort="settings_signature.html"),
     # Bypass-Wächter: vom Wizard/Heartbeat gesetzt, kein direktes Bedienfeld.

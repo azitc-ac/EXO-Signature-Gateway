@@ -67,6 +67,10 @@ KEYS = (
     # beantworteten Mail passte (ANTWORT_LETZTES_WORT=gateway). Steigt die Zahl,
     # schätzt das Add-in schlecht — sonst fiele es nur im Protokoll auf.
     "addin_korrigiert",
+    # Interne Signatur des Verfassen-Add-ins, die das Gateway ersetzt hat, weil
+    # doch ein externer Empfänger dabei war. Jede Zählung ist eine verhinderte
+    # Weitergabe einer internen Signatur nach außen.
+    "intern_korrigiert",
     # Abwesenheitsantworten, die das Gateway selbst geschickt hat, weil die Mail
     # per Ablage (IMAP APPEND / Graph-Inject) statt per Zustellung ins Postfach
     # kam — dort schickt Exchange keine (oof_ablage.py).

@@ -995,6 +995,27 @@ class SignatureHandler:
             import mailbox_match
             _mailbox_cfg: dict = settings_store.get("MAILBOX_CONFIG") or {}
             _sender_cfg: dict = mailbox_match.match_sender(_mailbox_cfg, sender)
+            # ── Senden im Auftrag von (geteiltes Postfach) ────────────────────
+            # Exchange setzt dann den Umschlag-Absender auf die PERSON, From auf
+            # das geteilte Postfach und Sender auf die Person (gemessen
+            # 12.11.2026, DEV-Tenant). Signatur und S/MIME gehören zum
+            # geteilten Postfach (Entscheidung: Absenderadresse und Signatur
+            # stimmen überein) — `_sig_absender`. Die Person bleibt als
+            # `_bearbeiter` für die Vorlage ({{ bearbeiter.* }}). Umschlag,
+            # Rückweg, Regeln und Protokoll bleiben beim echten Absender.
+            # „Senden als“ braucht das nicht: Dort ist der Umschlag schon das
+            # geteilte Postfach.
+            _sig_absender = sender
+            _bearbeiter = ""
+            _von_kopf = email.utils.parseaddr(msg.get("From", ""))[1].strip().lower()
+            _sender_kopf = email.utils.parseaddr(msg.get("Sender", ""))[1].strip().lower()
+            if (_von_kopf and _sender_kopf and _von_kopf != _sender_kopf
+                    and _sender_kopf == (sender or "").strip().lower()):
+                _von_cfg = mailbox_match.match_sender(_mailbox_cfg, _von_kopf)
+                if _von_cfg.get("sig") or _von_cfg.get("smime"):
+                    _sig_absender, _bearbeiter, _sender_cfg = _von_kopf, sender, _von_cfg
+                    log.info("Im Auftrag von: %s schreibt für %s — Signatur und S/MIME von %s",
+                             sender, _von_kopf, _von_kopf)
             if not _mailbox_cfg or not (_sender_cfg.get("sig") or _sender_cfg.get("smime")):
                 log.debug("Sender %s not in active MAILBOX_CONFIG — forwarding as-is", sender)
                 # mark_as_signed_bytes ist PFLICHT wie auf jedem anderen Rückweg:
@@ -1029,10 +1050,21 @@ class SignatureHandler:
             # mailbox in this tenant) reaches us too now. Default: skip signing
             # for it, matching the old behaviour where a transport-rule
             # condition kept internal-only mail from ever reaching the gateway.
-            if settings_store.get("SIGN_INTERNAL_ONLY_MAIL") is not True:
+            # „Intern“ = Postfach des Tenants ODER eigene Domäne (intern.py, EINE
+            # Definition mit dem Verfassen-Add-in). Ist eine interne Signatur
+            # zugeordnet und INTERN_OHNE_ADDIN an, signiert das Gateway rein
+            # interne Mail auch ohne SIGN_INTERNAL_ONLY_MAIL — mit dieser Vorlage.
+            import intern as _intern
+            import policies as _pol_frueh
+            _alle_intern = _intern.alle_intern(recipients)
+            _intern_vorlage = _pol_frueh.aufloesen(_sig_absender, _mailbox_cfg, _sender_cfg).get("intern", "")
+            _gw_signiert_intern = (settings_store.get("SIGN_INTERNAL_ONLY_MAIL") is True
+                                   or (settings_store.get("INTERN_OHNE_ADDIN") is True
+                                       and bool(_intern_vorlage)))
+            if not _gw_signiert_intern:
                 import exo_mailboxes
                 _known = exo_mailboxes.known_addresses()
-                if _known and all(r.strip().lower() in _known for r in recipients):
+                if _alle_intern:
                     # Exception: a bifurcated fork of a MIXED mail has an
                     # all-internal ENVELOPE but external recipients in its
                     # To/Cc HEADERS. In send_to_all mode that fork must be
@@ -1044,7 +1076,7 @@ class SignatureHandler:
                     _fork_mode = (settings_store.get("GRAPH_MIXED_FORK_MODE") or "send_to_all").strip().lower()
                     _rmode = settings_store.reinject_mode()
                     _hdr_rcpts = _rj._header_recipients(raw)
-                    _hdr_all_internal = (not _hdr_rcpts) or all(a in _known for a in _hdr_rcpts)
+                    _hdr_all_internal = (not _hdr_rcpts) or _intern.alle_intern(_hdr_rcpts)
                     # A mixed fork is OUTBOUND from a tenant mailbox; an inbound
                     # external sender must never be treated as one (see the
                     # _sender_internal guard in reinject.send — 2026-07-08 dup bug).
@@ -1152,13 +1184,17 @@ class SignatureHandler:
                         return "250 OK"
 
             # ── Normal outbound: inject signature ─────────────────────────────
-            user_data = await graph_client.get_user(sender)
+            user_data = await graph_client.get_user(_sig_absender)
+            # {{ bearbeiter.* }} in Vorlagen: wer die Mail tatsächlich schreibt —
+            # bei „im Auftrag von“ die Person, sonst der Postfachinhaber selbst.
+            _bearbeiter_daten = (await graph_client.get_user(_bearbeiter)) if _bearbeiter else user_data
+            _vorlage_extra = {"bearbeiter": _bearbeiter_daten}
             # Vorlagen-Auflösung (sig/min/banner/disclaimer/oof) — EINE Quelle für
             # Hot-Path, Abwesenheit, Self-Service, Add-in und Vorschau (siehe
             # policies.aufloesen: Wahl-Slots Postfach > Gruppe > global, Banner/
             # Disclaimer über use_policy).
             import policies as _policies_mod
-            _vorlagen = _policies_mod.aufloesen(sender, _mailbox_cfg, _sender_cfg)
+            _vorlagen = _policies_mod.aufloesen(_sig_absender, _mailbox_cfg, _sender_cfg)
             _force_sig = False
 
             # Minimalsignatur bei Antworten: Hat der Absender in DIESEM Thread
@@ -1182,9 +1218,9 @@ class SignatureHandler:
             # mit: Bis v1.9.180 galt der Kopf als Kette, und eine Fehl-
             # entscheidung des Add-ins nahm so auch dem Gateway die Signatur.
             _addin_wahl = sig_thread.addin_wahl(msg)
-            _in_kette = (sig_thread.kennt(sender, sig_thread.beantwortete(msg))
+            _in_kette = (sig_thread.kennt(_sig_absender, sig_thread.beantwortete(msg))
                          or mail_processor.sender_already_in_thread(
-                             msg, {sender.lower()},
+                             msg, {_sig_absender.lower()},
                              signature_engine.erkennungs_zeilen(user_data, _vorlagen)))
 
             # Bezugsgröße für die Kennzahl: ausgehende Mails, die überhaupt in
@@ -1211,6 +1247,28 @@ class SignatureHandler:
                          "die %s — Signatur ersetzt für %s",
                          "Antwort-Signatur" if _addin_wahl else "volle Signatur",
                          "Antwort-Signatur" if _in_kette else "volle Signatur", sender)
+            # Interne Signatur des Add-ins, aber ein externer Empfänger (Kopf-
+            # Empfänger zählen mit: bei einer aufgeteilten Mail ist der Umschlag
+            # intern, die Kopfzeilen nicht). Sie darf NIE nach außen gehen —
+            # unabhängig von ANTWORT_LETZTES_WORT: ersetzen durch die Signatur,
+            # die das Gateway für externe Empfänger wählt. Erkannt am Text, weil
+            # das Add-in auf dem Handy keine Kopfzeile setzen kann.
+            import reinject as _rj_w
+            _empf_alle_intern = (_alle_intern
+                                 and _intern.alle_intern(_rj_w._header_recipients(raw) or recipients))
+            if _im_entwurf and not _empf_alle_intern and _vorlagen.get("intern"):
+                _block = mail_processor.addin_signatur_html(msg)
+                if _block:
+                    _i_html, _ = signature_engine.render(user_data, template_name=_vorlagen["intern"],
+                                                         extra=_vorlage_extra)
+                    _s_html, _ = signature_engine.render(user_data, template_name=_vorlagen["sig"],
+                                                         extra=_vorlage_extra)
+                    if (mail_processor.ist_vorlage(_block, _i_html, _s_html)
+                            and mail_processor.addin_signatur_entfernen(msg)):
+                        _im_entwurf = False
+                        stats.increment("intern_korrigiert")
+                        log.warning("INTERN-KORREKTUR: interne Signatur im Entwurf, aber externe "
+                                    "Empfänger — ersetzt für %s", _sig_absender)
             if _im_entwurf:
                 suppress_html_sig = True
                 log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)
@@ -1226,6 +1284,14 @@ class SignatureHandler:
                     stats.increment("stapel_verhindert")
                     log.info("SIG-KETTE: bereits in dieser Kette signiert — Signatur des "
                              "Add-ins im Verfassenbereich bleibt für %s", sender)
+            elif (not suppress_html_sig and _empf_alle_intern and _vorlagen.get("intern")
+                    and _policies_mod.vorlage_waehlen(_vorlagen, _in_kette, True)[1] == "intern"):
+                # Alle Empfänger intern: interne Signatur — in einer Kette nur,
+                # wenn INTERN_VOR_ANTWORT gesetzt ist (policies.vorlage_waehlen).
+                template_name = _vorlagen["intern"]
+                _force_sig = True
+                log.info("INTERN: alle Empfänger intern — Vorlage %r für %s",
+                         template_name, _sig_absender)
             elif not suppress_html_sig and _in_kette:
                 # Ab der 2. eigenen Mail im Thread: Antwort-Signatur statt vollem Block.
                 #
@@ -1263,7 +1329,8 @@ class SignatureHandler:
             if suppress_html_sig:
                 sig_html, sig_txt = "", ""
             else:
-                sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
+                sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name,
+                                                            extra=_vorlage_extra)
 
             # Banner und Disclaimer hängen NICHT an der Signatur. Bis v1.9.168
             # standen sie in deren Zweig und entfielen mit ihr — auch dann, wenn
@@ -1356,10 +1423,17 @@ class SignatureHandler:
                       _smime_ok, wants_encryption, sender)
             if not wants_encryption and _smime_ok:
                 import smime_signer
-                signed = await smime_signer.sign_async(outbound, sender)
+                signed = await smime_signer.sign_async(outbound, _sig_absender)
                 if signed:
                     outbound = signed
                     _smime_signed = True
+                elif _bearbeiter:
+                    # Im Auftrag eines geteilten Postfachs: nur DESSEN Zertifikat
+                    # (Absenderadresse und Signatur stimmen überein). S/MIME ist
+                    # dort eingeschaltet (_smime_ok), aber kein Zertifikat da.
+                    log.warning("S/MIME: %s schreibt im Auftrag von %s, S/MIME ist für %s "
+                                "eingeschaltet, aber kein Zertifikat vorhanden — unsigniert",
+                                _bearbeiter, _sig_absender, _sig_absender)
             log.debug("S/MIME signing: signed=%s for %s", _smime_signed, sender)
 
             # ── S/MIME encryption (#enc# in subject) ─────────────────────────

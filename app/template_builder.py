@@ -60,6 +60,9 @@ _ANSCHRIFT_ZEILEN = [
 # Editor-Rolle speichern. Diese Zeichenklasse ist die einzige Schranke gegen
 # eingeschleuste Vorlagen-Ausdrücke.
 _CUSTOM_PREFIX = "custom."
+# Wer die Mail schreibt — bei „im Auftrag von“ eines geteilten Postfachs die
+# Person (handler._bearbeiter), sonst der Inhaber. Dieselben Felder wie user.
+_BEARBEITER_PREFIX = "bearbeiter."
 _CUSTOM_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
@@ -75,6 +78,9 @@ def _resolve_var(fname: str) -> str | None:
     if fname.startswith(_CUSTOM_PREFIX):
         name = fname[len(_CUSTOM_PREFIX):]
         return f"custom.{name}" if _CUSTOM_NAME_RE.match(name) else None
+    if fname.startswith(_BEARBEITER_PREFIX):
+        name = fname[len(_BEARBEITER_PREFIX):]
+        return f"bearbeiter.{name}" if name in _USER_FIELDS else None
     return f"user.{fname}" if fname in _USER_FIELDS else None
 
 DEFAULT_GLOBAL: dict[str, Any] = {

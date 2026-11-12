@@ -186,9 +186,12 @@ def test_start_ereignis_und_laufzeit(umgebung):
     root = _manifest()
     ereignisse = [e for e in root.iter() if e.tag.endswith("}LaunchEvent")]
     assert [(e.get("Type"), e.get("FunctionName")) for e in ereignisse] == [
-        ("OnNewMessageCompose", "beimVerfassen")] * 2      # Desktop + Mobil
+        ("OnNewMessageCompose", "beimVerfassen"),
+        ("OnMessageRecipientsChanged", "beiEmpfaengern"),
+        ("OnMessageFromChanged", "beiAbsender")] * 2       # Desktop + Mobil
     handler = av.HANDLER_DATEI.read_text(encoding="utf-8")
-    assert "Office.actions.associate('beimVerfassen'" in handler
+    for name in ("beimVerfassen", "beiEmpfaengern", "beiAbsender"):
+        assert f"Office.actions.associate('{name}'" in handler
     override = next(e for e in root.iter() if e.tag.endswith("}Override"))
     assert override.get("type") == "javascript"
     assert _urls(root)[override.get("resid")] == "https://sig.example" + av.LAUFZEIT_JS
@@ -274,12 +277,13 @@ var protokoll = {fertig: 0, abrufe: 0, hinweise: [], gesetzt: null};
 var handler = null;
 var item = %s;
 item.notificationMessages = {replaceAsync: function (id, m) { protokoll.hinweise.push(m.message); }};
+var handlers = {};
 globalThis.Office = {
   AsyncResultStatus: {Succeeded: 'succeeded', Failed: 'failed'},
   CoercionType: {Html: 'html', Text: 'text'},
   MailboxEnums: {ItemNotificationMessageType: {InformationalMessage: 'info'}},
   context: {mailbox: {item: item}, diagnostics: {platform: PLATTFORM}},
-  actions: {associate: function (n, f) { handler = f; }}
+  actions: {associate: function (n, f) { handlers[n] = f; if (n === 'beimVerfassen') handler = f; }}
 };
 globalThis.msal = {createNestablePublicClientApplication: function () {
   return Promise.resolve({acquireTokenSilent: function () {

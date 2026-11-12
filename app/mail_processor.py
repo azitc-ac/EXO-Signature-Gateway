@@ -147,19 +147,19 @@ def _has_own_sig_in_compose_area(msg: email.message.Message) -> bool:
 _ADDIN_DIV_RE = re.compile(r'<div\b[^>]*\bid=["\'](?:x_)?exo-sig-s["\'][^>]*>', re.IGNORECASE)
 
 
-def _addin_block_entfernen(html: str) -> str | None:
-    """Die Signatur des Add-ins (markiert(): Kommentar-Marker um
-    `<div id="exo-sig-s">…</div>`) aus dem Verfassenbereich entfernen.
-    `None` = keine gefunden. Klassisches Outlook verwirft die Kommentare beim
-    Verfassen, das Div mit seiner id überlebt — deshalb zuerst die Marker,
-    sonst das Div samt verschachtelter Divs."""
+def _addin_block_spanne(html: str) -> tuple[int, int] | None:
+    """(Anfang, Ende) der Signatur des Add-ins (markiert(): Kommentar-Marker um
+    `<div id="exo-sig-s">…</div>`) im Verfassenbereich — `None` = keine.
+    Klassisches Outlook verwirft die Kommentare beim Verfassen, das Div mit
+    seiner id überlebt — deshalb zuerst die Marker, sonst das Div samt
+    verschachtelter Divs."""
     first_quote = _find_first_quote_wrapper_pos(html)
     bereich = html if first_quote is None else html[:first_quote]
     start = bereich.find(_SIG_MARKER_START)
     if start != -1:
         ende = html.find(_SIG_MARKER_END, start)
         if ende != -1 and (first_quote is None or ende < first_quote):
-            return html[:start] + html[ende + len(_SIG_MARKER_END):]
+            return start, ende + len(_SIG_MARKER_END)
     m = _ADDIN_DIV_RE.search(bereich)
     if not m:
         return None
@@ -173,7 +173,36 @@ def _addin_block_entfernen(html: str) -> str | None:
             tiefe, pos = tiefe + 1, auf + 4
         else:
             tiefe, pos = tiefe - 1, zu + 6
-    return html[:m.start()] + html[pos:]
+    return m.start(), pos
+
+
+def _addin_block_entfernen(html: str) -> str | None:
+    """Die Signatur des Add-ins aus dem Verfassenbereich entfernen (`None` =
+    keine gefunden) — Spanne aus `_addin_block_spanne`."""
+    spanne = _addin_block_spanne(html)
+    return None if spanne is None else html[:spanne[0]] + html[spanne[1]:]
+
+
+def addin_signatur_html(msg: email.message.Message) -> str:
+    """HTML der vom Add-in gesetzten Signatur im Verfassenbereich ("" = keine)."""
+    html = extract_html(msg)
+    spanne = _addin_block_spanne(html) if html else None
+    return html[spanne[0]:spanne[1]] if spanne else ""
+
+
+def ist_vorlage(block_html: str, gesucht_html: str, andere_html: str) -> bool:
+    """Stammt die Add-in-Signatur `block_html` aus der Vorlage `gesucht_html`
+    und nicht aus `andere_html`? Verglichen werden die sichtbaren Textzeilen
+    (die Markierungen überstehen nicht jeden Client, der Text schon). Gilt,
+    wenn mindestens 80 % der Zeilen der gesuchten Vorlage darin stehen UND der
+    Anteil höher ist als bei der anderen — sonst nicht (im Zweifel nein)."""
+    gesucht, andere = set(text_zeilen(gesucht_html)), set(text_zeilen(andere_html))
+    block = set(text_zeilen(block_html))
+    if not gesucht or not block:
+        return False
+    anteil = len(block & gesucht) / len(gesucht)
+    anteil_andere = (len(block & andere) / len(andere)) if andere else 0.0
+    return anteil >= 0.8 and anteil > anteil_andere
 
 
 def addin_signatur_entfernen(msg: email.message.Message) -> bool:

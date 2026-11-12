@@ -129,9 +129,10 @@
       Rein interne Mails auch signieren
     </label>
     <div class="settings-control" style="flex-basis:100%">
-      <span class="hint">Mails, bei denen <strong>alle</strong> Empfänger interne Postfächer sind (kein
-        externer Empfänger), werden standardmäßig unverändert durchgereicht — keine HTML-Signatur, kein
-        S/MIME. Aktivieren, um auch rein interne Mails wie externe zu behandeln.</span>
+      <span class="hint">Mails, bei denen <strong>alle</strong> Empfänger intern sind (Postfach dieses
+        Tenants oder Adresse unter einer eigenen Domäne, kein externer Empfänger), werden standardmäßig
+        unverändert durchgereicht — keine HTML-Signatur, kein S/MIME. Aktivieren, um auch rein interne
+        Mails zu signieren; ist eine interne Signatur zugeordnet, gilt dann diese.</span>
       {# regel_bedingung.py: Regeln aus Installationen vor v1.8.64 tragen noch
          „Empfänger außerhalb der Organisation“ — dann kommt interne Post hier nie an. #}
       <div id="regel-bedingung" style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
@@ -149,6 +150,31 @@
                 {% if not (regel_stand and regel_stand.sent_to_scope) %}hidden{% endif %}>Empfängerbedingung entfernen</button>
         <span id="regel-bedingung-result" class="fortschritt" hidden></span>
       </div>
+    </div>
+  </div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="intern-ohne-addin"
+             {% if s.INTERN_OHNE_ADDIN %}checked{% endif %}>
+      Interne Signatur auch ohne Add-in anhängen
+    </label>
+    <div class="settings-control" style="flex-basis:100%">
+      <span class="hint">Ist unter <em>Postfächer</em> eine <strong>interne Signatur</strong> zugeordnet, setzt
+        das Verfassen-Add-in sie, solange alle Empfänger intern sind. Mit diesem Schalter hängt auch das
+        Gateway sie an rein interne Mails, die ohne Add-in geschrieben wurden.</span>
+    </div>
+  </div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="intern-vor-antwort"
+             {% if s.INTERN_VOR_ANTWORT %}checked{% endif %}>
+      Interne Signatur hat Vorrang vor der Antwort-Signatur
+    </label>
+    <div class="settings-control" style="flex-basis:100%">
+      <span class="hint">Standard: In einer Antwortkette gilt die Antwort-Signatur, auch wenn alle
+        Empfänger intern sind. Aktiviert gilt dann die interne Signatur.</span>
     </div>
   </div>
 
@@ -217,7 +243,7 @@
   </div>
   </div>
   <div class="actions" style="margin-top:14px">
-    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs-mobile,strip-client-sigs-desktop,sig-strip-pct,sig-image-mode,nosig-trigger,nosig-behaelt,kette-behaelt,antwort-letztes-wort,sign-internal-only"
+    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs-mobile,strip-client-sigs-desktop,sig-strip-pct,sig-image-mode,nosig-trigger,nosig-behaelt,kette-behaelt,antwort-letztes-wort,sign-internal-only,intern-ohne-addin,intern-vor-antwort"
             data-wache-hinweis="signatur-btn-result"
             onclick="saveSignatur()">Speichern</button>
     <span id="signatur-btn-result" style="font-size:12px;margin-left:8px"></span>
@@ -333,6 +359,8 @@ async function saveSignatur() {
     KETTE_BEHAELT: document.getElementById('kette-behaelt').value,
     ANTWORT_LETZTES_WORT: document.getElementById('antwort-letztes-wort').value,
     SIGN_INTERNAL_ONLY_MAIL: document.getElementById('sign-internal-only').checked,
+    INTERN_OHNE_ADDIN: document.getElementById('intern-ohne-addin').checked,
+    INTERN_VOR_ANTWORT: document.getElementById('intern-vor-antwort').checked,
   }, 'signatur-result');
   wacheFertig('signatur-btn', _ok);
 }

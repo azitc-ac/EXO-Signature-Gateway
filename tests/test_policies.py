@@ -31,7 +31,7 @@ def test_ohne_gruppen_gilt_der_globale_default(monkeypatch):
     _store(monkeypatch, TEMPLATE_POLICIES={"sig": "S", "oof": "O", "banner": "B"},
            CUSTOM_POLICIES=[], INTERNAL_GROUPS={})
     v = policies.aufloesen("a@x.de", {"a@x.de": {}}, {})
-    assert v == {"sig": "S", "min": "", "oof": "O", "banner": "B", "disclaimer": ""}
+    assert v == {"sig": "S", "min": "", "oof": "O", "intern": "", "banner": "B", "disclaimer": ""}
 
 
 def test_gruppe_uebersteuert_den_default(monkeypatch):

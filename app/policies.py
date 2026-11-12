@@ -27,7 +27,7 @@ import gruppen
 import mailbox_match
 import settings_store
 
-WAHL_SLOTS = ("sig", "min", "oof")
+WAHL_SLOTS = ("sig", "min", "oof", "intern")
 
 # Oberflächen-Wert „folgt dem Standard" (Gruppen- bzw. globaler Default) — beim
 # Speichern wird das Feld aus dem Postfach-Eintrag ENTFERNT. "" heisst dagegen
@@ -40,6 +40,7 @@ SLOT_FELD = {
     "sig": "template",
     "min": "min_template",
     "oof": "oof_template",
+    "intern": "intern_template",     # nur interne Empfänger (seit v1.11.56); "" = keine
     "banner": "banner_template",
     "disclaimer": "disclaimer_template",
 }
@@ -133,7 +134,7 @@ def hat_eigene_wahl(sender_cfg: dict | None, slot: str) -> bool:
 
 def aufloesen(sender: str, mailbox_cfg: dict | None = None,
               sender_cfg: dict | None = None) -> dict[str, str]:
-    """{slot: vorlagenname} für sig/min/oof/banner/disclaimer.
+    """{slot: vorlagenname} für sig/min/oof/intern/banner/disclaimer.
 
     `sig` ist nie leer (Rückfall "default"); die übrigen Slots sind `""`, wenn
     keine Vorlage gilt. `mailbox_cfg`/`sender_cfg` können vorberechnet übergeben
@@ -164,6 +165,27 @@ def antwort_vorlage(vorlagen: dict, in_kette: bool) -> str:
     Hat der Absender in dieser Kette schon eine vom Gateway signierte Mail,
     gilt die Antwort-Signatur (`""` = keine), sonst die volle Signatur."""
     return vorlagen["min"] if in_kette else vorlagen["sig"]
+
+
+def vorlage_waehlen(vorlagen: dict, in_kette: bool | None, alle_intern: bool,
+                    intern_vor_antwort: bool | None = None) -> tuple[str, str]:
+    """(Vorlage, Art) — EINE Regel für Gateway (Versand) und Verfassen-Add-in.
+
+    Art ist "intern", "antwort" oder "standard". Reihenfolge:
+      1. Alle Empfänger intern UND eine interne Vorlage zugeordnet → intern —
+         außer in einer Antwortkette, wenn die Antwort-Logik Vorrang hat
+         (Vorgabe; INTERN_VOR_ANTWORT kehrt das um).
+      2. In der Kette → Antwort-Signatur (`antwort_vorlage`, "" = keine).
+      3. Sonst die volle Signatur.
+    `in_kette=None` heisst: keine Antwort bzw. unbekannt.
+    """
+    if intern_vor_antwort is None:
+        intern_vor_antwort = settings_store.get("INTERN_VOR_ANTWORT") is True
+    if alle_intern and vorlagen.get("intern") and (not in_kette or intern_vor_antwort):
+        return vorlagen["intern"], "intern"
+    if in_kette:
+        return antwort_vorlage(vorlagen, True), "antwort"
+    return vorlagen["sig"], "standard"
 
 
 def vorlage_fuer(sender: str, slot: str, mailbox_cfg: dict | None = None,
