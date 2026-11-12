@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.66 — 2026-11-12 — Interne Mails aus dem klassischen Outlook: Logo der Add-in-Signatur intakt, keine zweite Signatur
+
+- Das klassische Outlook schickt Mails innerhalb der Organisation oft als
+  `winmail.dat` (TNEF). Das Gateway packt sie aus. Zwei Fehler traten dabei auf,
+  sobald das Verfassen-Add-in eine Signatur mit Logo gesetzt hatte:
+  - **Logo defekt:** Eingebettete Bilder kamen als gewöhnlicher Anhang ohne
+    Content-ID zurück. Das Logo stand als loses Bild über der Mail. An seiner
+    Stelle zeigte Outlook „Das verknüpfte Bild kann nicht angezeigt werden“,
+    OWA ein defektes Bild. Jetzt bleiben eingebettete Bilder mit ihrer
+    Content-ID eingebettet (`multipart/related`). Echte Dateianhänge bleiben
+    Anhänge.
+  - **Zweite Signatur:** In `winmail.dat` schreibt Outlook das Kennzeichen des
+    Add-ins ohne Anführungszeichen (`<div id=exo-sig-s>`). Das Gateway suchte nur
+    die Schreibweisen mit Anführungszeichen, hielt die Signatur für fehlend und
+    hängte seine eigene an. Jetzt prüft eine gemeinsame Erkennung alle
+    Schreibweisen, und alle Prüfstellen nutzen sie: Signatur im Entwurf,
+    Signatur in der Kette, Signatur im Zitat.
+
+**Zu tun:** nichts.
+
 ## v1.11.65 — 2026-11-12 — Prüfstand nachgezogen
 
 - Die Prüfung, dass jede Aufgabe auf eine vorhandene Stelle verlinkt, kennt die

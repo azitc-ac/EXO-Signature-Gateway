@@ -66,17 +66,34 @@ def _expand_tnef(msg: email.message.Message) -> email.message.Message:
     other_parts = [p for p in parts
                    if p.get_content_type() not in ("text/plain", "text/html", "application/ms-tnef")]
 
-    # Re-attach any real files embedded in the TNEF blob
+    # Anhänge aus der TNEF-Hülle. Eingebettete Bilder (im HTML per cid:
+    # referenziert, etwa das Logo einer vom Add-in eingefügten Signatur) MÜSSEN
+    # ihre Content-ID behalten und als Teil von multipart/related inline
+    # bleiben. Bis v1.11.65 kamen sie als application/octet-stream-Anhang ohne
+    # Content-ID zurück: Das Bild erschien als loser Anhang über der Mail, an
+    # seiner Stelle stand „Das verknüpfte Bild kann nicht angezeigt werden“.
+    inline_parts: list = []
     for att in t.attachments or []:
         data = getattr(att, "data", None)
         if not data:
             continue
-        att_part = email.mime.base.MIMEBase("application", "octet-stream")
+        cid = _tnef_attr(att, 0x3712)                     # PR_ATTACH_CONTENT_ID
+        mime = (_tnef_attr(att, 0x370E) or "").strip().lower()   # PR_ATTACH_MIME_TAG
+        name = _tnef_attr(att, 0x3707) or getattr(att, "name", None) or "attachment"
+        haupt, _, unter = mime.partition("/")
+        if not (haupt and unter):
+            import mimetypes
+            haupt, _, unter = (mimetypes.guess_type(name)[0] or "application/octet-stream").partition("/")
+        att_part = email.mime.base.MIMEBase(haupt, unter)
         att_part.set_payload(data)
         email.encoders.encode_base64(att_part)
-        att_part.add_header("Content-Disposition", "attachment",
-                             filename=getattr(att, "name", None) or "attachment")
-        other_parts.append(att_part)
+        if cid:
+            att_part.add_header("Content-ID", f"<{cid.strip('<>')}>")
+            att_part.add_header("Content-Disposition", "inline", filename=name)
+            inline_parts.append(att_part)
+        else:
+            att_part.add_header("Content-Disposition", "attachment", filename=name)
+            other_parts.append(att_part)
 
     # Try to get a real HTML body from TNEF
     html_str: str | None = None
@@ -106,24 +123,49 @@ def _expand_tnef(msg: email.message.Message) -> email.message.Message:
 
     html_part = email.mime.text.MIMEText(html_str, "html", "utf-8")
 
+    # Aufbau wie bei Outlook ohne TNEF:
+    #   mixed( related( alternative(text, html), Bilder… ), Anhänge… )
+    # Stufen ohne Inhalt entfallen.
+    koerper: email.message.Message = email.mime.multipart.MIMEMultipart("alternative")
+    for p in plain_parts:
+        koerper.attach(p)
+    koerper.attach(html_part)
+    if inline_parts:
+        rel = email.mime.multipart.MIMEMultipart("related")
+        rel.attach(koerper)
+        for p in inline_parts:
+            rel.attach(p)
+        koerper = rel
     if other_parts:
-        alt = email.mime.multipart.MIMEMultipart("alternative")
-        for p in plain_parts:
-            alt.attach(p)
-        alt.attach(html_part)
         new_msg: email.message.Message = email.mime.multipart.MIMEMultipart("mixed")
-        _copy_msg_headers(msg, new_msg)  # type: ignore[arg-type]
-        new_msg.attach(alt)
+        new_msg.attach(koerper)
         for p in other_parts:
             new_msg.attach(p)
     else:
-        new_msg = email.mime.multipart.MIMEMultipart("alternative")
-        _copy_msg_headers(msg, new_msg)  # type: ignore[arg-type]
-        for p in plain_parts:
-            new_msg.attach(p)
-        new_msg.attach(html_part)
+        new_msg = koerper
+    _copy_msg_headers(msg, new_msg)  # type: ignore[arg-type]
+    if inline_parts:
+        log.info("TNEF: %d eingebettete(s) Bild(er) mit Content-ID übernommen", len(inline_parts))
 
     return new_msg
+
+
+def _tnef_attr(att, prop: int) -> str:
+    """MAPI-Eigenschaft eines TNEF-Anhangs als Text ('' wenn nicht vorhanden).
+    tnefparse liefert Zeichenketten je nach Typ als str oder bytes, mit
+    abschließendem NUL."""
+    for a in getattr(att, "mapi_attrs", None) or []:
+        if getattr(a, "name", None) == prop:
+            try:
+                wert = a.data
+            except Exception:                                # noqa: BLE001
+                return ""
+            if isinstance(wert, list):
+                wert = wert[0] if wert else ""
+            if isinstance(wert, bytes):
+                wert = wert.decode("utf-8", errors="replace")
+            return str(wert or "").strip("\x00").strip()
+    return ""
 
 
 def _has_own_sig_in_compose_area(msg: email.message.Message) -> bool:
@@ -136,15 +178,11 @@ def _has_own_sig_in_compose_area(msg: email.message.Message) -> bool:
         return False
     first_quote = _find_first_quote_wrapper_pos(html)
     area = html if first_quote is None else html[:first_quote]
-    return (_SIG_MARKER_START in area
-            or _SIG_DIV_ATTR_S in area
-            or 'id="x_exo-sig-s"' in area
-            or "id='x_exo-sig-s'" in area
-            or f'class="{_SIG_CLASS}"' in area
-            or f"class='{_SIG_CLASS}'" in area)
+    return hat_kennung(area)
 
 
-_ADDIN_DIV_RE = re.compile(r'<div\b[^>]*\bid=["\'](?:x_)?exo-sig-s["\'][^>]*>', re.IGNORECASE)
+_ADDIN_DIV_RE = re.compile(r"""<div\b[^>]*\bid\s*=\s*["']?(?:x_)?exo-sig-s(?![\w-])["']?[^>]*>""",
+                           re.IGNORECASE)
 
 
 def _addin_block_spanne(html: str) -> tuple[int, int] | None:
@@ -245,12 +283,7 @@ def _has_sig_in_thread(msg: email.message.Message, sig_html: str = "") -> bool:
     html = extract_html(msg)
     if not html:
         return False
-    if (html.find(_SIG_MARKER_START) != -1
-            or html.find(_SIG_DIV_ATTR_S) != -1
-            or html.find('id="x_exo-sig-s"') != -1
-            or html.find("id='x_exo-sig-s'") != -1
-            or html.find(f'class="{_SIG_CLASS}"') != -1
-            or html.find(f"class='{_SIG_CLASS}'") != -1):
+    if hat_kennung(html):
         log.info("_has_sig_in_thread: gateway marker/sentinel found — skipping injection")
         return True
     return False
@@ -340,13 +373,7 @@ def marker_im_zitat(region: str) -> bool:
     """Steht im zitierten Teil eine Signatur dieses Gateways? EINE Prüfung für
     den Versand (oben) und das Verfassen-Add-in, das statt des Zitats den
     Text der beantworteten Mail prüft (graph_client.antwort_bezug)."""
-    return bool(
-        _SIG_MARKER_START in region
-        or f'class="{_SIG_CLASS}"' in region
-        or f"class='{_SIG_CLASS}'" in region
-        or 'id="x_exo-sig-s"' in region
-        or "id='x_exo-sig-s'" in region
-    )
+    return hat_kennung(region)
 
 
 def inject(
@@ -1014,7 +1041,8 @@ def _strip_client_sig_divs(html: str, sig_html: str = "") -> str:
             )
     else:
         # Fallback: div sentinels survive Outlook editing even when comments are stripped.
-        attr_pos = html.find(_SIG_DIV_ATTR_S)
+        _m_s = _KENNUNG_ID_RE.search(html)
+        attr_pos = _m_s.start() if _m_s else -1
         if attr_pos != -1:
             div_start = html.rfind('<', 0, attr_pos)
             first_quote = _find_first_quote_wrapper_pos(html)
@@ -1065,6 +1093,26 @@ _SIG_DIV_ATTR_E = 'id="exo-sig-e"'
 # and allow _has_sig_in_thread to detect a previous gateway sig even after iOS Mail
 # has stripped the <!-- exo-sig-start --> comment.
 _SIG_CLASS = "exo-gateway-sig"
+
+# EINE Erkennung der Gateway-/Add-in-Kennzeichen, für jede Schreibweise. Die
+# Prüfungen suchten bis v1.11.65 einzeln nach festen Zeichenketten (`id="…"`,
+# `id='…'`, `id="x_…"`) — die Form OHNE Anführungszeichen fehlte überall. Genau
+# so schreibt sie aber das klassische Outlook, wenn es eine Mail intern als
+# TNEF (winmail.dat) verschickt: `<div id=exo-sig-s>` (gemessen 12.11.2026).
+# Folge: Die Signatur des Add-ins wurde nicht erkannt und das Gateway hängte
+# eine zweite an.
+_KENNUNG_ID_RE = re.compile(r"""\bid\s*=\s*["']?(?:x_)?exo-sig-s(?![\w-])""", re.IGNORECASE)
+_KENNUNG_RE = re.compile(
+    r"""<!--\s*exo-sig-start\s*-->"""
+    + r"""|\bid\s*=\s*["']?(?:x_)?exo-sig-s(?![\w-])"""
+    + r"""|\bclass\s*=\s*(?:"[^"]*|'[^']*|)(?<![\w-])exo-gateway-sig(?![\w-])""",
+    re.IGNORECASE)
+
+
+def hat_kennung(text: str) -> bool:
+    """Steht im Text ein Kennzeichen dieses Gateways (Kommentar-Marker, id des
+    Add-in-Divs mit oder ohne x_-Präfix, Klasse) — in jeder Schreibweise?"""
+    return bool(text) and _KENNUNG_RE.search(text) is not None
 
 # Banner/Disclaimer OHNE Gateway-Signatur (Add-in-Signatur schon da, #nosig,
 # Antwort in einer Kette). Bewusst EIGENE Kennung: Mit den Signatur-Markern
