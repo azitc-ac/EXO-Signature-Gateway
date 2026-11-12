@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.51 — 2026-11-12 — Aufgabenbereich: 403 bei abweichendem UPN behoben
+
+- Wich der Anmeldename (UPN) eines Postfach-Nutzers von seiner Hauptadresse
+  ab, lud der Aufgabenbereich des Add-ins keine Signatur: „Fehler beim Laden:
+  HTTP 403“. Outlook fragt mit der Hauptadresse an, die Anmeldung trägt den
+  UPN, und die Prüfung „nur das eigene Postfach“ verglich beide als Text. Jetzt
+  zählt der Postfach-Eintrag: Gehören UPN und abgefragte Adresse zum selben
+  Postfach (Hauptadresse oder bekannte Adresse), wird geliefert. Ein fremdes
+  oder nicht betreutes Postfach bleibt gesperrt. Das Verfassen-Add-in war nicht
+  betroffen; es nimmt die Adresse aus dem Anmeldetoken.
+
+**Zu tun:** nichts.
+
 ## v1.11.50 — 2026-11-12 — Vorlagen-Editor: zu große Signatur — erst Bilder verkleinern
 
 - Der Hinweis auf eine für Outlook zu große Signatur nennt jetzt die

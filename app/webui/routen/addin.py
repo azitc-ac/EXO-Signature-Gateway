@@ -58,8 +58,17 @@ def _addin_postfach(request: Request, email: str, user: str) -> str:
     """
     email = (email or "").strip().lower()
     if _get_session_role(request) == sso_mod.ROLE_SELF and email and email != user:
-        # Im Protokoll, damit eine 403 im Aufgabenbereich ohne Rückfrage zu deuten
-        # ist: Outlook nennt die Hauptadresse, die Anmeldung womöglich den UPN.
+        # Dasselbe Postfach unter anderer Adresse: Outlook nennt die Hauptadresse
+        # (userProfile.emailAddress), die Anmeldung den UPN — weicht der ab
+        # (gemessen 12.11.2026: Anmeldung als Kurzform, Outlook mit Vor- und
+        # Nachname), schlug der reine Textvergleich mit 403 fehl. Maßgeblich ist
+        # der Postfach-Eintrag (ExchangeGuid samt bekannter Adressen) — dieselbe
+        # Zuordnung, mit der Verfassen-Ereignis und Versand das Postfach finden.
+        mb_all = settings_store.get("MAILBOX_CONFIG") or {}
+        eintrag = mailbox_match.match_sender_key(mb_all, email)
+        if eintrag and eintrag == mailbox_match.match_sender_key(mb_all, user):
+            return email
+        # Im Protokoll, damit eine 403 im Aufgabenbereich ohne Rückfrage zu deuten ist.
         log.warning("Add-in: %s fragt die Signatur von %s ab — als Self-Sitzung nur das "
                     "eigene Postfach erlaubt (403)", user, email)
         raise HTTPException(403, "Nur das eigene Postfach.")

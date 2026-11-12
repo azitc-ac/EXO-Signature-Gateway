@@ -226,3 +226,44 @@ def test_meldung_vorabanfrage_erlaubt_post_und_kopf():
 def test_laufzeit_kennt_die_meldeadresse(umgebung):
     assert av._konfiguration("https://sig.example")["meldung"] == \
         "https://sig.example" + av.MELDUNG_API
+
+
+# ── Self-Sitzung: dasselbe Postfach unter UPN und Hauptadresse ─────────────────
+# Gemessen 12.11.2026: Anmeldung (UPN) als Kurzform, Outlook nannte die
+# Hauptadresse mit Vor- und Nachname → 403 „nur das eigene Postfach“.
+
+_MB = {
+    "guid-1": {"primary": "max.beispiel@firma.at",
+               "known_addresses": ["max.beispiel@firma.at", "m.beispiel@firma.at"]},
+    "guid-2": {"primary": "erika@firma.at", "known_addresses": ["erika@firma.at"]},
+}
+
+
+@pytest.fixture
+def self_sitzung(monkeypatch):
+    import settings_store
+    import sso
+    monkeypatch.setattr(addin, "_get_session_role", lambda r: sso.ROLE_SELF)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: _MB if k == "MAILBOX_CONFIG" else d)
+
+
+@pytest.mark.parametrize("anmeldung, abgefragt", [
+    ("m.beispiel@firma.at", "max.beispiel@firma.at"),     # UPN → Hauptadresse
+    ("max.beispiel@firma.at", "m.beispiel@firma.at"),     # umgekehrt
+    ("max.beispiel@firma.at", "max.beispiel@firma.at"),
+])
+def test_self_dasselbe_postfach_erlaubt(self_sitzung, anmeldung, abgefragt):
+    assert addin._addin_postfach(_TaskReq(), abgefragt, anmeldung) == abgefragt
+
+
+@pytest.mark.parametrize("anmeldung, abgefragt", [
+    ("m.beispiel@firma.at", "erika@firma.at"),            # fremdes Postfach
+    ("unbekannt@firma.at", "max.beispiel@firma.at"),      # Anmeldung ohne Eintrag
+    ("m.beispiel@firma.at", "unbekannt@firma.at"),        # Abfrage ohne Eintrag
+])
+def test_self_fremdes_postfach_403(self_sitzung, anmeldung, abgefragt):
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as e:
+        addin._addin_postfach(_TaskReq(), abgefragt, anmeldung)
+    assert e.value.status_code == 403
