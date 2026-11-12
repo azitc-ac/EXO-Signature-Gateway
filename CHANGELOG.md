@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.46 — 2026-11-12 — Update: neu gesetzte Release-Tags werden übernommen
+
+- Die Historie des Repositorys wurde bereinigt; dabei haben alle Commits und
+  Release-Tags neue Kennungen bekommen. Inhaltlich sind die Fassungen gleich
+  geblieben, bis auf neutralisierte Beispieldaten in Tests.
+- Das Update im Kanal *Stabil* holt Tags jetzt mit `git fetch --tags --force`.
+  Bisher wies git ein auf dem Server neu gesetztes Tag ab („would clobber
+  existing tag“) und behielt lokal die alte Fassung. Das Update selbst lief
+  trotzdem weiter: Neue Tags kamen an, und das neueste wurde ausgecheckt.
+
+**Zu tun:** nichts. Die Kanäle *Nightly* und *Entwicklung* folgen dem Zweig
+und sind nicht betroffen. Im Kanal *Stabil* erscheint bis zum nächsten Update
+im Update-Protokoll die Zeile „would clobber existing tag“; sie ist harmlos.
+
 ## v1.11.45 — 2026-11-12 — Commit-Prüfung auf vertrauliche Begriffe
 
 - Neuer versionierter Hook `tools/hooks/commit-msg`: Er prüft die

@@ -11,7 +11,10 @@ write_heartbeat() { date -u +%Y-%m-%dT%H:%M:%SZ > "$HEARTBEAT"; chown 1000:1000 
 
 do_git_update() {
   if [ "$CHANNEL" = "release" ]; then
-    cd "$REPO" && git fetch --tags 2>&1
+    # --force: Ein Tag, das auf dem Server neu gesetzt wurde (etwa nach einer
+    # Bereinigung der Historie), wird übernommen. Ohne --force weist git es mit
+    # „would clobber existing tag“ ab, behält die alte Fassung und endet mit 1.
+    cd "$REPO" && git fetch --tags --force 2>&1
     if [ -n "${TARGET_VERSION:-}" ]; then
       TAG="v${TARGET_VERSION#v}"
       if ! git rev-parse "$TAG" >/dev/null 2>&1; then
