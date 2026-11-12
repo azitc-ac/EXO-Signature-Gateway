@@ -257,7 +257,7 @@ def _item(art, konv="null", mit_kopf=True, betreff=None, an=None):
 @pytest.mark.parametrize("art", ["reply", "forward"])
 def test_antwort_fragt_mit_konversation_und_setzt_signatur(art):
     p = _handler_lauf(_item(art, "'K+/='"))
-    assert p["url"] == f"https://x/api?client=iOS&art={art}&konversation=K%2B%2F%3D"
+    assert p["url"] == f"https://x/api?client=iOS&anlass=start&js=&art={art}&konversation=K%2B%2F%3D"
     assert p["gesetzt"] == "<p>SIG</p>" and p["fertig"] == 1
 
 
@@ -265,7 +265,7 @@ def test_ohne_kennung_schickt_betreff_und_empfaenger():
     """iOS: conversationId im Antwortentwurf leer (VM 19.10.2026)."""
     p = _handler_lauf(_item("reply", betreff="AW: Angebot & Termin",
                             an=["kunde@extern.de", "b@x.de"]))
-    assert p["url"] == ("https://x/api?client=iOS&empfaenger=kunde%40extern.de%2Cb%40x.de&art=reply"
+    assert p["url"] == ("https://x/api?client=iOS&anlass=start&js=&empfaenger=kunde%40extern.de%2Cb%40x.de&art=reply"
                         "&betreff=AW%3A%20Angebot%20%26%20Termin&an=kunde%40extern.de%2Cb%40x.de")
     assert p["gesetzt"] == "<p>SIG</p>" and p["fertig"] == 1
 
@@ -276,13 +276,13 @@ def test_scheiternde_feld_api_bricht_nicht_ab():
         ", subject: {getAsync: function (cb) { cb({status: 'failed', error: {message: 'x'}}); }}"
         ", disableClientSignatureAsync", 1)
     p = _handler_lauf(item)
-    assert p["url"] == "https://x/api?client=iOS&art=reply" and p["fertig"] == 1
+    assert p["url"] == "https://x/api?client=iOS&anlass=start&js=&art=reply" and p["fertig"] == 1
     assert not p["hinweise"]
 
 
 def test_neue_mail_ohne_konversation_in_der_adresse():
     p = _handler_lauf(_item("newMail", "'K'"))
-    assert p["url"] == "https://x/api?client=iOS"
+    assert p["url"] == "https://x/api?client=iOS&anlass=start&js="
 
 
 def _lauf_mit_antwort(item, antwort_json):
@@ -334,7 +334,7 @@ def test_inreplyto_und_cc_gehen_mit():
         "conversationId: null", "conversationId: null, inReplyTo: '<orig@x.de>', "
         "cc: {getAsync: " + _OK % json.dumps([{"emailAddress": "c@x.de"}]) + "}", 1)
     p = _handler_lauf(item)
-    assert p["url"] == ("https://x/api?client=iOS&empfaenger=a%40x.de%2Cc%40x.de&art=reply"
+    assert p["url"] == ("https://x/api?client=iOS&anlass=start&js=&empfaenger=a%40x.de%2Cc%40x.de&art=reply"
                         "&bezug=%3Corig%40x.de%3E&betreff=AW%3A%20X&an=a%40x.de&cc=c%40x.de")
 
 

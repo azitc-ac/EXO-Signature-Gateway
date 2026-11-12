@@ -274,13 +274,13 @@ def test_self_fremdes_postfach_403(self_sitzung, anmeldung, abgefragt):
 def test_handler_schickt_die_von_adresse():
     item = _VOLL[:-1] + ", from: {getAsync: " + _OK % "{emailAddress: 'team@firma.at'}" + "}}"
     p = _handler_lauf(item, plattform="PC")
-    assert p["url"] == "https://x/api?client=PC&von=team%40firma.at"
+    assert p["url"] == "https://x/api?client=PC&anlass=start&js=&von=team%40firma.at"
     assert p["gesetzt"] == "<p>SIG</p>"                  # Verhalten unverändert
 
 
 def test_handler_ohne_from_wie_bisher():
     p = _handler_lauf(_VOLL, plattform="PC")
-    assert p["url"] == "https://x/api?client=PC"
+    assert p["url"] == "https://x/api?client=PC&anlass=start&js="
 
 
 class _ReqVon(_Req):

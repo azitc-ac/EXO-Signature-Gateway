@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.61 — 2026-11-12 — Prüfstand nachgezogen
+
+- Tests, die die Abrufadresse des Verfassen-Add-ins wortgleich prüfen, kennen
+  die neuen Angaben zu Ereignis und Laufzeit-Fassung aus v1.11.60.
+
+**Zu tun:** nichts.
+
 ## v1.11.60 — 2026-11-12 — Verfassen-Add-in: Ereignis und Fassung im Protokoll, Hinweis am PC einschaltbar
 
 - Jeder Abruf des Verfassen-Add-ins nennt im Protokoll jetzt das auslösende
