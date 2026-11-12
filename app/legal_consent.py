@@ -47,9 +47,9 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
     # no_consent_required: sie erscheint in der Dokumentenliste und ist lesbar,
     # taucht aber in keinem Consent-Gate auf.
     "product-privacy": {
-        "version": "1.2",
+        "version": "1.3",
         "label_de": "Datenschutzerklärung (Gateway & Hub)",
-        "path_de": "de/produkt-datenschutz-v1.2.md",
+        "path_de": "de/produkt-datenschutz-v1.3.md",
         "no_consent_required": True,
     },
     # Art. 28 Abs. 3 DSGVO verlangt, dass die Verarbeitung durch einen Vertrag
@@ -57,9 +57,9 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
     # Deshalb echte Zustimmung (kein no_consent_required) und ein eigenes Gate
     # auf dem Support-Upload (CONTEXT_DOCUMENTS["support_upload"]).
     "dpa": {
-        "version": "1.1",
+        "version": "1.2",
         "label_de": "Auftragsverarbeitungsvertrag (Diagnosepakete)",
-        "path_de": "de/auftragsverarbeitung-v1.1.md",
+        "path_de": "de/auftragsverarbeitung-v1.2.md",
     },
 }
 

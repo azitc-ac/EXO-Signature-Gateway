@@ -1,6 +1,6 @@
 # Vereinbarung zur Auftragsverarbeitung (AVV)
 
-**Version 1.1 — Stand 30. Oktober 2026**
+**Version 1.2 — Stand 12. November 2026**
 
 Zwischen dem **Kunden** (nachfolgend „Verantwortlicher") und
 
@@ -54,12 +54,19 @@ externe Kommunikationspartner.
 3.2 **Datenarten.** Ein Diagnosepaket kann enthalten:
 
 - Konfigurationsdaten des Gateways; Zugangsdaten und Geheimnisse sind maskiert,
-- technische Protokolldateien,
+  Abwesenheitstexte und individuelle Benutzerangaben nur als Anzahl,
+- Systeminformationen (Version, Rechnername, Plattform, Speicherbelegung),
+- technische Protokolldateien der letzten Tage (bis zu vier Tagesdateien,
+  höchstens 4 MB je Datei); sie können **Absender- und Empfängeradressen
+  sowie Betreffzeilen** enthalten, Zugangsdaten und Schlüssel werden vor der
+  Übermittlung entfernt,
 - Statusinformationen zu konfigurierten Postfächern (E-Mail-Adressen,
-  Zertifikatsstatus),
-- ein **Protokoll der Mailverarbeitung der letzten sieben Tage** mit Zeitpunkt,
-  **Absenderadresse, Empfängeradressen, Betreffzeile**, Nachrichtenkennung,
-  Nachrichtengröße und Verarbeitungsergebnis.
+  Zertifikatsstatus) und zu laufenden Zertifikatsbestellungen,
+- ein **Protokoll der Mailverarbeitung der letzten sieben Tage** (höchstens
+  1.000 Einträge) mit Zeitpunkt, **Absenderadresse, Empfängeradressen,
+  Betreffzeile**, Nachrichtenkennung, Nachrichtengröße, Verarbeitungsergebnis
+  und -dauer sowie gegebenenfalls Fehlermeldung und Adresse des einliefernden
+  Geräts.
 
 3.3 **Nachrichteninhalte und private kryptographische Schlüssel sind nicht
 enthalten.**
@@ -109,7 +116,8 @@ der jeweiligen Anfrage benötigen.
 6.1 Der Auftragsverarbeiter trifft folgende Maßnahmen:
 
 - **Übertragung:** Der Upload erfolgt ausschließlich über eine
-  TLS-verschlüsselte Verbindung.
+  TLS-verschlüsselte Verbindung (HTTPS); das Gateway lässt eine
+  unverschlüsselte Hub-Adresse nicht zu.
 - **Zugangskontrolle:** Der Zugang zum Hub ist durch Authentifizierung
   geschützt; administrative Zugänge sind auf den Auftragsverarbeiter beschränkt.
 - **Zugriffskontrolle:** Diagnosepakete sind einem Kundenkonto zugeordnet und
@@ -117,9 +125,12 @@ der jeweiligen Anfrage benötigen.
 - **Maskierung:** Zugangsdaten und Geheimnisse werden bereits bei der Erzeugung
   des Pakets im Gateway des Verantwortlichen maskiert und erreichen den
   Auftragsverarbeiter nicht im Klartext.
-- **Speicherbegrenzung:** automatische Löschung nach Ziffer 2.3.
+- **Speicherbegrenzung:** automatische tägliche Löschung nach Ziffer 2.3;
+  Diagnosepakete sind nicht Bestandteil von Datensicherungen des Hub. Mit der
+  Löschung des Kundenkontos werden zugehörige Diagnosepakete gelöscht.
 - **Trennungskontrolle:** Daten verschiedener Kunden werden getrennt abgelegt.
-- **Protokollierung:** Zugriffe auf Diagnosepakete werden protokolliert.
+- **Protokollierung:** Abruf, Auswertung und Berichtserstellung zu einem
+  Diagnosepaket werden protokolliert.
 
 6.2 Der Auftragsverarbeiter überprüft die Maßnahmen regelmäßig und passt sie dem
 Stand der Technik an. Änderungen dürfen das Schutzniveau nicht verringern.
@@ -135,7 +146,8 @@ Hinzuziehung von Unterauftragsverarbeitern nach Art. 28 Abs. 2 Satz 2 DSGVO.
 
 | Unternehmen | Leistung | Sitz |
 |---|---|---|
-| Microsoft Ireland Operations Limited | Öffentliche Erreichbarkeit des Hub (Entra Application Proxy) | Irland; Verarbeitung über EU-Rechenzentren |
+| Microsoft Ireland Operations Limited | Betrieb des Hub auf Microsoft Azure (virtuelle Maschine, Region Nordeuropa) | Irland; Verarbeitung in Rechenzentren in Irland |
+| Microsoft Ireland Operations Limited | E-Mail-Benachrichtigung des Auftragsverarbeiters über den Eingang eines Diagnosepakets (Azure Communication Services); übermittelt werden Kundenadresse, Dateiname, Größe und die Notiz des Verantwortlichen, nicht das Paket | Irland; Verarbeitung in der EU |
 
 7.3 Der Auftragsverarbeiter zeigt beabsichtigte Änderungen **mindestens 30 Tage
 vorher** in Textform an. Der Verantwortliche kann innerhalb dieser Frist aus
@@ -239,4 +251,4 @@ der Information.
 
 ---
 
-*Version 1.1 — 30. Oktober 2026*
+*Version 1.2 — 12. November 2026*

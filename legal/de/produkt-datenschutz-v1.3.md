@@ -1,6 +1,6 @@
 # Datenschutzerklärung für EXO Signature Gateway und EXO Signature Hub
 
-**Version 1.2 — Stand 30. Oktober 2026**
+**Version 1.3 — Stand 12. November 2026**
 
 Diese Erklärung informiert nach Art. 13 und 14 DSGVO über die Verarbeitung
 personenbezogener Daten im Zusammenhang mit der Software **EXO Signature
@@ -161,11 +161,11 @@ Limited, One Microsoft Place, South County Business Park, Leopardstown,
 Dublin 18, Irland. Übermittelt werden Empfängeradresse, Betreff und Inhalt der
 jeweiligen Nachricht.
 
-**Erreichbarkeit des Hub.** Der Hub wird über *Microsoft Entra Application
-Proxy* der Microsoft Ireland Operations Limited öffentlich erreichbar gemacht.
-Dabei verarbeitet Microsoft die Verbindungsdaten (unter anderem IP-Adresse und
-Zeitpunkt des Zugriffs) in unserem Auftrag. Die Verarbeitung erfolgt über
-Rechenzentren innerhalb der Europäischen Union.
+**Betrieb des Hub.** Der Hub läuft auf einer virtuellen Maschine in
+*Microsoft Azure* der Microsoft Ireland Operations Limited, Region Nordeuropa
+(Irland). Microsoft verarbeitet dabei die auf dem Hub gespeicherten Daten und
+die Verbindungsdaten (unter anderem IP-Adresse und Zeitpunkt des Zugriffs) in
+unserem Auftrag. Die Verarbeitung erfolgt in Rechenzentren in Irland.
 
 Mit beiden Diensten bestehen Verträge zur Auftragsverarbeitung nach Art. 28
 DSGVO. **Rechtsgrundlage** für den Einsatz ist Art. 6 Abs. 1 lit. b DSGVO sowie
@@ -179,7 +179,7 @@ sicheren Betrieb).
 | Empfänger | Anlass | Übermittelte Daten |
 |---|---|---|
 | Zertifizierungsstelle (Certum, SwissSign, Sectigo, DigiCert, SSL.com) | Zertifikatsbestellung durch den Kunden | Postfachadresse, Zertifikatsantrag |
-| Microsoft Ireland Operations Limited | E-Mail-Versand, Erreichbarkeit des Hub | Empfängeradresse und Nachrichteninhalt; Verbindungsdaten |
+| Microsoft Ireland Operations Limited | E-Mail-Versand, Betrieb des Hub (Azure) | Empfängeradresse und Nachrichteninhalt; auf dem Hub gespeicherte Daten, Verbindungsdaten |
 | Wirtschaftsauskunftei | Antrag auf Rechnungskauf | Firmen- und Anschriftsdaten |
 | Steuerberatung, Finanzbehörden | gesetzliche Aufbewahrungs- und Erklärungspflichten | Rechnungs- und Vertragsdaten |
 
@@ -235,4 +235,4 @@ oben genannte Version.
 
 ---
 
-*Version 1.2 — 30. Oktober 2026*
+*Version 1.3 — 12. November 2026*

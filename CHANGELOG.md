@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.48 — 2026-11-12 — Auftragsverarbeitung 1.2, Datenschutzerklärung 1.3
+
+- **Vereinbarung zur Auftragsverarbeitung 1.2** (Diagnosepakete):
+  - *Datenarten* nennen jetzt vollständig, was ein Diagnosepaket enthält:
+    Systeminformationen, Protokolldateien der letzten Tage mit Adressen und
+    Betreffzeilen, Stand laufender Zertifikatsbestellungen und beim
+    Mailprotokoll zusätzlich Verarbeitungsdauer, Fehlermeldung und Adresse
+    des einliefernden Geräts (höchstens 1.000 Einträge der letzten sieben Tage).
+  - *Technische Maßnahmen*: ausschließlich HTTPS, tägliche automatische
+    Löschung, keine Diagnosepakete in Datensicherungen des Hub, Löschung mit
+    dem Kundenkonto, Protokoll von Abruf, Auswertung und Bericht.
+  - *Unterauftragsverarbeiter*: Microsoft Ireland Operations Limited für den
+    Betrieb des Hub auf Microsoft Azure (Region Nordeuropa) und für die
+    E-Mail-Benachrichtigung über den Eingang eines Pakets. Der bisher genannte
+    Entra Application Proxy wird nicht mehr eingesetzt.
+- **Datenschutzerklärung 1.3**: Abschnitt *Eingesetzte Dienstleister* und die
+  Empfängerübersicht nennen den Betrieb des Hub auf Microsoft Azure statt des
+  Entra Application Proxy.
+
+**Zu tun:** nichts. Vor dem nächsten Diagnosepaket fragt das Gateway die
+Zustimmung zur Fassung 1.2 der Vereinbarung ab.
+
 ## v1.11.47 — 2026-11-12 — Sicherheit: Diagnosepaket maskiert alle Geheimnisse; Mailprotokoll wirklich 7 Tage; Hub nur über https
 
 - **Geheimnisse im Diagnosepaket.** Das Paket für den Support maskierte
