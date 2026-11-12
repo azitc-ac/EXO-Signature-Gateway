@@ -224,8 +224,14 @@ def _konfiguration(base: str) -> dict:
     # Name der App, wie sie in Outlook unter „Apps“ steht (Teams-Paket name.short) —
     # für den Hinweis auf dem Handy, wo man die Signatur ändert.
     app = _html.unescape(_manifest_texte()["knopf"])
+    import config as _config
     return {**naa_konfiguration(), "api": base + SIGNATUR_API, "meldung": base + MELDUNG_API,
-            "kettenkopf": sig_thread.ADDIN_KOPF, "app": app}
+            "kettenkopf": sig_thread.ADDIN_KOPF, "app": app,
+            # Laufzeit-Fassung (geht mit jedem Abruf zurück, siehe _herkunft) und
+            # die Hinweiszeile am PC: beides wirkt ohne neues Manifest, weil die
+            # Laufzeit bei jedem Start frisch vom Gateway kommt.
+            "fassung": _config.VERSION,
+            "hinweis_pc": bool(settings_store.get("VERFASSEN_HINWEIS_PC"))}
 
 
 @router.get(LAUFZEIT_JS)
@@ -274,6 +280,33 @@ def _plattform(request) -> str:
         roh = ""
     roh = "".join(z for z in roh if z.isascii() and (z.isalnum() or z in "._-"))[:20]
     return roh or "unbekannt"
+
+
+# Welches Ereignis den Abruf auslöste. Das Start-Ereignis kennt jede Fassung
+# des Manifests; „Empfänger geändert“ und „Absender geändert“ registriert erst
+# das Manifest ab v1.11.56. Ein Abruf mit diesen Anlässen belegt also, dass der
+# Client die neue Fassung geladen hat — ohne auf Exchange zu raten.
+_ANLAESSE = {"start": "Start", "empfaenger": "Empfänger geändert",
+             "absender": "Absender geändert"}
+
+
+def _herkunft(request) -> str:
+    """Plattform, Ereignis und — wenn sie vom Gateway abweicht — die Fassung
+    der Laufzeit im Client, als Klammerzusatz fürs Protokoll. Die Laufzeit
+    wird bei jedem Start frisch geladen (no-store); eine abweichende Fassung
+    zeigt einen Client, der sie trotzdem aus einem Zwischenspeicher nimmt."""
+    import config as _config
+    teile = [_plattform(request)]
+    try:
+        q = request.query_params
+        anlass, js = q.get("anlass") or "", q.get("js") or ""
+    except AttributeError:
+        anlass, js = "", ""
+    teile.append(f"Ereignis: {_ANLAESSE.get(anlass, 'unbekannt (Laufzeit vor v1.11.60)')}")
+    js = "".join(z for z in js if z.isascii() and (z.isdigit() or z == "."))[:20]
+    if js and js != _config.VERSION:
+        teile.append(f"Laufzeit {js} aus dem Zwischenspeicher, Gateway {_config.VERSION}")
+    return ", ".join(teile)
 
 
 def _konversation(roh) -> str:
@@ -339,7 +372,7 @@ async def verfassen_signatur(request: Request):
     if "@" not in email:
         log.warning("Verfassen-Add-in: Token ohne Adresse (oid=%s)", claims.get("oid"))
         return JSONResponse({"html": ""}, headers=_CORS)
-    plattform = _plattform(request)
+    plattform = _herkunft(request)
     import intern as _intern
     import policies
     # Von-Adresse des Entwurfs: weicht sie ab und ist sie ein aktiviertes

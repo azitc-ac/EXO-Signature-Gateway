@@ -24,18 +24,23 @@
     } catch (e) { /* Hinweis ist Beiwerk */ }
   }
 
-  // Auf dem Handy gibt es keinen Knopf beim Verfassen (Outlook mobil kennt nur
-  // das Start-Ereignis). Die Zeile sagt, welche Signatur eingefügt wurde und wo
-  // man sie ändert: in der App unter „Apps“. Am PC steht dafür der Knopf bereit.
+  // Auf dem Handy gibt es keinen Knopf beim Verfassen. Die Zeile sagt, welche
+  // Signatur eingefügt wurde und wo man sie ändert: in der App unter „Apps“.
+  // Am PC nur, wenn der Betreiber es einschaltet (VERFASSEN_HINWEIS_PC) — dann
+  // mit dem Anlass, damit ein Wechsel nach Empfänger/Absender sichtbar wird.
   function mobil() {
     var p = plattform();
     return p === 'iOS' || p === 'Android';
   }
 
-  function eingefuegtMelden(vorlage) {
-    if (!vorlage || !mobil()) return;
-    hinweis('Signatur \u201e' + vorlage + '\u201c eingef\u00fcgt \u2013 \u00e4ndern unter Apps \u2192 ' +
-            (EXO_VERFASSEN.app || 'Signatur & Abwesenheit'));
+  var ANLASS_TEXT = { empfaenger: ' (Empf\u00e4nger ge\u00e4ndert)', absender: ' (Absender ge\u00e4ndert)' };
+
+  function eingefuegtMelden(vorlage, anlass) {
+    if (!vorlage) return;
+    var handy = mobil();
+    if (!handy && !EXO_VERFASSEN.hinweis_pc) return;
+    hinweis('Signatur \u201e' + vorlage + '\u201c eingef\u00fcgt' + (ANLASS_TEXT[anlass] || '') +
+            (handy ? ' \u2013 \u00e4ndern unter Apps \u2192 ' + (EXO_VERFASSEN.app || 'Signatur & Abwesenheit') : ''));
   }
 
   // Fehler auch ins Gateway-Protokoll — der Hinweis in Outlook ist nur für den
@@ -100,8 +105,9 @@
       .then(function (l) { return l[0].concat(l[1], l[2]).slice(0, 100).join(','); });
   }
 
-  function signaturHolen(zugriff, antwort, von, empfaenger) {
-    var adresse = EXO_VERFASSEN.api + '?client=' + encodeURIComponent(plattform());
+  function signaturHolen(zugriff, antwort, von, empfaenger, anlass) {
+    var adresse = EXO_VERFASSEN.api + '?client=' + encodeURIComponent(plattform()) +
+      '&anlass=' + encodeURIComponent(anlass || '') + '&js=' + encodeURIComponent(EXO_VERFASSEN.fassung || '');
     if (von) adresse += '&von=' + encodeURIComponent(von);
     if (empfaenger) adresse += '&empfaenger=' + encodeURIComponent(empfaenger);
     if (antwort) {
@@ -230,7 +236,7 @@
           return token().then(function (z) {
             zugriff = z;
             return Promise.all([vonHolen(item), empfaengerHolen(item)]).then(function (w) {
-              return signaturHolen(z, antwort, w[0], w[1]);
+              return signaturHolen(z, antwort, w[0], w[1], anlass);
             });
           });
         }).then(function (d) {
@@ -259,7 +265,7 @@
                 });
               })
               .then(function () { return merken(item, sig.vorlage); })
-              .then(function () { eingefuegtMelden(sig.vorlage); });
+              .then(function () { eingefuegtMelden(sig.vorlage, anlass); });
           });
         });
       })

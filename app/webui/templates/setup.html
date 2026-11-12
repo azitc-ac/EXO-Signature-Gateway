@@ -2283,9 +2283,10 @@ async function saveKeyvault() {
       <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
       <h3 id="addin-verfassen" style="margin:0 0 6px;font-size:13px;font-weight:600;color:#374151">Signatur automatisch beim Verfassen</h3>
       <p class="hint" style="line-height:1.7;margin:0 0 8px">
-        Ein eigenes Add-in neben dem Knopf: Es fügt beim Öffnen einer <strong>neuen</strong> Mail die
-        Gateway-Signatur selbst ein (Outlook für Windows klassisch und neu, Outlook im Web, iOS/Android).
-        Antworten und Weiterleitungen lässt es aus — die signiert das Gateway beim Versand.
+        Ein eigenes Add-in neben dem Knopf: Es fügt beim Verfassen die Gateway-Signatur selbst ein
+        (Outlook für Windows klassisch und neu, Outlook im Web, iOS/Android) — bei Antworten nach
+        derselben Regel wie beim Versand, und es wechselt die Signatur, wenn sich Empfänger (interne
+        Signatur) oder Absender (geteiltes Postfach) ändern.
         <strong>Ohne dieses Add-in fügt beim Verfassen nichts automatisch ein.</strong>
       </p>
       <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
@@ -2302,6 +2303,15 @@ async function saveKeyvault() {
           — ob sie in den Postfächern angekommen ist, zeigt die Spalte <em>Add-in Signatur</em> im Postfach-Status.{% else %}Noch nie abgerufen
           — die Fassung erscheint hier, sobald das Manifest einmal geladen wurde (etwa über <em>Erreichbarkeit prüfen</em>).{% endif %}</span>
       </div>
+      <div class="settings-row" style="margin-bottom:4px">
+        <label class="checkbox-label">
+          <input type="checkbox" id="verfassen-hinweis-pc" onchange="verfassenHinweisUmschalten(this)" {% if s.VERFASSEN_HINWEIS_PC %}checked{% endif %}>
+          Hinweis „Signatur … eingefügt“ auch am PC anzeigen
+          <span id="verfassen-hinweis-pc-result" style="font-size:12px;margin-left:8px"></span>
+        </label>
+      </div>
+      <p class="hint" style="margin:0 0 8px">Auf dem Handy erscheint die Zeile immer. Am PC nennt sie zusätzlich den Anlass
+        (Empfänger oder Absender geändert) — hilfreich beim Testen. Wirkt ab der nächsten neuen Mail, ohne das Manifest zu ändern.</p>
       <p class="hint" style="line-height:1.7;margin:0 0 8px">
         <strong>Voraussetzung:</strong> Das Add-in meldet sich ohne Fenster an (NAA, Nested App Authentication).
         Dafür braucht die Bootstrap-App eine SPA-Adresse <code>brk-multihub://…</code> und den Bereich
@@ -2323,7 +2333,9 @@ async function saveKeyvault() {
           <li>Wie beim Knopf nennt Microsoft <strong>24 bis 72 Stunden</strong>. <code>Get-App</code> meldet
             dieses Add-in mitunter noch als unbekannt, wenn es schon einfügt. Eine schon offene
             Outlook-Sitzung (vor allem im Web) bemerkt die Bereitstellung nicht — zum Testen ab- und neu
-            anmelden. Nachweis ist die Zeile <code>Verfassen-Add-in: Signatur … geliefert</code> im Protokoll.</li>
+            anmelden. Nachweis ist die Zeile <code>Verfassen-Add-in: Signatur … geliefert</code> im Protokoll.
+            Steht darin <code>Ereignis: Empfänger geändert</code> oder <code>Absender geändert</code>, hat
+            Outlook das Manifest ab v1.11.56 geladen — die ältere Fassung kennt nur <code>Start</code>.</li>
           <li>Steigt die Fassung: Add-in in <strong>Integrierte Apps</strong> auswählen → <strong>Aktualisieren</strong>
             und der Abfrage zustimmen.</li>
         </ol>
@@ -2530,6 +2542,12 @@ async function addinEnabledUmschalten(cb) {
   if (!await savePartial({ ADDIN_ENABLED: cb.checked }, 'addin-enabled-result')) {
     cb.checked = !cb.checked;
     document.getElementById('addin-setup').style.display = cb.checked ? '' : 'none';
+  }
+}
+
+async function verfassenHinweisUmschalten(cb) {
+  if (!await savePartial({ VERFASSEN_HINWEIS_PC: cb.checked }, 'verfassen-hinweis-pc-result')) {
+    cb.checked = !cb.checked;
   }
 }
 

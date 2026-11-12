@@ -12,6 +12,8 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+import config
+
 import graph_client
 import settings_store
 import signature_engine
@@ -244,7 +246,8 @@ def test_laufzeit_skript_ist_eine_datei_mit_msal_konfig_und_handler(umgebung):
                     "api": "https://sig.example" + av.SIGNATUR_API,
                     "meldung": "https://sig.example" + av.MELDUNG_API,
                     "kettenkopf": "X-Exo-Sig-Kette",
-                    "app": "Signatur"}          # Abwesenheit aus → App heißt „Signatur“
+                    "app": "Signatur",          # Abwesenheit aus → App heißt „Signatur“
+                    "fassung": config.VERSION, "hinweis_pc": False}
     assert "\nimport " not in inhalt and "\nexport " not in inhalt   # Classic: keine Importe
 
 
@@ -265,7 +268,8 @@ def test_handler_beendet_immer():
     assert "acquireTokenPopup(" not in js and "loginPopup(" not in js   # kein Fenster im Ereignis
 
 
-def _handler_lauf(item_js: str, plattform: str = "iOS", antwort: str = "{html: '<p>SIG</p>'}") -> dict:
+def _handler_lauf(item_js: str, plattform: str = "iOS", antwort: str = "{html: '<p>SIG</p>'}",
+                  konf: str = "") -> dict:
     """Den echten Handler in Node ausführen, mit nachgebautem Office-Objekt."""
     import shutil
     import subprocess
@@ -288,10 +292,10 @@ globalThis.Office = {
 globalThis.msal = {createNestablePublicClientApplication: function () {
   return Promise.resolve({acquireTokenSilent: function () {
     return Promise.resolve({accessToken: 'T'}); }}); }};
-globalThis.EXO_VERFASSEN = {clientId: 'C', authority: 'A', scope: 'S', api: 'https://x/api', app: 'Signatur & Abwesenheit'};
+globalThis.EXO_VERFASSEN = {clientId: 'C', authority: 'A', scope: 'S', api: 'https://x/api', app: 'Signatur & Abwesenheit'KONF};
 globalThis.fetch = function (url) { protokoll.abrufe++; protokoll.url = url;
   return Promise.resolve({ok: true, json: function () { return Promise.resolve(ANTWORT); }}); };
-""".replace("PLATTFORM", json.dumps(plattform)).replace("ANTWORT", antwort) % item_js + av.HANDLER_DATEI.read_text(encoding="utf-8") + """
+""".replace("PLATTFORM", json.dumps(plattform)).replace("ANTWORT", antwort).replace("KONF", konf) % item_js + av.HANDLER_DATEI.read_text(encoding="utf-8") + """
 handler({completed: function () { protokoll.fertig++; }});
 setTimeout(function () { process.stdout.write(JSON.stringify(protokoll)); }, 50);
 """
@@ -309,7 +313,7 @@ _VOLL = ("{getComposeTypeAsync: " + _OK % "{composeType: 'newMail'}" +
 def test_handler_setzt_die_signatur_und_meldet_die_plattform():
     p = _handler_lauf(_VOLL)
     assert p["gesetzt"] == "<p>SIG</p>" and p["fertig"] == 1 and not p["hinweise"]
-    assert p["url"] == "https://x/api?client=iOS"
+    assert p["url"] == "https://x/api?client=iOS&anlass=start&js="
 
 
 @pytest.mark.parametrize("item", [
@@ -358,7 +362,50 @@ def test_plattform_im_protokoll_beschnitten(umgebung, rendern, caplog, roh, erwa
     with caplog.at_level(logging.INFO):
         asyncio.run(av.verfassen_signatur(req))
     zeile = next(r.getMessage() for r in caplog.records if "geliefert" in r.getMessage())
-    assert zeile.endswith(f"({erwartet})")
+    assert f"({erwartet}, Ereignis: " in zeile
+
+
+# ── Welche Fassung läuft im Client? Ereignis und Laufzeit im Protokoll ─────────
+
+@pytest.mark.parametrize("q, steht, fehlt", [
+    ({"anlass": "start"}, "Ereignis: Start", "Zwischenspeicher"),
+    ({"anlass": "empfaenger"}, "Ereignis: Empfänger geändert", "Zwischenspeicher"),
+    ({"anlass": "absender"}, "Ereignis: Absender geändert", "Zwischenspeicher"),
+    ({}, "Ereignis: unbekannt", "Zwischenspeicher"),                 # alte Laufzeit
+    ({"anlass": "<x>\n200"}, "Ereignis: unbekannt", "<x>"),
+    ({"anlass": "start", "js": "1.0.1"}, "Laufzeit 1.0.1 aus dem Zwischenspeicher", "\n"),
+    ({"anlass": "start", "js": "1.0.1<b>\n"}, "Laufzeit 1.0.1 aus", "<b>"),
+])
+def test_ereignis_und_laufzeit_im_protokoll(umgebung, rendern, caplog, q, steht, fehlt):
+    req = _Req("Bearer " + _token())
+    req.query_params = {"client": "PC", **q}
+    import logging
+    with caplog.at_level(logging.INFO):
+        asyncio.run(av.verfassen_signatur(req))
+    zeile = next(r.getMessage() for r in caplog.records if "geliefert" in r.getMessage())
+    assert steht in zeile and fehlt not in zeile
+
+
+def test_eigene_laufzeit_wird_nicht_als_zwischenspeicher_gemeldet(umgebung, rendern, caplog):
+    req = _Req("Bearer " + _token())
+    req.query_params = {"client": "PC", "anlass": "start", "js": config.VERSION}
+    import logging
+    with caplog.at_level(logging.INFO):
+        asyncio.run(av.verfassen_signatur(req))
+    assert not any("Zwischenspeicher" in r.getMessage() for r in caplog.records)
+
+
+def test_hinweis_am_pc_nur_wenn_eingeschaltet():
+    aus = _handler_lauf(_VOLL, plattform="PC", antwort=_MIT_VORLAGE)
+    an = _handler_lauf(_VOLL, plattform="PC", antwort=_MIT_VORLAGE, konf=", hinweis_pc: true")
+    assert aus["gesetzt"] == an["gesetzt"] == "<p>SIG</p>"
+    assert aus["hinweise"] == []
+    assert an["hinweise"] == ["Signatur \u201eKompakt\u201c eingef\u00fcgt"]    # am PC ohne „Apps →“
+
+
+def test_laufzeit_meldet_ihre_fassung():
+    p = _handler_lauf(_VOLL, plattform="PC", konf=", fassung: '9.9.9'")
+    assert p["url"].endswith("&anlass=start&js=9.9.9")
 
 
 # ── Tab: NAA-Token gegen Sitzungsmerkmal ───────────────────────────────────────
@@ -436,7 +483,8 @@ def test_handy_meldet_eingefuegte_signatur_und_wo_man_sie_aendert():
 
 @pytest.mark.parametrize("plattform", ["PC", "OfficeOnline", "Mac"])
 def test_am_pc_kein_hinweis(plattform):
-    """Dort steht der Knopf bereit — keine Zeile bei jeder neuen Mail."""
+    """Dort steht der Knopf bereit — keine Zeile bei jeder neuen Mail (Vorgabe;
+    einschaltbar über VERFASSEN_HINWEIS_PC)."""
     p = _handler_lauf(_VOLL, plattform, _MIT_VORLAGE)
     assert p["gesetzt"] == "<p>SIG</p>" and p["hinweise"] == []
 

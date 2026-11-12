@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.60 — 2026-11-12 — Verfassen-Add-in: Ereignis und Fassung im Protokoll, Hinweis am PC einschaltbar
+
+- Jeder Abruf des Verfassen-Add-ins nennt im Protokoll jetzt das auslösende
+  Ereignis: `Verfassen-Add-in: Signatur 'Intern' für … geliefert (PC, Ereignis:
+  Empfänger geändert)`. Die Ereignisse **Empfänger geändert** und **Absender
+  geändert** registriert erst das Manifest ab v1.11.56. Taucht eines davon auf,
+  hat Outlook die neue Fassung geladen. Solange nur **Start** erscheint, arbeitet
+  der Client noch mit der älteren. Nach einem Manifest-Update muss man damit
+  nicht mehr raten, ob die Verteilung angekommen ist.
+- Die Laufzeit des Add-ins kommt bei jedem Start frisch vom Gateway und meldet
+  ihre Fassung mit. Nimmt ein Client sie trotzdem aus einem Zwischenspeicher,
+  steht `Laufzeit … aus dem Zwischenspeicher` in derselben Zeile.
+- Neuer Schalter unter *Einrichtung → Add-in → Signatur automatisch beim
+  Verfassen*: **Hinweis „Signatur … eingefügt“ auch am PC anzeigen**. Auf dem
+  Handy erscheint die Zeile wie bisher immer. Am PC nennt sie zusätzlich den
+  Anlass (Empfänger oder Absender geändert). Der Schalter wirkt ab der nächsten
+  neuen Mail, ohne das Manifest zu ändern. Vorgabe: aus.
+- Die Beschreibung des Verfassen-Add-ins in der Einrichtung nennt jetzt Antworten
+  sowie den Wechsel nach Empfängern und Absender. Bisher hieß es dort, Antworten
+  und Weiterleitungen lasse das Add-in aus.
+
+**Zu tun:** nichts. Das Manifest bleibt unverändert, eine erneute Bestätigung im
+Admin Center ist nicht nötig.
+
 ## v1.11.59 — 2026-11-12 — Gesendete Elemente: kein doppeltes Element mehr nach Suchverzug
 
 - Mit „Gesendete Elemente aktualisieren“ entfernt das Gateway nach dem Versand

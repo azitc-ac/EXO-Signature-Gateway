@@ -368,6 +368,7 @@ DEFAULTS: dict = {
     # An → AppCatalog.Read.All wird beantragt, und die Einrichtung vergleicht die
     # Fassung im Teams-Katalog mit dem ausgelieferten Paket.
     "TEAMS_APP_AKTIV": False,
+    "VERFASSEN_HINWEIS_PC": False,     # Verfassen-Add-in: Hinweiszeile „Signatur … eingefügt“ auch am PC (mobil immer)
     "ADDIN_BASE_URL": "",               # External public URL override (e.g. https://gateway.contoso.com)
     "STRIP_CLIENT_SIGS_MOBILE": True,   # (1) Outlook-Mobile-Signatur entfernen — sicher (bekannte Div-IDs)
     "STRIP_CLIENT_SIGS_DESKTOP": False,  # (3) Outlook-Desktop-Heuristik — experimentell, Vorgabe aus
