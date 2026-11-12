@@ -22,8 +22,11 @@ import httpx
 log = logging.getLogger("watchdog_deploy")
 
 _ARM = "https://management.azure.com"
-# Quelle des Function-Codes im Container (per Dockerfile mitgeliefert).
+# Quelle des Function-Codes im Container (per Dockerfile mitgeliefert); außerhalb
+# des Containers (Tests, CI) derselbe Ordner im Repository.
 _FUNC_SRC = Path("/app/watchdog_function")
+if not _FUNC_SRC.is_dir():
+    _FUNC_SRC = Path(__file__).resolve().parent.parent / "azure" / "watchdog"
 
 
 async def _arm(method: str, url: str, token: str, body: dict | None = None,
@@ -204,16 +207,34 @@ async def create_function_app(sub: str, rg: str, app: str, location: str,
     return False, f"Function-App nicht bereit (state={state}, principalId={'ja' if principal_id else 'nein'})", {}
 
 
+FUNKTION_DATEIEN = ("host.json", "requirements.psd1",
+                    "Watchdog/function.json", "Watchdog/run.ps1")
+
+
 def build_function_zip() -> bytes:
     """Baut das Function-Paket aus dem mitgelieferten Quellcode (host.json,
     requirements.psd1, Watchdog/*). In-Memory, kein func/az nötig."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        for rel in ("host.json", "requirements.psd1",
-                    "Watchdog/function.json", "Watchdog/run.ps1"):
+        for rel in FUNKTION_DATEIEN:
             p = _FUNC_SRC / rel
             z.writestr(rel, p.read_bytes())
     return buf.getvalue()
+
+
+def code_stand() -> str:
+    """Fingerabdruck des Function-Codes, den dieses Gateway mitbringt — über
+    die Dateiinhalte, nicht über das Zip (das trägt Zeitstempel). Steht beim
+    Wächter im Register, sobald sein Code hochgeladen wurde; weicht er ab, ist
+    der Wächter veraltet (abnahme._waechter_code, Aufgabe „waechter-code“).
+
+    Bis v1.11.63 lud das Gateway den Code NUR beim Anlegen hoch. Ein Fix am
+    Wächter erreichte bestehende Wächter dadurch nie."""
+    import hashlib
+    h = hashlib.sha256()
+    for rel in FUNKTION_DATEIEN:
+        h.update(rel.encode() + b"\0" + (_FUNC_SRC / rel).read_bytes() + b"\0")
+    return h.hexdigest()[:16]
 
 
 async def deploy_code(sub: str, rg: str, app: str, token: str,

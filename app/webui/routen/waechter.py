@@ -16,6 +16,7 @@ import json
 import re
 import secrets
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -47,6 +48,31 @@ def zustand() -> dict:
     return waechter_state.lesen()
 
 
+# Abgewiesene Herzschläge je Absender-IP: {ip: {"zuletzt", "anzahl", "kennung"}}.
+# Ein Wächter, der aus dem Register genommen oder ersetzt wurde, aber in Azure
+# weiterläuft, meldet sich jede Minute mit einem ungültigen Token — und schaltet
+# im Ausfall die Transportregel trotzdem, unbemerkt vom Gateway. Bis v1.11.63
+# stand das nur als „401“ im Zugriffsprotokoll (gefunden 12.11.2026: ein solcher
+# Wächter lief seit dem 08.09. weiter). Nur im Speicher; nach einem Neustart
+# meldet er sich binnen einer Minute wieder.
+_abgewiesen: dict[str, dict] = {}
+_ABGEWIESEN_MELDEN_S = 3600
+
+
+def _abweisung_merken(ip: str, kennung: str) -> None:
+    jetzt = time.time()
+    e = _abgewiesen.get(ip) or {"anzahl": 0, "gemeldet": 0.0}
+    e.update(anzahl=e["anzahl"] + 1, zuletzt=_now(), kennung=kennung[:40])
+    if jetzt - e["gemeldet"] >= _ABGEWIESEN_MELDEN_S:
+        log.warning("Bypass-Wächter: Herzschlag mit ungültigem Token abgewiesen (von %s%s, "
+                    "%d× seit Start) — läuft ein entfernter oder alter Wächter weiter? Er "
+                    "kann die Transportregel im Ausfall trotzdem schalten; in Azure stoppen "
+                    "oder löschen.", ip, f", Kennung {kennung[:40]}" if kennung else "",
+                    e["anzahl"])
+        e["gemeldet"] = jetzt
+    _abgewiesen[ip] = e
+
+
 @router.post("/api/watchdog/heartbeat")
 async def watchdog_heartbeat(request: Request):
     """Ein Wächter meldet sich. Token im Kopffeld `X-Watchdog-Token`, optional
@@ -58,6 +84,9 @@ async def watchdog_heartbeat(request: Request):
     # Falscher/fehlender Token oder unbekannter Wächter → 401 ohne jedes Detail.
     wid = waechter_register.zuordnen(token, wid_hdr or None, _verify_password)
     if not wid:
+        if token:                     # ohne Token: Scanner o. ä., kein Wächter
+            _abweisung_merken(request.client.host if request.client else "?",
+                              "".join(z for z in wid_hdr if z.isalnum() or z in "_-"))
         return JSONResponse({"detail": "unauthorized"}, status_code=401)
     raw = await request.body()
     if len(raw) > _MAX_BODY:
@@ -114,7 +143,19 @@ async def watchdog_status(user: str = Depends(_require_admin)):
         "bypass_active": any_bypass,
         "token_set": len(watchers) > 0 or bool(settings_store.get("WATCHDOG_TOKEN_HASH")),
         "exo_error": exo_err,
+        "code_stand": _code_stand_sicher(),
+        # Abgewiesene Herzschläge (verwaiste Wächter), ohne Zählerinterna.
+        "abgewiesen": [{"ip": ip, "anzahl": e["anzahl"], "zuletzt": e.get("zuletzt", ""),
+                        "kennung": e.get("kennung", "")} for ip, e in _abgewiesen.items()],
     })
+
+
+def _code_stand_sicher() -> str:
+    try:
+        import watchdog_deploy
+        return watchdog_deploy.code_stand()
+    except Exception:                                       # noqa: BLE001
+        return ""
 
 
 @router.post("/api/watchdog/regel-pruefen")
@@ -308,6 +349,7 @@ async def _run_deploy(upn: str, sub: str, rg: str, loc: str, app_name: str, crea
             },
         )
         _deploy["watcher_id"] = wid
+        waechter_register.merke_azure(wid, code_stand=wd.code_stand())
         settings_store.update({"WATCHDOG_KIND": "azure"})     # nur Anzeige; Aktivieren bleibt manuell
         health = _health_base_url()
         app_settings = {
@@ -389,6 +431,43 @@ async def watchdog_rename(request: Request, user: str = Depends(_require_admin))
         return JSONResponse({"ok": False, "detail": "Wächter nicht gefunden."}, status_code=404)
     log.info("Watchdog umbenannt von %s: %s → %s", user, wid, name[:80])
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/watchdog/code-aktualisieren")
+async def watchdog_code_aktualisieren(request: Request, user: str = Depends(_require_admin)):
+    """Den mitgelieferten Function-Code auf einen bestehenden Azure-Wächter
+    laden — DERSELBE Weg wie beim Anlegen (watchdog_deploy.deploy_code). Die
+    Function startet danach selbst neu; ihre Einstellungen (Token, Regel)
+    bleiben unberührt."""
+    import watchdog_deploy as wd
+    try:
+        body = json.loads(await request.body() or b"{}")
+    except Exception:                                          # noqa: BLE001
+        body = {}
+    wid = str(body.get("id") or "").strip()
+    eintrag = waechter_register.holen(wid)
+    if not eintrag:
+        return JSONResponse({"ok": False, "detail": "Wächter nicht gefunden."}, status_code=404)
+    az = eintrag.get("azure") or {}
+    if eintrag.get("kind") != "azure" or not (az.get("subscription") and az.get("resource_group")
+                                              and az.get("app_name")):
+        return JSONResponse({"ok": False, "detail": "Nur für Azure-Wächter mit bekannter "
+                             "Ressource (Abo, Ressourcengruppe, App)."}, status_code=400)
+    upn = _get_session_user(request) or ""
+    import keyvault
+    token = keyvault.get_user_arm_token(upn) if upn else None
+    if not token:
+        return JSONResponse({"ok": False, "detail": "Kein Azure-Zugriff — erst per Azure-Login."},
+                            status_code=400)
+    ok, msg = await wd.deploy_code(az["subscription"], az["resource_group"], az["app_name"], token)
+    if not ok:
+        log.warning("Wächter-Code für %s nicht aktualisiert: %s", wid, msg)
+        return JSONResponse({"ok": False, "detail": msg}, status_code=502)
+    stand = wd.code_stand()
+    waechter_register.merke_azure(wid, code_stand=stand)
+    log.info("Wächter-Code aktualisiert von %s: %s (%s) → Stand %s",
+             user, wid, az["app_name"], stand)
+    return JSONResponse({"ok": True, "code_stand": stand})
 
 
 @router.get("/api/watchdog/deploy/status")

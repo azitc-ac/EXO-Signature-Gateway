@@ -861,6 +861,27 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     else alert('Umbenennen fehlgeschlagen: ' + errText(d));
   };
 
+  // Fehlt der delegierte Azure-Login (Anlegen, Aktualisieren, Entfernen brauchen
+  // ihn), den Weg dorthin nennen und das Hinzufügen-Feld aufklappen. true = behandelt.
+  function _azureZugriffFehlt(d, wofuer, nochmal){
+    if (!(d.http === 400 && /Azure-Zugriff/.test(d.detail || ''))) return false;
+    alert('Für ' + wofuer + ' erst Azure-Zugriff holen: „Wächter hinzufügen" → „Azure-Zugriff holen", dann erneut ' + nochmal + '.');
+    var p = document.getElementById('wd-add-panel'); if (p) p.style.display = 'block';
+    return true;
+  }
+
+  // Lädt den mitgelieferten Function-Code auf einen bestehenden Azure-Wächter
+  // (derselbe Weg wie beim Anlegen). Braucht den Azure-Login wie Anlegen/Entfernen.
+  window.wdCodeAktualisieren = async function(knopf, id){
+    var d = await knopfAktion(knopf, 'Lade Code hoch…',
+      function(){ return postJSON('/api/watchdog/code-aktualisieren', {id: id}); });
+    if (d.ok){
+      loadWatchdogStatus();
+    } else if (!_azureZugriffFehlt(d, 'das Aktualisieren', '„Code aktualisieren"')){
+      alert('Code nicht aktualisiert: ' + errText(d));
+    }
+  };
+
   window.wdRemove = async function(id, kind){
     if (!confirm('Wächter „' + id + '" entfernen?' +
         (kind === 'azure' ? '\n\nDie Azure-Ressourcen (Function/Storage/Plan, ggf. Ressourcengruppe) werden gelöscht.' : ''))) return;
@@ -869,10 +890,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
       if (d.kind === 'cron' && d.befehle){ alert((d.hinweis || '') + '\n\n' + d.befehle); }
       else if (d.detail){ alert(d.detail); }
       loadWatchdogStatus();
-    } else if (d.http === 400 && /Azure-Zugriff/.test(d.detail || '')){
-      alert('Für den Rückbau eines Azure-Wächters erst Azure-Zugriff holen: „Wächter hinzufügen" → „Azure-Zugriff holen", dann erneut entfernen.');
-      var p = document.getElementById('wd-add-panel'); if (p) p.style.display = 'block';
-    } else {
+    } else if (!_azureZugriffFehlt(d, 'den Rückbau eines Azure-Wächters', 'entfernen')){
       alert('Fehler: ' + errText(d));
     }
   };
@@ -904,7 +922,12 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
           else if (w.kind === 'azure') fakten.push('<span style="color:#94a3b8">vor dem Register angelegt — Herkunft unbekannt</span>');
           if (w.bypass_active) fakten.push('<span style="color:#b45309;font-weight:600">Bypass AKTIV</span>');
           if (w.exo_error) fakten.push('<span style="color:#dc2626">EXO: ' + esc(w.exo_error) + '</span>');
+          var codeAlt = w.kind === 'azure' && az.app_name && d.code_stand && az.code_stand !== d.code_stand;
+          if (codeAlt) fakten.push('<span style="color:#b45309">älterer Wächter-Code</span>');
           var knoepfe = '';
+          if (codeAlt){
+            knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdCodeAktualisieren(this, \'' + escJsAttr(w.id) + '\')">Code aktualisieren</button>';
+          }
           if (w.kind === 'azure' && az.principal_id && !az.grants_done){
             knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdGrant(\'' + escJsAttr(w.id) + '\')">Berechtigungen erteilen</button>';
           }
@@ -921,6 +944,14 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
             + '</div>';
         }).join('');
       }
+      // Herzschläge mit ungültigem Token: ein Wächter läuft noch, den das Gateway
+      // nicht (mehr) kennt — und der die Regel im Ausfall trotzdem schalten kann.
+      (d.abgewiesen || []).forEach(function(a){
+        liste.innerHTML += '<div style="padding:8px 0;color:#b45309;font-size:13px">⚠ Unbekannter Wächter meldet sich von '
+          + esc(a.ip) + (a.kennung ? ' (Kennung ' + esc(a.kennung) + ')' : '') + ' — ' + esc(String(a.anzahl))
+          + '× abgewiesen, zuletzt ' + esc(_relativ(a.zuletzt))
+          + '. Ein entfernter oder alter Wächter läuft vermutlich weiter und kann die Regel im Ausfall schalten: in Azure stoppen oder löschen.</div>';
+      });
       _applyEnabledUI(d.enabled);
       var s = document.getElementById('watchdog-status');
       if (s){

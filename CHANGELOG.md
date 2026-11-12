@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.64 — 2026-11-12 — Bypass-Wächter: übersteht Exchange-Störungen, Code aktualisierbar, verwaiste Wächter sichtbar
+
+- **Wächter blieb nach einer Exchange-Störung handlungsunfähig.** Brach der
+  Verbindungsaufbau zu Exchange Online im Azure-Wächter ab, blieb ein halb
+  geladenes Sitzungsmodul in der Function liegen. Jeder weitere Lauf scheiterte
+  dann mit „Module could not be correctly formed. Please run
+  Connect-ExchangeOnline again.“, auch nachdem Exchange wieder erreichbar war.
+  Der Wächter meldete sich weiter, hätte bei einem Ausfall des Gateways die
+  Transportregel aber nicht umschalten können. Erst ein Neustart der Function
+  half. Jetzt räumt der Wächter die Sitzung vor jedem Verbinden und nach jedem
+  Fehler auf. Die cron-Variante ist nicht betroffen, sie startet bei jedem Lauf
+  eine frische PowerShell.
+- **Code bestehender Azure-Wächter aktualisierbar.** Bisher lud das Gateway den
+  Code des Wächters nur beim Anlegen hoch. Eine Korrektur wie die obige erreichte
+  bestehende Wächter nie. Unter *Erweitert → Bypass-Wächter* zeigt jeder
+  Azure-Wächter mit älterem Code jetzt „älterer Wächter-Code“ und den Knopf
+  **Code aktualisieren**. Er nutzt denselben Weg wie das Anlegen und braucht den
+  Azure-Login wie dort. Einstellungen und Token des Wächters bleiben unverändert.
+- **Verwaiste Wächter werden gemeldet.** Ein Wächter, der aus dem Gateway
+  entfernt oder ersetzt wurde, in Azure aber weiterläuft, meldet sich mit einem
+  ungültigen Token. Er kann die Transportregel bei einem Ausfall aber weiterhin
+  schalten, ohne dass das Gateway davon weiß. Bisher stand das nur als `401` im
+  Zugriffsprotokoll. Jetzt steht einmal pro Stunde eine Warnung mit
+  Absenderadresse im Protokoll, und die Wächterliste zeigt einen Hinweis.
+
+**Zu tun:** Betreibst du einen Bypass-Wächter als Azure Function, öffne
+*Erweitert → Bypass-Wächter* und klicke beim Wächter auf **Code aktualisieren**.
+Die Aufgabe dazu steht oben rechts, bis alle Azure-Wächter aktuell sind. Zeigt
+die Liste einen unbekannten Wächter, stoppe oder lösche ihn im Azure-Portal.
+
 ## v1.11.63 — 2026-11-12 — Neue Installationen starten auf dem letzten Release
 
 - Die Erstinstallation (Azure-Vorlage, Azure Marketplace, `azure-vm-setup.ps1`)

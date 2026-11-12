@@ -1953,6 +1953,13 @@
     "name": "api_usermail_standard"
   },
   {
+    "pfad": "/api/watchdog/code-aktualisieren",
+    "methoden": [
+      "POST"
+    ],
+    "name": "watchdog_code_aktualisieren"
+  },
+  {
     "pfad": "/api/watchdog/config",
     "methoden": [
       "POST"

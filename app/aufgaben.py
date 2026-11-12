@@ -80,6 +80,8 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     # Manifest des Verfassen-Add-ins geändert (interne Signatur, geteilte
     # Postfächer) — jede Installation muss es im Admin Center neu bestätigen.
     Aufgabe("addin-fassung", abnahme._addin_fassung, "/mailboxes", seit="1.11.56"),
+    # Function-Code der Azure-Wächter kam bis v1.11.63 nur beim Anlegen hinauf.
+    Aufgabe("waechter-code", abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),
 )
 
 _TTL_S = 10

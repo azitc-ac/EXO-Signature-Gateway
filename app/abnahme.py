@@ -730,9 +730,33 @@ def _addin_fassung() -> dict:
                   "die neue Fassung danach binnen bis zu 72 Stunden.")
 
 
+def _waechter_code() -> dict:
+    """Läuft auf jedem Azure-Wächter der Function-Code, den dieses Gateway
+    mitbringt? Bis v1.11.63 wurde er nur beim Anlegen hochgeladen; ein Fix am
+    Wächter (etwa das Aufräumen der Exchange-Sitzung nach einem Netzaussetzer,
+    v1.11.64) erreichte bestehende Wächter nie. Liest nur das Register."""
+    name = "Bypass-Wächter aktuell"
+    try:
+        import waechter_register
+        import watchdog_deploy
+        soll = watchdog_deploy.code_stand()
+        azure = [w for w in waechter_register.liste() if w.get("kind") == "azure"]
+    except Exception as exc:                                 # noqa: BLE001
+        return _punkt(name, UNBEKANNT, f"Register nicht lesbar: {exc}")
+    if not azure:
+        return _punkt(name, ENTFAELLT, "Kein Azure-Wächter eingerichtet.")
+    alt = [w.get("name") or w.get("id") for w in azure
+           if (w.get("azure") or {}).get("code_stand") != soll]
+    if not alt:
+        return _punkt(name, OK, f"{len(azure)} Azure-Wächter mit aktuellem Code.")
+    return _punkt(name, OFFEN, f"{len(alt)} Azure-Wächter mit älterem Code (z. B. {alt[0]}).",
+                  "Erweitert → Bypass-Wächter → beim Wächter „Code aktualisieren“ "
+                  "(braucht den Azure-Login wie beim Anlegen).")
+
+
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
-              _addin_rollen, _addin_fassung, _benachrichtigung, _anmeldenachweis,
+              _addin_rollen, _addin_fassung, _waechter_code, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,
