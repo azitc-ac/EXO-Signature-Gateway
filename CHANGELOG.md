@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.43 — 2026-11-12 — Prüfstand nachgezogen
+
+- Ein weiterer Anker im Test des Aufgabenbereichs auf die Bedingung aus
+  v1.11.41 umgestellt.
+
+**Zu tun:** nichts.
+
 ## v1.11.42 — 2026-11-12 — Prüfstand nachgezogen
 
 - Drei bestehende Tests an v1.11.41 angepasst: der neue Eintrag `meldung` in

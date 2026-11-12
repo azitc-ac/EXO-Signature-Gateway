@@ -102,6 +102,6 @@ def test_einfuegen_nutzt_den_signaturbereich_vor_dem_textumbau():
     assert i_sig < rumpf.index("body.getAsync("), (
         "Der Signaturbereich muss der erste Weg sein; der Textumbau ist nur der "
         "Rückfall für Clients ohne Mailbox 1.10.")
-    zweig = rumpf[rumpf.index("if (_signaturbereich()) {"):rumpf.index("body.getAsync(")]
+    zweig = rumpf[rumpf.index("if (_signaturbereich() && !_zuGross) {"):rumpf.index("body.getAsync(")]
     assert "_ersetztGerade = false;" in zweig and "return;" in zweig
     assert "isSetSupported('Mailbox', '1.10')" in _funktion(_quelle(), "_signaturbereich")
