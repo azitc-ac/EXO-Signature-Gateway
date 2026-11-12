@@ -1,12 +1,12 @@
 """Bypass-Wächter (Azure): Code bestehender Wächter aktualisierbar, Exchange-Sitzung
 nach einem Fehler aufgeräumt (v1.11.64).
 
-ANLASS (12.11.2026): Während einer Exchange-Störung brach im Wächter
-Connect-ExchangeOnline ab. Danach meldete er bei jedem Lauf „Module could not be
-correctly formed. Please run Connect-ExchangeOnline again.“ — er lebte, hätte die
-Regel im Ausfall aber nicht schalten können. Der Fix steckt in run.ps1; bis
-v1.11.63 lud das Gateway diesen Code aber NUR beim Anlegen hoch, bestehende
-Wächter hätten ihn nie bekommen.
+ANLASS (12.11.2026): Während einer Exchange-Störung meldete der Wächter u. a.
+„Module could not be correctly formed. Please run Connect-ExchangeOnline again.“
+Er erholte sich nach der Störung von selbst; das Aufräumen in run.ps1 ist
+Vorsorge gegen liegengebliebene Sitzungsmodule. Dabei fiel auf: Bis v1.11.63 lud
+das Gateway den Wächter-Code NUR beim Anlegen hoch — bestehende Wächter hätten
+eine Korrektur nie bekommen.
 """
 import asyncio
 import shutil

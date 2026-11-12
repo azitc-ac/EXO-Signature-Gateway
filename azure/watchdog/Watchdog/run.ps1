@@ -77,13 +77,13 @@ Write-Host "Gateway healthy = $healthy"
 # Heartbeat läuft in JEDEM Fall und trägt einen etwaigen EXO-Fehler mit.
 $bypassActive = $false
 $exoError = ""
-# ⚠️ Die Function behält ihre PowerShell-Sitzung zwischen den Aufrufen. Bricht
-# Connect-ExchangeOnline mittendrin ab (Netzaussetzer, Störung bei Microsoft),
-# bleibt das halb geladene Sitzungsmodul (tmp_*) liegen, und JEDER weitere
-# Aufruf scheitert mit „Module could not be correctly formed. Please run
-# Connect-ExchangeOnline again.“ — der Wächter könnte dann keine Regel mehr
-# schalten, bis die Function neu startet (gemessen 12.11.2026 nach einer
-# Exchange-Störung). Deshalb vor jedem Verbinden und nach jedem Fehler aufräumen.
+# Vorsorge: Die Function behält ihre PowerShell-Sitzung zwischen den Aufrufen.
+# Bricht Connect-ExchangeOnline mittendrin ab (Netzaussetzer, Störung bei
+# Microsoft), kann ein halb geladenes Sitzungsmodul (tmp_*) liegen bleiben. Bei
+# der Exchange-Störung am 12.11.2026 meldete der Wächter u. a. „Module could not
+# be correctly formed. Please run Connect-ExchangeOnline again.“ — er erholte sich
+# nach Ende der Störung aber von selbst; ein dauerhaftes Hängen ist NICHT belegt.
+# Aufräumen vor jedem Verbinden und nach jedem Fehler schließt es trotzdem aus.
 function Clear-ExoSitzung {
     try { Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue | Out-Null } catch { }
     Get-Module -Name 'tmp_*' -ErrorAction SilentlyContinue |

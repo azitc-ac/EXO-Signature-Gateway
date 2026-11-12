@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.67 — 2026-11-12 — Berichtigung zum Bypass-Wächter (v1.11.64)
+
+- Der Eintrag zu v1.11.64 stellte dar, ein Azure-Wächter bleibe nach einer
+  Exchange-Störung dauerhaft handlungsunfähig, bis die Function neu startet. Das
+  ist nicht belegt: Der Wächter erholte sich nach Ende der Störung von selbst.
+  Das Aufräumen der Exchange-Sitzung bleibt als Vorsorge; der Eintrag ist
+  entsprechend berichtigt.
+
+**Zu tun:** nichts.
+
 ## v1.11.66 — 2026-11-12 — Interne Mails aus dem klassischen Outlook: Logo der Add-in-Signatur intakt, keine zweite Signatur
 
 - Das klassische Outlook schickt Mails innerhalb der Organisation oft als
@@ -34,16 +44,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ## v1.11.64 — 2026-11-12 — Bypass-Wächter: übersteht Exchange-Störungen, Code aktualisierbar, verwaiste Wächter sichtbar
 
-- **Wächter blieb nach einer Exchange-Störung handlungsunfähig.** Brach der
-  Verbindungsaufbau zu Exchange Online im Azure-Wächter ab, blieb ein halb
-  geladenes Sitzungsmodul in der Function liegen. Jeder weitere Lauf scheiterte
-  dann mit „Module could not be correctly formed. Please run
-  Connect-ExchangeOnline again.“, auch nachdem Exchange wieder erreichbar war.
-  Der Wächter meldete sich weiter, hätte bei einem Ausfall des Gateways die
-  Transportregel aber nicht umschalten können. Erst ein Neustart der Function
-  half. Jetzt räumt der Wächter die Sitzung vor jedem Verbinden und nach jedem
-  Fehler auf. Die cron-Variante ist nicht betroffen, sie startet bei jedem Lauf
-  eine frische PowerShell.
+- **Wächter räumt die Exchange-Sitzung auf.** Bricht der Verbindungsaufbau zu
+  Exchange Online im Azure-Wächter ab (etwa bei einer Störung bei Microsoft),
+  meldete er bisher Fehler wie „Module could not be correctly formed. Please run
+  Connect-ExchangeOnline again.“. Während einer solchen Störung kann er die
+  Transportregel nicht schalten, und der Hinweis erscheint als Band in der
+  Oberfläche. Nach Ende der Störung erholt er sich von selbst (gemessen
+  12.11.2026). Damit kein halb geladenes Sitzungsmodul aus einem abgebrochenen
+  Versuch in den nächsten Lauf hineinwirkt, räumt er die Sitzung jetzt vor jedem
+  Verbinden und nach jedem Fehler auf. Das ist Vorsorge, ein Hängenbleiben wurde
+  nicht beobachtet. Die cron-Variante startet ohnehin bei jedem Lauf eine frische
+  PowerShell.
 - **Code bestehender Azure-Wächter aktualisierbar.** Bisher lud das Gateway den
   Code des Wächters nur beim Anlegen hoch. Eine Korrektur wie die obige erreichte
   bestehende Wächter nie. Unter *Erweitert → Bypass-Wächter* zeigt jeder
