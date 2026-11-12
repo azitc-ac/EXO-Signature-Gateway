@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.49 — 2026-11-12 — Datenschutzerklärung 1.4: Zahlungsabwicklung über Stripe
+
+- Abschnitt *Eingesetzte Dienstleister* nennt jetzt die Zahlungsabwicklung
+  über Stripe (Stripe Payments Europe, Limited, Dublin): welche Daten
+  übermittelt werden, dass Karten- und Kontodaten direkt bei Stripe
+  eingegeben werden und der Hub davon nur Zahlungsart und die letzten vier
+  Ziffern erhält, dass Stripe für die Zahlungsabwicklung im Auftrag und für
+  Betrugsvermeidung und Authentifizierung selbst verantwortlich handelt.
+  Die Empfängerübersicht ist um Stripe ergänzt. Bisher fehlte Stripe in der
+  Erklärung.
+
+**Zu tun:** nichts.
+
 ## v1.11.48 — 2026-11-12 — Auftragsverarbeitung 1.2, Datenschutzerklärung 1.3
 
 - **Vereinbarung zur Auftragsverarbeitung 1.2** (Diagnosepakete):

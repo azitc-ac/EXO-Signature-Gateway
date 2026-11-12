@@ -1,6 +1,6 @@
 # Datenschutzerklärung für EXO Signature Gateway und EXO Signature Hub
 
-**Version 1.3 — Stand 12. November 2026**
+**Version 1.4 — Stand 12. November 2026**
 
 Diese Erklärung informiert nach Art. 13 und 14 DSGVO über die Verarbeitung
 personenbezogener Daten im Zusammenhang mit der Software **EXO Signature
@@ -161,13 +161,29 @@ Limited, One Microsoft Place, South County Business Park, Leopardstown,
 Dublin 18, Irland. Übermittelt werden Empfängeradresse, Betreff und Inhalt der
 jeweiligen Nachricht.
 
+**Zahlungsabwicklung.** Zahlungen per Karte oder Lastschrift (Guthaben,
+Abonnements, Erstattungen) wickeln wir über *Stripe* ab. Vertragspartner ist
+die Stripe Payments Europe, Limited, One Wilton Park, Wilton Place, Dublin 2,
+D02 FX04, Irland. Übermittelt werden Name, E-Mail-Adresse,
+Rechnungsanschrift und Umsatzsteuer-Identifikationsnummer, Betrag und Zweck der
+Zahlung. Karten- und Kontodaten geben Sie direkt bei Stripe ein; wir erhalten
+davon nur die Zahlungsart und die letzten vier Ziffern. Für die
+Zahlungsabwicklung handelt Stripe in unserem Auftrag. Für eigene Zwecke — insbesondere Betrugsvermeidung, Authentifizierung und die
+Erfüllung gesetzlicher Pflichten — ist Stripe selbst verantwortlich und kann
+dabei auch Gerätedaten und Cookies auf den Zahlungsseiten verarbeiten. Näheres
+unter https://stripe.com/de/privacy.
+
+**Rechtsgrundlage** für die Zahlungsabwicklung ist Art. 6 Abs. 1 lit. b DSGVO,
+für die Betrugsvermeidung Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an
+sicheren Zahlungen).
+
 **Betrieb des Hub.** Der Hub läuft auf einer virtuellen Maschine in
 *Microsoft Azure* der Microsoft Ireland Operations Limited, Region Nordeuropa
 (Irland). Microsoft verarbeitet dabei die auf dem Hub gespeicherten Daten und
 die Verbindungsdaten (unter anderem IP-Adresse und Zeitpunkt des Zugriffs) in
 unserem Auftrag. Die Verarbeitung erfolgt in Rechenzentren in Irland.
 
-Mit beiden Diensten bestehen Verträge zur Auftragsverarbeitung nach Art. 28
+Mit diesen Diensten bestehen Verträge zur Auftragsverarbeitung nach Art. 28
 DSGVO. **Rechtsgrundlage** für den Einsatz ist Art. 6 Abs. 1 lit. b DSGVO sowie
 Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem zuverlässigen und
 sicheren Betrieb).
@@ -180,6 +196,7 @@ sicheren Betrieb).
 |---|---|---|
 | Zertifizierungsstelle (Certum, SwissSign, Sectigo, DigiCert, SSL.com) | Zertifikatsbestellung durch den Kunden | Postfachadresse, Zertifikatsantrag |
 | Microsoft Ireland Operations Limited | E-Mail-Versand, Betrieb des Hub (Azure) | Empfängeradresse und Nachrichteninhalt; auf dem Hub gespeicherte Daten, Verbindungsdaten |
+| Stripe Payments Europe, Limited | Zahlung per Karte oder Lastschrift | Name, E-Mail-Adresse, Rechnungsanschrift, USt-IdNr., Zahlungsbetrag und -zweck |
 | Wirtschaftsauskunftei | Antrag auf Rechnungskauf | Firmen- und Anschriftsdaten |
 | Steuerberatung, Finanzbehörden | gesetzliche Aufbewahrungs- und Erklärungspflichten | Rechnungs- und Vertragsdaten |
 
@@ -235,4 +252,4 @@ oben genannte Version.
 
 ---
 
-*Version 1.3 — 12. November 2026*
+*Version 1.4 — 12. November 2026*

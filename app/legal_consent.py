@@ -47,9 +47,9 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
     # no_consent_required: sie erscheint in der Dokumentenliste und ist lesbar,
     # taucht aber in keinem Consent-Gate auf.
     "product-privacy": {
-        "version": "1.3",
+        "version": "1.4",
         "label_de": "Datenschutzerklärung (Gateway & Hub)",
-        "path_de": "de/produkt-datenschutz-v1.3.md",
+        "path_de": "de/produkt-datenschutz-v1.4.md",
         "no_consent_required": True,
     },
     # Art. 28 Abs. 3 DSGVO verlangt, dass die Verarbeitung durch einen Vertrag
