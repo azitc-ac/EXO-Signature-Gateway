@@ -568,19 +568,31 @@ _GROESSE_BEISPIEL = dict(
     streetAddress="Musterstraße 123", postalCode="10115", city="Berlin", country="Deutschland")
 
 
-def _outlook_zu_gross(name: str) -> int:
-    """Zeichenzahl, wenn die Signatur über Outlooks Grenze für den Signaturbereich
-    liegt (addin.signatur_zu_gross — dieselbe Prüfung wie beim Abruf), sonst 0.
-    Gerendert mit einem Beispielnutzer; im Betrieb weicht es um die Länge der
-    echten Angaben ab, eingebettete Bilder machen den Großteil aus."""
+# Eingebettete Bilder (data:-Adressen) — ihr Anteil an der Länge
+_DATA_BILD = _re.compile(r"data:image/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+", _re.I)
+
+
+def _groessenpruefung(name: str) -> tuple[int, list[int]]:
+    """(Zeichenzahl über Outlooks Grenze oder 0, Längen der eingebetteten
+    Bilder absteigend). Gerendert mit einem Beispielnutzer; im Betrieb weicht
+    es um die Länge der echten Angaben ab."""
     import graph_client as _gc
     from webui.routen.addin import markiert, signatur_zu_gross
     try:
         html, _txt = signature_engine.render(_gc.UserData(**_GROESSE_BEISPIEL), name)
     except Exception as exc:                                 # noqa: BLE001
         log.info("Größenprüfung der Vorlage %r übersprungen: %s", name, exc)
-        return 0
-    return signatur_zu_gross(markiert(html)) if html else 0
+        return 0, []
+    if not html:
+        return 0, []
+    bilder = sorted((len(m.group(0)) for m in _DATA_BILD.finditer(html)), reverse=True)
+    return signatur_zu_gross(markiert(html)), bilder
+
+
+def _outlook_zu_gross(name: str) -> int:
+    """Zeichenzahl, wenn die Signatur über Outlooks Grenze für den Signaturbereich
+    liegt (addin.signatur_zu_gross — dieselbe Prüfung wie beim Abruf), sonst 0."""
+    return _groessenpruefung(name)[0]
 
 
 @router.get("/template", response_class=HTMLResponse)
@@ -595,8 +607,8 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
     template_gruppen = _sig_engine.templates_nach_art()
     template_kind = _sig_engine.vorlagen_art(fname)
     custom_vars = [cv["name"] for cv in (settings_store.get("CUSTOM_TEMPLATE_VARS") or []) if cv.get("name")]
-    outlook_zu_gross = (_outlook_zu_gross(name) if template_kind == "signatur"
-                        and html_path.exists() else 0)
+    outlook_zu_gross, outlook_bilder = (_groessenpruefung(name) if template_kind == "signatur"
+                                        and html_path.exists() else (0, []))
     return templates.TemplateResponse(
         request=request, name="template_editor.html",
         context={
@@ -636,6 +648,7 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             "template_kind": template_kind,
             "custom_vars": custom_vars,
             "outlook_zu_gross": outlook_zu_gross,
+            "outlook_bilder": outlook_bilder,
             "gateway_name": _gateway_name(),
             # Nachrichten an Postfachinhaber. Sie liegen im selben Verzeichnis
             # und werden im selben Baukasten bearbeitet, stehen aber in einer

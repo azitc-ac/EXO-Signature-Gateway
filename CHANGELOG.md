@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.50 — 2026-11-12 — Vorlagen-Editor: zu große Signatur — erst Bilder verkleinern
+
+- Der Hinweis auf eine für Outlook zu große Signatur nennt jetzt die
+  eingebetteten Bilder mit ihrer Zeichenzahl und empfiehlt zuerst, sie zu
+  verkleinern (Pixelmaße etwa doppelte Anzeigegröße, Fotos als JPG, Grafiken
+  als optimiertes PNG). Eingebettete Bilder erscheinen beim Empfänger ohne
+  Nachladen und sind deshalb meist die bessere Wahl; eine Bildadresse
+  (https://…) ist der letzte Ausweg. Die Anzeigebreite im Baukasten verkleinert
+  die Datei nicht.
+
+**Zu tun:** nichts.
+
 ## v1.11.49 — 2026-11-12 — Datenschutzerklärung 1.4: Zahlungsabwicklung über Stripe
 
 - Abschnitt *Eingesetzte Dienstleister* nennt jetzt die Zahlungsabwicklung

@@ -150,11 +150,24 @@ def test_editor_warnt_bei_zu_grosser_vorlage(monkeypatch):
     assert vorlagen._outlook_zu_gross("grossbild") == 0
 
 
+def test_editor_nennt_die_eingebetteten_bilder(monkeypatch):
+    from webui.routen import vorlagen
+    bild = "data:image/png;base64," + "A" * (GRENZE + 10)
+    klein = "data:image/gif;base64,R0lGOD=="
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, t: (f'<img src="{bild}"><img src="{klein}">', ""))
+    n, bilder = vorlagen._groessenpruefung("grossbild")
+    assert n > GRENZE
+    assert bilder == [len(bild), len(klein)]
+
+
 def test_editor_zeigt_die_warnung():
     import pathlib
     html = (pathlib.Path(addin.__file__).resolve().parents[1] / "templates"
             / "template_editor.html").read_text(encoding="utf-8")
     assert "{% if outlook_zu_gross %}" in html
+    # Erst verkleinern, dann verlinken — eingebettete Bilder sind die bessere Wahl
+    assert "Verkleinere sie deshalb zuerst" in html and "{% for n in outlook_bilder %}" in html
 
 
 # ── 5. Meldungen aus Outlook ────────────────────────────────────────────────────

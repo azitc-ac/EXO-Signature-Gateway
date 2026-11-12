@@ -148,7 +148,16 @@
   Diese Signatur ist für Outlooks Signaturbereich zu groß: rund
   {{ "{:,}".format(outlook_zu_gross).replace(",", ".") }} Zeichen, Outlook nimmt höchstens 30.000.
   Das Verfassen-Add-in fügt sie deshalb nicht ein; das Gateway hängt sie beim Versand an.
-  Meist ist ein eingebettetes Bild die Ursache — binde Logos als Bildadresse (https://…) ein.
+  {% if outlook_bilder %}
+  Davon entfallen auf {{ outlook_bilder|length }} eingebettete{{ "s" if outlook_bilder|length == 1 }}
+  Bild{{ "er" if outlook_bilder|length > 1 }}:
+  {% for n in outlook_bilder %}{{ "{:,}".format(n).replace(",", ".") }}{{ ", " if not loop.last }}{% endfor %} Zeichen.
+  {% endif %}
+  <br>Eingebettete Bilder sind meist die bessere Wahl — sie erscheinen beim Empfänger
+  ohne Nachladen. Verkleinere sie deshalb zuerst: Pixelmaße auf etwa die doppelte
+  Anzeigegröße, Fotos als JPG, Grafiken als optimiertes PNG; die Anzeigebreite im
+  Baukasten allein verkleinert die Datei nicht. Reicht das nicht, binde das Bild als
+  Bildadresse (https://…) ein.
 </div>
 {% endif %}
 
