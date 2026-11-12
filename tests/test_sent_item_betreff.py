@@ -72,7 +72,7 @@ def _lauf(monkeypatch, items, subject, replace_all=False):
 def test_einzel_item_patcht_den_betreff(monkeypatch):
     items = [{"id": "ID1", "createdDateTime": "2026-01-01T00:00:00Z"}]
     res, patches = _lauf(monkeypatch, items, subject="Sauberer Betreff")
-    assert res is True
+    assert res is False          # weiter warten: die sendMail-Kopie kann noch kommen
     assert len(patches) == 1
     assert patches[0].get("subject") == "Sauberer Betreff"   # Regression: Betreff MUSS mit
     assert patches[0]["body"]["content"] == "<html>body</html>"

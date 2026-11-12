@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.59 — 2026-11-12 — Gesendete Elemente: kein doppeltes Element mehr nach Suchverzug
+
+- Mit „Gesendete Elemente aktualisieren“ entfernt das Gateway nach dem Versand
+  das unsignierte Original aus den Gesendeten Elementen des Absenders und
+  behält die signierte Kopie, die beim Versand über die Graph-Schnittstelle
+  entsteht. Dazu sucht es die Elemente mit derselben Message-ID nach 8, 28 und
+  73 Sekunden. Fand der erste Durchgang nur **ein** Element, galt die Arbeit
+  als erledigt: Das Element wurde nachgebessert und die Suche beendet. Die
+  Suche von Exchange sieht ein frisch angelegtes Element aber erst mit
+  Verzögerung. Die signierte Kopie war dann schon angelegt, nur noch nicht
+  auffindbar, und erschien danach neben dem Original. Folge: zwei Einträge in
+  den Gesendeten Elementen, einer signiert, einer nicht. Das betraf etwa jeden
+  zehnten Versand und bestand seit v1.4.154.
+- Jetzt bessert das Gateway ein einzelnes Element nach und sucht weiter. Taucht
+  die Kopie in einem späteren Durchgang auf, wird das Original gelöscht. Taucht
+  sie nicht auf, wie beim Rückweg über SMTP, bleibt das nachgebesserte
+  Original. Am Ende steht im Protokoll, wenn keine zweite Kopie gefunden wurde.
+
+**Zu tun:** nichts. Bereits doppelt vorhandene Einträge bleiben stehen; lösche
+das unsignierte Element bei Bedarf von Hand.
+
 ## v1.11.58 — 2026-11-12 — Antworten als winmail.dat: Kette und Add-in-Signatur erkannt
 
 - Manche Antworten gibt Exchange als `winmail.dat` (TNEF) an das Gateway

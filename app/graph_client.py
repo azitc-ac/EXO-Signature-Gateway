@@ -848,7 +848,8 @@ async def cleanup_sent_items(
 
     replace_all=False (signed mail):
       - Multiple items: delete originals, keep sendMail copy (already readable).
-      - Single item: patch body (SMTP mode or timing edge case → caller retries).
+      - Single item: patch body, return False — the sendMail copy may still
+        show up (search lag); a later pass then deletes the original.
 
     replace_all=True (encrypted mail):
       - Multiple items: delete ALL, create a fresh readable JSON Sent Item.
@@ -929,7 +930,15 @@ async def cleanup_sent_items(
                     sender_email,
                 )
                 return False  # caller retries to catch & delete the sendMail copy
-            # Signed mail: patch the single item and we're done.
+            # Signed mail: patch the single item, then KEEP WAITING (False).
+            # Ein Element heißt nicht „es kommt keins mehr“: Die $filter-Suche
+            # sieht ein frisch angelegtes Element erst mit Verzögerung. Gemessen
+            # 12.11.2026: sendMail-Kopie um :41 angelegt, Suche um :50 fand nur
+            # das Original — bis v1.11.58 wurde das gepatcht und als fertig
+            # gemeldet, die Kopie erschien danach daneben (zwei Gesendete).
+            # Weiter warten: erscheint die Kopie, löscht ein späterer Durchgang
+            # das Original (Zweig unten); erscheint sie nie (SMTP-Weg), bleibt
+            # das nachgebesserte Original — der Patch ist idempotent.
             # patch_subject MUSS mit: bei Betreff-Triggern (#nosig/#nodigsig/#enc)
             # hat der Handler den Betreff bereinigt und reicht ihn als `subject`
             # durch — ohne diesen Parameter behielt das Sent Item den Roh-Betreff
@@ -937,8 +946,9 @@ async def cleanup_sent_items(
             r = await _patch_item(items[0]["id"], patch_subject=subject)
             if r is None:
                 return None
-            log.info("Sent item patched for %s (message-id %s)", sender_email, message_id)
-            return True
+            log.info("Sent item patched for %s (message-id %s) — warte auf eine "
+                     "mögliche zweite Kopie", sender_email, message_id)
+            return False
 
         if replace_all:
             # Encrypted mail, multiple items: the OLDEST item is the Outlook-created

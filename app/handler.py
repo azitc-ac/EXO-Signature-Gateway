@@ -105,6 +105,9 @@ def _is_first_for_mid(sender: str, mid: str) -> bool:
     return True
 
 
+_AUFRAEUM_TAKT = (8, 20, 45)    # Sekunden zwischen den Suchdurchgängen
+
+
 async def _cleanup_sent_item(
     sender: str, message_id: str, html_body: str,
     subject: str = "", to_recipients: list[str] | None = None,
@@ -117,7 +120,7 @@ async def _cleanup_sent_item(
     replace_all=True (encrypted): delete ALL copies, create fresh readable JSON item.
     replace_all=False (signed): delete originals only, keep sendMail copy.
     """
-    for delay in (8, 20, 45):
+    for delay in _AUFRAEUM_TAKT:
         await asyncio.sleep(delay)
         result = await graph_client.cleanup_sent_items(
             sender, message_id, html_body,
@@ -128,7 +131,12 @@ async def _cleanup_sent_item(
             return
         if result:                   # True — success, stop retrying
             return
-    log.debug("Sent item cleanup passes done for %s", sender)
+    # Nach dem letzten Durchgang keine zweite Kopie: Das Original bleibt
+    # (signiert: nachgebessert). Auf dem SMTP-Weg der Normalfall; auf den
+    # Graph-Wegen ein Hinweis auf eine sehr späte Kopie — dann stünden wieder
+    # zwei Gesendete da, und diese Zeile ist der Beleg dafür.
+    log.info("Gesendete Elemente %s: nach %d Durchgängen keine zweite Kopie "
+             "gefunden (%s)", sender, len(_AUFRAEUM_TAKT), message_id)
 
 
 def _rebuild_acme_reply(msg: email.message.Message) -> email.message.EmailMessage | None:
