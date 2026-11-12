@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.62 — 2026-11-12 — Verfassen-Add-in: Hinweis zum klassischen Outlook korrigiert
+
+- Der Schalter „Hinweis … auch am PC anzeigen“ wirkt im klassischen Outlook
+  erst nach einem Neustart von Outlook. Das klassische Outlook legt die Laufzeit
+  des Add-ins lokal ab und erneuert sie nur beim Start. Im Web und im neuen
+  Outlook gilt der Schalter ab der nächsten neuen Mail. Bisher stand in der
+  Einrichtung pauschal „ab der nächsten neuen Mail“.
+
+**Zu tun:** nichts.
+
 ## v1.11.61 — 2026-11-12 — Prüfstand nachgezogen
 
 - Tests, die die Abrufadresse des Verfassen-Add-ins wortgleich prüfen, kennen

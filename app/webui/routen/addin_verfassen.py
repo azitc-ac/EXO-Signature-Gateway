@@ -292,9 +292,11 @@ _ANLAESSE = {"start": "Start", "empfaenger": "Empfänger geändert",
 
 def _herkunft(request) -> str:
     """Plattform, Ereignis und — wenn sie vom Gateway abweicht — die Fassung
-    der Laufzeit im Client, als Klammerzusatz fürs Protokoll. Die Laufzeit
-    wird bei jedem Start frisch geladen (no-store); eine abweichende Fassung
-    zeigt einen Client, der sie trotzdem aus einem Zwischenspeicher nimmt."""
+    der Laufzeit im Client, als Klammerzusatz fürs Protokoll. Web und neues
+    Outlook laden die Laufzeit je Mail (no-store greift); das klassische Outlook
+    legt sie als bundle.js im Wef-Ordner ab und erneuert sie nur beim Start von
+    Outlook (MS Learn, „Troubleshoot event-based add-ins“) — gemessen 12.11.2026:
+    Abrufe ohne `anlass` bis zum Neustart. Eine abweichende Fassung zeigt das."""
     import config as _config
     teile = [_plattform(request)]
     try:
