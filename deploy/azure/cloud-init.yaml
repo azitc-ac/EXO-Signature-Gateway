@@ -25,8 +25,13 @@ runcmd:
   - apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
   - usermod -aG docker __ADMIN_USER__
   - systemctl enable docker
-  # Repository klonen
+  # Repository klonen und den Stand des Kanals Stabil auschecken (das letzte
+  # Release) — auf diesem Kanal stehen neue Installationen (UPDATE_CHANNEL).
+  # Die Regel liegt im Repository (stand-auschecken.sh), nicht hier: So ändert
+  # sie sich ohne neues Marketplace-Paket. Fehlt ein Release-Tag, bleibt der
+  # geklonte main-Stand — die Installation scheitert daran nicht.
   - git clone __REPO_URL__ /opt/exo-gateway
+  - bash /opt/exo-gateway/stand-auschecken.sh release || echo "exo-gateway: kein Release ausgecheckt, Installation mit main" >&2
   - chown -R __ADMIN_USER__:__ADMIN_USER__ /opt/exo-gateway
   # .env: nur der Sitzungsschlüssel der Oberfläche. Alles Weitere setzt der
   # Einrichtungsassistent in data/settings.json.

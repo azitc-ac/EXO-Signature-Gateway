@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.11.63 — 2026-11-12 — Neue Installationen starten auf dem letzten Release
+
+- Die Erstinstallation (Azure-Vorlage, Azure Marketplace, `azure-vm-setup.ps1`)
+  klonte das Repository und baute den Stand von `main`. Neue Installationen
+  stehen aber auf dem Kanal **Stabil**. Ihr erster Stand war damit keiner, den
+  ein Release freigegeben hatte, und ein Update auf Stabil bekamen sie erst mit
+  dem nächsten Release angeboten. Jetzt checkt die Installation nach dem Klonen
+  das letzte Release aus. Gibt es keines, bleibt sie wie bisher bei `main`.
+- Welcher Stand zu einem Kanal gehört, steht jetzt in **einem** Skript im
+  Repository (`stand-auschecken.sh`). Der Update-Watcher (Update-Knopf in der
+  Oberfläche) und die Erstinstallation nutzen dieselbe Regel. Weil das Skript im
+  Repository liegt, lässt sich die Regel ändern, ohne die Vorlage im Marketplace
+  neu zertifizieren zu lassen.
+
+**Zu tun:** nichts. Bestehende Installationen sind nicht betroffen; ihr Update
+verhält sich wie bisher.
+
 ## v1.11.62 — 2026-11-12 — Verfassen-Add-in: Hinweis zum klassischen Outlook korrigiert
 
 - Der Schalter „Hinweis … auch am PC anzeigen“ wirkt im klassischen Outlook

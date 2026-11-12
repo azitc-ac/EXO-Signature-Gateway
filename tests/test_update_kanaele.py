@@ -14,6 +14,7 @@ auch einen, dessen CI noch lief oder rot war. Jetzt:
    außer „release“ als main behandelte.
 """
 import json
+import shutil
 import subprocess
 import sys
 import urllib.error
@@ -120,6 +121,9 @@ def _watcher_lauf(repo: Path, kanal: str) -> subprocess.CompletedProcess:
     funktion = subprocess.run(
         ["sed", "-n", "/^do_git_update()/,/^}/p", str(WURZEL / "update-watcher.sh")],
         capture_output=True, text=True, check=True).stdout
+    # Die Regel je Kanal liegt seit v1.11.63 in stand-auschecken.sh neben dem
+    # Watcher; im Test-Repo steht sie als unversionierte Datei daneben.
+    shutil.copy(WURZEL / "stand-auschecken.sh", repo / "stand-auschecken.sh")
     skript = f'REPO="{repo}"\nCHANNEL="{kanal}"\n{funktion}\ndo_git_update'
     return subprocess.run(["bash", "-c", skript], capture_output=True, text=True)
 
@@ -155,6 +159,71 @@ def test_watcher_lehnt_unbekannten_kanal_ab(klon):
     r = _watcher_lauf(klon, "beta")
     assert r.returncode != 0 and "Unbekannter Kanal" in r.stdout
     assert (klon / "VERSION").read_text().strip() == "1"
+
+
+# ── Erstinstallation und Release-Kanal: stand-auschecken.sh ──────────────────
+
+@pytest.fixture
+def mit_releases(tmp_path):
+    """main mit drei Ständen: v1.9.0, v1.10.0 (Tags) und ein unveröffentlichter.
+    Die Reihenfolge der Tags ist absichtlich nicht alphabetisch (1.10 > 1.9)."""
+    quelle = tmp_path / "quelle"
+    quelle.mkdir()
+    _git("init", "-q", "-b", "main", cwd=quelle)
+    _git("config", "user.email", "t@t", cwd=quelle)
+    _git("config", "user.name", "t", cwd=quelle)
+    for inhalt, tag in (("1.9.0", "v1.9.0"), ("1.10.0", "v1.10.0"), ("1.11.0-entw", None)):
+        (quelle / "VERSION").write_text(inhalt + "\n")
+        _git("add", "VERSION", cwd=quelle)
+        _git("commit", "-qm", inhalt, cwd=quelle)
+        if tag:
+            _git("tag", tag, cwd=quelle)
+    ziel = tmp_path / "klon"
+    _git("clone", "-q", str(quelle), str(ziel), cwd=tmp_path)
+    shutil.copy(WURZEL / "stand-auschecken.sh", ziel / "stand-auschecken.sh")
+    return ziel
+
+
+def _stand(repo, *args):
+    return subprocess.run(["bash", str(repo / "stand-auschecken.sh"), *args],
+                          capture_output=True, text=True)
+
+
+def test_release_nimmt_das_hoechste_tag(mit_releases):
+    r = _stand(mit_releases, "release")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (mit_releases / "VERSION").read_text().strip() == "1.10.0"   # nicht 1.9.0, nicht main
+
+
+def test_release_mit_zielversion(mit_releases):
+    assert _stand(mit_releases, "release", "1.9.0").returncode == 0
+    assert (mit_releases / "VERSION").read_text().strip() == "1.9.0"
+    r = _stand(mit_releases, "release", "7.7.7")
+    assert r.returncode != 0 and "nicht gefunden" in r.stdout
+
+
+def test_watcher_reicht_die_zielversion_durch(mit_releases):
+    funktion = subprocess.run(
+        ["sed", "-n", "/^do_git_update()/,/^}/p", str(WURZEL / "update-watcher.sh")],
+        capture_output=True, text=True, check=True).stdout
+    skript = (f'REPO="{mit_releases}"\nCHANNEL=release\nTARGET_VERSION=1.9.0\n'
+              f'{funktion}\ndo_git_update')
+    r = subprocess.run(["bash", "-c", skript], capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (mit_releases / "VERSION").read_text().strip() == "1.9.0"
+
+
+def test_erstinstallation_startet_auf_dem_letzten_release():
+    """cloud-init (Azure-Vorlage, Marketplace, azure-vm-setup.ps1): nach dem
+    Klonen den Stand des Kanals Stabil auschecken — vor dem Bauen, und über
+    das Skript im Repository, nicht mit eigener Regel."""
+    text = (WURZEL / "deploy/azure/cloud-init.yaml").read_text(encoding="utf-8")
+    klonen = text.index("git clone __REPO_URL__ /opt/exo-gateway")
+    auschecken = text.index("bash /opt/exo-gateway/stand-auschecken.sh release")
+    bauen = text.index("docker compose up -d --build")
+    eigentum = text.index("chown -R __ADMIN_USER__:__ADMIN_USER__ /opt/exo-gateway")
+    assert klonen < auschecken < eigentum < bauen
+    assert "git tag" not in text and "sort -V" not in text      # keine zweite Regel
 
 
 # ── Auswahl des Nightly-Stands ───────────────────────────────────────────────

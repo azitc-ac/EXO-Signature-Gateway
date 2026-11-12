@@ -10,39 +10,9 @@ write_status() { printf "%s" "$1" > "$STATUS"; chown 1000:1000 "$STATUS" 2>/dev/
 write_heartbeat() { date -u +%Y-%m-%dT%H:%M:%SZ > "$HEARTBEAT"; chown 1000:1000 "$HEARTBEAT" 2>/dev/null || true; }
 
 do_git_update() {
-  if [ "$CHANNEL" = "release" ]; then
-    # --force: Ein Tag, das auf dem Server neu gesetzt wurde (etwa nach einer
-    # Bereinigung der Historie), wird übernommen. Ohne --force weist git es mit
-    # „would clobber existing tag“ ab, behält die alte Fassung und endet mit 1.
-    cd "$REPO" && git fetch --tags --force 2>&1
-    if [ -n "${TARGET_VERSION:-}" ]; then
-      TAG="v${TARGET_VERSION#v}"
-      if ! git rev-parse "$TAG" >/dev/null 2>&1; then
-        echo "FEHLER: Tag $TAG nicht gefunden (git fetch --tags ausgeführt)"
-        return 1
-      fi
-      git reset --hard "$TAG" 2>&1
-      echo "→ Release $TAG ausgecheckt (gezielt gewählt — ggf. Rollback)"
-    else
-      LATEST=$(git tag -l 'v*' | sort -V | tail -1)
-      if [ -z "$LATEST" ]; then echo "FEHLER: Keine Release-Tags gefunden"; return 1; fi
-      git reset --hard "$LATEST" 2>&1
-      echo "→ Release $LATEST ausgecheckt"
-    fi
-  elif [ "$CHANNEL" = "nightly" ]; then
-    # Zweig `nightly`: täglich 23:59 (Berlin) der letzte main-Stand mit grüner CI
-    # (.github/workflows/nightly.yml).
-    cd "$REPO" && git fetch origin nightly 2>&1 || { echo "FEHLER: Zweig nightly nicht gefunden"; return 1; }
-    git reset --hard origin/nightly 2>&1
-    echo "→ Nightly-Stand ausgecheckt"
-  elif [ "$CHANNEL" = "main" ]; then
-    cd "$REPO" && git fetch origin main 2>&1 && git reset --hard origin/main 2>&1
-  else
-    # Unbekannter Kanal: nicht still auf main ausweichen — das wäre der
-    # experimentellste Stand, den niemand gewählt hat.
-    echo "FEHLER: Unbekannter Kanal '$CHANNEL'"
-    return 1
-  fi
+  # Die Regel je Kanal steht in stand-auschecken.sh — dieselbe, mit der die
+  # Erstinstallation (cloud-init) ihren ersten Stand wählt.
+  bash "$REPO/stand-auschecken.sh" "$CHANNEL" "${TARGET_VERSION:-}"
 }
 
 export HOME="${HOME:-/root}"
