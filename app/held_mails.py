@@ -194,6 +194,9 @@ def hold(sender: str, recipients: list[str], raw_bytes: bytes,
     src = processed_msg or _email_mod.message_from_bytes(raw_bytes)
     try:
         html_preview = mail_processor.extract_html(src) or ""
+        # Die Vorschau zeigt der Browser — cid: kennt er nicht (Logo der Signatur).
+        html_preview, _ = mail_processor.cid_als_data(
+            html_preview, mail_processor.eingebettete_bilder(src))
     except Exception as exc:
         log.debug("held_mails: html extract failed: %s", exc)
 

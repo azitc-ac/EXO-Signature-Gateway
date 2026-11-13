@@ -382,11 +382,20 @@ def _extract_mime_payload(msg_bytes: bytes, from_header: str, to_header: str,
                 "subject": subject, "date": date_header, "html": "", "text": "", "attachments": []}
 
     html_body, plain_body, attachments = "", "", []
+    # Eingebettete Bilder (Content-ID, im HTML als „cid:…“). Das Portal zeigt die
+    # Nachricht im Browser, und der kennt kein cid: — bis v1.12.5 stand dort ein
+    # kaputtes Bild (Logo der Signatur) und darunter derselbe Teil als Anhang
+    # (gemessen 13.11.2026). Jetzt als data:-URI ins HTML; Anhang bleibt nur,
+    # was das HTML nicht einbettet.
+    bilder = mail_processor.eingebettete_bilder(msg)
+    bild_cids = {b[0] for b in bilder}
     for part in (msg.walk() if msg.is_multipart() else [msg]):
         ct = part.get_content_type()
         cd = part.get("Content-Disposition", "")
         if part.get_payload() is None:
             continue
+        if (part.get("Content-ID") or "").strip().strip("<>").strip() in bild_cids:
+            continue                      # unten: eingebettet oder Anhang
         is_att = "attachment" in cd.lower() or bool(part.get_filename())
         if ct == "text/html" and not is_att and not html_body:
             try:
@@ -409,6 +418,9 @@ def _extract_mime_payload(msg_bytes: bytes, from_header: str, to_header: str,
                                         "data": _b64.b64encode(data).decode()})
             except Exception:
                 pass
+    html_body, benutzt = mail_processor.cid_als_data(html_body, bilder)
+    attachments += [{"name": name, "type": typ, "data": _b64.b64encode(daten).decode()}
+                    for cid, typ, daten, name in bilder if cid not in benutzt]
     return {"from": from_header, "to": to_header, "cc": cc_header or "",
             "subject": subject, "date": date_header,
             "html": html_body, "text": plain_body, "attachments": attachments}

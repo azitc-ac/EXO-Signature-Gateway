@@ -243,6 +243,41 @@ def ist_vorlage(block_html: str, gesucht_html: str, andere_html: str) -> bool:
     return anteil >= 0.8 and anteil > anteil_andere
 
 
+def eingebettete_bilder(msg: email.message.Message) -> list[tuple[str, str, bytes, str]]:
+    """(Content-ID, Typ, Daten, Dateiname) jedes eingebetteten Bildes — Bildteile
+    mit Content-ID, die nicht ausdrücklich „attachment“ sind."""
+    teile = []
+    for teil in msg.walk():
+        cid = (teil.get("Content-ID") or "").strip().strip("<>").strip()
+        if (not cid or teil.get_content_maintype() != "image"
+                or "attachment" in (teil.get("Content-Disposition") or "").lower()):
+            continue
+        try:
+            daten = teil.get_payload(decode=True)
+        except Exception:                                   # noqa: BLE001
+            daten = None
+        if daten:
+            teile.append((cid, teil.get_content_type(), daten, teil.get_filename() or cid))
+    return teile
+
+
+def cid_als_data(html: str, bilder) -> tuple[str, set[str]]:
+    """„cid:…“-Verweise durch data:-URIs ersetzen — für jede Anzeige im Browser
+    (Nachrichtenportal, Vorschau der Warteschlange), der cid: nicht kennt.
+    Gibt das HTML und die Content-IDs zurück, die tatsächlich ersetzt wurden;
+    die übrigen Bilder sind keine Einbettung, sondern Anhang."""
+    import base64
+    benutzt: set[str] = set()
+    for cid, typ, daten, _name in bilder:
+        # Grenze nach der ID: cid:logo@1 darf cid:logo@10 nicht treffen.
+        muster = re.compile(r"cid:" + re.escape(cid) + r"(?=[\"'\s)>])", re.IGNORECASE)
+        neu = muster.sub(f"data:{typ};base64,{base64.b64encode(daten).decode()}", html)
+        if neu != html:
+            html = neu
+            benutzt.add(cid)
+    return html, benutzt
+
+
 def traegt_vorlage(block_html: str, vorlage_html: str, neutral_html: str) -> bool:
     """Trägt die Add-in-Signatur `block_html` die Vorlage `vorlage_html` für
     DIESES Postfach? `neutral_html` ist dieselbe Vorlage ohne die Daten des

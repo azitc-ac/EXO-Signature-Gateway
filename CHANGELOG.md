@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.6 — 2026-11-13 — Nachrichtenportal zeigt eingebettete Bilder (Logo der Signatur)
+
+- **Fehler:** Ging eine Nachricht mit „#enc“ ins Nachrichtenportal, weil für
+  den Empfänger kein Zertifikat vorlag, fehlte dort das Logo der Signatur:
+  An seiner Stelle stand ein kaputtes Bild, und unter *Anhänge* erschien
+  derselbe Bildteil als „image001.png 0 KB“. Eingebettete Bilder verweisen
+  im HTML mit `cid:` auf einen Teil der Mail; das Portal zeigt die Nachricht
+  im Browser, und der kennt diese Verweise nicht. Außerdem legte das Gateway
+  jeden Teil mit Dateinamen als Anhang ab.
+- **Jetzt:** Eingebettete Bilder stehen im Portal direkt im Text, als Bild
+  im HTML selbst; als Anhang erscheint nur noch, was die Nachricht nicht
+  einbettet. Ebenso in der Vorschau zurückgehaltener Mails (*Einstellungen →
+  Erweitert → Wartungsmodus*). Anhänge unter 1 KB zeigt das Portal als „<1 KB“ statt
+  „0 KB“.
+- Betrifft nur neu angelegte Portal-Nachrichten; bestehende bleiben, wie sie
+  sind.
+
+**Zu tun:** nichts.
+
 ## v1.12.5 — 2026-11-13 — Key Vault austragen räumt die Ressourcen-ID mit ab
 
 - **Fehler:** Wurde die Key-Vault-Adresse geleert oder auf einen anderen

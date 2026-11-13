@@ -401,7 +401,8 @@ async function loadMessage(){
       attSec.style.display='';
       var attList = document.getElementById('att-list');
       payload.attachments.forEach(function(a){
-        var sizeKB = Math.round(atob(a.data).length/1024);
+        var bytes = atob(a.data).length;
+        var sizeKB = bytes < 1024 ? '&lt;1' : Math.round(bytes/1024);
         attList.innerHTML += '<div class="att-item">📎 ' + attLinkHtml(a.name, a.type, a.data)
                            + '<span class="att-size">'+sizeKB+' KB</span></div>';
       });
