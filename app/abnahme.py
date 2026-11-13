@@ -754,9 +754,39 @@ def _waechter_code() -> dict:
                   "(braucht den Azure-Login wie beim Anlegen).")
 
 
+def _key_vault_zugriff() -> dict:
+    """Ist ein eingetragener Key Vault auch nutzbar? Eine halbe Einrichtung
+    (Adresse gespeichert, Rolle der App fehlt) fiel bis v1.12.4 nirgends auf:
+    Jeder Schlüssel blieb lokal, die Postfach-Prüfung nannte das neutral
+    „Lokaler Schlüssel — nicht in Key Vault“. Fragt selbst nicht beim Vault
+    nach (läuft bei jedem Seitenaufbau), sondern liest den letzten Befund aus
+    Signieren, Statusprüfung oder „Verbindung testen“ (keyvault._zugriff_merken)."""
+    name = "Key Vault nutzbar"
+    try:
+        import keyvault
+        import settings_store
+        url = keyvault.vault_url().strip().rstrip("/") if keyvault.is_configured() else ""
+    except Exception as exc:                                 # noqa: BLE001
+        return _punkt(name, UNBEKANNT, f"Einstellung nicht lesbar: {exc}")
+    if not url:
+        return _punkt(name, ENTFAELLT, "Kein Key Vault eingetragen.")
+    befund = settings_store.get("KV_ZUGRIFF") or {}
+    if befund.get("url") != url:
+        return _punkt(name, UNBEKANNT, "Noch nicht geprüft.",
+                      "Einrichtung → Azure Key Vault → „Verbindung testen“.")
+    if befund.get("zustand") == "verweigert":
+        return _punkt(name, OFFEN,
+                      "Key Vault eingetragen, aber die App darf ihn nicht lesen (403) — "
+                      "S/MIME-Schlüssel bleiben lokal.",
+                      "Einrichtung → Azure Key Vault → „Verbindung testen“, dann „Rolle "
+                      "sicherstellen (Crypto Officer)“. Wird kein Vault gebraucht: Adresse "
+                      "leeren und speichern.")
+    return _punkt(name, OK, "Datenzugriff auf den Key Vault vorhanden.")
+
+
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
-              _addin_rollen, _addin_fassung, _waechter_code, _benachrichtigung, _anmeldenachweis,
+              _addin_rollen, _addin_fassung, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,

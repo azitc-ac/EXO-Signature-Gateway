@@ -82,6 +82,8 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     Aufgabe("addin-fassung", abnahme._addin_fassung, "/mailboxes", seit="1.11.56"),
     # Function-Code der Azure-Wächter kam bis v1.11.63 nur beim Anlegen hinauf.
     Aufgabe("waechter-code", abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),
+    # Eingetragener Key Vault ohne Datenrechte der App: Schlüssel blieben still lokal.
+    Aufgabe("key-vault-zugriff", abnahme._key_vault_zugriff, "/setup#step-keyvault", seit="1.12.4"),
 )
 
 _TTL_S = 10

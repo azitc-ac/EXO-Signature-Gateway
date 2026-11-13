@@ -129,6 +129,7 @@ REGISTER: dict[str, E] = {
     "KEYVAULT_URL": E(art=OPTION, ort="/api/setup/keyvault/save"),
     "KV_KEY_MODE": E(art=OPTION, ort="settings_smime.html"),
     "KV_KEY_STATUS": E(art=ZUSTAND),
+    "KV_ZUGRIFF": E(art=ZUSTAND),
     "LEXWARE_FIX_FORMAT": E(art=OPTION, ort="advanced.html"),
     "LE_DOMAIN": E(art=OPTION, ort="setup.html"),
     "LE_EMAIL": E(art=OPTION, ort="setup.html"),

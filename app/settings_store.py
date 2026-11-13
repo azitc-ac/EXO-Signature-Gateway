@@ -319,6 +319,7 @@ DEFAULTS: dict = {
     "KEYVAULT_RESOURCE_ID": "",         # ARM resource ID of the vault — cached so the wizard doesn't
                                          # need a Resource Graph lookup on every role-assignment retry
     "KV_KEY_MODE": "fallback",          # "fallback" = exportable + local backup; "strict" = no export, no backup
+    "KV_ZUGRIFF": {},                   # {"zustand": "nutzbar"|"verweigert", "url", "seit"} — letzter Befund über die Datenrechte am Vault (keyvault._zugriff_merken)
     "KV_KEY_STATUS": {},                # {email: {"exists": bool, "checked": "ISO8601"}} — cached KV key status
     # ── ACME ─────────────────────────────────────────────────────────────────
     "ACME_REPLY_METHOD": "auto",         # "auto" (follow REINJECT_MODE), "graph", or "direct_smtp"

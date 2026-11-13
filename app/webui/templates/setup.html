@@ -748,7 +748,13 @@
   <div class="step-header">
     <span class="step-badge" style="background:#b45309;width:auto;padding:0 10px;border-radius:10px;font-size:12px">KEY VAULT</span>
     <span class="step-title">Azure Key Vault (optional)</span>
-    {% if s.KEYVAULT_URL %}
+    {% set _kv_zugriff = s.KV_ZUGRIFF or {} %}
+    {% if s.KEYVAULT_URL and _kv_zugriff.get('zustand') == 'verweigert'
+          and _kv_zugriff.get('url') == s.KEYVAULT_URL.strip().rstrip('/') %}
+    {# Adresse eingetragen, aber keine Datenrechte: „Konfiguriert“ wäre eine
+       halbe Wahrheit — die Schlüssel bleiben lokal (abnahme._key_vault_zugriff). #}
+    <span class="step-status" style="background:#fef2f2;color:#991b1b">Kein Zugriff (403)</span>
+    {% elif s.KEYVAULT_URL %}
     <span class="step-status done" style="background:#fef3c7;color:#b45309">Konfiguriert</span>
     {% else %}
     <span class="step-status pending" style="background:#fef3c7;color:#b45309">Optional</span>

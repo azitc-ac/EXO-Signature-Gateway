@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.4 — 2026-11-13 — Key Vault ohne Zugriff wird als Aufgabe gemeldet; Befund der Statusprüfung bleibt stehen
+
+- **Fehler:** War ein Key Vault eingetragen, die App des Gateways aber ohne
+  Rolle darauf, fiel das nirgends auf. Die Einrichtung zeigte
+  „Konfiguriert“, die Postfach-Prüfung nannte den lokalen Schlüssel neutral
+  „Lokaler Schlüssel — nicht in Key Vault“, und jeder S/MIME-Schlüssel blieb
+  lokal.
+- **Jetzt:** Das Gateway merkt sich den letzten Befund über die Rechte am
+  Vault: beim Signieren, bei *Key Vault Status prüfen* und bei *Verbindung
+  testen* (nur für den eingetragenen Vault). Antwortet der Vault mit 403,
+  erscheint im Sammelpunkt *Offene Aufgaben* „Key Vault eingetragen, aber
+  die App darf ihn nicht lesen“, und der Einrichtungsschritt zeigt „Kein
+  Zugriff (403)“ statt „Konfiguriert“. Geschrieben wird der Befund nur, wenn
+  er wechselt.
+- **Fehler:** *S/MIME → Schlüsselverwaltung → Key Vault Status prüfen* zeigte
+  den Befund und lud die Seite nach vier Sekunden neu. Dabei klappte die
+  Schlüsselverwaltung zu und der Befund war weg. Die Seite lädt jetzt nicht
+  mehr neu; „Stand“ wird an Ort und Stelle aktualisiert.
+- Ebenso bei *Alle zu KV migrieren*: Dort ist das Neuladen nötig, weil sich
+  die Zeilen darunter ändern. Danach klappt die Schlüsselverwaltung wieder
+  auf und zeigt, wie viele Schlüssel migriert wurden.
+
+**Zu tun:** Erscheint die Aufgabe „Key Vault nutzbar“, öffne *Einrichtung →
+Azure Key Vault*, klicke *Verbindung testen* und dann *Rolle sicherstellen
+(Crypto Officer)*. Brauchst du den Vault nicht, leere die Adresse und
+speichere. Ob es dich betrifft, zeigt sich nach der ersten signierten Mail
+oder nach *Verbindung testen*.
+
 ## v1.12.3 — 2026-11-13 — S/MIME: fehlende Rechte am Key Vault werden gemeldet
 
 - **Fehler:** Antwortete der Key Vault beim Nachsehen nach dem Schlüssel eines

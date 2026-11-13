@@ -20,6 +20,9 @@ class _Antwort:
 
 
 def _vault(monkeypatch, code=None, fehler=None, token="tok"):
+    werte = {}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None, *a, **kw: werte.get(k, d))
+    monkeypatch.setattr(settings_store, "update", lambda neu: werte.update(neu))
     monkeypatch.setattr(keyvault, "is_configured", lambda: True)
     monkeypatch.setattr(keyvault, "vault_url", lambda: "https://v.vault.azure.net")
 
@@ -36,6 +39,7 @@ def _vault(monkeypatch, code=None, fehler=None, token="tok"):
                 raise fehler
             return _Antwort(code)
     monkeypatch.setattr(keyvault.httpx, "AsyncClient", _Client)
+    return werte
 
 
 @pytest.mark.parametrize("code,erwartet", [
@@ -56,8 +60,7 @@ def test_ohne_token_oder_netz_ist_es_ein_fehler(monkeypatch):
 
 
 def _signieren(monkeypatch, modus):
-    werte = {"KV_KEY_MODE": modus}
-    monkeypatch.setattr(settings_store, "get", lambda k, d=None, *a, **kw: werte.get(k, d))
+    settings_store.update({"KV_KEY_MODE": modus})            # über die Attrappe aus _vault
     lokal = []
     monkeypatch.setattr(smime_signer, "sign",
                         lambda b, s, use_backup=False: lokal.append(s) or b"SIGNIERT")
@@ -111,3 +114,86 @@ def test_status_abfrage_meldet_403_als_unbekannt(anlage, monkeypatch):
     assert [erg[e]["exists"] for e in ("a@firma.de", "b@firma.de", "c@firma.de")] == [True, False, None]
     assert erg["c@firma.de"]["zustand"] == "verweigert"
     assert werte["KV_KEY_STATUS"] == erg
+
+
+# ── Aufgabe „Key Vault nutzbar“ (v1.12.4) ─────────────────────────────────────
+# Eine halbe Einrichtung (Adresse gespeichert, Rolle fehlt) blieb unbemerkt:
+# Schlüssel lagen nur lokal, die Einrichtung zeigte „Konfiguriert“.
+
+import abnahme  # noqa: E402
+import aufgaben  # noqa: E402
+
+
+def test_befund_wird_gemerkt_und_nur_bei_wechsel_geschrieben(monkeypatch):
+    werte = _vault(monkeypatch, 403)
+    schreiben = []
+    monkeypatch.setattr(settings_store, "update", lambda neu: schreiben.append(neu) or werte.update(neu))
+    for _ in range(3):
+        asyncio.run(keyvault.key_zustand("max@firma.de"))
+    assert len(schreiben) == 1
+    assert werte["KV_ZUGRIFF"]["zustand"] == "verweigert"
+    assert werte["KV_ZUGRIFF"]["url"] == "https://v.vault.azure.net"
+    _vault_antwort(monkeypatch, 404)
+    asyncio.run(keyvault.key_zustand("max@firma.de"))
+    assert werte["KV_ZUGRIFF"]["zustand"] == "nutzbar" and len(schreiben) == 2
+
+
+def _vault_antwort(monkeypatch, code):
+    class _Client:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, url, headers=None): return _Antwort(code)
+    monkeypatch.setattr(keyvault.httpx, "AsyncClient", _Client)
+
+
+def test_stoerung_aendert_den_befund_nicht(monkeypatch):
+    werte = _vault(monkeypatch, 500)
+    asyncio.run(keyvault.key_zustand("max@firma.de"))
+    assert "KV_ZUGRIFF" not in werte
+
+
+def test_verbindung_testen_merkt_nur_fuer_den_eingetragenen_vault(monkeypatch):
+    werte = _vault(monkeypatch, 403)
+    asyncio.run(keyvault.test_connection("https://anderer.vault.azure.net"))
+    assert "KV_ZUGRIFF" not in werte
+    asyncio.run(keyvault.test_connection())
+    assert werte["KV_ZUGRIFF"]["zustand"] == "verweigert"
+
+
+def test_pruefung_je_befund(monkeypatch):
+    werte = _vault(monkeypatch)
+    assert abnahme._key_vault_zugriff()["zustand"] == abnahme.UNBEKANNT        # nie geprüft
+    werte["KV_ZUGRIFF"] = {"zustand": "verweigert", "url": "https://v.vault.azure.net"}
+    p = abnahme._key_vault_zugriff()
+    assert p["zustand"] == abnahme.OFFEN and "403" in p["befund"]
+    werte["KV_ZUGRIFF"] = {"zustand": "verweigert", "url": "https://alt.vault.azure.net"}
+    assert abnahme._key_vault_zugriff()["zustand"] == abnahme.UNBEKANNT        # anderer Vault
+    werte["KV_ZUGRIFF"] = {"zustand": "nutzbar", "url": "https://v.vault.azure.net"}
+    assert abnahme._key_vault_zugriff()["zustand"] == abnahme.OK
+    monkeypatch.setattr(keyvault, "is_configured", lambda: False)
+    assert abnahme._key_vault_zugriff()["zustand"] == abnahme.ENTFAELLT
+
+
+def test_aufgabe_und_abnahme_teilen_die_pruefung():
+    assert abnahme._key_vault_zugriff in abnahme.PRUEFUNGEN
+    a = next(x for x in aufgaben.AUFGABEN if x.kennung == "key-vault-zugriff")
+    assert a.pruefung is abnahme._key_vault_zugriff and a.seit == "1.12.4"
+
+
+def test_einrichtung_zeigt_kein_konfiguriert_bei_403():
+    from pathlib import Path
+    vorlage = (Path(__file__).resolve().parent.parent / "app/webui/templates/setup.html").read_text("utf-8")
+    schritt = vorlage.split('id="step-keyvault"', 1)[1].split('class="step-body"', 1)[0]
+    assert "Kein Zugriff (403)" in schritt
+    assert schritt.index("Kein Zugriff (403)</span>") < schritt.index("Konfiguriert</span>")
+
+
+def test_status_pruefen_laedt_die_seite_nicht_neu():
+    """Das Neuladen klappte die Schlüsselverwaltung zu und nahm den Befund mit."""
+    from pathlib import Path
+    vorlage = (Path(__file__).resolve().parent.parent / "app/webui/templates/smime.html").read_text("utf-8")
+    rumpf = vorlage.split("async function refreshKvStatus(", 1)[1].split("\n}\n", 1)[0]
+    assert "reload" not in rumpf and "gesperrtLassen" not in rumpf
+    migr = vorlage.split("async function migrateAllAndBackup(", 1)[1].split("\n}\n", 1)[0]
+    assert "_schluesselBefundMerken(" in migr

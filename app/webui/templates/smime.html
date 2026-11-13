@@ -30,7 +30,7 @@
        Berechtigt ist der andere Teil des Einwands: Sie standen als Erstes auf
        einer Seite, auf der es um Zertifikate geht, und werden selten
        gebraucht. Deshalb jetzt zugeklappt. -->
-  <details style="margin-bottom:16px">
+  <details id="schluesselverwaltung" style="margin-bottom:16px">
   <summary style="cursor:pointer;font-size:12px;color:#666;font-weight:500;
                   padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;
                   border-radius:6px;user-select:none">Schlüsselverwaltung</summary>
@@ -59,11 +59,7 @@
     </button>
     {# Ohne diese Angabe ist nicht zu erkennen, ob die Spalte „im Tresor" von
        heute oder von vor drei Wochen stammt — geprüft wird nur auf Knopfdruck. #}
-    {% if kv_zuletzt_geprueft %}
-    <span class="hint">Stand: {{ kv_zuletzt_geprueft }}</span>
-    {% else %}
-    <span class="hint">noch nie geprüft</span>
-    {% endif %}
+    <span class="hint" id="kv-stand">{% if kv_zuletzt_geprueft %}Stand: {{ kv_zuletzt_geprueft }}{% else %}noch nie geprüft{% endif %}</span>
     <span id="kv-status-result" class="speicher-hinweis"></span>
     {% endif %}
     <div id="bulk-migrate-result" hidden></div>
@@ -1697,9 +1693,7 @@ async function deleteRcptCert(email) {
 async function refreshKvStatus(btn) {
   const resultEl = document.getElementById('kv-status-result');
   if (resultEl) { resultEl.textContent = ''; resultEl.dataset.zustand = ''; }
-  // Bei Erfolg gesperrt lassen: Die Seite lädt gleich mit dem neuen Stand neu.
-  const data = await knopfAktion(btn, 'Prüfe…', () => postJSON('/api/smime/kv-status/refresh'),
-                                 {gesperrtLassen: true});
+  const data = await knopfAktion(btn, 'Prüfe…', () => postJSON('/api/smime/kv-status/refresh'));
   if (!data.ok) {
     if (resultEl) { resultEl.dataset.zustand = 'fehler'; resultEl.textContent = errText(data); }
     return;
@@ -1717,9 +1711,11 @@ async function refreshKvStatus(btn) {
         + `${werte.length - mit - unklar} ohne`
         + (unklar ? ` · ${unklar} nicht feststellbar (keine Leseberechtigung am Key Vault?)` : '');
   }
-  // Vier Sekunden statt 1,2 — lang genug, um den Befund zu lesen, bevor
-  // die Tabelle darunter mit dem neuen Stand erscheint.
-  setTimeout(() => location.reload(), 4000);
+  // Kein Neuladen (bis v1.12.4 nach 4 s): Es klappte die Schlüsselverwaltung
+  // wieder zu und nahm den Befund mit, und die Seite zeigt den Tresor-Stand
+  // sonst nirgends — nur „Stand:“ ändert sich, das geht an Ort und Stelle.
+  const stand = document.getElementById('kv-stand');
+  if (stand) stand.textContent = 'Stand: gerade eben';
 }
 
 async function migrateAllAndBackup(btn) {
@@ -1736,10 +1732,35 @@ async function migrateAllAndBackup(btn) {
                                  {anzeige: el, gesperrtLassen: true});
   if (!data.ok) { showMsg(el, errText(data) || 'Fehler bei der Migration', false); return; }
   laeuftZeigen(el, `${data.migrated} von ${data.total} Schlüssel migriert — Backup wird geladen…`);
+  // Das Neuladen ist hier nötig (die Zeilen darunter wechseln von „lokal“ auf
+  // „Key Vault“), klappt aber die Schlüsselverwaltung zu. Der Befund überlebt
+  // es deshalb und erscheint danach wieder — gerade „7 von 9“ darf nicht
+  // nach 2,5 s verschwinden.
+  _schluesselBefundMerken(`${data.migrated} von ${data.total} Schlüssel migriert`,
+                          data.migrated === data.total);
   // Trigger backup download of remaining local files (key.pem.bak)
   setTimeout(() => { window.location.href = '/api/smime/backup-all-keys'; }, 400);
   setTimeout(() => { location.reload(); }, 2500);
 }
+
+const _SCHLUESSEL_BEFUND = 'smime-schluessel-befund';
+
+function _schluesselBefundMerken(text, ok) {
+  try { sessionStorage.setItem(_SCHLUESSEL_BEFUND, JSON.stringify({text: text, ok: ok})); }
+  catch (e) { /* ohne Speicher bleibt es bei der Anzeige bis zum Neuladen */ }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  let befund = null;
+  try {
+    befund = JSON.parse(sessionStorage.getItem(_SCHLUESSEL_BEFUND) || 'null');
+    sessionStorage.removeItem(_SCHLUESSEL_BEFUND);
+  } catch (e) { befund = null; }
+  if (!befund) return;
+  const kasten = document.getElementById('schluesselverwaltung');
+  if (kasten) kasten.open = true;
+  showMsg('bulk-migrate-result', befund.text, befund.ok);
+});
 
 async function migrateSlotToKv(email, slotId, btn) {
   if (!confirm(`Schlüssel von Slot ${slotId} (${email}) zu Azure Key Vault migrieren?\n\nDie lokale key.pem wird danach gelöscht. Das Zertifikat bleibt erhalten.`)) return;

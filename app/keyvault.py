@@ -91,6 +91,24 @@ def _b64url_encode(data: bytes) -> str:
 KEY_VORHANDEN, KEY_FEHLT, KEY_VERWEIGERT, KEY_FEHLER = "vorhanden", "fehlt", "verweigert", "fehler"
 
 
+ZUGRIFF_NUTZBAR, ZUGRIFF_VERWEIGERT = "nutzbar", "verweigert"
+
+
+def _zugriff_merken(url: str, zustand: str) -> None:
+    """Letzten Befund über die Datenrechte am Vault festhalten — für die
+    Aufgabe „Key Vault nicht nutzbar“ (abnahme._key_vault_zugriff), die bei
+    jedem Seitenaufbau läuft und selbst nicht fragen darf. Geschrieben wird
+    nur bei einem Wechsel, nicht bei jeder signierten Mail."""
+    url = (url or "").strip().rstrip("/")
+    alt = settings_store.get("KV_ZUGRIFF") or {}
+    if alt.get("zustand") == zustand and alt.get("url") == url:
+        return
+    from datetime import datetime, timezone
+    settings_store.update({"KV_ZUGRIFF": {
+        "zustand": zustand, "url": url,
+        "seit": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}})
+
+
 async def key_zustand(email: str) -> str:
     """Liegt ein S/MIME-Schlüssel für `email` im Vault? Einer der KEY_*-Werte;
     `fehlt` auch, wenn kein Vault eingerichtet ist."""
@@ -108,11 +126,14 @@ async def key_zustand(email: str) -> str:
     except Exception as exc:
         log.error("keyvault key_exists error for %s: %s", email, exc)
         return KEY_FEHLER
+    if resp.status_code in (200, 404):
+        _zugriff_merken(vault_url(), ZUGRIFF_NUTZBAR)
     if resp.status_code == 200:
         return KEY_VORHANDEN
     if resp.status_code == 404:
         return KEY_FEHLT
     if resp.status_code == 403:
+        _zugriff_merken(vault_url(), ZUGRIFF_VERWEIGERT)
         log.warning("Key Vault: keine Berechtigung, den Schlüssel %s zu lesen (403) — "
                     "Rolle der Gateway-App auf dem Vault prüfen", key_name)
         return KEY_VERWEIGERT
@@ -759,10 +780,17 @@ async def test_connection(kv_url: str | None = None) -> tuple[bool, str]:
                 test_url,
                 headers={"Authorization": f"Bearer {token}"},
             )
+        # Nur für den eingetragenen Vault merken — „Verbindung testen“ prüft
+        # auch eine erst eingetippte, noch nicht gespeicherte Adresse.
+        eigener = url_to_test == vault_url().strip().rstrip("/")
         if resp.status_code == 200:
+            if eigener:
+                _zugriff_merken(url_to_test, ZUGRIFF_NUTZBAR)
             count = len(resp.json().get("value", []))
             return True, f"Verbindung erfolgreich — {count} Schlüssel sichtbar"
         if resp.status_code == 403:
+            if eigener:
+                _zugriff_merken(url_to_test, ZUGRIFF_VERWEIGERT)
             return False, (
                 "Zugriff verweigert (403). Die App-Registrierung braucht die Rolle "
                 "'Key Vault Crypto Officer' auf dem Vault "
