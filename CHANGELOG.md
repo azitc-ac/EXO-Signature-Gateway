@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.10 — 2026-11-13 — dnspython 2.9.2; Reiter-Test misst den Platzbedarf
+
+- **dnspython 2.9.0 → 2.9.2** (GHSA-vvf4-9x63-8xvv, CVE-2026-128089, CVSS 7.5):
+  Eine präparierte DNS-Zonendatei konnte über einen WKS-Eintrag Speicher und
+  Rechenzeit erschöpfen. Betroffen ist nur das Einlesen von Zonendateien
+  (`from_text()`); das Gateway liest keine, es fragt DNS nur ab. Die
+  Aktualisierung schließt die Lücke trotzdem, damit die Abhängigkeitsprüfung
+  der CI wieder greift.
+- **Browser-Test der Unterreiter:** verlangte „wischbar“ auch bei 1280 px, wo
+  alle Reiter in eine Zeile passen und es nichts zu wischen gibt. Er misst
+  jetzt den Platzbedarf und verlangt das Wischen nur, wo die Reiter nicht
+  passen; bei Telefonbreite muss das der Fall sein, sonst prüft er nichts.
+
+**Zu tun:** nichts — kommt mit dem nächsten Update.
+
 ## v1.12.9 — 2026-11-13 — CI: Oberflächen-Tests laufen im echten Browser
 
 Die Oberflächen-Tests (`tests/test_ui_browser.py`, Playwright mit Chromium)

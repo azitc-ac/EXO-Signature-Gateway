@@ -33,7 +33,7 @@ cryptography==50.0.0
 
 # ── Direktversand (DKIM-Signatur, DNS-Prüfung) ───────────────────────────────
 dkimpy==1.1.8
-dnspython==2.9.0
+dnspython==2.9.2
 pyspf==2.0.14
 
 # ── Microsoft-Anbindung ──────────────────────────────────────────────────────

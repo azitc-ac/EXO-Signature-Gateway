@@ -578,15 +578,30 @@ def test_unterreiter_bleiben_einzeilig_und_wischbar(seite, breite):
       return {
         zeilen: new Set(tabs.map(t => Math.round(t.getBoundingClientRect().top))).size,
         wischbar: ul.scrollWidth > ul.clientWidth + 1,
+        // Platz, den die Reiter ungestaucht brauchen (Inhaltsbreite, auch wenn
+        // sie gestaucht wären). Passt alles in die Zeile, gibt es nichts zu
+        // wischen — und das ist richtig.
+        bedarf: tabs.reduce((s, t) => s + Math.max(t.getBoundingClientRect().width, t.scrollWidth), 0),
+        platz: ul.clientWidth,
         gestaucht: tabs.filter(t => t.scrollWidth > t.clientWidth + 1)
                        .map(t => t.textContent.trim()),
       };
     }""")
     assert d["zeilen"] == 1, (
         f"Bei {breite}px stehen die Unterreiter in {d['zeilen']} Zeilen.")
-    assert d["wischbar"], (
-        f"Bei {breite}px lässt sich nicht wischen — die Reiter sind auf die "
-        "Breite gestaucht statt überzulaufen (`flex-shrink` fehlt).")
+    # Wischen nur verlangen, wo die Reiter nicht in die Zeile passen. Bis
+    # 2026-11-13 hiess es hier pauschal „wischbar“ — lokal lief das bei 1280px
+    # grün (breitere Schrift), im ersten CI-Lauf mit Browser nicht: dort passt
+    # alles in die Zeile.
+    if breite <= 393:
+        assert d["bedarf"] > d["platz"], (
+            f"Bei {breite}px passen die Reiter in die Zeile — dann prüft dieser "
+            "Test das Wischen gar nicht. Breite oder Reiter haben sich geändert.")
+    if d["bedarf"] > d["platz"] + 1:
+        assert d["wischbar"], (
+            f"Bei {breite}px brauchen die Reiter {d['bedarf']:.0f}px bei "
+            f"{d['platz']}px Platz, lassen sich aber nicht wischen — sie werden "
+            "gestaucht statt überzulaufen.")
     assert not d["gestaucht"], f"Gestauchte Beschriftungen: {d['gestaucht']}"
 
 

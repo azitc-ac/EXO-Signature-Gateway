@@ -51,7 +51,7 @@ charset-normalizer==3.4.9
 click==8.4.2
 cryptography==50.0.0
 dkimpy==1.1.8
-dnspython==2.9.0
+dnspython==2.9.2
 fastapi==0.139.0
 h11==0.16.0
 httpcore==1.0.9
