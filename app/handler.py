@@ -1542,6 +1542,19 @@ class SignatureHandler:
                 _innen = email.message_from_bytes(outbound)
                 _betreff_setzen(_innen, new_subject)
                 outbound = _smtp_bytes(_innen)
+                # Erst signieren, dann verschlüsseln (bis v1.12.6 nur
+                # verschlüsselt): Nach dem Entschlüsseln sieht der Empfänger,
+                # von wem die Nachricht stammt. Nach dem Betreff-Umbau oben —
+                # ein Neuaufbau mit der email-Bibliothek NACH dem Signieren
+                # könnte die Signatur brechen. Dieselben Schalter wie ohne
+                # #enc (_smime_ok: global, je Postfach, #nodigsig, Regel).
+                _klartext = outbound      # fürs Portal: ohne smime.p7s
+                if _smime_ok:
+                    import smime_signer
+                    _signiert = await smime_signer.sign_async(outbound, _sig_absender)
+                    if _signiert:
+                        outbound = _signiert
+                        _smime_signed = True
                 encrypted, missing = smime_encrypt.encrypt(outbound, recipients)
                 # Verschlüsselung gescheitert, obwohl alle Zertifikate da sind
                 # (bis v1.11.35: EC-Zertifikat). Dann NIE Klartext — wie
@@ -1561,7 +1574,7 @@ class SignatureHandler:
                         # soll "#enc" nie sehen (analog zum Verschlüsselungspfad unten)
                         _p_subject = new_subject
                         _portal_payload = _extract_mime_payload(
-                            outbound,
+                            _klartext,
                             _decode_subject(msg.get("From", "")),
                             _decode_subject(msg.get("To", "")),
                             _decode_subject(msg.get("Cc", "")),

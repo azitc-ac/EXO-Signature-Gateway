@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.7 — 2026-11-13 — „#enc“: erst signieren, dann verschlüsseln
+
+- **Bisher:** Mit „#enc“ wurde eine Nachricht nur verschlüsselt, nicht
+  signiert. Nach dem Entschlüsseln sah der Empfänger nicht, von wem sie
+  stammt; ohne „#enc“ dagegen wurde signiert.
+- **Jetzt:** Die Nachricht wird zuerst signiert und dann verschlüsselt, wie
+  es S/MIME vorsieht. Es gelten dieselben Schalter wie ohne „#enc“: Signieren
+  für das Postfach, „#nodigsig“ im Betreff, S/MIME-Regeln. Mit „#nodigsig“
+  wird weiterhin nur verschlüsselt.
+- Geht die Nachricht ins Nachrichtenportal, bekommt das Portal die
+  unsignierte Fassung — sonst stünde die Signatur dort als Anhang
+  „smime.p7s“.
+
+**Zu tun:** nichts.
+
 ## v1.12.6 — 2026-11-13 — Nachrichtenportal zeigt eingebettete Bilder (Logo der Signatur)
 
 - **Fehler:** Ging eine Nachricht mit „#enc“ ins Nachrichtenportal, weil für

@@ -193,3 +193,63 @@ def test_portal_betreff_ohne_trigger(anlage):
     assert _lauf("Vertrag #enc").startswith("250")
     (_, _, _, betreff, _), = anlage["portal"]
     assert betreff == "Vertrag"
+
+
+# ── Signieren, dann verschlüsseln (v1.12.7) ───────────────────────────────────
+# Bis v1.12.6 wurde „#enc“-Post nur verschlüsselt: Nach dem Entschlüsseln sah
+# der Empfänger nicht, von wem sie stammt.
+
+MARKE = b"X-Test-Signiert: ja\r\n"
+
+
+def _signieren(anlage):
+    import smime_signer
+    signiert = []
+
+    async def _sign(raw, absender):
+        # Aufbau wie smime_signer: Kopf vorangestellt, multipart/signed mit
+        # dem Inhalt und dem Signaturteil smime.p7s.
+        signiert.append((absender, raw))
+        kopf, _, rumpf = raw.partition(b"\r\n\r\n")
+        kopf = b"\r\n".join(z for z in kopf.split(b"\r\n")
+                            if not z.lower().startswith((b"content-type", b"mime-version")))
+        return (MARKE + kopf + b"\r\nMIME-Version: 1.0\r\nContent-Type: multipart/signed; "
+                b"protocol=\"application/pkcs7-signature\"; micalg=sha-256; boundary=\"G\"\r\n\r\n"
+                b"--G\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n" + rumpf +
+                b"\r\n--G\r\nContent-Type: application/pkcs7-signature; name=\"smime.p7s\"\r\n"
+                b"Content-Disposition: attachment; filename=\"smime.p7s\"\r\n"
+                b"Content-Transfer-Encoding: base64\r\n\r\nU0lH\r\n--G--\r\n")
+    anlage["mp"].setattr(smime_signer, "sign_async", _sign)
+    return signiert
+
+
+def test_enc_wird_signiert_und_dann_verschluesselt(anlage):
+    signiert = _signieren(anlage)
+    _verschluesselung(anlage, (ENC, []))
+    assert _lauf("Vertrag #enc").startswith("250")
+    (absender, roh), = signiert
+    assert absender == ABS
+    import email
+    assert email.message_from_bytes(roh)["Subject"] == "Vertrag"   # Betreff VOR der Signatur bereinigt
+    assert anlage["innen"][0].startswith(MARKE)                     # verschlüsselt wird die signierte Fassung
+
+
+def test_nodigsig_nur_verschluesselt(anlage):
+    # SMIME_SIGNING_ENABLED=False ist hier KEIN Fall: Der Schalter sperrt bisher
+    # auch #enc (Unzustellbarkeit „nicht freigegeben“, siehe oben) — offen.
+    signiert = _signieren(anlage)
+    aufrufe = _verschluesselung(anlage, (ENC, []))
+    assert _lauf("Vertrag #enc #nodigsig").startswith("250")
+    assert signiert == [] and aufrufe == [[EMPF]]
+    assert not anlage["innen"][0].startswith(MARKE)
+
+
+def test_portal_bekommt_die_unsignierte_fassung(anlage):
+    """Sonst stünde die Signatur (smime.p7s) im Portal als Anhang."""
+    anlage["werte"]["SECURE_PORTAL_ENABLED"] = True
+    _signieren(anlage)
+    _verschluesselung(anlage, (None, [EMPF]))
+    assert _lauf("Vertrag #enc").startswith("250")
+    (_, _, _, _, nutzlast), = anlage["portal"]
+    assert "Geheimer Inhalt" in nutzlast["text"]
+    assert nutzlast["attachments"] == []
