@@ -1705,13 +1705,17 @@ async function refreshKvStatus(btn) {
     return;
   }
   const werte = Object.values(data.results || {});
-  const mit = werte.filter(v => v && v.exists).length;
+  const mit = werte.filter(v => v && v.exists === true).length;
+  // exists null: Der Tresor verweigerte die Auskunft (403) oder war gestört —
+  // das ist nicht „ohne Schlüssel“.
+  const unklar = werte.filter(v => v && v.exists === null).length;
   if (resultEl) {
-    resultEl.dataset.zustand = 'fertig';
+    resultEl.dataset.zustand = unklar ? 'fehler' : 'fertig';
     resultEl.textContent = werte.length === 0
       ? 'Kein Postfach mit S/MIME — nichts zu prüfen'
       : `${werte.length} geprüft · ${mit} mit Schlüssel im Tresor · `
-        + `${werte.length - mit} ohne`;
+        + `${werte.length - mit - unklar} ohne`
+        + (unklar ? ` · ${unklar} nicht feststellbar (keine Leseberechtigung am Key Vault?)` : '');
   }
   // Vier Sekunden statt 1,2 — lang genug, um den Befund zu lesen, bevor
   // die Tabelle darunter mit dem neuen Stand erscheint.

@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.3 — 2026-11-13 — S/MIME: fehlende Rechte am Key Vault werden gemeldet
+
+- **Fehler:** Antwortete der Key Vault beim Nachsehen nach dem Schlüssel eines
+  Absenders mit 403 (keine Berechtigung), galt das wie „kein Schlüssel im
+  Vault“. Das Gateway signierte dann ohne Meldung mit dem lokalen Schlüssel,
+  auch im strengen Schlüsselmodus, der genau diesen Rückfall ausschließen
+  soll. Ein Rechteproblem am Vault blieb so unsichtbar.
+- **Jetzt:** 403, eine unerwartete Antwort oder ein fehlendes Zugriffstoken
+  gelten als Störung des Vaults. Im strengen Modus wird dann nicht signiert;
+  sonst signiert das Gateway weiter mit dem lokalen Schlüssel und schreibt
+  eine Warnung ins Protokoll („keine Berechtigung, den Schlüssel … zu lesen“).
+  „Kein Schlüssel im Vault“ (404) verhält sich wie bisher.
+- Die Protokollzeile beim Einreihen in die Warteschlange hieß „Zustellung
+  endgültig fehlgeschlagen“, obwohl danach automatisch wiederholt wird. Sie
+  heißt jetzt „Zustellung fehlgeschlagen … in Warteschlange gelegt“.
+
+**Zu tun:** nichts. Findest du die neue Warnung im Protokoll, fehlt der App
+des Gateways die Rolle *Key Vault Crypto Officer* auf dem Vault: in der
+Einrichtung beim Azure Key Vault *Verbindung testen* und dann *Rolle
+sicherstellen (Crypto Officer)*.
+
 ## v1.12.2 — 2026-11-13 — Geteilte Postfächer: Signatur der Person wird ersetzt; Postfach-Prüfung kennt {{ bearbeiter }}
 
 - **Fehler:** Schrieb jemand „im Auftrag von“ oder „als“ ein geteiltes

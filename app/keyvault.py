@@ -83,27 +83,46 @@ def _b64url_encode(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 
-async def key_exists(email: str) -> bool:
-    """Return True if an S/MIME key for this email exists in Key Vault."""
+# Ergebnis von key_zustand(). „verweigert“ (HTTP 403) ist NICHT „fehlt“: Der
+# Schlüssel kann im Vault liegen, nur die Gateway-App darf ihn nicht lesen. Bis
+# v1.12.2 galt 403 als „fehlt“ — das Signieren nahm still den lokalen Schlüssel,
+# auch bei KV_KEY_MODE=strict, das genau das verbieten soll (gemessen
+# 13.11.2026, DEV-Gateway: 403, danach „S/MIME signed“).
+KEY_VORHANDEN, KEY_FEHLT, KEY_VERWEIGERT, KEY_FEHLER = "vorhanden", "fehlt", "verweigert", "fehler"
+
+
+async def key_zustand(email: str) -> str:
+    """Liegt ein S/MIME-Schlüssel für `email` im Vault? Einer der KEY_*-Werte;
+    `fehlt` auch, wenn kein Vault eingerichtet ist."""
     if not is_configured():
-        return False
+        return KEY_FEHLT
     key_name = _email_to_key_name(email)
     token = await _get_kv_token()
     if not token:
-        return False
+        log.warning("Key Vault: kein Zugriffstoken — Schlüssel für %s nicht prüfbar", email)
+        return KEY_FEHLER
     url = f"{vault_url()}/keys/{key_name}?api-version={_KV_API}"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
-        if resp.status_code == 200:
-            return True
-        if resp.status_code in (404, 403):
-            return False
-        log.warning("keyvault key_exists: unexpected status %s for %s", resp.status_code, email)
-        return False
     except Exception as exc:
         log.error("keyvault key_exists error for %s: %s", email, exc)
-        return False
+        return KEY_FEHLER
+    if resp.status_code == 200:
+        return KEY_VORHANDEN
+    if resp.status_code == 404:
+        return KEY_FEHLT
+    if resp.status_code == 403:
+        log.warning("Key Vault: keine Berechtigung, den Schlüssel %s zu lesen (403) — "
+                    "Rolle der Gateway-App auf dem Vault prüfen", key_name)
+        return KEY_VERWEIGERT
+    log.warning("keyvault key_exists: unexpected status %s for %s", resp.status_code, email)
+    return KEY_FEHLER
+
+
+async def key_exists(email: str) -> bool:
+    """Return True if an S/MIME key for this email exists in Key Vault."""
+    return await key_zustand(email) == KEY_VORHANDEN
 
 
 def _kv_exportable() -> bool:

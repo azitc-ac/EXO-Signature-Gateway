@@ -96,7 +96,12 @@ async def sign_async(message_bytes: bytes, sender: str) -> bytes | None:
     """
     try:
         import keyvault
-        if keyvault.is_configured() and await keyvault.key_exists(sender):
+        zustand = await keyvault.key_zustand(sender) if keyvault.is_configured() else keyvault.KEY_FEHLT
+        if zustand in (keyvault.KEY_VERWEIGERT, keyvault.KEY_FEHLER):
+            # Nicht „kein Schlüssel im Vault“, sondern „Vault nicht lesbar“ —
+            # derselbe Weg wie bei einer Störung (strict: nicht signieren).
+            raise RuntimeError(f"Schlüssel im Key Vault nicht lesbar ({zustand})")
+        if zustand == keyvault.KEY_VORHANDEN:
             log.debug("S/MIME sign_async: trying Key Vault for %s", sender)
             cert_path = smime_store.get_signing_cert_path(sender)
             if cert_path and cert_path.exists():

@@ -236,10 +236,14 @@ async def api_smime_kv_status_refresh(_=Depends(_require_admin)):
     all_emails = sorted(smime_from_config | smime_from_certs)
     if not all_emails:
         return JSONResponse({"ok": True, "results": {}})
-    results_list = await asyncio.gather(*[_kv.key_exists(em) for em in all_emails])
+    results_list = await asyncio.gather(*[_kv.key_zustand(em) for em in all_emails])
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    new_status = {em: {"exists": bool(ex), "checked": now_iso}
-                  for em, ex in zip(all_emails, results_list)}
+    # 403/Störung heißt „nicht feststellbar“, nicht „nicht im Tresor“ — None
+    # zeigt die Übersicht als unbekannt.
+    new_status = {em: {"exists": (True if z == _kv.KEY_VORHANDEN else
+                                  False if z == _kv.KEY_FEHLT else None),
+                       "zustand": z, "checked": now_iso}
+                  for em, z in zip(all_emails, results_list)}
     settings_store.update({"KV_KEY_STATUS": new_status})
     log.info("KV key status refreshed for %d emails", len(all_emails))
     return JSONResponse({"ok": True, "results": new_status})

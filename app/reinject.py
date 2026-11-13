@@ -144,7 +144,7 @@ def _fail_delivery(mail_from: str, rcpt_tos: list[str],
         mid = held_mails.hold(mail_from, list(rcpt_tos), content_bytes,
                               reason="delivery_failed")
         stats.increment("delivery_queued")
-        log.warning("Zustellung endgültig fehlgeschlagen (%s) — Mail in Warteschlange "
+        log.warning("Zustellung fehlgeschlagen (%s) — Mail in Warteschlange "
                     "gelegt (id=%s, from=%s, to=%s). Automatischer Retry (Exchange-Kadenz) "
                     "oder Freigabe über die Oberfläche.",
                     grund, mid, mail_from, rcpt_tos)
