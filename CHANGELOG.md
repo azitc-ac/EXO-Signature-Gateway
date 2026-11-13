@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.9 — 2026-11-13 — CI: Oberflächen-Tests laufen im echten Browser
+
+Die Oberflächen-Tests (`tests/test_ui_browser.py`, Playwright mit Chromium)
+prüfen, was sich nur aus HTML, CSS und JavaScript zusammen ergibt: Ankreuzfeld
+neben seiner Beschriftung, Abstand zwischen Feld und Speichern-Knopf,
+Darstellung auf Telefonbreite. In der CI liefen sie bisher nie: Ohne Browser
+überspringen sie sich, und der Lauf war trotzdem grün.
+
+- Neuer CI-Job **Browser-Tests** mit Chromium und gepinnter Playwright-Fassung
+  (`tests/requirements-browser.txt`).
+- Im Job gilt `BROWSER_PFLICHT=1`: Fehlt Playwright, startet Chromium nicht
+  oder kommt der Testserver nicht hoch, ist das ein Fehler statt eines
+  übersprungenen Tests. Lokal bleibt das Überspringen erhalten.
+
+Keine Änderung am Gateway selbst.
+
+**Zu tun:** nichts.
+
 ## v1.12.8 — 2026-11-13 — Verschlüsseln hängt nicht mehr am Schalter „Signieren“
 
 - **Bisher:** War unter *Einstellungen → S/MIME* das automatische Signieren

@@ -1,0 +1,3 @@
+# Nur für tests/test_ui_browser.py (eigener CI-Job „Browser-Tests“).
+# Gepinnt wie alles andere; Fassung = lokale .venv (13.11.2026).
+playwright==1.60.0

@@ -23,10 +23,17 @@ Jeder Test hier steht für einen Fehler, der in dieser Form aufgetreten ist:
 
 AUSFÜHRUNG
 ----------
-Braucht `playwright` und einen Chromium. Fehlt eines, werden die Tests
-übersprungen — in der CI ist das der Normalfall (dort steht kein Browser).
+Braucht `playwright` (Fassung in tests/requirements-browser.txt) und einen
+Chromium. Fehlt eines, werden die Tests übersprungen — lokal bequem.
 Lokal:  .venv/bin/python -m pytest tests/test_ui_browser.py
+
+⚠️ In der CI läuft ein eigener Job mit BROWSER_PFLICHT=1. Dann ist fehlende
+Infrastruktur (kein playwright, kein Chromium, Server nicht hoch) ein FEHLER,
+kein Überspringen. Bis 2026-11-13 liefen diese Tests in der CI nie — der Lauf
+war grün, weil alles übersprungen wurde. Ein Netz, das sich still abmeldet,
+hält nichts.
 """
+import os
 import socket
 import sys
 import threading
@@ -38,8 +45,23 @@ import pytest
 WURZEL = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(WURZEL / "app"))
 
-pytest.importorskip("playwright", reason="playwright nicht installiert")
-pytest.importorskip("uvicorn", reason="uvicorn nicht installiert")
+PFLICHT = os.environ.get("BROWSER_PFLICHT") == "1"
+
+
+def _infrastruktur_fehlt(grund: str):
+    """Überspringen — außer im Pflichtmodus der CI, dort ist es ein Fehler."""
+    if PFLICHT:
+        pytest.fail(f"BROWSER_PFLICHT: {grund}", pytrace=False)
+    pytest.skip(grund)
+
+
+try:
+    import playwright  # noqa: F401
+    import uvicorn  # noqa: F401
+except ImportError as exc:
+    if PFLICHT:
+        raise RuntimeError(f"BROWSER_PFLICHT, aber {exc}") from exc
+    pytest.skip(f"playwright/uvicorn nicht installiert: {exc}", allow_module_level=True)
 
 from playwright.sync_api import sync_playwright  # noqa: E402
 
@@ -72,7 +94,7 @@ def server():
             break
         time.sleep(0.1)
     else:
-        pytest.skip("Server ist nicht hochgekommen")
+        _infrastruktur_fehlt("Server ist nicht hochgekommen")
     yield f"http://127.0.0.1:{port}"
     server.should_exit = True
     faden.join(timeout=5)
@@ -86,7 +108,7 @@ def browser():
             yield b
             b.close()
     except Exception as exc:                       # kein Browser installiert
-        pytest.skip(f"Chromium nicht startbar: {str(exc)[:80]}")
+        _infrastruktur_fehlt(f"Chromium nicht startbar: {str(exc)[:80]}")
 
 
 @pytest.fixture
