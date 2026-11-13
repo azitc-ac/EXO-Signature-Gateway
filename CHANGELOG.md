@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.1 — 2026-11-13 — Keine doppelte Zustellung nach einer Störung; Tenant-Weiterleitung wartet länger
+
+- **Fehler:** Gab die einliefernde Stelle auf, bevor das Gateway geantwortet
+  hatte, lieferte sie dieselbe Nachricht erneut ein. War die erste Fassung da
+  schon wegen eines Zustellfehlers in der Warteschlange, kam mit jedem
+  weiteren gescheiterten Versuch eine Kopie hinzu, und jede wurde später
+  nachgestellt. Beobachtet bei einer Exchange-Störung: drei Kopien derselben
+  Nachricht.
+- **Jetzt:** Die Warteschlange erkennt eine erneute Einlieferung an
+  Message-ID, Date-Kopf und Empfänger. Eine Nachricht, die schon wartet, wird
+  nicht noch einmal eingereiht. Wird sie über einen späteren Versuch
+  zugestellt, verschwindet die wartende Kopie für diese Empfänger. War sie
+  bereits zugestellt, wird ein späterer gescheiterter Versuch nicht mehr
+  eingereiht. Das Protokoll nennt jeden dieser Fälle. Ohne Message-ID oder
+  Date-Kopf bleibt es beim bisherigen Verhalten. Der Date-Kopf gehört dazu,
+  weil manche Geräte jede Nachricht mit derselben Message-ID schreiben. Das
+  Gedächtnis für zugestellte Nachrichten (2 Tage) liegt im Speicher; nach
+  einem Neustart gilt das bisherige Verhalten, es geht nichts verloren.
+- **Tenant-Weiterleitung an ein zweites Gateway:** Die Weiterleitung gab nach
+  30 s auf. Das Ziel wartet aber selbst bis zu 30 s auf seinen Rückweg zu
+  Exchange, bevor es eine Nachricht einreiht und antwortet, und war damit
+  regelmäßig knapp zu spät. Nach dem Senden der Daten wartet die
+  Weiterleitung jetzt bis zu 240 s auf die Antwort (Verbindungsaufbau weiter
+  30 s). Länger geht nicht: Das Gateway selbst schließt eine einliefernde
+  Verbindung 300 s nach dem Datenbefehl. Die Weiterleitung läuft dafür in
+  einem eigenen Thread und hält andere Verbindungen nicht mehr an.
+
+**Zu tun:** nichts.
+
 ## v1.12.0 — 2026-11-13 — Release: interne Signatur, Senden aus geteilten Postfächern, „#enc“ ohne Klartext-Rückfall, klassisches Outlook
 
 v1.12.0 fasst die Entwicklung seit v1.11.29 zusammen. Schwerpunkte:

@@ -686,7 +686,9 @@ class SignatureHandler:
                     if _tziel:
                         import relay_stats
                         try:
-                            reinject._relay_to_target(_tziel, sender, recipients, raw)
+                            await asyncio.to_thread(
+                                reinject._relay_to_target, _tziel, sender, recipients, raw,
+                                antwort_s=reinject.ANTWORT_NACH_DATEN_S)
                         except Exception as exc:              # noqa: BLE001
                             log.error("Tenant-Weiterleitung %s → %s fehlgeschlagen: %s",
                                       _fremd_tenant, _tziel, exc)

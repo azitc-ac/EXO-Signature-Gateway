@@ -1,6 +1,7 @@
 import smtplib
 import ssl
 import logging
+import contextvars
 import threading
 import time as _time
 
@@ -135,6 +136,9 @@ def _fail_delivery(mail_from: str, rcpt_tos: list[str],
     """
     if not queue:
         raise RuntimeError(f"Zustellung fehlgeschlagen ({grund})")
+    eingereiht = _eingereiht.get()
+    if eingereiht is not None:
+        eingereiht.update(r.strip().lower() for r in rcpt_tos)
     try:
         import held_mails
         mid = held_mails.hold(mail_from, list(rcpt_tos), content_bytes,
@@ -157,8 +161,36 @@ def _fail_delivery(mail_from: str, rcpt_tos: list[str],
 WEG_GRAPH_MIT_KOPIE = "graph_mit_kopie"
 
 
+# Empfänger, die während des laufenden send() in die Warteschlange gingen
+# (_fail_delivery). Was nicht darin steht, gilt nach normaler Rückkehr als
+# zugestellt — dafür trägt held_mails gleiche, noch wartende Kopien aus.
+_eingereiht: contextvars.ContextVar[set | None] = contextvars.ContextVar(
+    "reinject_eingereiht", default=None)
+
+
 def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
          force_mime: bool = False, queue_on_failure: bool = True) -> str | None:
+    """Zustellen (siehe `_senden`) und danach festhalten, wer die Nachricht
+    bekommen hat. Eine Kopie, die wegen eines früheren Zustellfehlers noch in
+    der Warteschlange liegt, würde sonst ein zweites Mal zugestellt."""
+    eingereiht: set = set()
+    marke = _eingereiht.set(eingereiht)
+    try:
+        weg = _senden(mail_from, rcpt_tos, content_bytes, force_mime, queue_on_failure)
+    finally:
+        _eingereiht.reset(marke)
+    zugestellt = [r for r in rcpt_tos if r.strip().lower() not in eingereiht]
+    if zugestellt:
+        try:
+            import held_mails
+            held_mails.merke_zugestellt(content_bytes, zugestellt)
+        except Exception as exc:                              # noqa: BLE001
+            log.warning("held_mails: Zustellung nicht vermerkt: %s", exc)
+    return weg
+
+
+def _senden(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
+            force_mime: bool = False, queue_on_failure: bool = True) -> str | None:
     """
     Re-inject a mail.  Mode is controlled by REINJECT_MODE setting (canonical
     values via settings_store.reinject_mode(); "imap"/"smtp587" are legacy
@@ -498,8 +530,26 @@ def _an_postfix(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     log.info("Direktversand übergeben: from=%s to=%s (%s)", mail_from, rcpt_tos, ergebnis)
 
 
+# Wartezeit auf die Antworten im Nachrichtenteil der TENANT-Weiterleitung an ein
+# zweites Gateway (MAIL, RCPT, DATA, Ende der Daten). Die 30 s davor (Verbindung,
+# EHLO, STARTTLS) bleiben, damit ein nicht erreichbares Ziel schnell als Fehler
+# gilt. RFC 5321 §4.5.3.2 empfiehlt nach dem Datenende 10 Minuten — hier ist die
+# eigene Annahmeseite die Grenze: aiosmtpd (1.4.6) setzt seinen Zähler
+# (SMTP(timeout=300)) beim DATA-Befehl zurück, nicht bei den Datenzeilen und
+# nicht während handle_DATA — 300 s nach DATA schließt es die Verbindung.
+# Wartete die Weiterleitung länger, ginge das „250“ an Exchange verloren und
+# Exchange lieferte erneut ein. 240 s lassen Raum für Übertragung und Prüfung.
+# ⚠️ Nur in einem eigenen Thread (handler: asyncio.to_thread). handle_DATA läuft
+# in der einen Ereignisschleife des SMTP-Servers; ein blockierender Aufruf hält
+# dort JEDE andere Verbindung an. Die Aufrufe aus send() behalten deshalb 30 s.
+# Messung 12.11.2026: Das Ziel antwortete nach 33 s (eigener Rückweg 30 s
+# blockiert, dann eingereiht), die Weiterleitung hatte nach 30 s aufgegeben —
+# Exchange lieferte erneut ein, die erste Fassung lag schon in der Warteschlange.
+ANTWORT_NACH_DATEN_S = 240
+
+
 def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
-                     content_bytes: bytes) -> None:
+                     content_bytes: bytes, antwort_s: float = 30) -> None:
     """Pass-through-Relay an ein konfiguriertes Next-Hop-Ziel (NICHT EXO).
 
     Anders als `_send_smtp`: KEIN `_strip_stale_signatures` — die Mail wird
@@ -546,6 +596,11 @@ def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
             smtp.ehlo()
         if cfg["user"] and cfg["pass"]:
             smtp.login(cfg["user"], cfg["pass"])
+        # Ab hier wartet das Ziel ggf. auf seinen eigenen Rückweg (ein zweites
+        # Gateway verarbeitet und liefert erst ein, bevor es antwortet). Gibt die
+        # äußere Stelle früher auf als die innere, liefert der Absender erneut
+        # ein, obwohl das Ziel die Nachricht schon angenommen hat.
+        smtp.sock.settimeout(antwort_s)
         smtp.sendmail(mail_from, rcpt_tos, content_bytes)
     log.info("Routing re-inject OK: from=%s to=%s via Ziel %s (%s:%s)",
              mail_from, rcpt_tos, ziel_id, host, port)

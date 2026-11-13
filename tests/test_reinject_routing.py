@@ -140,6 +140,10 @@ def test_relay_to_target_reicht_byte_genau_durch_ohne_dkim_strip(monkeypatch):
         def __init__(self, host, port, timeout=None, local_hostname=None):
             gesendet["host"] = host
             gesendet["port"] = port
+            self.sock = self
+
+        def settimeout(self, t):
+            gesendet["antwort_s"] = t
 
         def __enter__(self):
             return self

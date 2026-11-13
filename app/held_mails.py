@@ -8,6 +8,8 @@ import base64
 import email as _email_mod
 import json
 import logging
+import threading
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -48,6 +50,110 @@ def _abstand_fuer(versuche: int) -> int:
     return _STEADY_ABSTAND_S
 
 
+# ── Entdoppelung ──────────────────────────────────────────────────────────────
+# Gibt die einliefernde Stelle (Exchange, ein vorgelagertes Gateway) auf, bevor
+# das Gateway geantwortet hat, liefert sie dieselbe Nachricht erneut ein. Lag die
+# erste Fassung da schon hier, entstand je Versuch eine Kopie, und jede wurde
+# später nachgestellt (Messung 12.11.2026: drei Kopien nach einer Exchange-Störung).
+# Schlüssel je Empfänger: Message-ID + Date + Empfänger. Date gehört dazu, weil
+# manche Geräte jede Nachricht mit derselben Message-ID schreiben — eine erneute
+# Einlieferung trägt dagegen denselben Date-Kopf. Ohne Message-ID oder Date keine
+# Entdoppelung (im Zweifel zustellen, nie verwerfen).
+# Nur im Speicher: Ein Neustart vergisst das Fenster, dann gilt das Verhalten von
+# vorher (Kopie wird nachgestellt), es geht nichts verloren.
+_ZUGESTELLT_FENSTER_S = _AUFGABE_NACH_S
+_ZUGESTELLT_MAX = 20000
+_zugestellt: dict[tuple[str, str, str], float] = {}
+_zugestellt_lock = threading.Lock()
+
+
+def _kennung(raw_bytes: bytes) -> tuple[str, str] | None:
+    """(Message-ID, Date) aus dem Kopf, oder None, wenn eines fehlt."""
+    try:
+        kopf = raw_bytes.split(b"\r\n\r\n", 1)[0].split(b"\n\n", 1)[0]
+        m = _email_mod.message_from_bytes(kopf + b"\r\n\r\n")
+        mid = (m.get("Message-ID") or "").strip()
+        datum = " ".join((m.get("Date") or "").split())
+    except Exception:
+        return None
+    return (mid, datum) if mid and datum else None
+
+
+def _bereits_zugestellt(kennung: tuple[str, str], empfaenger: str, jetzt: float) -> bool:
+    t = _zugestellt.get((*kennung, empfaenger.strip().lower()))
+    return t is not None and jetzt - t < _ZUGESTELLT_FENSTER_S
+
+
+def merke_zugestellt(raw_bytes: bytes, empfaenger: list[str]) -> int:
+    """Nach einer erfolgreichen Zustellung: merken und gleiche Kopien, die noch
+    wegen eines Zustellfehlers warten, für diese Empfänger austragen.
+    Gibt die Zahl der ausgetragenen Empfänger zurück."""
+    kennung = _kennung(raw_bytes)
+    if not kennung or not empfaenger:
+        return 0
+    jetzt = time.monotonic()
+    klein = {e.strip().lower() for e in empfaenger}
+    with _zugestellt_lock:
+        for e in klein:
+            _zugestellt[(*kennung, e)] = jetzt
+        if len(_zugestellt) > _ZUGESTELLT_MAX:
+            for k in sorted(_zugestellt, key=_zugestellt.get)[:len(_zugestellt) - _ZUGESTELLT_MAX]:
+                del _zugestellt[k]
+    _ensure_dir()
+    ausgetragen = 0
+    for p in _HELD_DIR.glob("*.json"):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if d.get("reason") != "delivery_failed":
+                continue
+            if _kennung(base64.b64decode(d["raw_mime_b64"])) != kennung:
+                continue
+        except Exception:
+            continue
+        rest = [a for a in d["to_addrs"] if a.strip().lower() not in klein]
+        weg = len(d["to_addrs"]) - len(rest)
+        if not weg:
+            continue
+        ausgetragen += weg
+        if rest:
+            d["to_addrs"] = rest
+            p.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+        else:
+            p.unlink(missing_ok=True)
+        log.info("held_mails: %s — %d Empfänger inzwischen zugestellt, Kopie %s "
+                 "(Message-ID %s)", d["id"], weg,
+                 "gekürzt" if rest else "entfernt", kennung[0])
+    return ausgetragen
+
+
+def _schon_erfasst(raw_bytes: bytes, recipients: list[str]) -> tuple[list[str], str]:
+    """Empfänger, die noch eingereiht werden müssen, und die Kennung einer schon
+    wartenden Kopie (für die Rückgabe, wenn keiner übrig bleibt)."""
+    kennung = _kennung(raw_bytes)
+    if not kennung:
+        return list(recipients), ""
+    jetzt = time.monotonic()
+    with _zugestellt_lock:
+        offen = [r for r in recipients if not _bereits_zugestellt(kennung, r, jetzt)]
+    vorhanden = ""
+    _ensure_dir()
+    for p in _HELD_DIR.glob("*.json"):
+        if not offen:
+            break
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if (d.get("reason") != "delivery_failed"
+                    or _kennung(base64.b64decode(d["raw_mime_b64"])) != kennung):
+                continue
+        except Exception:
+            continue
+        wartend = {a.strip().lower() for a in d["to_addrs"]}
+        if any(r.strip().lower() in wartend for r in offen):
+            vorhanden = d["id"]
+            offen = [r for r in offen if r.strip().lower() not in wartend]
+    return offen, vorhanden
+
+
 def _ensure_dir() -> None:
     _HELD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -61,6 +167,17 @@ def hold(sender: str, recipients: list[str], raw_bytes: bytes,
     Verarbeitung/Entschlüsselung endgültig gescheitert — Fallnetz gegen Verlust).
     """
     _ensure_dir()
+
+    if reason == "delivery_failed":
+        offen, vorhanden = _schon_erfasst(raw_bytes, list(recipients))
+        if len(offen) < len(recipients):
+            log.info("held_mails: erneute Einlieferung (Message-ID %s) — %d von %d "
+                     "Empfänger(n) bereits zugestellt oder schon in der Warteschlange%s",
+                     (_kennung(raw_bytes) or ("?",))[0], len(recipients) - len(offen),
+                     len(recipients), f" ({vorhanden})" if vorhanden else "")
+        if not offen:
+            return vorhanden or "bereits-zugestellt"
+        recipients = offen
 
     # Enforce cap — drop oldest first.
     existing = sorted(_HELD_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime)

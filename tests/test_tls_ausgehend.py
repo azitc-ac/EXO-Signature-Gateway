@@ -94,6 +94,10 @@ class _FakeSMTP:
 
     def __init__(self, host, port, timeout=None, local_hostname=None):
         _FakeSMTP.letzte = {"host": host}
+        self.sock = self                                    # settimeout() unten
+
+    def settimeout(self, t):
+        _FakeSMTP.letzte["antwort_s"] = t
 
     def __enter__(self):
         return self
