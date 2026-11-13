@@ -5,6 +5,45 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.0 — 2026-11-13 — Release: interne Signatur, Senden aus geteilten Postfächern, „#enc“ ohne Klartext-Rückfall, klassisches Outlook
+
+v1.12.0 fasst die Entwicklung seit v1.11.29 zusammen. Schwerpunkte:
+
+- **Sicherheit:** „#enc“ geht bei gescheiterter Verschlüsselung nie mehr im
+  Klartext hinaus (Portal oder Unzustellbarkeitsmeldung), S/MIME mit
+  EC-Zertifikaten (v1.11.36–38). Das Diagnosepaket maskiert alle Geheimnisse,
+  das Mail-Protokoll hält wirklich 7 Tage (v1.11.47).
+- **Interne Signatur und geteilte Postfächer:** eigener Vorlagen-Slot „intern“
+  für Post, die nur im Haus bleibt; Senden „im Auftrag von“ und aus geteilten
+  Postfächern mit deren Signatur und S/MIME-Zertifikat (v1.11.52–56).
+- **Verfassen-Add-in:** Signaturwechsel bei geänderten Empfängern oder
+  geänderter Von-Adresse (neues Manifest, v1.11.56); zu große Signaturen
+  erkannt (v1.11.41); Ereignis und Fassung des Add-ins im Protokoll, Hinweis
+  am PC einschaltbar (v1.11.60).
+- **Klassisches Outlook (winmail.dat):** Antwortketten und Add-in-Signatur
+  erkannt, eingebettete Logos bleiben eingebettet, keine zweite Signatur
+  (v1.11.58, v1.11.66).
+- **Gesendete Elemente:** kein doppeltes Element mehr, wenn Exchange die Kopie
+  verzögert findet (v1.11.59).
+- **Abwesenheit:** wird zurückgenommen, wenn der Kalendertermin entfällt
+  (v1.11.33).
+- **Betrieb:** Warnband, wenn eigene Exchange-Post abgewiesen wird (v1.11.31);
+  Bypass-Wächter übersteht Exchange-Störungen und ist aktualisierbar
+  (v1.11.64); neue Installationen starten auf dem letzten Release (v1.11.63).
+
+Die Einzelheiten stehen in den Einträgen v1.11.30 bis v1.11.67.
+
+**Zu tun:** nur, was die Einträge v1.11.30 bis v1.11.67 nennen. Im Kern sind
+das zwei Punkte, und beide erscheinen im Sammelpunkt *Offene Aufgaben* oben
+rechts:
+
+- *Verfassen-Add-in:* Im *Microsoft 365 Admin Center → Einstellungen →
+  Integrierte Apps* das Add-in aktualisieren und die Berechtigungen bestätigen
+  (v1.11.56). Bis Microsoft die neue Fassung an die Postfächer ausliefert,
+  können Stunden bis Tage vergehen; bis dahin arbeitet die bisherige weiter.
+- *Bypass-Wächter als Azure Function:* *Erweitert → Bypass-Wächter → Code
+  aktualisieren* (v1.11.64).
+
 ## v1.11.67 — 2026-11-12 — Berichtigung zum Bypass-Wächter (v1.11.64)
 
 - Der Eintrag zu v1.11.64 stellte dar, ein Azure-Wächter bleibe nach einer
