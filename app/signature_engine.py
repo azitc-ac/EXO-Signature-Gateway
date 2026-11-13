@@ -107,6 +107,22 @@ def erkennungs_zeilen(user: UserData, vorlagen: dict) -> list[list[str]]:
     return listen
 
 
+def _kontext(user: UserData, extra: dict | None) -> dict:
+    """Die Variablen jeder Signaturvorlage — EINE Stelle für Versand und Prüfung.
+    Bis v1.12.1 baute `render_fehler` den Kontext selbst nach und ließ
+    `bearbeiter` weg; die Postfach-Prüfung meldete jede Vorlage mit
+    {{ bearbeiter.* }} als „'bearbeiter' is undefined“, obwohl sie beim Versand
+    renderte."""
+    return {
+        "user": user,
+        "custom": user.custom,
+        # Wer die Mail schreibt — bei „im Auftrag von“ die Person, sonst der
+        # Inhaber selbst (handler/Add-in reichen sie über `extra` herein).
+        "bearbeiter": user,
+        **(extra or {}),
+    }
+
+
 def render_fehler(user: UserData, template_name: str | None = None,
                   extra: dict | None = None) -> str | None:
     """Warum die HTML-Vorlage nicht rendert — oder None, wenn sie es tut.
@@ -127,7 +143,7 @@ def render_fehler(user: UserData, template_name: str | None = None,
         # die Prüfung jede solche Vorlage als „'oof' is undefined".
         leer = {k: "" for k in OOF_PLATZHALTER}
         extra = {"oof": leer, **leer, **(extra or {})}
-    ctx = {"user": user, "custom": user.custom, **(extra or {})}
+    ctx = _kontext(user, extra)
     try:
         _get_env().get_template(html_file).render(**ctx)
     except TemplateNotFound:
@@ -143,14 +159,7 @@ def render(user: UserData, template_name: str | None = None,
     durch (z.B. `zeitraum`/`name` der Abwesenheit), sodass sie wie jede andere
     Variable als `{{ … }}` verwendbar sind."""
     env = _get_env()
-    ctx = {
-        "user": user,
-        "custom": user.custom,
-        # Wer die Mail schreibt — bei „im Auftrag von“ die Person, sonst der
-        # Inhaber selbst (handler/Add-in reichen sie über `extra` herein).
-        "bearbeiter": user,
-        **(extra or {}),
-    }
+    ctx = _kontext(user, extra)
 
     html_file, txt_file = _resolve_template_names(template_name)
 

@@ -79,7 +79,8 @@ def anlage(monkeypatch):
     eigen, weiter = [], []
     monkeypatch.setattr(reinject, "send", lambda *a, **kw: eigen.append(a) or True)
 
-    def _hop(ziel, absender, empfaenger, inhalt):
+    def _hop(ziel, absender, empfaenger, inhalt, antwort_s=30):
+        assert antwort_s == reinject.ANTWORT_NACH_DATEN_S   # lange Wartezeit, eigener Thread
         if werte.get("_hop_fehler"):
             raise OSError("Verbindung abgelehnt")
         weiter.append((ziel, absender, list(empfaenger), inhalt))

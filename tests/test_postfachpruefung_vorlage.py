@@ -88,3 +88,14 @@ def test_oof_platzhalter_decken_sich_mit_render_oof():
                   and any(getattr(t, "id", "") == "oof_ns" for t in n.targets))
     schluessel = {k.value for k in oof_ns.keys}
     assert schluessel == set(signature_engine.OOF_PLATZHALTER)
+
+
+def test_vorlage_mit_bearbeiter_ist_ok(verz, monkeypatch):
+    """Vorlagen geteilter Postfächer nennen die schreibende Person
+    ({{ bearbeiter.* }}). Die Prüfung rendert mit demselben Kontext wie der
+    Versand (signature_engine._kontext) — bis v1.12.1 fehlte ihr `bearbeiter`
+    und sie meldete „'bearbeiter' is undefined“."""
+    (verz / "Team.html").write_text("<p>{{ bearbeiter.displayName }} für {{ user.displayName }}</p>",
+                                    encoding="utf-8")
+    assert signature_engine.render_fehler(graph_client.UserData(displayName="X"), "Team") is None
+    assert _pruefe(monkeypatch, "Team")["status"] == "ok"

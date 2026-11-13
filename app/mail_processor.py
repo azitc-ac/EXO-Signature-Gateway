@@ -243,6 +243,25 @@ def ist_vorlage(block_html: str, gesucht_html: str, andere_html: str) -> bool:
     return anteil >= 0.8 and anteil > anteil_andere
 
 
+def traegt_vorlage(block_html: str, vorlage_html: str, neutral_html: str) -> bool:
+    """Trägt die Add-in-Signatur `block_html` die Vorlage `vorlage_html` für
+    DIESES Postfach? `neutral_html` ist dieselbe Vorlage ohne die Daten des
+    Postfachinhabers ({{ user.* }} leer, {{ bearbeiter.* }} unverändert); was
+    nur dort fehlt (Name, Funktion, Telefon des Postfachs), unterscheidet die
+    Postfächer. Davon müssen 80 % im Block stehen. Gemeinsame Zeilen wie Firma
+    und Anschrift zählen nicht — sonst ginge die Signatur einer Person als die
+    des geteilten Postfachs durch. Zeilen der schreibenden Person zählen
+    ebenfalls nicht: Bei „Senden als“ kennt das Gateway sie nicht, das Add-in
+    schon. Ohne unterscheidende Zeilen gilt die 80-%-Regel für die ganze
+    Vorlage."""
+    gesucht = set(text_zeilen(vorlage_html))
+    block = set(text_zeilen(block_html))
+    if not gesucht or not block:
+        return False
+    eigen = (gesucht - set(text_zeilen(neutral_html))) or gesucht
+    return len(block & eigen) / len(eigen) >= 0.8
+
+
 def addin_signatur_entfernen(msg: email.message.Message) -> bool:
     """Signatur des Verfassen-Add-ins aus allen HTML-Teilen entfernen, damit
     das Gateway seine eigene Entscheidung einsetzen kann

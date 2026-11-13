@@ -421,6 +421,27 @@ def _restore_envelope_headers(inner_msg: email.message.Message,
     huelle.uebernehmen(inner_msg, outer_msg)
 
 
+
+def _geteilt_eigene_signatur(block: str, vorlagen: dict, cfg: dict, absender: str,
+                             mailbox_cfg: dict, user_data, extra: dict) -> bool:
+    """Trägt die Add-in-Signatur `block` eine Vorlage des geteilten Postfachs?
+    Geprüft werden alle Vorlagen, die dort entstehen können: Signatur,
+    Antwort-Signatur, interne, und was das Knopf-Add-in zur Wahl stellt."""
+    import policies
+    namen = {vorlagen.get(s) for s in ("sig", "min", "intern")}
+    for wahl in (cfg.get("addin_templates"), policies.addin_freigabe(absender, mailbox_cfg)):
+        if wahl == "*":
+            namen.update(signature_engine.list_templates())
+        elif isinstance(wahl, list):
+            namen.update(wahl)
+    leer = graph_client.UserData()
+    for name in sorted(n for n in namen if n):
+        html, _ = signature_engine.render(user_data, template_name=name, extra=extra)
+        neutral, _ = signature_engine.render(leer, template_name=name, extra=extra)
+        if mail_processor.traegt_vorlage(block, html, neutral):
+            return True
+    return False
+
 class SignatureHandler:
     async def handle_PROXY(self, server, session, envelope, proxy_data):
         """PROXY-Vorspann einer eingetragenen Firewall (smtp_proxy.py).
@@ -1287,6 +1308,27 @@ class SignatureHandler:
                         stats.increment("intern_korrigiert")
                         log.warning("INTERN-KORREKTUR: interne Signatur im Entwurf, aber externe "
                                     "Empfänger — ersetzt für %s", _sig_absender)
+            # Geteiltes Postfach („im Auftrag von“ oder „Senden als“): Das Add-in
+            # setzt beim Öffnen die Signatur der PERSON; den Wechsel der
+            # Von-Adresse bekommt es nur mit OnMessageFromChanged mit (neues
+            # Manifest, nicht jeder Client). Gehört die Signatur im Entwurf nicht
+            # zum geteilten Postfach, ersetzt das Gateway sie — Absenderadresse
+            # und Signatur stimmen überein (Entscheidung v1.11.56). Bei „Senden
+            # als“ ist die Person unbekannt; deshalb zählt, ob der Block die
+            # Zeilen des geteilten Postfachs trägt, nicht, wem er sonst gehört.
+            import exo_mailboxes as _exo_mb
+            if _im_entwurf and (_bearbeiter or _exo_mb.ist_geteilt(_sig_absender)):
+                _block = mail_processor.addin_signatur_html(msg)
+                if _block:
+                    stats.increment("geteilt_entwurf")
+                    if (not _geteilt_eigene_signatur(_block, _vorlagen, _sender_cfg, _sig_absender,
+                                                     _mailbox_cfg, user_data, _vorlage_extra)
+                            and mail_processor.addin_signatur_entfernen(msg)):
+                        _im_entwurf = False
+                        stats.increment("geteilt_korrigiert")
+                        log.warning("GETEILT-KORREKTUR: Signatur im Entwurf gehört nicht zu %s "
+                                    "(geschrieben von %s) — ersetzt", _sig_absender,
+                                    _bearbeiter or sender)
             if _im_entwurf:
                 suppress_html_sig = True
                 log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)

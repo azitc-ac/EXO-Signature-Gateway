@@ -71,6 +71,13 @@ KEYS = (
     # doch ein externer Empfänger dabei war. Jede Zählung ist eine verhinderte
     # Weitergabe einer internen Signatur nach außen.
     "intern_korrigiert",
+    # Post aus einem geteilten Postfach („im Auftrag von“ oder „Senden als“)
+    # mit einer Add-in-Signatur im Entwurf — Bezugsgröße für die nächste Zahl.
+    "geteilt_entwurf",
+    # Davon: Die Add-in-Signatur gehörte nicht zum geteilten Postfach (meist die
+    # der schreibenden Person, weil das Add-in den Absenderwechsel nicht
+    # mitbekam) und wurde ersetzt.
+    "geteilt_korrigiert",
     # Abwesenheitsantworten, die das Gateway selbst geschickt hat, weil die Mail
     # per Ablage (IMAP APPEND / Graph-Inject) statt per Zustellung ins Postfach
     # kam — dort schickt Exchange keine (oof_ablage.py).

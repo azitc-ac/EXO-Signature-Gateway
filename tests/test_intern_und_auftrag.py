@@ -253,3 +253,76 @@ def test_tnef_antwort_wird_als_kette_erkannt(anlage, monkeypatch):
     t = _text(anlage)
     assert t.count("Signatur Sig") == 1          # nur die zitierte, keine neue volle
     assert t.count("Signatur Min") == 2          # zitierte + neue Antwort-Signatur
+
+
+# ── Geteiltes Postfach: Signatur der Person im Entwurf (v1.12.1) ───────────────
+# Gemessen 13.11.2026 (DEV-Tenant): Das Add-in setzte beim Öffnen die Signatur
+# der Person; den Wechsel der Von-Adresse bekam es nicht mit (Manifest ohne
+# OnMessageFromChanged). Das Gateway erkannte „im Auftrag von“, übersprang aber,
+# weil schon eine Signatur im Entwurf stand — beim Empfänger die der Person.
+
+@pytest.fixture
+def zaehler(monkeypatch):
+    import stats
+    gezaehlt = []
+    monkeypatch.setattr(stats, "increment", lambda k, *a, **kw: gezaehlt.append(k))
+    return gezaehlt
+
+
+def _addin_von(vorlage, wer, bearbeiter):
+    import webui.routen.addin as addin
+    return "<p>Text</p>" + addin.markiert(_sig(vorlage, wer, bearbeiter))
+
+
+def test_auftrag_signatur_der_person_wird_ersetzt(anlage, zaehler):
+    _lauf(MAX, [EXTERN], von_kopf=f"Team <{TEAM}>", sender_kopf=f"Max <{MAX}>",
+          koerper=_addin_von("Sig", MAX, MAX))
+    t = _text(anlage)
+    assert "Signatur Sig" not in t
+    assert t.count(_sig("Team", TEAM, MAX)) == 1
+    assert zaehler.count("geteilt_entwurf") == 1 and zaehler.count("geteilt_korrigiert") == 1
+
+
+def test_auftrag_signatur_des_postfachs_bleibt(anlage, zaehler):
+    """Mit neuem Manifest setzt das Add-in selbst die richtige — nicht anfassen."""
+    _lauf(MAX, [EXTERN], von_kopf=f"Team <{TEAM}>", sender_kopf=f"Max <{MAX}>",
+          koerper=_addin_von("Team", TEAM, MAX))
+    assert _text(anlage).count("Signatur Team") == 1
+    assert zaehler.count("geteilt_entwurf") == 1 and "geteilt_korrigiert" not in zaehler
+
+
+def test_senden_als_signatur_der_person_wird_ersetzt(anlage, zaehler, monkeypatch):
+    """„Senden als“: Umschlag und From sind das geteilte Postfach, kein
+    Sender-Kopf — die Person ist dem Gateway unbekannt."""
+    import exo_mailboxes
+    monkeypatch.setattr(exo_mailboxes, "ist_geteilt", lambda e: e == TEAM)
+    _lauf(TEAM, [EXTERN], von_kopf=f"Team <{TEAM}>", koerper=_addin_von("Sig", MAX, MAX))
+    t = _text(anlage)
+    assert "Signatur Sig" not in t and t.count("Signatur Team") == 1
+    assert zaehler.count("geteilt_korrigiert") == 1
+
+
+def test_eigenes_postfach_bleibt_unberuehrt(anlage, zaehler, monkeypatch):
+    """Kein geteiltes Postfach, kein Auftrag: Eine per Knopf gewählte andere
+    Vorlage bleibt stehen, und es wird nichts gezählt."""
+    import exo_mailboxes
+    monkeypatch.setattr(exo_mailboxes, "ist_geteilt", lambda e: False)
+    _lauf(MAX, [EXTERN], koerper=_addin_von("Andere", MAX, MAX))
+    assert _text(anlage).count("Signatur Andere") == 1
+    assert "geteilt_entwurf" not in zaehler
+
+
+def test_gemeinsame_zeilen_allein_machen_keine_eigene_signatur():
+    """Firma und Anschrift stehen in beiden Signaturen — entscheidend sind die
+    Zeilen des Postfachs selbst."""
+    import mail_processor as mp
+    # Eine eigene Zeile, vier gemeinsame: Die Person trägt 80 % der Vorlage —
+    # ohne die Trennung in eigene/gemeinsame Zeilen ginge sie durch.
+    gemeinsam = "<p>Firma GmbH</p><p>Hauptstr. 1</p><p>12345 Ort</p><p>Tel. 0123 456</p>"
+    team = "<p>Team Vertrieb</p>" + gemeinsam
+    neutral = "<p></p>" + gemeinsam
+    person = "<p>Max Mustermann</p>" + gemeinsam
+    assert not mp.traegt_vorlage(person, team, neutral)
+    assert mp.traegt_vorlage(team, team, neutral)
+    assert mp.traegt_vorlage(team + "<p>Gruß</p>", team, neutral)
+    assert not mp.traegt_vorlage("", team, neutral)

@@ -166,6 +166,18 @@ def known_addresses() -> set[str]:
         return result
 
 
+def ist_geteilt(email: str) -> bool | None:
+    """Ist die Adresse ein geteiltes Postfach? Wie `known_addresses()` nur aus
+    dem vorhandenen Zwischenspeicher — nie ein PowerShell-Abruf, sicher im
+    SMTP-Pfad. None = unbekannt (Speicher leer oder Adresse nicht darin)."""
+    e = (email or "").strip().lower()
+    with _lock:
+        for m in _cache:
+            if e == m.get("primary") or e in (m.get("addresses") or []):
+                return m.get("type") != "UserMailbox"
+    return None
+
+
 def resolve_guid(email: str) -> str | None:
     """ExchangeGuid for ANY of a mailbox's SMTP addresses (primary or alias).
     This is what makes config survive rename/address changes."""

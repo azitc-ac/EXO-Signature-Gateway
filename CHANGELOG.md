@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.2 — 2026-11-13 — Geteilte Postfächer: Signatur der Person wird ersetzt; Postfach-Prüfung kennt {{ bearbeiter }}
+
+- **Fehler:** Schrieb jemand „im Auftrag von“ oder „als“ ein geteiltes
+  Postfach, setzte das Verfassen-Add-in beim Öffnen die Signatur der Person.
+  Den Wechsel der Von-Adresse bekommt es nur über das Ereignis „Absender
+  geändert“ mit, also erst mit dem neuen Manifest (v1.11.56) und nicht in
+  jedem Outlook. Das Gateway erkannte „im Auftrag von“, ließ die Signatur
+  aber stehen, weil schon eine im Entwurf stand. Beim Empfänger stand die
+  Signatur der Person unter einer Mail des geteilten Postfachs.
+- **Jetzt:** Bei Post aus einem geteilten Postfach prüft das Gateway, ob die
+  Add-in-Signatur im Entwurf zum geteilten Postfach gehört, und ersetzt sie
+  sonst durch dessen Signatur. Maßgeblich sind die Zeilen, die nur das
+  Postfach hat (Name, Funktion, Kontakt); gemeinsame Zeilen wie Firma und
+  Anschrift zählen nicht. Geprüft wird gegen alle Vorlagen, die dort
+  entstehen können (Signatur, Antwort-Signatur, interne, Auswahl im
+  Knopf-Add-in). Bei „Senden als“ ist die schreibende Person dem Gateway
+  unbekannt. Nennt eine Vorlage Postfach und Person in derselben Zeile, ersetzt
+  das Gateway dort deshalb auch die richtige Add-in-Signatur; `{{ bearbeiter }}`
+  nennt dann das geteilte Postfach selbst.
+- **Übersicht:** Neue Zeilen „Geteiltes Postfach mit Add-in-Signatur“ und
+  „davon Signatur der Person ersetzt“.
+- **Fehler:** Die Postfach-Prüfung meldete jede Vorlage mit
+  `{{ bearbeiter.* }}` als Fehler („'bearbeiter' is undefined“), obwohl sie
+  beim Versand renderte. Prüfung und Versand bauen die Vorlagenvariablen
+  jetzt an einer Stelle.
+
+**Zu tun:** nichts.
+
 ## v1.12.1 — 2026-11-13 — Keine doppelte Zustellung nach einer Störung; Tenant-Weiterleitung wartet länger
 
 - **Fehler:** Gab die einliefernde Stelle auf, bevor das Gateway geantwortet
@@ -34,9 +62,10 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 **Zu tun:** nichts.
 
-## v1.12.0 — 2026-11-13 — Release: interne Signatur, Senden aus geteilten Postfächern, „#enc“ ohne Klartext-Rückfall, klassisches Outlook
+## v1.12.0 — 2026-11-13 — Zusammenfassung seit v1.11.29: interne Signatur, Senden aus geteilten Postfächern, „#enc“ ohne Klartext-Rückfall, klassisches Outlook
 
-v1.12.0 fasst die Entwicklung seit v1.11.29 zusammen. Schwerpunkte:
+v1.12.0 fasst die Entwicklung seit v1.11.29 zusammen. Das Release im Kanal
+*Stabil* folgt nach weiteren Tests mit einer späteren Fassung. Schwerpunkte:
 
 - **Sicherheit:** „#enc“ geht bei gescheiterter Verschlüsselung nie mehr im
   Klartext hinaus (Portal oder Unzustellbarkeitsmeldung), S/MIME mit
@@ -62,9 +91,9 @@ v1.12.0 fasst die Entwicklung seit v1.11.29 zusammen. Schwerpunkte:
 
 Die Einzelheiten stehen in den Einträgen v1.11.30 bis v1.11.67.
 
-**Zu tun:** nur, was die Einträge v1.11.30 bis v1.11.67 nennen. Im Kern sind
-das zwei Punkte, und beide erscheinen im Sammelpunkt *Offene Aufgaben* oben
-rechts:
+**Zu tun:** nichts über die Einträge v1.11.30 bis v1.11.67 hinaus. Im Kern
+sind das zwei Punkte, und beide erscheinen im Sammelpunkt *Offene Aufgaben*
+oben rechts:
 
 - *Verfassen-Add-in:* Im *Microsoft 365 Admin Center → Einstellungen →
   Integrierte Apps* das Add-in aktualisieren und die Berechtigungen bestätigen
