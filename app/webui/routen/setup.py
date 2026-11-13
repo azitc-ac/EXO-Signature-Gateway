@@ -865,9 +865,16 @@ async def api_keyvault_save(request: Request, _: str = Depends(_require_admin)):
     data = await request.json()
     kv_url = (data.get("url") or "").strip().rstrip("/")
     resource_id = (data.get("resource_id") or "").strip()
+    bisher = (settings_store.get("KEYVAULT_URL") or "").strip().rstrip("/")
     to_save = {"KEYVAULT_URL": kv_url}
     if resource_id:
         to_save["KEYVAULT_RESOURCE_ID"] = resource_id
+    elif kv_url != bisher:
+        # Ausgetragen oder anderer Vault ohne neue Ressourcen-ID: Die alte
+        # gehört nicht mehr dazu. Stehen bleibend (bis v1.12.4) hätte „Rolle
+        # sicherstellen“ sie für die Rollenzuweisung benutzt — am alten Vault.
+        # Der Assistent löst sie bei Bedarf über den Vault-Namen neu auf.
+        to_save["KEYVAULT_RESOURCE_ID"] = ""
     settings_store.update(to_save)
     log.info("Key Vault URL saved: %s", kv_url or "(cleared)")
     return JSONResponse({"ok": True})

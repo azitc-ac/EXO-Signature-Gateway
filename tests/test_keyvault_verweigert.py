@@ -197,3 +197,29 @@ def test_status_pruefen_laedt_die_seite_nicht_neu():
     assert "reload" not in rumpf and "gesperrtLassen" not in rumpf
     migr = vorlage.split("async function migrateAllAndBackup(", 1)[1].split("\n}\n", 1)[0]
     assert "_schluesselBefundMerken(" in migr
+
+
+# ── Austragen räumt die Ressourcen-ID mit ab (v1.12.5) ────────────────────────
+# Gemessen 13.11.2026: URL geleert, KEYVAULT_RESOURCE_ID blieb stehen. Die
+# Einrichtung reicht sie an „Rolle sicherstellen“ weiter (_kvLastResourceId) —
+# nach einem Vault-Wechsel wäre die Rolle am alten Vault vergeben worden.
+
+@pytest.mark.parametrize("neu,erwartet", [
+    ("", ""),                                                    # ausgetragen
+    ("https://neu.vault.azure.net", ""),                         # anderer Vault, keine neue ID
+    ("https://alt.vault.azure.net/", "/sub/x/alt"),              # derselbe Vault: bleibt
+])
+def test_speichern_raeumt_alte_ressourcen_id(anlage, neu, erwartet):
+    c, werte = anlage
+    werte.update({"KEYVAULT_URL": "https://alt.vault.azure.net", "KEYVAULT_RESOURCE_ID": "/sub/x/alt"})
+    assert c.post("/api/setup/keyvault/save", json={"url": neu}).status_code == 200
+    assert werte["KEYVAULT_URL"] == neu.rstrip("/")
+    assert werte["KEYVAULT_RESOURCE_ID"] == erwartet
+
+
+def test_neue_ressourcen_id_wird_uebernommen(anlage):
+    c, werte = anlage
+    werte.update({"KEYVAULT_URL": "https://alt.vault.azure.net", "KEYVAULT_RESOURCE_ID": "/sub/x/alt"})
+    c.post("/api/setup/keyvault/save", json={"url": "https://neu.vault.azure.net",
+                                             "resource_id": "/sub/x/neu"})
+    assert werte["KEYVAULT_RESOURCE_ID"] == "/sub/x/neu"

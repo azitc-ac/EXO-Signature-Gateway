@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.5 — 2026-11-13 — Key Vault austragen räumt die Ressourcen-ID mit ab
+
+- **Fehler:** Wurde die Key-Vault-Adresse geleert oder auf einen anderen
+  Vault geändert, blieb die gespeicherte Azure-Ressourcen-ID des bisherigen
+  Vaults stehen. Die Einrichtung gibt sie an *Rolle sicherstellen (Crypto
+  Officer)* weiter — nach einem Wechsel wäre die Rolle am alten Vault
+  vergeben worden.
+- **Jetzt:** Ändert sich die Adresse ohne neue Ressourcen-ID, wird die alte
+  geleert; die Einrichtung ermittelt sie bei Bedarf über den Vault-Namen neu.
+
+**Zu tun:** nichts.
+
 ## v1.12.4 — 2026-11-13 — Key Vault ohne Zugriff wird als Aufgabe gemeldet; Befund der Statusprüfung bleibt stehen
 
 - **Fehler:** War ein Key Vault eingetragen, die App des Gateways aber ohne
