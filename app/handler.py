@@ -1476,14 +1476,16 @@ class SignatureHandler:
             # which some clients (Outlook Classic) render as blank after
             # decryption if the signing cert is not in their trust store.
             # For encrypted mail the pkcs7 envelope itself provides integrity.
-            _smime_ok = (
-                settings_store.get("SMIME_SIGNING_ENABLED") is not False
-                and (not _mailbox_cfg or _sender_cfg.get("smime", True))
-            )
-            # Vor #nodigsig festhalten: Die Signatur zu unterdrücken ist kein
-            # Verzicht auf Verschlüsselung. Bis v1.11.35 schaltete „#enc #nodigsig“
-            # die Verschlüsselung mit ab — die Mail ging im Klartext hinaus.
-            _smime_erlaubt = _smime_ok
+            # Freigabe des Postfachs für S/MIME — entscheidet über Verschlüsseln.
+            # Der globale Schalter „Signieren“ (SMIME_SIGNING_ENABLED) betrifft
+            # nur das Signieren: Bis v1.12.7 sperrte er auch „#enc“ (Unzustell-
+            # barkeit „S/MIME nicht freigegeben“), obwohl das Postfach frei war.
+            _smime_erlaubt = not _mailbox_cfg or bool(_sender_cfg.get("smime", True))
+            _smime_ok = (settings_store.get("SMIME_SIGNING_ENABLED") is not False
+                         and _smime_erlaubt)
+            # _smime_erlaubt steht vor #nodigsig: Die Signatur zu unterdrücken ist
+            # kein Verzicht auf Verschlüsselung. Bis v1.11.35 schaltete „#enc
+            # #nodigsig“ die Verschlüsselung mit ab — die Mail ging im Klartext hinaus.
             if _smime_ok and suppress_smime_sig:
                 _smime_ok = False
                 log.info("S/MIME-Signierung durch %r-Trigger unterdrückt für %s", _nodigsig_kw, sender)

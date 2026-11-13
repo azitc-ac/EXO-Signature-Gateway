@@ -234,12 +234,19 @@ def test_enc_wird_signiert_und_dann_verschluesselt(anlage):
     assert anlage["innen"][0].startswith(MARKE)                     # verschlüsselt wird die signierte Fassung
 
 
-def test_nodigsig_nur_verschluesselt(anlage):
-    # SMIME_SIGNING_ENABLED=False ist hier KEIN Fall: Der Schalter sperrt bisher
-    # auch #enc (Unzustellbarkeit „nicht freigegeben“, siehe oben) — offen.
+@pytest.mark.parametrize("betreff,werte", [
+    ("Vertrag #enc #nodigsig", {}),
+    # Globaler Schalter „Signieren“ aus: verschlüsselt wird trotzdem (bis
+    # v1.12.7 sperrte er auch #enc). Entscheidung 13.11.2026: Verschlüsseln
+    # geht immer, wenn S/MIME für das Postfach freigegeben ist.
+    ("Vertrag #enc", {"SMIME_SIGNING_ENABLED": False}),
+])
+def test_ohne_signaturwunsch_nur_verschluesselt(anlage, betreff, werte):
+    anlage["werte"].update(werte)
     signiert = _signieren(anlage)
     aufrufe = _verschluesselung(anlage, (ENC, []))
-    assert _lauf("Vertrag #enc #nodigsig").startswith("250")
+    assert _lauf(betreff).startswith("250")
+    assert anlage["ndr"] == []
     assert signiert == [] and aufrufe == [[EMPF]]
     assert not anlage["innen"][0].startswith(MARKE)
 

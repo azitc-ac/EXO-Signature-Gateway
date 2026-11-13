@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.8 — 2026-11-13 — Verschlüsseln hängt nicht mehr am Schalter „Signieren“
+
+- **Bisher:** War unter *Einstellungen → S/MIME* das automatische Signieren
+  ausgeschaltet, schickte das Gateway bei „#enc“ eine Unzustellbarkeits-
+  meldung „S/MIME ist für Ihr Postfach nicht freigegeben“ — auch wenn das
+  Postfach freigegeben war.
+- **Jetzt:** Verschlüsseln geht immer, wenn S/MIME für das Postfach
+  freigegeben ist. Der Schalter betrifft nur das Signieren; bei ausgeschaltetem
+  Signieren wird mit „#enc“ also nur verschlüsselt. Der Hinweis am Schalter
+  sagt das jetzt.
+
+**Zu tun:** nichts.
+
 ## v1.12.7 — 2026-11-13 — „#enc“: erst signieren, dann verschlüsseln
 
 - **Bisher:** Mit „#enc“ wurde eine Nachricht nur verschlüsselt, nicht
