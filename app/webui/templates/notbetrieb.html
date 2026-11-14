@@ -256,8 +256,11 @@ function nbPlatzZeigen(d) {
     + (d.mess_fehler ? ', ' + d.mess_fehler + ' Postfächer nicht messbar' : '')
     + '. Verfügbar = frei ' + groesseText(d.frei) + ' + heutige Kopie ' + groesseText(d.belegt) + '. '
     + (teile ? 'Nach Regel: ' + teile + '. ' : '')
-    + 'Annahme: Die Kopie ist ' + String(d.mime_faktor).replace('.', ',')
-    + '× so groß wie Exchanges Größenangabe (Anhänge base64). * = über ' + d.mess_tage + ' Tage hinaus hochgerechnet.';
+    + (d.geeicht
+       ? 'Geeicht an ' + d.eich_n + ' Stichproben: Die Kopie ist ' + String(d.mime_faktor).replace('.', ',')
+         + '× so groß wie Exchanges Größenangabe. '
+       : 'Nicht geeicht (keine Stichprobe lesbar) — gerechnet mit Exchanges Größenangabe. ')
+    + '* = über ' + d.mess_tage + ' Tage hinaus hochgerechnet.';
   nbPostfaecher();
 }
 

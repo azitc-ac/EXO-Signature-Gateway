@@ -381,13 +381,14 @@ def test_deaktiviertes_postfach_verliert_kopien_aber_nicht_lokale_post(nb, graph
 
 def _messung(je_tag, tage=4):
     return {"tage": tage, "ts": "2026-11-14T00:00:00+00:00",
-            "postfaecher": {"a@firma.at": {"schluessel": "a@firma.at", "je_tag": je_tag, "mails": 9}}}
+            "postfaecher": {"a@firma.at": {"schluessel": "a@firma.at", "je_tag": je_tag, "mails": 9}},
+            "faktor": 0.5, "eich_n": 3}
 
 
 def test_bedarf_zaehlt_die_tage_im_fenster(nb):
     nb["NOTBETRIEB_FENSTER"] = {"mail": 1}
     r = notbetrieb.platz_rechnen(messung=_messung([100, 200, 400, 800, 1600]))
-    assert r["postfaecher"][0]["bedarf"] == int(300 * notbetrieb.MIME_FAKTOR_ANNAHME)
+    assert r["postfaecher"][0]["bedarf"] == int(300 * 0.5)
     assert r["postfaecher"][0]["hochgerechnet"] is False
 
 
@@ -395,7 +396,7 @@ def test_bedarf_wird_ueber_die_messspanne_hinaus_hochgerechnet(nb):
     nb["NOTBETRIEB_FENSTER"] = {"mail": 9}
     r = notbetrieb.platz_rechnen(messung=_messung([100] * 5))
     # 5 gemessene Tage à 100 + 5 hochgerechnete Tage à 100
-    assert r["postfaecher"][0]["bedarf"] == int(1000 * notbetrieb.MIME_FAKTOR_ANNAHME)
+    assert r["postfaecher"][0]["bedarf"] == int(1000 * 0.5)
     assert r["postfaecher"][0]["hochgerechnet"] is True
 
 
@@ -418,8 +419,8 @@ def test_messung_summiert_groessen_je_tag_und_wartet_bei_429(nb, monkeypatch):
     seiten = [
         _Resp(429, {}),
         _Resp(200, {"value": [
-            {"receivedDateTime": _iso(JETZT), "singleValueExtendedProperties": [{"id": "Integer 0x0e08", "value": "1000"}]},
-            {"receivedDateTime": _iso(JETZT - timedelta(days=2, hours=1)),
+            {"id": "g1", "receivedDateTime": _iso(JETZT), "singleValueExtendedProperties": [{"id": "Integer 0x0e08", "value": "1000"}]},
+            {"id": "g2", "receivedDateTime": _iso(JETZT - timedelta(days=2, hours=1)),
              "singleValueExtendedProperties": [{"id": "Integer 0x0E08", "value": "500"}]},
             {"receivedDateTime": _iso(JETZT)},                       # ohne Größe → 0
         ]}),
@@ -435,6 +436,8 @@ def test_messung_summiert_groessen_je_tag_und_wartet_bei_429(nb, monkeypatch):
         def __exit__(self, *a): return False
         def get(self, url, headers=None):
             gesehen.append(url)
+            if url.endswith("/$value"):
+                return _Resp(200, content=b"x" * 250)          # halb so groß wie 500/1000
             return seiten.pop(0)
 
     monkeypatch.setattr(notbetrieb.httpx, "Client", C)
@@ -445,6 +448,17 @@ def test_messung_summiert_groessen_je_tag_und_wartet_bei_429(nb, monkeypatch):
     assert "0x0E08" in gesehen[0] and "$select=receivedDateTime" in gesehen[0]
     assert nb["_NOTBETRIEB_MESSUNG"]["postfaecher"]
     assert notbetrieb.messlauf()["laeuft"] is False
+    # Eichung: 2 Stichproben à 250 B MIME gegen 1500 B Exchange-Größe.
+    assert m["eich_n"] == 2 and m["faktor"] == round(500 / 1500, 3)
+    assert "stichprobe" not in pf
+
+
+def test_ohne_eichung_wird_mit_exchanges_groesse_gerechnet(nb):
+    messung = _messung([100] * 5)
+    messung["faktor"] = None
+    nb["NOTBETRIEB_FENSTER"] = {"mail": 4}
+    r = notbetrieb.platz_rechnen(messung=messung)
+    assert r["geeicht"] is False and r["bedarf"] == 500
 
 
 def test_seite_bleibt_erreichbar_solange_eine_kopie_liegt(nb, graph):

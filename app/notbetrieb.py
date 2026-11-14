@@ -84,9 +84,14 @@ MAX_TAGE = 365
 _LAST_KEY = "_NOTBETRIEB_LAST"      # Zählung des letzten Abgleichs (für die Oberfläche)
 _MESS_KEY = "_NOTBETRIEB_MESSUNG"   # Platzmessung aus Exchange (Was-wäre-wenn)
 MESS_TAGE = 30                      # so weit zurück wird gemessen; darüber hochgerechnet
-# MIME ist größer als Exchanges Größenangabe (Anhänge base64: ×4/3, dazu Köpfe).
-# Annahme bis zur Eichung am echten Schatten — siehe platz_rechnen().
-MIME_FAKTOR_ANNAHME = 1.37
+# Verhältnis MIME-Original zu Exchanges Größenangabe. NICHT fest annehmen:
+# Am 14.11.2026 im DEV-Tenant gemessen lag es bei 0,44 (Summe, 25 Mails;
+# Einzelwerte 0,08–0,87) — vermutet war 1,37. Jede Messung eicht deshalb an
+# einer Zufallsstichprobe (EICH_PROBEN); ohne Eichung gilt 1,0, was den
+# Bedarf eher überschätzt als unterschätzt.
+MIME_FAKTOR_OHNE_EICHUNG = 1.0
+EICH_PROBEN = 30
+_EICH_JE_POSTFACH = 5
 EXO, LOKAL = "exo", "lokal"
 
 _lock = threading.Lock()
@@ -598,9 +603,11 @@ _messlauf: dict = {"laeuft": False, "fertig": 0, "gesamt": 0}
 def _postfach_messen(token: str, upn: str, tage: int, jetzt: datetime) -> dict:
     """Bytes je Empfangstag (0 = heute) für EIN Postfach. Nur Empfangszeit und
     Größe werden geholt; 429 wird einmal je Seite mit Retry-After abgewartet."""
+    import random
     import time
     je_tag = [0] * (tage + 1)
     anzahl = 0
+    stichprobe: list[tuple[str, int]] = []      # (id, Exchange-Größe), Reservoir
     url = (f"{GRAPH}/users/{upn}/messages?$filter=receivedDateTime+ge+{_iso(_grenze(tage, jetzt))}"
            f"&$select=receivedDateTime&$top=1000"
            f"&$expand=singleValueExtendedProperties($filter=id+eq+'{_GROESSE}')")
@@ -622,8 +629,28 @@ def _postfach_messen(token: str, upn: str, tage: int, jetzt: datetime) -> dict:
                                 if str(e.get("id", "")).lower() == _GROESSE.lower()), 0)
                 je_tag[min(tage, max(0, (jetzt - zeit).days))] += groesse
                 anzahl += 1
+                if groesse and m.get("id"):
+                    if len(stichprobe) < _EICH_JE_POSTFACH:
+                        stichprobe.append((m["id"], groesse))
+                    elif random.random() < _EICH_JE_POSTFACH / anzahl:
+                        stichprobe[random.randrange(_EICH_JE_POSTFACH)] = (m["id"], groesse)
             url = daten.get("@odata.nextLink") or ""
-    return {"je_tag": je_tag, "mails": anzahl}
+    return {"je_tag": je_tag, "mails": anzahl, "stichprobe": stichprobe}
+
+
+def _eichen(token: str, kandidaten: list[tuple[str, str, int]]) -> tuple[float | None, int]:
+    """MIME-Größe gegen Exchange-Größe an einer Stichprobe. Gewichtet nach Bytes
+    (Summe/Summe), weil es um den Gesamtbedarf geht, nicht um die typische Mail."""
+    exo = mime = n = 0
+    with httpx.Client(timeout=60) as client:
+        for upn, mid, groesse in kandidaten:
+            r = client.get(f"{GRAPH}/users/{upn}/messages/{mid}/$value",
+                           headers={"Authorization": f"Bearer {token}"})
+            if r.status_code == 200 and r.content:
+                exo += groesse
+                mime += len(r.content)
+                n += 1
+    return (mime / exo if exo else None), n
 
 
 def platz_messen(tage: int = MESS_TAGE) -> dict:
@@ -645,19 +672,25 @@ def platz_messen(tage: int = MESS_TAGE) -> dict:
             for f in as_completed(auftraege):
                 key, upn = auftraege[f]
                 try:
-                    ergebnis[upn] = {"schluessel": key, **f.result()}
+                    r = f.result()
+                    ergebnis[upn] = {"schluessel": key, **r}
                 except Exception as exc:                            # noqa: BLE001
                     fehler += 1
                     log.warning("Notbetrieb: Platzmessung %s fehlgeschlagen: %s", upn, exc)
                 _messlauf["fertig"] += 1
+        import random
+        kandidaten = [(upn, mid, g) for upn, m in ergebnis.items() for mid, g in m.pop("stichprobe", [])]
+        random.shuffle(kandidaten)
+        faktor, eich_n = _eichen(token, kandidaten[:EICH_PROBEN]) if kandidaten else (None, 0)
     finally:
         _messlauf["laeuft"] = False
     dauer = (datetime.now(timezone.utc) - jetzt).total_seconds()
     messung = {"ok": True, "tage": tage, "ts": jetzt.isoformat(), "postfaecher": ergebnis,
                "fehler": fehler, "dauer_s": round(dauer, 1),
-               "mails": sum(m["mails"] for m in ergebnis.values())}
-    log.info("Notbetrieb: Platzmessung %s Postfächer, %s Mails, %s Fehler in %.1f s",
-             len(ergebnis), messung["mails"], fehler, dauer)
+               "mails": sum(m["mails"] for m in ergebnis.values()),
+               "faktor": round(faktor, 3) if faktor else None, "eich_n": eich_n}
+    log.info("Notbetrieb: Platzmessung %s Postfächer, %s Mails, %s Fehler in %.1f s, Faktor %s (n=%s)",
+             len(ergebnis), messung["mails"], fehler, dauer, messung["faktor"], eich_n)
     settings_store.force_update({_MESS_KEY: messung})
     return messung
 
@@ -688,6 +721,7 @@ def platz_rechnen(regeln: list | None = None, std: dict | None = None,
         frei = shutil.disk_usage(_wurzel() if _wurzel().exists() else config.DATA_DIR).free
     except OSError:
         frei = 0
+    faktor = messung.get("faktor") or MIME_FAKTOR_OHNE_EICHUNG
     zeilen = []
     summe = 0
     nach_herkunft: dict[str, int] = defaultdict(int)
@@ -700,7 +734,7 @@ def platz_rechnen(regeln: list | None = None, std: dict | None = None,
         if tage > mess_tage and mess_tage:
             hoch = sum(je_tag) / (mess_tage + 1) * (tage - mess_tage)
         exo_bytes = gemessen + hoch
-        bedarf = int(exo_bytes * MIME_FAKTOR_ANNAHME)
+        bedarf = int(exo_bytes * faktor)
         summe += bedarf
         nach_herkunft[herkunft] += bedarf
         zeilen.append({"postfach": upn, "tage": tage, "herkunft": herkunft, "bedarf": bedarf,
@@ -712,4 +746,5 @@ def platz_rechnen(regeln: list | None = None, std: dict | None = None,
             "bedarf": summe, "frei": frei, "belegt": belegt, "verfuegbar": verfuegbar,
             "anteil": (summe / verfuegbar) if verfuegbar else None,
             "nach_herkunft": dict(nach_herkunft), "postfaecher": zeilen,
-            "mime_faktor": MIME_FAKTOR_ANNAHME}
+            "mime_faktor": faktor, "geeicht": bool(messung.get("faktor")),
+            "eich_n": messung.get("eich_n") or 0}
