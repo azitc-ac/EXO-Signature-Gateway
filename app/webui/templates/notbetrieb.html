@@ -2,6 +2,14 @@
 {% block content %}
 <h1>Notbetrieb</h1>
 
+{% if not aktiv %}
+<div class="alert warn" style="margin-bottom:14px">
+  Der Notbetrieb ist <strong>aus</strong>, es liegt aber noch eine Kopie. Sie wird nicht mehr
+  nachgeführt. Spiele zurück, was im Notbetrieb angenommen wurde, und lösche sie dann —
+  oder schalte den Notbetrieb im <a href="/setup#step-mode" style="color:inherit;font-weight:700">Assistenten</a> wieder ein.
+</div>
+{% endif %}
+
 <style>
   #nb-pf-tabelle th, #nb-pf-tabelle td, #nb-regel-tabelle th, #nb-regel-tabelle td {
     padding:6px 8px; text-align:left; border-bottom:1px solid #e5e7eb; font-size:13px }
@@ -20,9 +28,11 @@
   </p>
   <p id="nb-stand" style="margin:6px 0">Lädt…</p>
   <div style="display:flex;gap:6px;flex-wrap:wrap">
-    <button class="btn secondary btn-sm" id="nb-abgleich-btn" onclick="nbAbgleich()">Jetzt abgleichen</button>
+    {% if aktiv %}<button class="btn secondary btn-sm" id="nb-abgleich-btn" onclick="nbAbgleich()">Jetzt abgleichen</button>{% endif %}
     <button class="btn secondary btn-sm" id="nb-zurueck-btn" onclick="nbZurueck()"
             title="Im Notbetrieb angenommene Post nach Exchange spielen — Doppeltes erkennt es an der Message-ID">Zurückspielen</button>
+    <button class="btn danger btn-sm" id="nb-loeschen-btn" onclick="nbLoeschen()"
+            title="Die ganze Kopie auf diesem Gateway löschen — verweigert, solange angenommene Post nicht zurückgespielt ist">Kopie löschen</button>
   </div>
   <div class="msg" id="nb-msg" style="margin-top:6px" hidden></div>
 </div>
@@ -196,6 +206,14 @@ async function nbZurueck() {
   showMsg('nb-msg', d.kein_token ? 'Kein Graph-Zugang — nichts zurückgespielt.'
       : d.eingespielt + ' eingespielt, ' + d.schon_da + ' waren schon in Exchange, ' + d.fehler + ' Fehler.', d.ok);
   nbStand();
+}
+
+async function nbLoeschen() {
+  if (!confirm('Die Kopie aller Postfächer auf diesem Gateway löschen?')) return;
+  const d = await knopfAktion('nb-loeschen-btn', 'Lösche…', () => postJSON('/api/notbetrieb/loeschen', {}));
+  showMsg('nb-msg', d.ok ? 'Kopie gelöscht.' : errText(d), d.ok);
+  if (d.ok && !{{ aktiv | tojson }}) { location.href = '/setup#step-mode'; return; }
+  nbStand(); nbPostfaecher();
 }
 
 // ── Postfächer ───────────────────────────────────────────────────────────

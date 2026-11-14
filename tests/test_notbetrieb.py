@@ -445,3 +445,14 @@ def test_messung_summiert_groessen_je_tag_und_wartet_bei_429(nb, monkeypatch):
     assert "0x0E08" in gesehen[0] and "$select=receivedDateTime" in gesehen[0]
     assert nb["_NOTBETRIEB_MESSUNG"]["postfaecher"]
     assert notbetrieb.messlauf()["laeuft"] is False
+
+
+def test_seite_bleibt_erreichbar_solange_eine_kopie_liegt(nb, graph):
+    """Aus + Kopie → Seite/Menü bleiben (Zurückspielen, Löschen); aus + leer → weg."""
+    nb["NOTBETRIEB_AKTIV"] = False
+    assert notbetrieb.sichtbar() is False
+    notbetrieb.lokal_ablegen("a@firma.at", "inbox", MIME)
+    assert notbetrieb.sichtbar() is True
+    notbetrieb.zurueckspielen()
+    notbetrieb.schatten_loeschen()
+    assert notbetrieb.sichtbar() is False

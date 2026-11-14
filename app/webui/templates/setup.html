@@ -456,14 +456,12 @@
       {% if e.azure_app_created %}
       <div style="margin-left:26px">{{ berechtigungen("nb-wizard", "Mail.ReadWrite") }}</div>
       {% endif %}
-      <div id="nb-bereich" style="margin:8px 0 0 26px" hidden>
-        <p class="hint" id="nb-stand" style="margin:0 0 6px"></p>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn secondary btn-sm" id="nb-zurueck-btn" onclick="nbZurueck()">Zurückspielen</button>
-          <button class="btn danger btn-sm" id="nb-loeschen-btn" onclick="nbLoeschen()">Kopie löschen</button>
-        </div>
-        <div class="msg" id="nb-msg" style="margin-top:6px" hidden></div>
-      </div>
+      {% if notbetrieb_sichtbar() and not s.NOTBETRIEB_AKTIV %}
+      <p class="hint" style="margin:6px 0 0 26px">
+        Es liegt noch eine Kopie aus dem Notbetrieb. Zurückspielen und Löschen unter
+        <a href="/notbetrieb">Notbetrieb</a>.
+      </p>
+      {% endif %}
     </div>
 
     <div id="mode-result" style="display:none;margin-bottom:12px"></div>
@@ -1607,38 +1605,6 @@ function updateModeSelection() {
     document.getElementById('relay-fields').style.display   = relayCb.checked ? '' : 'none';
   }
 }
-
-// ── Notbetrieb: Restbestand bei ausgeschalteter Funktion ────────────────
-// Bedient wird auf der Seite /notbetrieb. Hier erscheint der Bereich nur, wenn
-// die Funktion AUS ist und noch eine Kopie liegt — eine ausgeschaltete Funktion
-// darf keine unsichtbaren Daten behalten (Zurückspielen und Löschen bleiben).
-async function nbStand() {
-  const d = await getJSON('/api/notbetrieb/status');
-  const bereich = document.getElementById('nb-bereich');
-  if (!d.ok) { bereich.hidden = false; showMsg('nb-msg', 'Stand nicht lesbar: ' + errText(d), false); return; }
-  bereich.hidden = d.aktiv || !d.vorhanden;
-  let text = 'Notbetrieb ist aus, es liegt aber noch eine Kopie: ' + d.mails + ' Mails aus '
-           + d.postfaecher_im_schatten + ' Postfächern';
-  if (d.lokal_offen) text += ', davon ' + d.lokal_offen + ' im Notbetrieb angenommen und noch nicht zurückgespielt';
-  document.getElementById('nb-stand').textContent = text;
-}
-
-async function nbZurueck() {
-  const d = await knopfAktion('nb-zurueck-btn', 'Spiele zurück…', () => postJSON('/api/notbetrieb/zurueckspielen', {}));
-  showMsg('nb-msg', d.kein_token ? 'Kein Graph-Zugang — nichts zurückgespielt.'
-      : d.eingespielt + ' eingespielt, ' + d.schon_da + ' waren schon in Exchange, ' + d.fehler + ' Fehler.',
-      d.ok);
-  nbStand();
-}
-
-async function nbLoeschen() {
-  if (!confirm('Die Kopie aller Postfächer auf diesem Gateway löschen?')) return;
-  const d = await knopfAktion('nb-loeschen-btn', 'Lösche…', () => postJSON('/api/notbetrieb/loeschen', {}));
-  showMsg('nb-msg', d.ok ? 'Kopie gelöscht.' : errText(d), d.ok);
-  nbStand();
-}
-
-nbStand();
 
 async function saveModeSelection() {
   const mode = document.querySelector('input[name="reinject-mode-wizard"]:checked')?.value || 'smtp';

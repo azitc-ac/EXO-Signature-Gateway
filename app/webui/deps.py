@@ -114,16 +114,16 @@ def _abwesenheit_aktiv() -> bool:
 templates.env.globals["abwesenheit_aktiv"] = _abwesenheit_aktiv
 
 
-def _notbetrieb_aktiv() -> bool:
-    """Ob der Notbetrieb an ist — steuert den Menüpunkt."""
+def _notbetrieb_sichtbar() -> bool:
+    """Ob der Menüpunkt Notbetrieb erscheint (an oder Kopie vorhanden)."""
     try:
         import notbetrieb
-        return notbetrieb.funktion_aktiv()
+        return notbetrieb.sichtbar()
     except Exception:                                   # noqa: BLE001
         return False                                    # nie die Seite kippen
 
 
-templates.env.globals["notbetrieb_aktiv"] = _notbetrieb_aktiv
+templates.env.globals["notbetrieb_sichtbar"] = _notbetrieb_sichtbar
 
 
 def _utc_anzeige(iso: str) -> str:

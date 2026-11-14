@@ -50,7 +50,7 @@
                 {% if smtp_relay_aktiv() %}
                 <li><a href="/relay" class="{% if active == 'relay' %}active{% endif %}">SMTP-Relay</a></li>
                 {% endif %}
-                {% if notbetrieb_aktiv() %}
+                {% if notbetrieb_sichtbar() %}
                 <li><a href="/notbetrieb" class="{% if active == 'notbetrieb' %}active{% endif %}">Notbetrieb</a></li>
                 {% endif %}
                 <li><a href="/settings" class="{% if active in ('settings', 'settings-signature', 'settings-smime', 'settings-connect', 'setup', 'advanced', 'debug', 'backup') %}active{% endif %}">Einstellungen</a></li>

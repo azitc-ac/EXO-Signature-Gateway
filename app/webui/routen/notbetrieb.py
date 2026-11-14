@@ -22,15 +22,16 @@ router = APIRouter()
 
 @router.get("/notbetrieb", response_class=HTMLResponse)
 async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)):
-    # Funktion aus → kein versteckter Zugang über die URL; zum Schalter führen
-    # (dort steht auch „Kopie löschen“, solange eine liegt).
-    if not notbetrieb.funktion_aktiv():
+    # Aus UND keine Kopie → kein versteckter Zugang über die URL; zum Schalter
+    # führen. Liegt noch eine Kopie, bleibt die Seite für Zurückspielen/Löschen.
+    if not notbetrieb.sichtbar():
         return RedirectResponse("/setup#step-mode", status_code=303)
     regeln = settings_store.get("NOTBETRIEB_REGELN") or []
     return templates.TemplateResponse(
         request=request, name="notbetrieb.html",
         context={
             "active": "notbetrieb",
+            "aktiv": notbetrieb.funktion_aktiv(),
             "gateway_name": _gateway_name(),
             "fenster": notbetrieb.standard_fenster(),
             "regeln": regeln if isinstance(regeln, list) else [],

@@ -105,6 +105,13 @@ def funktion_aktiv() -> bool:
     return bool(settings_store.get("NOTBETRIEB_AKTIV"))
 
 
+def sichtbar() -> bool:
+    """Seite und Menüpunkt: an ODER es liegt noch eine Kopie. Eine
+    ausgeschaltete Funktion darf keine Daten behalten, an die niemand mehr
+    herankommt — Zurückspielen und Löschen bleiben erreichbar."""
+    return funktion_aktiv() or _wurzel().exists()
+
+
 # ── Fenster ─────────────────────────────────────────────────────────────────
 
 def _tage(wert, vorgabe: int) -> int:
