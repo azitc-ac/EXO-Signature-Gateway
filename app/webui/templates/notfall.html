@@ -77,7 +77,7 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
   #ordnerwahl { display: block !important; }
   /* Lesebereich bildschirmhoch: EIN Rollbalken im Mailrahmen statt Rahmen
      fester Höhe mit Leerraum darunter. */
-  #app[data-ansicht="lesen"] #lesen { height: calc(100vh - 48px); }
+  #app[data-ansicht="lesen"] #lesen { height: calc(100dvh - var(--kopfhoehe, 48px)); }
   .zurueck { display: inline-block; margin: 10px 18px 0; }
 }
 </style>
@@ -155,7 +155,7 @@ async function anmelden(ev) {
   const d = await knopfAktion('anmelde-knopf', 'Prüfe…', () =>
     postJSON('/notfall/anmelden', {benutzer: feldWert('name'), passwort: kw.value}));
   kw.value = '';
-  if (d.ok) { document.getElementById('anmeldung').hidden = true; start(); return; }
+  if (d.ok) { document.getElementById('anmeldung').hidden = true; start().then(kopfhoeheMerken); return; }
   const m = document.getElementById('anmelde-meldung');
   m.textContent = errText(d); m.hidden = false;
 }
@@ -167,21 +167,29 @@ async function abmelden() {
 
 async function postfachWaehlen(pf) {
   nb.postfach = pf; nb.ordner = '';
-  const d = await getJSON('/notfall/api/ordner?' + q({postfach: pf}));
+  const erster = await ordnerLaden();
+  if (erster) ordnerWaehlen(erster.id);
+}
+
+// Ordnerbaum (und mobil die Auswahlliste) samt Zählern zeichnen. Auch nach dem
+// Öffnen einer ungelesenen Mail, damit der Zähler sofort nachzieht.
+async function ordnerLaden() {
+  const d = await getJSON('/notfall/api/ordner?' + q({postfach: nb.postfach}));
   const el = document.getElementById('ordner');
-  if (!d.ok) { el.textContent = errText(d); return; }
-  const tiefe = {};
-  d.ordner.forEach(o => { tiefe[o.id] = 0; });
+  if (!d.ok) { el.textContent = errText(d); return null; }
   // Unterordner einrücken: Tiefe aus der Elternkette.
   const nachId = Object.fromEntries(d.ordner.map(o => [o.id, o]));
   const t = o => { let n = 0, e = o.eltern; while (nachId[e] && n < 8) { n++; e = nachId[e].eltern; } return n; };
+  const zahl = o => (o.ungelesen ? o.ungelesen + ' / ' : '') + o.anzahl;
   el.innerHTML = d.ordner.map(o => '<div class="eintrag" data-id="' + escAttr(o.id) + '" style="padding-left:'
-    + (12 + 14 * t(o)) + 'px" onclick="ordnerWaehlen(this.dataset.id)">' + esc(o.name)
-    + '<span class="zahl">' + (o.ungelesen ? o.ungelesen + ' / ' : '') + o.anzahl + '</span></div>').join('');
-  document.getElementById('ordnerwahl').innerHTML = d.ordner.map(o => '<option value="' + escAttr(o.id) + '">'
-    + esc('\u00a0'.repeat(2 * t(o)) + o.name) + ' (' + (o.ungelesen ? o.ungelesen + ' / ' : '') + o.anzahl + ')</option>').join('');
-  const erster = d.ordner.find(o => o.wk === 'inbox') || d.ordner[0];
-  if (erster) ordnerWaehlen(erster.id);
+    + (12 + 14 * t(o)) + 'px" onclick="ordnerWaehlen(this.dataset.id)"'
+    + (o.id === nb.ordner ? ' aria-current="true"' : '') + '>' + esc(o.name)
+    + '<span class="zahl">' + zahl(o) + '</span></div>').join('');
+  const wahl = document.getElementById('ordnerwahl');
+  wahl.innerHTML = d.ordner.map(o => '<option value="' + escAttr(o.id) + '">'
+    + esc('\u00a0'.repeat(2 * t(o)) + o.name) + ' (' + zahl(o) + ')</option>').join('');
+  if (nb.ordner) wahl.value = nb.ordner;
+  return d.ordner.find(o => o.wk === 'inbox') || d.ordner[0] || null;
 }
 
 function ordnerWaehlen(id) {
@@ -217,7 +225,7 @@ async function mailOeffnen(id) {
   const el = document.getElementById('lesen');
   if (!d.ok) { el.textContent = errText(d); return; }
   const zeile = document.querySelector('#liste .eintrag[data-id="' + CSS.escape(id) + '"]');
-  if (zeile) zeile.dataset.ungelesen = '0';
+  if (zeile && zeile.dataset.ungelesen === '1') { zeile.dataset.ungelesen = '0'; ordnerLaden(); }
   const p = q({postfach: nb.postfach, id: id});
   el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
     + '<div class="kopfbereich"><h2>' + esc(d.betreff || '(kein Betreff)') + '</h2>'
@@ -239,7 +247,14 @@ async function mailOeffnen(id) {
   ansicht('lesen');
 }
 
-start();
+// Kopfzeile ist mobil oft zweizeilig: ihre echte Höhe für den Lesebereich.
+function kopfhoeheMerken() {
+  document.documentElement.style.setProperty('--kopfhoehe', document.querySelector('header').offsetHeight + 'px');
+}
+window.addEventListener('resize', kopfhoeheMerken);
+kopfhoeheMerken();
+
+start().then(kopfhoeheMerken);
 </script>
 </body>
 </html>
