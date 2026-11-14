@@ -22,6 +22,7 @@ import notbetrieb
 import notbetrieb_anmeldung
 import notbetrieb_lesen
 import notbetrieb_rechte
+import notbetrieb_senden
 from webui.deps import templates, log, _gateway_name
 
 router = APIRouter()
@@ -99,7 +100,8 @@ async def notfall_abmelden():
 async def notfall_ich(benutzer: str = Depends(_benutzer)):
     return JSONResponse({"ok": True, "benutzer": benutzer,
                          "zugriff": [p for p in await asyncio.to_thread(notbetrieb_rechte.zugriff, benutzer)
-                                     if p["voll"]]})
+                                     if p["voll"]],
+                         "absender": await asyncio.to_thread(notbetrieb_senden.absender, benutzer)})
 
 
 @router.get("/notfall/api/ordner")
@@ -150,3 +152,40 @@ async def notfall_anhang(postfach: str, id: str, nr: int, benutzer: str = Depend
     return Response(daten, media_type="application/octet-stream",
                     headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}",
                              "Cache-Control": "no-store"})
+
+
+@router.get("/notfall/api/vorlage")
+async def notfall_vorlage(postfach: str, id: str, art: str, benutzer: str = Depends(_benutzer)):
+    """Vorbelegung für Antworten / Allen antworten / Weiterleiten."""
+    pf = _postfach(benutzer, postfach)
+    try:
+        return JSONResponse({"ok": True, **await asyncio.to_thread(notbetrieb_senden.vorlage, benutzer, pf, id, art)})
+    except notbetrieb_senden.SendeFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+
+
+_MAX_RUMPF = 22 * 1024 * 1024      # 15 MB Anhänge, base64 (×4/3) plus Text
+
+
+@router.post("/notfall/api/senden")
+async def notfall_senden(request: Request, benutzer: str = Depends(_benutzer)):
+    import base64
+    import binascii
+    if int(request.headers.get("content-length") or 0) > _MAX_RUMPF:
+        return JSONResponse({"ok": False, "error": "Nachricht zu groß."}, status_code=413)
+    try:
+        body = await request.json()
+        anhaenge = [(str(a.get("name") or "anhang"), str(a.get("typ") or ""),
+                     base64.b64decode(str(a.get("daten") or ""), validate=True))
+                    for a in (body.get("anhaenge") or [])[:20]]
+    except (ValueError, binascii.Error, AttributeError, TypeError):
+        return JSONResponse({"ok": False, "error": "Ungültige Anfrage."}, status_code=400)
+    try:
+        erg = await asyncio.to_thread(
+            notbetrieb_senden.senden, benutzer, str(body.get("postfach") or ""), str(body.get("an") or ""),
+            str(body.get("cc") or ""), str(body.get("bcc") or ""), str(body.get("betreff") or "")[:500],
+            str(body.get("text") or "")[:500000], anhaenge, str(body.get("bezug") or ""),
+            str(body.get("art") or "neu"))
+    except notbetrieb_senden.SendeFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse(erg)

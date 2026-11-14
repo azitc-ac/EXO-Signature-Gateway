@@ -65,6 +65,13 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
 #lesen iframe { flex: 1; border: 0; width: 100%; min-height: 400px; background: #fff; }
 #lesen pre { white-space: pre-wrap; padding: 14px 18px; margin: 0; font: inherit; }
 .anhaenge a { display: inline-block; margin: 6px 8px 0 0; color: var(--akzent); }
+.aktionen { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+#verfassen { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+#verfassen .zeile { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; }
+#verfassen input, #verfassen select, #verfassen textarea { width: 100%; }
+#verfassen textarea { min-height: 260px; font: inherit; background: var(--flaeche); color: var(--text);
+  border: 1px solid var(--rand); border-radius: 6px; padding: 8px; }
+.ok { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--wahl); }
 .zurueck { display: none; }
 @media (max-width: 800px) {
   #app { grid-template-columns: 1fr; height: auto; }
@@ -113,6 +120,7 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
 <main id="app" hidden data-ansicht="liste">
   <nav class="spalte" id="ordnerspalte"><div id="ordner"></div></nav>
   <section class="spalte" id="listenspalte">
+    <div style="padding:8px 8px 0"><button class="haupt" onclick="verfassen()">Neue Mail</button></div>
     <select id="ordnerwahl" aria-label="Ordner" style="display:none;margin:8px;width:calc(100% - 16px)"
             onchange="ordnerWaehlen(this.value)"></select>
     <form class="suche" onsubmit="event.preventDefault(); listeLaden(0)">
@@ -128,7 +136,7 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
 </main>
 
 <script>
-let nb = {postfach: '', ordner: '', zugriff: []};
+let nb = {postfach: '', ordner: '', zugriff: [], absender: [], mail: null};
 
 function ansicht(a) { document.getElementById('app').dataset.ansicht = a; }
 function datumKurz(iso) {
@@ -141,6 +149,7 @@ async function start() {
   const d = await getJSON('/notfall/api/ich');
   if (!d.ok) { document.getElementById('anmeldung').hidden = false; return; }
   nb.zugriff = d.zugriff;
+  nb.absender = d.absender || [];
   document.getElementById('ich').textContent = d.benutzer;
   document.getElementById('postfachwahl').innerHTML = d.zugriff.map(p =>
     '<option value="' + escAttr(p.postfach) + '">' + esc(p.postfach) + (p.eigen ? '' : ' (geteilt)') + '</option>').join('');
@@ -227,6 +236,7 @@ async function mailOeffnen(id) {
   const zeile = document.querySelector('#liste .eintrag[data-id="' + CSS.escape(id) + '"]');
   if (zeile && zeile.dataset.ungelesen === '1') { zeile.dataset.ungelesen = '0'; ordnerLaden(); }
   const p = q({postfach: nb.postfach, id: id});
+  nb.mail = id;
   el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
     + '<div class="kopfbereich"><h2>' + esc(d.betreff || '(kein Betreff)') + '</h2>'
     + '<div><b>Von:</b> ' + esc(adressen(d.von)) + '</div>'
@@ -238,6 +248,9 @@ async function mailOeffnen(id) {
     + (d.verschluesselt ? ' · verschlüsselt — im Notbetrieb nicht lesbar' : '') + '</div>'
     + (d.anhaenge.length ? '<div class="anhaenge">' + d.anhaenge.map(a => '<a href="/notfall/anhang?' + escAttr(p)
         + '&nr=' + a.nr + '">📎 ' + esc(a.name) + ' (' + Math.max(1, Math.round(a.groesse / 1024)) + ' KB)</a>').join('') + '</div>' : '')
+    + '<div class="aktionen"><button onclick="verfassen(\'antwort\')">Antworten</button>'
+    + '<button onclick="verfassen(\'allen\')">Allen antworten</button>'
+    + '<button onclick="verfassen(\'weiterleiten\')">Weiterleiten</button></div>'
     + '</div>'
     + (d.html
        // sandbox ohne Rechte: kein Skript, kein Formular, kein Zugriff auf diese Seite.
@@ -253,6 +266,72 @@ function kopfhoeheMerken() {
 }
 window.addEventListener('resize', kopfhoeheMerken);
 kopfhoeheMerken();
+
+// ── Verfassen ────────────────────────────────────────────────────────────
+// art: '' (neu) | 'antwort' | 'allen' | 'weiterleiten' (bezieht sich auf nb.mail)
+async function verfassen(art) {
+  let v = {an: '', cc: '', betreff: '', text: ''};
+  if (art) {
+    const d = await getJSON('/notfall/api/vorlage?' + q({postfach: nb.postfach, id: nb.mail, art: art}));
+    if (!d.ok) { alert(errText(d)); return; }
+    v = d;
+  }
+  if (!nb.absender.length) { alert('Du darfst aus keinem Postfach senden.'); return; }
+  // Vorbelegter Absender: das gerade geöffnete Postfach, wenn es ein Senderecht hat.
+  const von = nb.absender.find(a => a.postfach === nb.postfach) ? nb.postfach : nb.absender[0].postfach;
+  const recht = {eigen: '', als: ' (senden als)', auftrag: ' (im Auftrag)'};
+  const el = document.getElementById('lesen');
+  el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
+    + '<form id="verfassen" onsubmit="absenden(event)">'
+    + '<div class="zeile"><label for="vf-von">Von</label><select id="vf-von">' + nb.absender.map(a =>
+        '<option value="' + escAttr(a.postfach) + '"' + (a.postfach === von ? ' selected' : '') + '>'
+        + esc(a.postfach + recht[a.recht]) + '</option>').join('') + '</select></div>'
+    + '<div class="zeile"><label for="vf-an">An</label><input id="vf-an" value="' + escAttr(v.an) + '"></div>'
+    + '<div class="zeile"><label for="vf-cc">Cc</label><input id="vf-cc" value="' + escAttr(v.cc) + '"></div>'
+    + '<div class="zeile"><label for="vf-bcc">Bcc</label><input id="vf-bcc"></div>'
+    + '<div class="zeile"><label for="vf-betreff">Betreff</label><input id="vf-betreff" value="' + escAttr(v.betreff) + '"></div>'
+    + '<textarea id="vf-text" aria-label="Text">' + esc(v.text) + '</textarea>'
+    + (art === 'weiterleiten' ? '<div class="leise">Die Nachricht wird als Anhang weitergeleitet.</div>' : '')
+    + '<div class="zeile"><label for="vf-dateien">Anhänge</label><input id="vf-dateien" type="file" multiple></div>'
+    + '<div class="aktionen"><button class="haupt" id="vf-senden" type="submit">Senden</button>'
+    + '<button type="button" onclick="verwerfen()">Verwerfen</button></div>'
+    + '<div class="meldung" id="vf-meldung" hidden></div></form>';
+  el.dataset.art = art || '';
+  ansicht('lesen');
+  document.getElementById(art ? 'vf-text' : 'vf-an').focus();
+}
+
+function dateiLesen(datei) {
+  return new Promise((ok, fehler) => {
+    const r = new FileReader();
+    r.onload = () => ok({name: datei.name, typ: datei.type || 'application/octet-stream',
+                         daten: String(r.result).split(',', 2)[1] || ''});
+    r.onerror = () => fehler(r.error);
+    r.readAsDataURL(datei);
+  });
+}
+
+async function absenden(ev) {
+  ev.preventDefault();
+  const art = document.getElementById('lesen').dataset.art || '';
+  const dateien = [...document.getElementById('vf-dateien').files];
+  const meldung = document.getElementById('vf-meldung');
+  const d = await knopfAktion('vf-senden', 'Sende…', async () => postJSON('/notfall/api/senden', {
+    postfach: document.getElementById('vf-von').value, an: feldWert('vf-an'), cc: feldWert('vf-cc'),
+    bcc: feldWert('vf-bcc'), betreff: feldWert('vf-betreff'), text: document.getElementById('vf-text').value,
+    anhaenge: await Promise.all(dateien.map(dateiLesen)), bezug: art ? nb.mail : '', art: art || 'neu'}));
+  if (!d.ok) { meldung.textContent = errText(d); meldung.hidden = false; return; }
+  document.getElementById('lesen').innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
+    + '<div class="ok" style="margin:18px">Gesendet. Die Mail liegt unter „Gesendete Elemente“ und wird nach der Störung '
+    + 'nach Exchange übernommen.</div>';
+  ordnerLaden();
+}
+
+function verwerfen() {
+  if (!confirm('Entwurf verwerfen?')) return;
+  document.getElementById('lesen').innerHTML = '<p class="leise" style="padding:18px">Verworfen.</p>';
+  ansicht('liste');
+}
 
 start().then(kopfhoeheMerken);
 </script>

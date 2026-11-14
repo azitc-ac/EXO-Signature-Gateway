@@ -2338,6 +2338,20 @@
     "name": "notfall_ordner"
   },
   {
+    "pfad": "/notfall/api/senden",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_senden"
+  },
+  {
+    "pfad": "/notfall/api/vorlage",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_vorlage"
+  },
+  {
     "pfad": "/notfall/inhalt",
     "methoden": [
       "GET"

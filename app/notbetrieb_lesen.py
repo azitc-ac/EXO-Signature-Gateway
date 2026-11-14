@@ -211,10 +211,28 @@ def mail(postfach: str, graph_id: str) -> dict | None:
         text = teil.get_content() if teil is not None else ""
     return {"graph_id": graph_id, "betreff": _dekodiert(msg["Subject"]), "von": _adressen(msg["From"]),
             "an": _adressen(msg["To"]), "cc": _adressen(msg["Cc"]), "datum": datum,
-            "message_id": str(msg["Message-ID"] or ""), "html": hat_html, "text": text, **_smime(msg),
+            "message_id": str(msg["Message-ID"] or ""), "references": " ".join(str(msg["References"] or "").split()),
+            "html": hat_html, "text": text, **_smime(msg),
             "anhaenge": [{"nr": i, "name": _dekodiert(t.get_filename()) or f"anhang-{i}",
                           "typ": t.get_content_type(), "groesse": len(t.get_payload(decode=True) or b"")}
                          for i, t in enumerate(_anhaenge(msg))]}
+
+
+def klartext(postfach: str, graph_id: str) -> str:
+    """Lesbarer Text der Mail (aus HTML, wenn es keinen Klartext gibt) — zum Zitieren."""
+    z = _zeile(postfach, graph_id)
+    if not z:
+        return ""
+    msg = _laden(z["datei"])
+    teil = msg.get_body(preferencelist=("plain",))
+    if teil is not None:
+        return teil.get_content()
+    teil = msg.get_body(preferencelist=("html",))
+    if teil is None:
+        return ""
+    inhalt = re.sub(r"(?is)<(script|style).*?</\1>", " ", teil.get_content())
+    inhalt = re.sub(r"(?i)<br\s*/?>|</p>|</div>|</tr>", "\n", inhalt)
+    return html.unescape(re.sub(r"<[^>]+>", "", inhalt)).strip()
 
 
 def inhalt_html(postfach: str, graph_id: str) -> str | None:

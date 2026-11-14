@@ -277,7 +277,7 @@ def _zeit(text: str) -> datetime | None:
 
 
 def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
-                  empfangen: datetime | None = None) -> str:
+                  empfangen: datetime | None = None, gelesen: bool = False) -> str:
     """Im Notbetrieb entstandene Post ablegen. Gibt die Message-ID zurück.
 
     Fehlt die Message-ID, wird eine gesetzt — ohne sie wäre das Rückspielen
@@ -293,9 +293,9 @@ def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
     with _lock, _conn() as conn:
         conn.execute(
             "INSERT INTO mails (postfach, graph_id, ordner, imid, empfangen, gelesen, datei, herkunft)"
-            " VALUES (?,?,?,?,?,0,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?)",
             (postfach.lower(), graph_id, ordner, imid,
-             _iso(empfangen or datetime.now(timezone.utc)), str(pfad), LOKAL))
+             _iso(empfangen or datetime.now(timezone.utc)), 1 if gelesen else 0, str(pfad), LOKAL))
     return imid
 
 

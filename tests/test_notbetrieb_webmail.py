@@ -290,3 +290,156 @@ def test_ungelesen_kommt_aus_exchange(schatten, monkeypatch):
     assert m["u-neu"]["gelesen"] == 0 and m["r-neu"]["gelesen"] == 1
     zahl = next(o for o in notbetrieb_lesen.ordner("a@firma.at") if o["id"] == "ord-in")
     assert zahl["ungelesen"] >= 1
+
+
+# ── Senden ──────────────────────────────────────────────────────────────────
+
+import email as _email
+import email.policy as _policy
+
+import notbetrieb_senden as ns
+
+
+@pytest.fixture
+def postfix(monkeypatch, schatten):
+    """Direktversand eingerichtet; die Übergabe an Postfix wird mitgeschrieben."""
+    import direktversand
+    import reinject
+    uebergeben = []
+    monkeypatch.setattr(direktversand, "aktiv", lambda: True)
+    monkeypatch.setattr(reinject, "_an_postfix",
+                        lambda von, empf, inhalt, host, port: uebergeben.append((von, empf, inhalt)))
+    monkeypatch.setattr(ns, "_gesendet", {})
+    return uebergeben
+
+
+def _lokal(postfach, ordner):
+    with notbetrieb._conn() as conn:
+        return [dict(z) for z in conn.execute(
+            "SELECT * FROM mails WHERE postfach=? AND ordner=? AND herkunft='lokal'", (postfach, ordner))]
+
+
+def _mime(zeile):
+    return _email.message_from_bytes(Path(zeile["datei"]).read_bytes(), policy=_policy.default)
+
+
+def test_senderecht_aus_dem_abbild(schatten):
+    assert ns.senderecht("a@firma.at", "a@firma.at") == "eigen"
+    assert ns.senderecht("a@firma.at", "chef@firma.at") == "auftrag"
+    assert ns.senderecht("a@firma.at", "team@firma.at") is None      # nur Vollzugriff
+    assert ns.senderecht("a@firma.at", "b@firma.at") is None
+
+
+def test_intern_landet_in_der_kopie_des_empfaengers_extern_bei_postfix(postfix):
+    erg = ns.senden("a@firma.at", "a@firma.at", "b@firma.at, Kunde <kunde@extern.de>", bcc="geheim@extern.de",
+                    betreff="Hallo Ü", text="Grüße")
+    assert (erg["intern"], erg["extern"]) == (1, 2)
+    # Postfix bekommt nur die externen, OHNE Bcc-Kopf
+    von, empf, inhalt = postfix[0]
+    assert von == "a@firma.at" and sorted(empf) == ["geheim@extern.de", "kunde@extern.de"]
+    assert b"geheim@extern.de" not in inhalt.split(b"\r\n\r\n", 1)[0]
+    # Empfänger b: Posteingang, ungelesen; Absender: Gesendete, gelesen, MIT Bcc
+    eingang = _lokal("b@firma.at", "inbox")
+    assert len(eingang) == 1 and eingang[0]["gelesen"] == 0
+    gesendet = _lokal("a@firma.at", "sentitems")
+    assert len(gesendet) == 1 and gesendet[0]["gelesen"] == 1
+    assert _mime(gesendet[0])["Bcc"] == "geheim@extern.de"
+    assert _mime(eingang[0])["Bcc"] is None
+    assert gesendet[0]["imid"] == eingang[0]["imid"] == erg["message_id"]
+
+
+def test_ohne_direktversand_geht_nichts_raus_auch_nicht_intern(schatten, monkeypatch):
+    import direktversand
+    monkeypatch.setattr(direktversand, "aktiv", lambda: False)
+    monkeypatch.setattr(ns, "_gesendet", {})
+    with pytest.raises(ns.SendeFehler, match="Direktversand"):
+        ns.senden("a@firma.at", "a@firma.at", "b@firma.at, kunde@extern.de", betreff="x")
+    assert _lokal("b@firma.at", "inbox") == [] and _lokal("a@firma.at", "sentitems") == []
+    # Rein intern braucht keinen Direktversand
+    assert ns.senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="x")["intern"] == 1
+
+
+def test_im_auftrag_setzt_sender(postfix):
+    ns.senden("a@firma.at", "chef@firma.at", "kunde@extern.de", betreff="Termin")
+    kopf = _email.message_from_bytes(postfix[0][2], policy=_policy.default)
+    assert kopf["From"] == "chef@firma.at" and kopf["Sender"] == "a@firma.at"
+    assert len(_lokal("chef@firma.at", "sentitems")) == 1
+
+
+def test_nur_vollzugriff_darf_nicht_senden(postfix):
+    with pytest.raises(ns.SendeFehler):
+        ns.senden("a@firma.at", "team@firma.at", "kunde@extern.de", betreff="x")
+    assert postfix == []
+
+
+@pytest.mark.parametrize("an, betreff", [("keine-adresse", "x"), ("a@b", "x"), ("x@firma.at\r\nBcc: y@z.de", "x"),
+                                         ("kunde@extern.de", "Hallo\r\nBcc: boese@x.de"), ("", "x")])
+def test_ungueltiges_wird_abgewiesen(postfix, an, betreff):
+    with pytest.raises(ns.SendeFehler):
+        ns.senden("a@firma.at", "a@firma.at", an, betreff=betreff)
+    assert postfix == []
+
+
+def test_antwort_und_weiterleiten(postfix):
+    v = ns.vorlage("a@firma.at", "a@firma.at", "g-html", "allen")
+    assert v["betreff"] == "AW: Angebot für Sie" and v["an"] == "kunde@extern.de"
+    assert v["cc"] == "team@firma.at" and "> Hallo Welt Rabattcode XK42" in v["text"]
+    ns.senden("a@firma.at", "a@firma.at", v["an"], v["cc"], betreff=v["betreff"], text=v["text"],
+              bezug_id="g-html", art="antwort")
+    antwort = _email.message_from_bytes(postfix[-1][2], policy=_policy.default)
+    assert antwort["In-Reply-To"] == "<h1@extern.de>"
+    ns.senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="WG: x", bezug_id="g-html", art="weiterleiten")
+    wg = _email.message_from_bytes(postfix[-1][2], policy=_policy.default)
+    teile = [t.get_content_type() for t in wg.iter_attachments()]
+    assert "message/rfc822" in teile
+    assert wg["In-Reply-To"] is None
+
+
+def test_weiterleiten_nur_aus_lesbarem_postfach(postfix):
+    with pytest.raises(ns.SendeFehler):
+        ns.senden("a@firma.at", "a@firma.at", "kunde@extern.de", bezug_id="g-b", art="weiterleiten")
+
+
+def test_drossel_je_person(postfix, monkeypatch):
+    monkeypatch.setattr(ns, "JE_STUNDE", 2)
+    ns.senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="1")
+    ns.senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="2")
+    with pytest.raises(ns.SendeFehler, match="Zu viele"):
+        ns.senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="3")
+
+
+def test_dateiname_und_typ_werden_entschaerft(postfix):
+    ns.senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="Anhang",
+              anhaenge=[("../../etc/passwd\r\nX: y", "text/html; evil=1\r\n", b"<b>x</b>")])
+    m = _email.message_from_bytes(postfix[-1][2], policy=_policy.default)
+    a = next(m.iter_attachments())
+    assert "/" not in a.get_filename() and "\n" not in a.get_filename()
+    assert a.get_content_type() == "application/octet-stream"
+
+
+def test_gesendetes_wird_ins_gesendete_zurueckgespielt(postfix, monkeypatch):
+    ns.senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="zurück")
+    import test_notbetrieb as t
+    g = t.Graph()
+    monkeypatch.setattr(notbetrieb.httpx, "Client", g.client)
+    monkeypatch.setattr(notbetrieb.graph_client, "_acquire_token", lambda: "tok")
+    erg = notbetrieb.zurueckspielen()
+    ziele = sorted(a[1].split("/v1.0")[-1] for a in g.aufrufe if a[0] == "POST")
+    assert "/users/a@firma.at/mailFolders/sentitems/messages" in ziele
+    assert "/users/b@firma.at/mailFolders/inbox/messages" in ziele
+    gesendet_patch = [a for a in g.aufrufe if a[0] == "PATCH"]
+    assert erg["fehler"] == 0 and gesendet_patch
+
+
+def test_senden_endpunkt(client, postfix):
+    _anmelden(client)
+    d = client.get("/notfall/api/ich").json()
+    assert {(a["postfach"], a["recht"]) for a in d["absender"]} == {("a@firma.at", "eigen"), ("chef@firma.at", "auftrag")}
+    r = client.post("/notfall/api/senden", json={"postfach": "team@firma.at", "an": "kunde@extern.de", "betreff": "x"})
+    assert r.status_code == 400
+    r = client.post("/notfall/api/senden", json={"postfach": "a@firma.at", "an": "kunde@extern.de", "betreff": "x",
+                                                 "anhaenge": [{"name": "a.txt", "typ": "text/plain", "daten": "aGFsbG8="}]})
+    assert r.status_code == 200 and r.json()["extern"] == 1
+    r = client.post("/notfall/api/senden", json={"postfach": "a@firma.at", "an": "kunde@extern.de",
+                                                 "anhaenge": [{"name": "a", "daten": "kein base64!"}]})
+    assert r.status_code == 400
