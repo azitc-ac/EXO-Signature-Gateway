@@ -44,6 +44,12 @@ DEFAULTS: dict = {
     # kein Abgleich; ein vorhandener Schatten wird in der Oberfläche zum
     # Löschen angeboten.
     "NOTBETRIEB_AKTIV": False,
+    # Wie weit der Schatten reicht (Tage): Mail zurück, Kalender zurück/voraus.
+    # Auflösung in notbetrieb.fenster_fuer(): erste passende Regel aus
+    # NOTBETRIEB_REGELN ({ziel: "gruppe:<Name>"|"postfach:<Schlüssel>", mail,
+    # kal_zurueck, kal_vor}), sonst NOTBETRIEB_FENSTER.
+    "NOTBETRIEB_FENSTER": {"mail": 3, "kal_zurueck": 3, "kal_vor": 3},
+    "NOTBETRIEB_REGELN": [],
     # Abwesenheit automatisch aus dem Kalender aktivieren (opt-in): Termine mit
     # Status „Abwesend" (showAs=oof) ab OOO_CALENDAR_MIN_HOURS Dauer schalten die
     # native Abwesenheit für ihr Zeitfenster ein. Braucht Calendars.Read (Consent).
@@ -471,6 +477,7 @@ INTERNAL_KEYS = frozenset({
     "_OOO_STATE",                 # abwesenheit.py — zuletzt gesetzter OOF-Text je Postfach
     "_OOO_LAST",                  # abwesenheit.py — Zählung des letzten Poll-Laufs
     "_NOTBETRIEB_LAST",           # notbetrieb.py — Zählung des letzten Schatten-Abgleichs
+    "_NOTBETRIEB_MESSUNG",        # notbetrieb.py — Platzmessung aus Exchange (Was-wäre-wenn)
     "_OOO_UEBERSICHT",            # abwesenheit.py — gecachter Status-Scan (Admin-Dashboard)
     "_ADDIN_MANIFEST_STAND",      # webui/routen/addin.py — {hash, version} des zuletzt
                                   # ausgelieferten Manifests; Version steigt nur bei Änderung

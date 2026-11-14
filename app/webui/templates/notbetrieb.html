@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Notbetrieb</h1>
+
+<style>
+  #nb-pf-tabelle th, #nb-pf-tabelle td, #nb-regel-tabelle th, #nb-regel-tabelle td {
+    padding:6px 8px; text-align:left; border-bottom:1px solid #e5e7eb; font-size:13px }
+  [data-theme="dark"] #nb-pf-tabelle th, [data-theme="dark"] #nb-pf-tabelle td,
+  [data-theme="dark"] #nb-regel-tabelle th, [data-theme="dark"] #nb-regel-tabelle td { border-bottom-color:#334155 }
+  #nb-pf-tabelle th, #nb-regel-tabelle th { font-weight:600; color:#555; font-size:12px }
+  .nb-tage { width:5em }
+</style>
+
+<!-- Stand -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Kopie für den Ernstfall</h2>
+  <p class="hint" style="margin-top:0">
+    Das Gateway hält die Ordnerstruktur jedes aktivierten Postfachs und darin die Post der
+    eingestellten Tage. Nachgeführt wird alle 15 Minuten; was aus dem Fenster fällt, wird gelöscht.
+  </p>
+  <p id="nb-stand" style="margin:6px 0">Lädt…</p>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button class="btn secondary btn-sm" id="nb-abgleich-btn" onclick="nbAbgleich()">Jetzt abgleichen</button>
+    <button class="btn secondary btn-sm" id="nb-zurueck-btn" onclick="nbZurueck()"
+            title="Im Notbetrieb angenommene Post nach Exchange spielen — Doppeltes erkennt es an der Message-ID">Zurückspielen</button>
+  </div>
+  <div class="msg" id="nb-msg" style="margin-top:6px" hidden></div>
+</div>
+
+<!-- Fenster -->
+<div class="settings-card" id="nb-fenster-karte" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Wie weit die Kopie reicht</h2>
+  <p class="hint" style="margin-top:0">
+    Tage zurück für Mail, zurück und voraus für den Kalender. Regeln gelten von oben nach unten —
+    die erste passende gewinnt, wie bei den Gruppen-Richtlinien. Greift keine, gilt die Vorgabe.
+  </p>
+  <h3>Vorgabe</h3>
+  <div class="settings-row">
+    <label for="nb-std-mail">Mail (Tage zurück)</label>
+    <div class="settings-control"><input type="number" class="nb-tage" id="nb-std-mail" min="0" max="{{ max_tage }}" value="{{ fenster.mail }}"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-std-kal_zurueck">Kalender (Tage zurück)</label>
+    <div class="settings-control"><input type="number" class="nb-tage" id="nb-std-kal_zurueck" min="0" max="{{ max_tage }}" value="{{ fenster.kal_zurueck }}"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-std-kal_vor">Kalender (Tage voraus)</label>
+    <div class="settings-control"><input type="number" class="nb-tage" id="nb-std-kal_vor" min="0" max="{{ max_tage }}" value="{{ fenster.kal_vor }}"></div>
+  </div>
+
+  <h3>Abweichungen je Gruppe oder Postfach</h3>
+  <div class="tabellen-rollbereich">
+    <table id="nb-regel-tabelle" style="min-width:560px;width:100%;border-collapse:collapse">
+      <thead><tr><th>Gilt für</th><th>Mail</th><th>Kal. zurück</th><th>Kal. voraus</th><th></th></tr></thead>
+      <tbody id="nb-regel-tbody"></tbody>
+    </table>
+  </div>
+  <div style="margin-top:8px">
+    <button class="btn secondary btn-sm" id="nb-regel-neu-btn" onclick="nbRegelNeu()">Regel hinzufügen</button>
+  </div>
+
+  <div class="actions" style="margin-top:14px">
+    <button class="btn primary" id="nb-fenster-btn" data-wache-container="#nb-fenster-karte"
+            onclick="nbFensterSpeichern()">Speichern</button>
+    <span id="nb-fenster-result"></span>
+  </div>
+</div>
+
+<!-- Platzbedarf -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Reicht der Platz?</h2>
+  <p class="hint" style="margin-top:0">
+    Misst die Post der letzten {{ mess_tage }} Tage live in Exchange und rechnet daraus den Bedarf
+    für die Einstellung oben — auch für eine noch nicht gespeicherte. Längere Fenster werden aus dem
+    Tagesmittel hochgerechnet.
+  </p>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <button class="btn secondary btn-sm" id="nb-messen-btn" onclick="nbMessen()">Platzbedarf messen</button>
+    <span id="nb-messen-stand" class="fortschritt" hidden></span>
+  </div>
+  <div class="msg" id="nb-platz-urteil" style="margin-top:8px" hidden></div>
+  <p class="hint" id="nb-platz-text" style="margin:6px 0 0"></p>
+</div>
+
+<!-- Postfächer -->
+<div class="settings-card">
+  <h2 style="margin-top:0">Postfächer</h2>
+  <div class="tabellen-rollbereich">
+    <table id="nb-pf-tabelle" style="min-width:640px;width:100%;border-collapse:collapse">
+      <thead><tr><th>Postfach</th><th>Mail</th><th>Kalender</th><th>Gilt wegen</th><th>Ordner</th><th>Mails in der Kopie</th><th>Bedarf</th></tr></thead>
+      <tbody id="nb-pf-tbody"><tr><td colspan="7" class="muted">Lädt…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const NB_GRUPPEN = {{ gruppen | tojson }};
+const NB_POSTFAECHER = {{ postfaecher | tojson }};
+let nbRegeln = {{ regeln | tojson }};
+let nbPlatz = null;            // letzte Rechnung, je Postfach für die Tabelle
+
+function nbZielOptionen(gewaehlt) {
+  let h = '<optgroup label="Gruppen">';
+  NB_GRUPPEN.forEach(g => { const v = 'gruppe:' + g;
+    h += '<option value="' + escAttr(v) + '"' + (v === gewaehlt ? ' selected' : '') + '>' + esc(g) + '</option>'; });
+  h += '</optgroup><optgroup label="Postfächer">';
+  NB_POSTFAECHER.forEach(p => { const v = 'postfach:' + p;
+    h += '<option value="' + escAttr(v) + '"' + (v === gewaehlt ? ' selected' : '') + '>' + esc(p) + '</option>'; });
+  return h + '</optgroup>';
+}
+
+function nbRegelnZeichnen() {
+  const tb = document.getElementById('nb-regel-tbody');
+  if (!nbRegeln.length) { tabelleHinweis(tb, 5, 'Keine Abweichungen — für alle gilt die Vorgabe.'); return; }
+  tb.innerHTML = nbRegeln.map((r, i) =>
+    '<tr data-i="' + i + '">'
+    + '<td><select class="nb-ziel">' + nbZielOptionen(r.ziel) + '</select></td>'
+    + ['mail', 'kal_zurueck', 'kal_vor'].map(k =>
+        '<td><input type="number" class="nb-tage" data-k="' + k + '" min="0" max="{{ max_tage }}" value="'
+        + escAttr(r[k] == null ? '' : r[k]) + '"></td>').join('')
+    + '<td style="white-space:nowrap">'
+    + '<button class="btn secondary btn-sm" onclick="nbRegelSchieben(' + i + ',-1)" title="nach oben"' + (i ? '' : ' disabled') + '>↑</button> '
+    + '<button class="btn secondary btn-sm" onclick="nbRegelSchieben(' + i + ',1)" title="nach unten"' + (i < nbRegeln.length - 1 ? '' : ' disabled') + '>↓</button> '
+    + '<button class="btn danger btn-sm" onclick="nbRegelWeg(' + i + ')" title="Regel entfernen">✕</button></td></tr>'
+  ).join('');
+}
+
+// Liest Vorgabe und Regeln aus dem Formular — Grundlage für Speichern UND Rechnen.
+function nbFormular() {
+  const fenster = {};
+  ['mail', 'kal_zurueck', 'kal_vor'].forEach(k => { fenster[k] = parseInt(feldWert('nb-std-' + k), 10) || 0; });
+  const regeln = [...document.querySelectorAll('#nb-regel-tbody tr[data-i]')].map(tr => {
+    const r = {ziel: tr.querySelector('.nb-ziel').value};
+    tr.querySelectorAll('input[data-k]').forEach(inp => {
+      r[inp.dataset.k] = inp.value === '' ? fenster[inp.dataset.k] : (parseInt(inp.value, 10) || 0);
+    });
+    return r;
+  });
+  return {fenster, regeln};
+}
+
+function nbRegelNeu() {
+  nbRegeln = nbFormular().regeln;
+  const f = nbFormular().fenster;
+  nbRegeln.push({ziel: NB_GRUPPEN.length ? 'gruppe:' + NB_GRUPPEN[0] : 'postfach:' + (NB_POSTFAECHER[0] || ''),
+                 mail: f.mail, kal_zurueck: f.kal_zurueck, kal_vor: f.kal_vor});
+  nbRegelnZeichnen(); nbRechnenBald();
+}
+function nbRegelSchieben(i, d) {
+  nbRegeln = nbFormular().regeln;
+  const [r] = nbRegeln.splice(i, 1); nbRegeln.splice(i + d, 0, r);
+  nbRegelnZeichnen(); nbRechnenBald();
+}
+function nbRegelWeg(i) {
+  nbRegeln = nbFormular().regeln;
+  nbRegeln.splice(i, 1);
+  nbRegelnZeichnen(); nbRechnenBald();
+}
+
+async function nbFensterSpeichern() {
+  const f = nbFormular();
+  const ok = await savePartial({NOTBETRIEB_FENSTER: f.fenster, NOTBETRIEB_REGELN: f.regeln}, 'nb-fenster-result');
+  wacheFertig('nb-fenster-btn', ok);
+  if (ok) nbPostfaecher();
+}
+
+// ── Stand ────────────────────────────────────────────────────────────────
+async function nbStand() {
+  const d = await getJSON('/api/notbetrieb/status');
+  const el = document.getElementById('nb-stand');
+  if (!d.ok) { el.textContent = 'Stand nicht lesbar: ' + errText(d); return; }
+  const l = d.letzter_lauf;
+  let t = d.mails + ' Mails aus ' + d.postfaecher_im_schatten + ' Postfächern in der Kopie';
+  if (d.lokal_offen) t += ' · ' + d.lokal_offen + ' im Notbetrieb angenommen, noch nicht zurückgespielt';
+  if (l && l.ts) {
+    t += ' · letzter Abgleich ' + new Date(l.ts).toLocaleString('de-DE') + ': '
+      + (l.kein_token ? 'kein Graph-Zugang'
+         : l.neu + ' neu, ' + l.entfernt + ' entfernt, ' + l.abgelaufen + ' abgelaufen, '
+           + (l.fehler + l.postfaecher_fehler) + ' Fehler bei ' + l.postfaecher + ' Postfächern');
+  } else {
+    t += ' · noch kein Abgleich gelaufen';
+  }
+  el.textContent = t;
+}
+
+async function nbAbgleich() {
+  const d = await knopfAktion('nb-abgleich-btn', 'Gleiche ab…', () => postJSON('/api/notbetrieb/abgleich', {}));
+  showMsg('nb-msg', d.ok ? 'Abgleich gelaufen: ' + d.neu + ' neu, ' + d.entfernt + ' entfernt.'
+                         : 'Abgleich fehlgeschlagen: ' + errText(d), d.ok);
+  nbStand(); nbPostfaecher();
+}
+
+async function nbZurueck() {
+  const d = await knopfAktion('nb-zurueck-btn', 'Spiele zurück…', () => postJSON('/api/notbetrieb/zurueckspielen', {}));
+  showMsg('nb-msg', d.kein_token ? 'Kein Graph-Zugang — nichts zurückgespielt.'
+      : d.eingespielt + ' eingespielt, ' + d.schon_da + ' waren schon in Exchange, ' + d.fehler + ' Fehler.', d.ok);
+  nbStand();
+}
+
+// ── Postfächer ───────────────────────────────────────────────────────────
+async function nbPostfaecher() {
+  const tb = document.getElementById('nb-pf-tbody');
+  const d = await getJSON('/api/notbetrieb/postfaecher');
+  if (!d.ok) { tabelleHinweis(tb, 7, 'Nicht lesbar: ' + esc(errText(d)), true); return; }
+  if (!d.items.length) { tabelleHinweis(tb, 7, 'Keine aktivierten Postfächer.'); return; }
+  const bedarf = {};
+  ((nbPlatz && nbPlatz.postfaecher) || []).forEach(z => { bedarf[z.postfach] = z; });
+  tb.innerHTML = d.items.map(p => {
+    const b = bedarf[p.postfach];
+    return '<tr><td>' + esc(p.postfach) + '</td>'
+      + '<td>' + p.mail + ' T.</td><td>−' + p.kal_zurueck + ' / +' + p.kal_vor + ' T.</td>'
+      + '<td>' + esc(p.herkunft) + '</td><td>' + p.ordner + '</td><td>' + p.mails + '</td>'
+      + '<td>' + (b ? groesseText(b.bedarf) + (b.hochgerechnet ? ' *' : '') : '—') + '</td></tr>';
+  }).join('');
+}
+
+// ── Platzbedarf ──────────────────────────────────────────────────────────
+function nbPlatzZeigen(d) {
+  nbPlatz = d;
+  const urteil = document.getElementById('nb-platz-urteil');
+  const text = document.getElementById('nb-platz-text');
+  if (!d.ok || !d.gemessen) {
+    urteil.hidden = true;
+    text.textContent = d.ok ? 'Noch nicht gemessen.' : 'Rechnung fehlgeschlagen: ' + errText(d);
+    return;
+  }
+  const anteil = d.anteil == null ? null : Math.round(d.anteil * 100);
+  // Ab 80 % rot: Der Schatten wächst bis zum Ausfall weiter, und das Gateway
+  // braucht selbst noch Platz (Protokolle, Warteschlange).
+  const ok = anteil != null && anteil < 80;
+  showMsg(urteil, 'Bedarf ' + groesseText(d.bedarf) + ' von ' + groesseText(d.verfuegbar) + ' verfügbar'
+          + (anteil != null ? ' (' + anteil + ' %)' : '')
+          + (ok ? ' — passt.' : ' — reicht nicht oder zu knapp.'), ok);
+  const teile = Object.entries(d.nach_herkunft || {}).map(([h, b]) => h + ': ' + groesseText(b)).join(' · ');
+  text.textContent = 'Gemessen ' + new Date(d.mess_ts).toLocaleString('de-DE') + ': ' + d.mess_mails
+    + ' Mails der letzten ' + d.mess_tage + ' Tage in ' + d.mess_dauer_s + ' s'
+    + (d.mess_fehler ? ', ' + d.mess_fehler + ' Postfächer nicht messbar' : '')
+    + '. Verfügbar = frei ' + groesseText(d.frei) + ' + heutige Kopie ' + groesseText(d.belegt) + '. '
+    + (teile ? 'Nach Regel: ' + teile + '. ' : '')
+    + 'Annahme: Die Kopie ist ' + String(d.mime_faktor).replace('.', ',')
+    + '× so groß wie Exchanges Größenangabe (Anhänge base64). * = über ' + d.mess_tage + ' Tage hinaus hochgerechnet.';
+  nbPostfaecher();
+}
+
+async function nbRechnen() {
+  nbPlatzZeigen(await postJSON('/api/notbetrieb/platz-rechnen', nbFormular()));
+}
+let _nbRechnenUhr = null;
+function nbRechnenBald() { clearTimeout(_nbRechnenUhr); _nbRechnenUhr = setTimeout(nbRechnen, 300); }
+
+async function nbMessen() {
+  const d = await knopfAktion('nb-messen-btn', 'Messe…', async (zeige) => {
+    const start = await postJSON('/api/notbetrieb/platz-messen', {});
+    if (!start.ok) return start;
+    // Läuft im Hintergrund: Fortschritt abfragen, bis fertig.
+    for (;;) {
+      await new Promise(r => setTimeout(r, 1500));
+      const s = await getJSON('/api/notbetrieb/platz-messen');
+      if (!s.ok) return s;
+      if (!s.laeuft) return {ok: true};
+      zeige('Messe… ' + s.fertig + ' von ' + s.gesamt + ' Postfächern');
+    }
+  }, {anzeige: 'nb-messen-stand'});
+  if (!d.ok) { showMsg('nb-messen-stand', 'Messung fehlgeschlagen: ' + errText(d), false); return; }
+  nbRechnen();
+}
+
+document.getElementById('nb-fenster-karte').addEventListener('input', nbRechnenBald);
+document.getElementById('nb-fenster-karte').addEventListener('change', nbRechnenBald);
+nbRegelnZeichnen();
+nbStand();
+nbRechnen();
+</script>
+{% endblock %}

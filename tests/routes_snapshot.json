@@ -868,6 +868,34 @@
     "name": "api_notbetrieb_loeschen"
   },
   {
+    "pfad": "/api/notbetrieb/platz-messen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_platz_messen_stand"
+  },
+  {
+    "pfad": "/api/notbetrieb/platz-messen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_platz_messen"
+  },
+  {
+    "pfad": "/api/notbetrieb/platz-rechnen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_platz_rechnen"
+  },
+  {
+    "pfad": "/api/notbetrieb/postfaecher",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_postfaecher"
+  },
+  {
     "pfad": "/api/notbetrieb/status",
     "methoden": [
       "GET"
@@ -2217,6 +2245,13 @@
       "GET"
     ],
     "name": "mailboxes_page"
+  },
+  {
+    "pfad": "/notbetrieb",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notbetrieb_page"
   },
   {
     "pfad": "/outlook-addin",

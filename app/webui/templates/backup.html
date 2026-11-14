@@ -779,11 +779,6 @@ async function backupInhaltLaden() {
   knopf.disabled = false;
 }
 
-function backupGroesse(n) {
-  if (n < 1024) return n + ' B';
-  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
-  return (n / 1024 / 1024).toFixed(1) + ' MB';
-}
 
 function backupBaumZeichnen() {
   const baum = document.getElementById('backup-baum');
@@ -807,7 +802,7 @@ function backupBaumZeichnen() {
          <span style="flex:1;min-width:0">${esc(e.titel)}
            <span style="color:#6b7280;font-size:12px">${e.hinweis ? '— ' + esc(e.hinweis) : ''}</span>
          </span>
-         <span style="color:#9ca3af;font-size:12px;white-space:nowrap">${backupGroesse(e.bytes)}</span>`;
+         <span style="color:#9ca3af;font-size:12px;white-space:nowrap">${groesseText(e.bytes)}</span>`;
       liste.appendChild(zeile);
     });
     box.appendChild(liste);

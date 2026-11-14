@@ -114,6 +114,18 @@ def _abwesenheit_aktiv() -> bool:
 templates.env.globals["abwesenheit_aktiv"] = _abwesenheit_aktiv
 
 
+def _notbetrieb_aktiv() -> bool:
+    """Ob der Notbetrieb an ist — steuert den Menüpunkt."""
+    try:
+        import notbetrieb
+        return notbetrieb.funktion_aktiv()
+    except Exception:                                   # noqa: BLE001
+        return False                                    # nie die Seite kippen
+
+
+templates.env.globals["notbetrieb_aktiv"] = _notbetrieb_aktiv
+
+
 def _utc_anzeige(iso: str) -> str:
     """„2026-11-06T23:03:59Z“ → „06.11.2026 23:03 UTC“; Unlesbares unverändert."""
     from datetime import datetime

@@ -1339,7 +1339,7 @@ function zeichneCoexStats(st) {
   const summe = document.getElementById('coex-fluss-summe');
   const anz = st.gesamt_anzahl || 0;
   summe.textContent = anz
-    ? anz + ' Mail' + (anz === 1 ? '' : 's') + ' · ' + _volumen(st.gesamt_bytes || 0)
+    ? anz + ' Mail' + (anz === 1 ? '' : 's') + ' · ' + groesseText(st.gesamt_bytes || 0)
       + (st.gesamt_fehler ? ' · ' + st.gesamt_fehler + ' Fehler' : '')
     : '';
   const tb = document.getElementById('coex-fluss-body');
@@ -1362,7 +1362,7 @@ function zeichneCoexStats(st) {
           ? '<button type="button" class="zahl-knopf" aria-expanded="false" data-ziel="'
             + escAttr(z.ziel) + '" data-nur-fehler="0">' + z.anzahl + '</button>'
           : '0') + '</td>'
-      + '<td style="white-space:nowrap">' + _volumen(z.bytes || 0) + '</td>'
+      + '<td style="white-space:nowrap">' + groesseText(z.bytes || 0) + '</td>'
       + '<td>' + (z.fehler
           ? '<button type="button" class="zahl-knopf" data-fehler="1" aria-expanded="false" data-ziel="'
             + escAttr(z.ziel) + '" data-nur-fehler="1">' + z.fehler + '</button>'
@@ -1431,7 +1431,7 @@ async function coexVorgaengeZeigen(knopf) {
       + '<td style="white-space:nowrap;font-size:12px">' + zeit + kennung + '</td>'
       + '<td><code>' + esc(e.absender || '—') + '</code></td>'
       + '<td><code>' + esc(e.empfaenger || '—') + '</code></td>'
-      + '<td style="white-space:nowrap">' + _volumen(e.bytes || 0) + '</td>'
+      + '<td style="white-space:nowrap">' + groesseText(e.bytes || 0) + '</td>'
       + '<td style="font-size:12px">' + ergebnis + '</td></tr>';
   }).join('');
 }
@@ -1792,20 +1792,12 @@ async function lernStoppen(btn) {
   betriebsbaenderAuffrischen();                   // Lernmodus-Band oben, ohne Neuladen
 }
 
-function _volumen(bytes) {
-  var b = bytes || 0;
-  if (b < 1024) return b + ' B';
-  if (b < 1048576) return (b / 1024).toFixed(1).replace('.', ',') + ' KB';
-  if (b < 1073741824) return (b / 1048576).toFixed(1).replace('.', ',') + ' MB';
-  return (b / 1073741824).toFixed(2).replace('.', ',') + ' GB';
-}
-
 async function statsLaden() {
   const tage = document.getElementById('stats-zeitraum').value;
   const r = await getJSON('/api/relay/stats?tage=' + encodeURIComponent(tage));
   if (!r.ok) return;
   document.getElementById('stats-gesamt').textContent =
-    r.gesamt_anzahl + ' Mails · ' + _volumen(r.gesamt_bytes) + ' · '
+    r.gesamt_anzahl + ' Mails · ' + groesseText(r.gesamt_bytes) + ' · '
     + r.geraete + ' Gerät(e) im Zeitraum';
   // Vorgabe: die ersten 10 zeigen, den Rest hinter „weitere anzeigen" verstecken —
   // damit lange Listen die Seite nicht sprengen.
@@ -1816,7 +1808,7 @@ async function statsLaden() {
       return '<tr' + (versteckt ? ' data-stats-mehr style="display:none"' : '') + '>'
         + '<td style="word-break:break-all">' + esc(z.name || '—') + '</td>'
         + '<td style="text-align:right">' + z.anzahl + '</td>'
-        + '<td style="text-align:right">' + _volumen(z.bytes) + '</td></tr>';
+        + '<td style="text-align:right">' + groesseText(z.bytes) + '</td></tr>';
     }
     var html = zeilen.map(function (z, i) { return zeile(z, i >= STATS_TOP); }).join('');
     if (zeilen.length > STATS_TOP) {

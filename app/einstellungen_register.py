@@ -185,6 +185,8 @@ REGISTER: dict[str, E] = {
     "UPDATE_CHANNEL": E(art=OPTION, ort="backup.html"),  # Update-Kanal release|nightly|main
     "ABWESENHEIT_AKTIV": E(art=OPTION, ort="setup.html"),  # Funktion Abwesenheiten (Menü/Spalte/Abgleich)
     "NOTBETRIEB_AKTIV": E(art=OPTION, ort="setup.html"),   # Notbetrieb: Schatten-Abgleich
+    "NOTBETRIEB_FENSTER": E(art=OPTION, ort="notbetrieb.html"),   # Vorgabe-Fenster
+    "NOTBETRIEB_REGELN": E(art=STRUKTUR, ort="notbetrieb.html"),  # Fenster je Gruppe/Postfach
     "OOO_CALENDAR_READ": E(art=OPTION, ort="abwesenheit.html"),   # Hauptschalter Kalender lesen
     "OOO_CALENDAR_AUTO": E(art=OPTION, ort="abwesenheit.html"),   # OOO aus Kalender
     "OOO_CALENDAR_MIN_HOURS": E(art=OPTION, ort="abwesenheit.html"),

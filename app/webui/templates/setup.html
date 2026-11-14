@@ -450,8 +450,8 @@
       </label>
       <p class="hint" style="margin:6px 0 0 26px">
         Die Kopie liegt auf diesem Gateway (nicht im Backup) und wird alle 15 Minuten
-        nachgeführt; Älteres wird automatisch gelöscht. Was im Notbetrieb ankommt, spielt
-        <em>Zurückspielen</em> nach der Störung nach Exchange — Doppeltes erkennt es an der Message-ID.
+        nachgeführt; Älteres wird automatisch gelöscht. Eingestellt und bedient wird er danach
+        unter dem Menüpunkt <strong>Notbetrieb</strong>.
       </p>
       {% if e.azure_app_created %}
       <div style="margin-left:26px">{{ berechtigungen("nb-wizard", "Mail.ReadWrite") }}</div>
@@ -459,7 +459,6 @@
       <div id="nb-bereich" style="margin:8px 0 0 26px" hidden>
         <p class="hint" id="nb-stand" style="margin:0 0 6px"></p>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn secondary btn-sm" id="nb-abgleich-btn" onclick="nbAbgleich()">Jetzt abgleichen</button>
           <button class="btn secondary btn-sm" id="nb-zurueck-btn" onclick="nbZurueck()">Zurückspielen</button>
           <button class="btn danger btn-sm" id="nb-loeschen-btn" onclick="nbLoeschen()">Kopie löschen</button>
         </div>
@@ -1609,36 +1608,19 @@ function updateModeSelection() {
   }
 }
 
-// ── Notbetrieb: Stand und Aktionen ──────────────────────────────────────
-// Der Bereich erscheint, sobald der Notbetrieb an ist ODER noch eine Kopie
-// liegt — eine ausgeschaltete Funktion darf keine unsichtbaren Daten behalten.
+// ── Notbetrieb: Restbestand bei ausgeschalteter Funktion ────────────────
+// Bedient wird auf der Seite /notbetrieb. Hier erscheint der Bereich nur, wenn
+// die Funktion AUS ist und noch eine Kopie liegt — eine ausgeschaltete Funktion
+// darf keine unsichtbaren Daten behalten (Zurückspielen und Löschen bleiben).
 async function nbStand() {
   const d = await getJSON('/api/notbetrieb/status');
   const bereich = document.getElementById('nb-bereich');
   if (!d.ok) { bereich.hidden = false; showMsg('nb-msg', 'Stand nicht lesbar: ' + errText(d), false); return; }
-  bereich.hidden = !(d.aktiv || d.vorhanden);
-  const l = d.letzter_lauf;
-  let text = d.mails + ' Mails aus ' + d.postfaecher_im_schatten + ' Postfächern in der Kopie (Fenster '
-           + d.fenster_tage + ' Tage)';
-  if (d.lokal_offen) text += ' · ' + d.lokal_offen + ' im Notbetrieb angenommen, noch nicht zurückgespielt';
-  if (l && l.ts) {
-    text += ' · letzter Abgleich ' + new Date(l.ts).toLocaleString('de-DE') + ': '
-         + (l.kein_token ? 'kein Graph-Zugang'
-            : (l.neu + ' neu, ' + l.entfernt + ' entfernt, ' + l.abgelaufen + ' abgelaufen, '
-               + (l.fehler + l.postfaecher_fehler) + ' Fehler bei ' + l.postfaecher + ' Postfächern'));
-  } else if (d.aktiv) {
-    text += ' · noch kein Abgleich gelaufen';
-  }
-  if (!d.aktiv) text += ' · Notbetrieb ist aus — die Kopie wird nicht mehr nachgeführt';
+  bereich.hidden = d.aktiv || !d.vorhanden;
+  let text = 'Notbetrieb ist aus, es liegt aber noch eine Kopie: ' + d.mails + ' Mails aus '
+           + d.postfaecher_im_schatten + ' Postfächern';
+  if (d.lokal_offen) text += ', davon ' + d.lokal_offen + ' im Notbetrieb angenommen und noch nicht zurückgespielt';
   document.getElementById('nb-stand').textContent = text;
-  document.getElementById('nb-abgleich-btn').hidden = !d.aktiv;
-}
-
-async function nbAbgleich() {
-  const d = await knopfAktion('nb-abgleich-btn', 'Gleiche ab…', () => postJSON('/api/notbetrieb/abgleich', {}));
-  showMsg('nb-msg', d.ok ? 'Abgleich gelaufen: ' + d.neu + ' neu, ' + d.entfernt + ' entfernt.'
-                         : 'Abgleich fehlgeschlagen: ' + errText(d), d.ok);
-  nbStand();
 }
 
 async function nbZurueck() {

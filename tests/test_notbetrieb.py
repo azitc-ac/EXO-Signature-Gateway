@@ -63,8 +63,16 @@ class Graph:
     def __exit__(self, *a):
         return False
 
+    ordner = [{"id": "ord-in", "displayName": "Posteingang", "childFolderCount": 1}]
+    unterordner = [{"id": "ord-unter", "displayName": "Projekt", "parentFolderId": "ord-in",
+                    "childFolderCount": 0}]
+
     def get(self, url, headers=None, params=None):
         self.aufrufe.append(("GET", url, params))
+        if "/childFolders?" in url:
+            return _Resp(200, {"value": self.unterordner})
+        if "/mailFolders?" in url:
+            return _Resp(200, {"value": self.ordner})
         if url.endswith("/$value"):
             gid = url.rsplit("/", 2)[-2]
             return _Resp(200, content=self.mime[gid])
@@ -102,7 +110,7 @@ MIME = b"From: x@extern.de\r\nTo: a@firma.at\r\nMessage-ID: <m1@extern.de>\r\nSu
 # ── Abgleich ────────────────────────────────────────────────────────────────
 
 def test_abgleich_holt_neue_ignoriert_alte_und_merkt_delta(nb, graph):
-    graph.seiten["mailFolders/inbox/messages/delta"] = {"value": [
+    graph.seiten["mailFolders/ord-in/messages/delta"] = {"value": [
         {"id": "n1", "internetMessageId": "<m1@extern.de>", "receivedDateTime": _iso(JETZT), "isRead": False},
         # Hineinverschobene Altpost: Der Filter wirkt nur in der ersten Runde.
         {"id": "alt", "internetMessageId": "<alt@x>", "receivedDateTime": _iso(JETZT - timedelta(days=9))},
@@ -114,7 +122,7 @@ def test_abgleich_holt_neue_ignoriert_alte_und_merkt_delta(nb, graph):
     # Nur aktivierte Postfächer (b@ ist aus).
     assert not any("b@firma.at" in a[1] for a in graph.aufrufe)
     # Der erste Aufruf trägt den Fensterfilter.
-    erste = next(a[1] for a in graph.aufrufe if "inbox/messages/delta" in a[1])
+    erste = next(a[1] for a in graph.aufrufe if "ord-in/messages/delta" in a[1])
     assert "receivedDateTime+ge+" in erste
 
     # Zweiter Lauf: über den gemerkten deltaLink, und eine Löschung kommt an.
@@ -128,10 +136,10 @@ def test_abgleich_holt_neue_ignoriert_alte_und_merkt_delta(nb, graph):
 
 
 def test_abgleich_verfallener_token_setzt_neu_auf(nb, graph):
-    graph.seiten["mailFolders/inbox/messages/delta"] = {"value": [], "@odata.deltaLink": "https://graph/d?token=alt"}
+    graph.seiten["mailFolders/ord-in/messages/delta"] = {"value": [], "@odata.deltaLink": "https://graph/d?token=alt"}
     notbetrieb.abgleich_alle()
     graph.seiten = {"token=alt": _Resp(410, {"error": "syncStateNotFound"}),
-                    "mailFolders/inbox/messages/delta": {"value": [], "@odata.deltaLink": "https://graph/d?token=neu"}}
+                    "mailFolders/ord-in/messages/delta": {"value": [], "@odata.deltaLink": "https://graph/d?token=neu"}}
     erg = notbetrieb.abgleich_alle()
     assert erg["postfaecher_fehler"] == 0
     with notbetrieb._conn() as conn:
@@ -162,7 +170,7 @@ def _alt_machen(tage):
 
 def test_aufbewahrung_verschont_nicht_zurueckgespielte_lokale_post(nb, graph):
     notbetrieb.lokal_ablegen("a@firma.at", "inbox", MIME)
-    _alt_machen(10)
+    _alt_machen(400)
     assert notbetrieb.aufbewahrung_durchsetzen() == 0
     assert notbetrieb._bestand()["lokal_offen"] == 1
     # Nach dem Rückspielen darf sie gehen.
@@ -172,12 +180,12 @@ def test_aufbewahrung_verschont_nicht_zurueckgespielte_lokale_post(nb, graph):
 
 
 def test_aufbewahrung_loescht_alte_exchange_kopien(nb, graph):
-    graph.seiten["mailFolders/inbox/messages/delta"] = {"value": [
+    graph.seiten["mailFolders/ord-in/messages/delta"] = {"value": [
         {"id": "n1", "internetMessageId": "<m1@extern.de>", "receivedDateTime": _iso(JETZT)}],
         "@odata.deltaLink": "https://graph/d?t=1"}
     graph.mime["n1"] = MIME
     notbetrieb.abgleich_alle()
-    _alt_machen(notbetrieb.MAIL_FENSTER_TAGE + 1)
+    _alt_machen(notbetrieb.VORGABE_FENSTER["mail"] + 1)
     assert notbetrieb.aufbewahrung_durchsetzen() == 1
     assert not list((Path(config.DATA_DIR) / "notbetrieb" / "mime").rglob("*.eml"))
 
@@ -268,3 +276,172 @@ def test_schalter_vorgabe_aus_und_im_register():
 def test_schalter_haengt_am_modus_knopf():
     html = (Path(__file__).resolve().parent.parent / "app/webui/templates/setup.html").read_text(encoding="utf-8")
     assert 'id="notbetrieb-wizard"' in html and "NOTBETRIEB_AKTIV: nbAn" in html
+
+
+# ── Ordnerstruktur ──────────────────────────────────────────────────────────
+
+def test_ganzer_ordnerbaum_wird_abgeglichen(nb, graph):
+    notbetrieb.abgleich_alle()
+    delta = {a[1].split("/mailFolders/")[1].split("/")[0] for a in graph.aufrufe if "/messages/delta" in a[1]}
+    assert delta == {"ord-in", "ord-unter"}
+    with notbetrieb._conn() as conn:
+        assert {z["name"] for z in conn.execute("SELECT name FROM ordner")} == {"Posteingang", "Projekt"}
+
+
+def test_verschwundener_ordner_nimmt_seine_kopien_mit(nb, graph):
+    graph.seiten["mailFolders/ord-unter/messages/delta"] = {"value": [
+        {"id": "u1", "internetMessageId": "<u1@x>", "receivedDateTime": _iso(JETZT)}],
+        "@odata.deltaLink": "https://graph/d?u=1"}
+    graph.mime["u1"] = MIME
+    notbetrieb.abgleich_alle()
+    assert notbetrieb._bestand()["mails"] == 1
+    graph.ordner = [{"id": "ord-in", "displayName": "Posteingang", "childFolderCount": 0}]
+    erg = notbetrieb.abgleich_alle()
+    assert erg["entfernt"] == 1 and erg["mails"] == 0
+
+
+def test_verschieben_mit_gleicher_kennung_verliert_die_kopie_nicht(nb, graph):
+    """Unveränderliche Kennungen: Der Zielordner meldet die Mail zuerst, danach
+    meldet der Quellordner @removed — die Kopie muss bleiben."""
+    graph.seiten["mailFolders/ord-in/messages/delta"] = {"value": [
+        {"id": "m", "internetMessageId": "<m1@extern.de>", "receivedDateTime": _iso(JETZT)}],
+        "@odata.deltaLink": "https://graph/d?in=1"}
+    graph.mime["m"] = MIME
+    notbetrieb.abgleich_alle()
+    graph.seiten = {"in=1": {"value": [{"id": "m", "@removed": {"reason": "deleted"}}],
+                             "@odata.deltaLink": "https://graph/d?in=2"},
+                    "mailFolders/ord-unter/messages/delta": {"value": [
+                        {"id": "m", "internetMessageId": "<m1@extern.de>", "receivedDateTime": _iso(JETZT)}],
+                        "@odata.deltaLink": "https://graph/d?u=1"}}
+    # Unterordner vor dem Posteingang abarbeiten (Reihenfolge der Attrappe drehen).
+    graph.ordner = [{"id": "ord-unter", "displayName": "Projekt", "childFolderCount": 0},
+                    {"id": "ord-in", "displayName": "Posteingang", "childFolderCount": 0}]
+    notbetrieb.abgleich_alle()
+    with notbetrieb._conn() as conn:
+        assert [z["ordner"] for z in conn.execute("SELECT ordner FROM mails")] == ["ord-unter"]
+
+
+# ── Fenster je Gruppe und Postfach ──────────────────────────────────────────
+
+@pytest.fixture
+def gruppen(monkeypatch, nb):
+    import gruppen as g
+    monkeypatch.setattr(g, "interne_gruppen", lambda: {"Vertrieb": ["a@firma.at"], "Alle Postfächer": ["a@firma.at", "guid-1"]})
+    return nb
+
+
+def test_erste_passende_regel_gewinnt(gruppen):
+    gruppen["NOTBETRIEB_REGELN"] = [{"ziel": "gruppe:Vertrieb", "mail": 10},
+                                    {"ziel": "postfach:a@firma.at", "mail": 20}]
+    assert notbetrieb.fenster_fuer("a@firma.at") == ({"mail": 10, "kal_zurueck": 3, "kal_vor": 3}, "Gruppe Vertrieb")
+    gruppen["NOTBETRIEB_REGELN"].reverse()
+    assert notbetrieb.fenster_fuer("a@firma.at")[0]["mail"] == 20
+
+
+def test_ohne_regel_gilt_die_vorgabe(gruppen):
+    gruppen["NOTBETRIEB_FENSTER"] = {"mail": 7}
+    gruppen["NOTBETRIEB_REGELN"] = [{"ziel": "gruppe:Vertrieb", "mail": 10}]
+    assert notbetrieb.fenster_fuer("x@firma.at") == ({"mail": 7, "kal_zurueck": 3, "kal_vor": 3}, "Vorgabe")
+
+
+def test_postfach_regel_greift_auch_bei_guid_schluessel(gruppen):
+    gruppen["NOTBETRIEB_REGELN"] = [{"ziel": "postfach:c@firma.at", "mail": 5}]
+    assert notbetrieb.fenster_fuer("guid-1", "c@firma.at")[1] == "Postfach"
+
+
+@pytest.mark.parametrize("wert, erwartet", [("abc", 3), (-5, 0), (99999, notbetrieb.MAX_TAGE), (None, 3), ("12", 12)])
+def test_unsinnige_werte_werden_begrenzt(gruppen, wert, erwartet):
+    gruppen["NOTBETRIEB_REGELN"] = [{"ziel": "postfach:a@firma.at", "mail": wert}, "kein dict", {"ziel": None}]
+    assert notbetrieb.fenster_fuer("a@firma.at")[0]["mail"] == erwartet
+
+
+def test_groesseres_fenster_setzt_delta_neu_auf(nb, graph):
+    notbetrieb.abgleich_alle()
+    nb["NOTBETRIEB_FENSTER"] = {"mail": 10}
+    graph.aufrufe.clear()
+    notbetrieb.abgleich_alle()
+    neu = [a[1] for a in graph.aufrufe if "ord-in/messages/delta" in a[1]]
+    assert neu and "receivedDateTime+ge+" + _iso(JETZT - timedelta(days=10))[:10] in neu[0]
+
+
+def test_deaktiviertes_postfach_verliert_kopien_aber_nicht_lokale_post(nb, graph):
+    graph.seiten["mailFolders/ord-in/messages/delta"] = {"value": [
+        {"id": "n1", "internetMessageId": "<m1@extern.de>", "receivedDateTime": _iso(JETZT)}],
+        "@odata.deltaLink": "https://graph/d?t=1"}
+    graph.mime["n1"] = MIME
+    notbetrieb.abgleich_alle()
+    notbetrieb.lokal_ablegen("a@firma.at", "inbox", MIME.replace(b"m1@", b"lokal@"))
+    nb["MAILBOX_CONFIG"] = {}
+    notbetrieb.aufbewahrung_durchsetzen()
+    b = notbetrieb._bestand()
+    assert (b["mails"], b["lokal_offen"]) == (1, 1)
+
+
+# ── Platzbedarf ─────────────────────────────────────────────────────────────
+
+def _messung(je_tag, tage=4):
+    return {"tage": tage, "ts": "2026-11-14T00:00:00+00:00",
+            "postfaecher": {"a@firma.at": {"schluessel": "a@firma.at", "je_tag": je_tag, "mails": 9}}}
+
+
+def test_bedarf_zaehlt_die_tage_im_fenster(nb):
+    nb["NOTBETRIEB_FENSTER"] = {"mail": 1}
+    r = notbetrieb.platz_rechnen(messung=_messung([100, 200, 400, 800, 1600]))
+    assert r["postfaecher"][0]["bedarf"] == int(300 * notbetrieb.MIME_FAKTOR_ANNAHME)
+    assert r["postfaecher"][0]["hochgerechnet"] is False
+
+
+def test_bedarf_wird_ueber_die_messspanne_hinaus_hochgerechnet(nb):
+    nb["NOTBETRIEB_FENSTER"] = {"mail": 9}
+    r = notbetrieb.platz_rechnen(messung=_messung([100] * 5))
+    # 5 gemessene Tage à 100 + 5 hochgerechnete Tage à 100
+    assert r["postfaecher"][0]["bedarf"] == int(1000 * notbetrieb.MIME_FAKTOR_ANNAHME)
+    assert r["postfaecher"][0]["hochgerechnet"] is True
+
+
+def test_was_waere_wenn_nimmt_ungespeicherte_regeln(nb):
+    nb["NOTBETRIEB_FENSTER"] = {"mail": 0}
+    gespeichert = notbetrieb.platz_rechnen(messung=_messung([100] * 5))["bedarf"]
+    wenn = notbetrieb.platz_rechnen(regeln=[{"ziel": "postfach:a@firma.at", "mail": 4}],
+                                    messung=_messung([100] * 5))
+    assert wenn["bedarf"] == 5 * gespeichert and wenn["postfaecher"][0]["herkunft"] == "Postfach"
+    assert nb["NOTBETRIEB_FENSTER"] == {"mail": 0}       # nichts gespeichert
+
+
+def test_verfuegbar_rechnet_die_heutige_kopie_mit(nb, graph):
+    notbetrieb.lokal_ablegen("a@firma.at", "inbox", MIME)
+    r = notbetrieb.platz_rechnen(messung=_messung([0] * 5))
+    assert r["belegt"] > 0 and r["verfuegbar"] == r["frei"] + r["belegt"]
+
+
+def test_messung_summiert_groessen_je_tag_und_wartet_bei_429(nb, monkeypatch):
+    seiten = [
+        _Resp(429, {}),
+        _Resp(200, {"value": [
+            {"receivedDateTime": _iso(JETZT), "singleValueExtendedProperties": [{"id": "Integer 0x0e08", "value": "1000"}]},
+            {"receivedDateTime": _iso(JETZT - timedelta(days=2, hours=1)),
+             "singleValueExtendedProperties": [{"id": "Integer 0x0E08", "value": "500"}]},
+            {"receivedDateTime": _iso(JETZT)},                       # ohne Größe → 0
+        ]}),
+    ]
+    seiten[0].headers = {"Retry-After": "0"}
+    for r in seiten:
+        r.headers = getattr(r, "headers", {})
+    gesehen = []
+
+    class C:
+        def __init__(self, **kw): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url, headers=None):
+            gesehen.append(url)
+            return seiten.pop(0)
+
+    monkeypatch.setattr(notbetrieb.httpx, "Client", C)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    m = notbetrieb.platz_messen(tage=4)
+    pf = m["postfaecher"]["a@firma.at"]
+    assert pf["je_tag"] == [1000, 0, 500, 0, 0] and pf["mails"] == 3
+    assert "0x0E08" in gesehen[0] and "$select=receivedDateTime" in gesehen[0]
+    assert nb["_NOTBETRIEB_MESSUNG"]["postfaecher"]
+    assert notbetrieb.messlauf()["laeuft"] is False
