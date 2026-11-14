@@ -316,8 +316,9 @@ def _deliver_via_recipient_sendmail(
     """
     Deliver inbound external mail by calling sendMail via the first internal recipient's
     EXO mailbox.  Messages routed through EXO's delivery pipeline arrive as normal
-    received mail — unlike /mailFolders/inbox/messages which always creates drafts
-    (PR_MESSAGE_FLAGS MSGFLAG_UNSENT set by EXO, silently reverted on PATCH).
+    received mail — unlike /mailFolders/inbox/messages, which creates drafts
+    (MSGFLAG_UNSENT) unless PR_MESSAGE_FLAGS goes with the create (JSON only;
+    a later PATCH has no effect, MIME always ends up as a draft).
     saveToSentItems=False avoids a confusing copy in the recipient's Sent Items.
     """
     if not rcpt_tos:
@@ -380,8 +381,15 @@ def _deliver_via_recipient_sendmail(
 def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> bool:
     """
     Write a MIME message into each recipient's inbox via Graph API.
-    Unlike deliver_to_mailbox (JSON), this preserves the full MIME structure
-    so Outlook Classic renders it correctly as a real email.
+    Unlike deliver_to_mailbox (JSON), this preserves the full MIME structure.
+
+    ⚠️ Das Ergebnis ist IMMER ein Entwurf (MSGFLAG_UNSENT, Senden-Knopf in
+    Outlook). Hier folgte bis 14.11.2026 ein PATCH {"isDraft": false, 0x0E07},
+    als „zwingend“ geführt, aber nie gemessen: Er liefert 200 und ändert nichts
+    (DEV-Tenant, 5 von 5; Graph v1.0 »Update message«: isDraft nicht änderbar,
+    die Flags nur, solange die Nachricht ein Entwurf ist). Beim MIME-Anlegen
+    lassen sich keine Extended Properties mitgeben — anders als bei JSON, siehe
+    deliver_to_mailbox.
 
     ⚠️ Content-Type text/plain UND base64 — beides zusammen.
 
@@ -424,7 +432,6 @@ def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: 
         "Authorization": f"Bearer {token}",
         "Content-Type": "text/plain",
     }
-    json_hdr = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     ok = True
     with httpx.Client(timeout=30) as client:
         for recipient in rcpt_tos:
@@ -434,29 +441,11 @@ def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: 
                 headers=auth_hdr,
             )
             if resp.status_code in (200, 201):
-                # Messages created via API land as drafts (MAPI MSGFLAG_UNSENT set).
-                # Patch isDraft + PR_MESSAGE_FLAGS (0x0E07) to mark as received.
-                try:
-                    msg_id = resp.json().get("id", "")
-                    if msg_id:
-                        patch_resp = client.patch(
-                            f"{GRAPH}/users/{recipient}/messages/{msg_id}",
-                            json={
-                                "isDraft": False,
-                                "singleValueExtendedProperties": [
-                                    {"id": "Integer 0x0e07", "value": "1"}
-                                ],
-                            },
-                            headers=json_hdr,
-                        )
-                        if patch_resp.status_code not in (200, 201, 204):
-                            log.warning(
-                                "Graph MIME isDraft PATCH failed for %s: HTTP %s — %s",
-                                recipient, patch_resp.status_code, patch_resp.text[:300],
-                            )
-                except Exception as exc:
-                    log.warning("Graph MIME isDraft PATCH exception for %s: %s", recipient, exc)
-                log.info("Graph MIME mailbox inject OK: from=%s to=%s", from_addr, recipient)
+                # Eine per MIME angelegte Nachricht ist IMMER ein Entwurf
+                # (MSGFLAG_UNSENT). Nachträglich lässt sich das nicht ändern —
+                # siehe Docstring; deshalb steht es im Protokoll.
+                log.info("Graph MIME mailbox inject OK (als Entwurf): from=%s to=%s",
+                         from_addr, recipient)
                 import oof_ablage
                 oof_ablage.nach_ablage(mail_from, recipient, content_bytes)
             else:
@@ -472,6 +461,11 @@ def deliver_to_mailbox(mail_from: str, rcpt_tos: list[str], content_bytes: bytes
     """
     Write a message into each recipient's inbox via Graph API (JSON fallback).
     Used when the MIME path fails.  Reconstructs body+attachments from MIME.
+
+    Kein Entwurf nur, weil PR_MESSAGE_FLAGS (0x0E07) BEIM ANLEGEN mitgeht —
+    gemessen 14.11.2026 (DEV-Tenant): ohne → Entwurf (Flags 1033), mit "0" →
+    empfangen, ungelesen (1024), mit "1" → empfangen, gelesen (1025). Der PATCH,
+    der hier bis dahin folgte, wirkte nie. Geprüft von tests/test_graph_inbox_entwurf.py.
     Requires Mail.ReadWrite.All.
     """
     token = graph_client._acquire_token()
@@ -499,6 +493,10 @@ def deliver_to_mailbox(mail_from: str, rcpt_tos: list[str], content_bytes: bytes
         "body": {"contentType": body_type, "content": body_content},
         "toRecipients": [{"emailAddress": {"address": r}} for r in rcpt_tos],
         "isRead": False,
+        # PR_MESSAGE_FLAGS BEIM ANLEGEN, sonst wird es ein Entwurf (MSGFLAG_UNSENT,
+        # Senden-Knopf in Outlook). 0 = empfangen + ungelesen; 1 hiesse gelesen.
+        # Ein PATCH danach wirkt NICHT — siehe Docstring.
+        "singleValueExtendedProperties": [{"id": "Integer 0x0E07", "value": "0"}],
     }
     if attachments:
         message["attachments"] = attachments
@@ -513,26 +511,6 @@ def deliver_to_mailbox(mail_from: str, rcpt_tos: list[str], content_bytes: bytes
                 headers=auth_hdr,
             )
             if resp.status_code in (200, 201):
-                try:
-                    msg_id = resp.json().get("id", "")
-                    if msg_id:
-                        patch_resp = client.patch(
-                            f"{GRAPH}/users/{recipient}/messages/{msg_id}",
-                            json={
-                                "isDraft": False,
-                                "singleValueExtendedProperties": [
-                                    {"id": "Integer 0x0e07", "value": "1"}
-                                ],
-                            },
-                            headers=auth_hdr,
-                        )
-                        if patch_resp.status_code not in (200, 201, 204):
-                            log.warning(
-                                "Graph JSON isDraft PATCH failed for %s: HTTP %s — %s",
-                                recipient, patch_resp.status_code, patch_resp.text[:300],
-                            )
-                except Exception as exc:
-                    log.warning("Graph JSON isDraft PATCH exception for %s: %s", recipient, exc)
                 log.info("Graph JSON mailbox inject OK: from=%s to=%s", from_addr, recipient)
                 import oof_ablage
                 oof_ablage.nach_ablage(mail_from, recipient, content_bytes)

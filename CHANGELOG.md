@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.11 — 2026-11-14 — Eingehende Post im Rückfallweg nicht mehr als Entwurf
+
+Findet das Gateway für eingehende Post keinen Zustellweg (587, Graph sendMail
+über den Empfänger), legt es die Nachricht per Graph direkt in den Posteingang
+— zuerst als MIME, dann als JSON-Nachbau. Danach folgte bisher ein PATCH, der
+sie als „nicht Entwurf“ markieren sollte. Der PATCH meldete Erfolg und wirkte
+nie: `isDraft` lässt sich nach dem Anlegen nicht mehr ändern (Graph v1.0,
+„Update message“), die Nachricht blieb ein Entwurf, und Outlook zeigte in einer
+empfangenen Mail einen Senden-Knopf.
+
+- **JSON-Nachbau:** Die Kennzeichnung als empfangene, ungelesene Nachricht
+  (`PR_MESSAGE_FLAGS`) geht jetzt beim Anlegen mit — nur so wirkt sie.
+- **MIME-Anlage:** bleibt ein Entwurf; beim MIME-Anlegen lässt sich die
+  Kennzeichnung nicht mitgeben. Der wirkungslose PATCH entfällt, und das
+  Protokoll sagt jetzt „als Entwurf“.
+
+Der Weg wird nur erreicht, wenn alle regulären Zustellwege scheitern; im Modus
+Graph++ stellt das Gateway eingehende Post per IMAP zu; der Rückfallweg greift
+dort nur für Empfänger, bei denen das scheitert.
+
+**Zu tun:** nichts — kommt mit dem nächsten Update.
+
 ## v1.12.10 — 2026-11-13 — dnspython 2.9.2; Reiter-Test misst den Platzbedarf
 
 - **dnspython 2.9.0 → 2.9.2** (GHSA-vvf4-9x63-8xvv, CVE-2026-128089, CVSS 7.5):
