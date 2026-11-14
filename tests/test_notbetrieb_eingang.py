@@ -162,6 +162,11 @@ def handler_lauf(notfall, monkeypatch):
     monkeypatch.setattr(reinject, "_an_postfix", lambda von, empf, inhalt, h, p: raus.append(empf))
     monkeypatch.setattr(reinject, "_senden", lambda *a, **k: exchange.append(a[1]))
     monkeypatch.setattr(mail_audit, "log_event", lambda **kw: None)
+    # Echtheitsprüfung ohne Netz: keine Einträge, SPF none. Das Gerüst `dns`
+    # überschreibt das, wo ein Test Einträge braucht.
+    import notbetrieb_echtheit
+    monkeypatch.setattr(notbetrieb_echtheit, "_txt", lambda name: [])
+    monkeypatch.setattr(direktversand, "spf_auswerten", lambda d, ip, helo="": {"ergebnis": "none"})
 
     class _U:
         def __init__(self, von, empf, inhalt):
@@ -234,3 +239,132 @@ def test_handler_rcpt_haken_weist_ab_und_uebernimmt_nur_angenommene(notfall):
     assert u.rcpt_tos == ["a@firma.at"]
     notfall["NOTBETRIEB_AUSGERUFEN"] = False      # ohne Notfall: alles wie aiosmtpd ohne Haken
     assert asyncio.run(h.handle_RCPT(None, _Sitzung(NETZ_IP), u, "kunde@anderswo.de", [])) == "250 OK"
+
+
+# ── Echtheit: SPF, DKIM, DMARC ──────────────────────────────────────────────
+
+import base64 as _b64  # noqa: E402
+
+import notbetrieb_echtheit as echt  # noqa: E402
+
+
+@pytest.fixture
+def dns(monkeypatch):
+    """TXT-Einträge als Wörterbuch; SPF-Ergebnis je Umschlagdomäne."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    schluessel = rsa.generate_private_key(public_exponent=65537, key_size=1024)
+    pem = schluessel.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL,
+                                   serialization.NoEncryption())
+    pub = schluessel.public_key().public_bytes(serialization.Encoding.DER,
+                                               serialization.PublicFormat.SubjectPublicKeyInfo)
+    eintraege = {"sel._domainkey.absender.de": [f"v=DKIM1; k=rsa; p={_b64.b64encode(pub).decode()}"]}
+    spf = {}
+    monkeypatch.setattr(echt, "_txt", lambda name: (_ for _ in ()).throw(echt.DnsGestoert("weg"))
+                        if eintraege.get("_gestoert") == name else eintraege.get(name, []))
+    import direktversand
+    monkeypatch.setattr(direktversand, "spf_auswerten",
+                        lambda domain, ip, helo="": {"ergebnis": spf.get(domain, "none")})
+    return {"txt": eintraege, "spf": spf, "pem": pem}
+
+
+def _mail(von="info@absender.de", signiert_von=None, dns=None, rumpf=b"Hallo\r\n"):
+    roh = (f"From: {von}\r\nTo: a@firma.at\r\nSubject: Echt?\r\nMessage-ID: <e1@absender.de>\r\n"
+           f"Date: Sat, 14 Nov 2026 10:00:00 +0000\r\n\r\n").encode() + rumpf
+    if signiert_von:
+        import dkim
+        roh = dkim.sign(roh, b"sel", signiert_von.encode(), dns["pem"],
+                        include_headers=[b"from", b"to", b"subject"]) + roh
+    return roh
+
+
+def _urteil(roh, mail_from="bounce@absender.de"):
+    return echt.pruefen(roh, mail_from, NETZ_IP, "mx.absender.de")
+
+
+def test_dmarc_pass_ueber_passendes_dkim(notfall, dns):
+    dns["txt"]["_dmarc.absender.de"] = ["v=DMARC1; p=reject"]
+    u = _urteil(_mail(signiert_von="absender.de", dns=dns))
+    assert u["entscheidung"] == echt.POSTEINGANG
+    assert "dkim=pass header.d=absender.de" in u["ar"] and "dmarc=pass" in u["ar"]
+
+
+def test_dkim_nach_veraenderung_ungueltig_und_p_reject_weist_ab(notfall, dns):
+    dns["txt"]["_dmarc.absender.de"] = ["v=DMARC1; p=reject"]
+    roh = _mail(signiert_von="absender.de", dns=dns).replace(b"Hallo", b"Zahle")
+    u = _urteil(roh)
+    assert u["entscheidung"] == echt.ABWEISEN and "dkim=none" in u["ar"]
+
+
+def test_dmarc_quarantine_in_junk_und_spf_pass_rettet(notfall, dns):
+    dns["txt"]["_dmarc.absender.de"] = ["v=DMARC1; p=quarantine"]
+    assert _urteil(_mail())["entscheidung"] == echt.JUNK
+    dns["spf"]["absender.de"] = "pass"
+    assert _urteil(_mail())["entscheidung"] == echt.POSTEINGANG
+    # SPF für eine FREMDE Umschlagdomäne passt nicht zum Absender → kein DMARC-pass.
+    dns["spf"]["massenversand.example"] = "pass"
+    assert _urteil(_mail(), mail_from="b@massenversand.example")["entscheidung"] == echt.JUNK
+
+
+def test_ohne_dmarc_nur_spf_fail_in_junk(notfall, dns):
+    assert _urteil(_mail())["entscheidung"] == echt.POSTEINGANG
+    dns["spf"]["absender.de"] = "fail"
+    assert _urteil(_mail())["entscheidung"] == echt.JUNK
+
+
+def test_baumsuche_findet_richtlinie_der_elterndomain_mit_sp(notfall, dns):
+    dns["txt"]["_dmarc.absender.de"] = ["v=DMARC1; p=none; sp=reject"]
+    u = _urteil(_mail(von="info@news.absender.de"), mail_from="b@news.absender.de")
+    assert u["entscheidung"] == echt.ABWEISEN
+
+
+def test_eigene_domaene_aus_dem_internet_ohne_bestaetigung_abgewiesen(notfall, dns):
+    """Ohne DMARC-Eintrag — die Fälschung eines internen Absenders käme sonst an."""
+    assert _urteil(_mail(von="chef@firma.at"), mail_from="chef@firma.at")["entscheidung"] == echt.ABWEISEN
+    dns["spf"]["firma.at"] = "pass"
+    assert _urteil(_mail(von="chef@firma.at"), mail_from="chef@firma.at")["entscheidung"] == echt.POSTEINGANG
+
+
+def test_dns_gestoert_spaeter(notfall, dns):
+    dns["txt"]["_gestoert"] = "_dmarc.absender.de"
+    assert _urteil(_mail())["entscheidung"] == echt.SPAETER
+
+
+def test_gefaelschte_authentication_results_werden_entfernt():
+    roh = (b"Authentication-Results: gw.firma.at; dmarc=pass\r\n  header.from=bank.de\r\n"
+           b"Authentication-Results: anderer.example; spf=pass\r\nFrom: x@bank.de\r\n\r\nx\r\n")
+    neu = echt.kopf_setzen(roh, "gw.firma.at", "dmarc=fail")
+    assert neu.startswith(b"Authentication-Results: gw.firma.at; dmarc=fail\r\n")
+    assert neu.count(b"gw.firma.at") == 1 and b"header.from=bank.de" not in neu
+    assert b"Authentication-Results: anderer.example; spf=pass" in neu
+
+
+def test_handler_junk_ordner_und_zweite_mail_erbt_nichts(handler_lauf, dns, monkeypatch):
+    """Junk landet in Junk-E-Mail. Microsoft liefert über EINE Verbindung oft
+    Post mehrerer Firmen: Kommt danach eigene Exchange-Post (Connector-Weg, ohne
+    Echtheitsprüfung), darf sie die Entscheidung „Junk“ nicht erben."""
+    import handler
+    dns["txt"]["_dmarc.absender.de"] = ["v=DMARC1; p=quarantine"]
+
+    class _U:
+        def __init__(self, von, inhalt):
+            self.mail_from, self.rcpt_tos, self.content = von, ["a@firma.at"], inhalt
+    sitzung = _Sitzung(MS_IP)
+    fremd = _mail().replace(b"Subject:", b"X-MS-Exchange-CrossTenant-Id: 99999999-0000-0000-0000-000000000000\r\nSubject:")
+    eigen = (f"From: team@firma.at\r\nTo: a@firma.at\r\nSubject: intern\r\n"
+             f"X-MS-Exchange-CrossTenant-Id: {TENANT}\r\nMessage-ID: <i1@firma.at>\r\n\r\nx\r\n").encode()
+
+    async def zwei():
+        h = handler.SignatureHandler()
+        return (await h.handle_DATA(None, sitzung, _U("bounce@absender.de", fremd)),
+                await h.handle_DATA(None, sitzung, _U("team@firma.at", eigen)))
+    assert asyncio.run(zwei()) == ("250 OK", "250 OK")
+    assert sorted(z["ordner"] for z in _kopie("a@firma.at")) == ["inbox", "junkemail"]
+
+
+def test_handler_weist_gefaelschten_internen_absender_ab(handler_lauf, dns, monkeypatch):
+    import notbetrieb_eingang
+    monkeypatch.setattr(notbetrieb_eingang, "greylisting_an", lambda: False)
+    lauf, raus, exchange = handler_lauf
+    assert lauf(NETZ_IP, "chef@firma.at", ["a@firma.at"]).startswith("550 5.7.1")
+    assert _kopie("a@firma.at") == []

@@ -994,3 +994,30 @@ def _zeilen(pf):
         return []
     with notbetrieb._conn() as conn:
         return [dict(z) for z in conn.execute("SELECT * FROM mails WHERE postfach=?", (pf,))]
+
+
+# ── Tagesbericht ────────────────────────────────────────────────────────────
+
+def test_tagesbericht_kopie_zeile_immer_und_alter_warnt(nb, graph):
+    """Bleibt der Abgleich stehen, ist die Kopie im Ernstfall veraltet — die
+    Zeile steht deshalb immer, und ab 1 h Alter in Orange."""
+    import notification
+    tage = {}
+    zeilen = "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
+    assert "Kopie für den Notfall" in zeilen and "noch kein Abgleich" in zeilen and "#e67e22" in zeilen
+    notbetrieb.abgleich_alle()
+    zeilen = "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
+    assert "Abgleich vor 0.0 h" in zeilen and "#e67e22" not in zeilen
+    nb["_NOTBETRIEB_LAST"]["ts"] = _iso(JETZT - timedelta(hours=3))
+    assert "#e67e22" in "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
+    # Offene lokale Post und Notfall-Eingang erscheinen, sobald es sie gibt.
+    notbetrieb.lokal_ablegen("a@firma.at", "inbox", MIME)
+    tage.update(notfall_angenommen=2, notfall_unecht=1)
+    zeilen = "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
+    assert "nicht zurückgespielt" in zeilen and "2 angenommen" in zeilen and "1 gefälscht" in zeilen
+
+
+def test_tagesbericht_ohne_notbetrieb_keine_zeile(nb):
+    import notification
+    nb["NOTBETRIEB_AKTIV"] = False
+    assert notification._notbetrieb_zeilen(lambda k: 0) == []

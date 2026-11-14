@@ -121,6 +121,10 @@ KEYS = (
     # #enc verlangt, Verschlüsselung gescheitert (handler) — die Mail ging ins
     # Portal oder als Unzustellbarkeit zurück, nie im Klartext. Tagesbericht.
     "smime_encrypt_fehler",
+    # Notbetrieb, Post von außen im ausgerufenen Notfall (notbetrieb_eingang):
+    # angenommen ist die Bezugsgröße der übrigen.
+    "notfall_angenommen", "notfall_unbekannt", "notfall_greylist", "notfall_gedrosselt",
+    "notfall_unecht", "notfall_junk",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}

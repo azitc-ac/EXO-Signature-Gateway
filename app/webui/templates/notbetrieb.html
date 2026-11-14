@@ -167,7 +167,8 @@
     des eigenen Tenants, alles andere wird schon beim Empfänger abgewiesen (kein offenes Relay).
     Damit sie ankommt, zeigt der MX der Domäne auf das Gateway und die Firewall lässt Port 25 aus dem
     Internet durch; beides ist im Normalbetrieb nicht so und wird nach der Störung zurückgestellt.
-    Noch ohne SPF/DKIM/DMARC-Prüfung und ohne Inhaltsfilter.
+    Geprüft werden SPF, DKIM und DMARC: abweisen, was die Absenderdomäne so verlangt oder sich als
+    eigene Domäne ausgibt, Zweifelhaftes in Junk-E-Mail. Noch ohne Inhaltsfilter.
   </p>
   <p id="nb-eingang-stand" class="hint" style="margin:6px 0"></p>
   <div class="settings-row">
@@ -361,7 +362,8 @@ async function nbStand() {
   const e = d.eingang || {};
   document.getElementById('nb-eingang-stand').textContent = 'Seit dem Start: ' + (e.angenommen || 0)
     + ' angenommen, ' + (e.unbekannt || 0) + ' an unbekannte Empfänger abgewiesen, ' + (e.greylist || 0)
-    + ' aufgeschoben (Greylisting), ' + (e.gedrosselt || 0) + ' gedrosselt.';
+    + ' aufgeschoben (Greylisting), ' + (e.gedrosselt || 0) + ' gedrosselt, ' + (e.unecht || 0)
+    + ' als gefälscht abgewiesen, ' + (e.junk || 0) + ' in Junk-E-Mail.';
 }
 
 async function nbAbgleich() {

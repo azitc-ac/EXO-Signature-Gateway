@@ -34,8 +34,8 @@ Netz statt Adresse (/24, /64), weil große Anbieter von wechselnden Adressen
 wiederholen. Ein Netz, das einmal durchkam, gilt `GREY_NETZ_TAGE` lang als
 bekannt.
 
-Noch NICHT: SPF/DKIM/DMARC, Inhaltsfilter — ein gefälschter interner Absender
-aus dem Internet käme an.
+Echtheit (SPF/DKIM/DMARC) danach in `notbetrieb_echtheit`. Noch NICHT:
+Inhaltsfilter.
 """
 from __future__ import annotations
 
@@ -227,10 +227,17 @@ _zaehler: dict[str, int] = {}
 def _zaehlen(was: str) -> None:
     with _lock:
         _zaehler[was] = _zaehler.get(was, 0) + 1
+    # Dauerhaft und je Tag für den Tagesbericht — außerhalb der Sperre.
+    try:
+        import stats
+        stats.increment("notfall_" + was)
+    except Exception:                                               # noqa: BLE001
+        pass
 
 
 def zaehler() -> dict:
     """Seit dem Start: angenommen, unbekannt, greylist, gedrosselt — die Null
     ist hier die Meldung (Bezugsgröße: angenommen)."""
     with _lock:
-        return {k: _zaehler.get(k, 0) for k in ("angenommen", "unbekannt", "greylist", "gedrosselt")}
+        return {k: _zaehler.get(k, 0) for k in ("angenommen", "unbekannt", "greylist", "gedrosselt",
+                                                 "unecht", "junk")}

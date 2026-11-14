@@ -187,6 +187,21 @@ def _wartung_gemeldet() -> dict | None:
 templates.env.globals["wartung_gemeldet"] = _wartung_gemeldet
 
 
+def _notfall_gemeldet() -> dict | None:
+    """Notfall ausgerufen? {lokal_offen} oder None. Eine liegengebliebene
+    Ausrufung lenkt den ganzen Mailfluss um — sie muss überall sichtbar sein."""
+    try:
+        import notbetrieb
+        if not notbetrieb.ausgerufen():
+            return None
+        return {"lokal_offen": notbetrieb._bestand().get("lokal_offen", 0)}
+    except Exception:                                       # noqa: BLE001
+        return None
+
+
+templates.env.globals["notfall_gemeldet"] = _notfall_gemeldet
+
+
 def _zustellfehler_anzahl() -> int:
     """Mails, die nicht zugestellt werden konnten und in der Warteschlange warten."""
     try:

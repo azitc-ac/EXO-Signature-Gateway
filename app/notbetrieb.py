@@ -59,6 +59,7 @@ angenommen; eine Antwort Tage später wäre falsch adressiert.
 from __future__ import annotations
 
 import base64
+import contextvars
 import email
 import email.policy
 import email.utils
@@ -145,6 +146,14 @@ def postfach_fuer(adresse: str) -> str | None:
     return None
 
 
+# Zielordner für interne Empfänger: Posteingang, oder Junk-E-Mail, wenn die
+# Echtheitsprüfung des Notfall-Eingangs das verlangt (notbetrieb_echtheit). Der
+# Handler setzt ihn zu Beginn JEDER Mail neu — eine zweite Mail derselben
+# Verbindung erbt die Entscheidung der ersten nicht.
+eingang_ordner: contextvars.ContextVar = contextvars.ContextVar("notbetrieb_eingang_ordner",
+                                                                 default="inbox")
+
+
 def zustellen(mail_from: str, rcpt_tos: list, inhalt: bytes) -> dict:
     """EIN Zustellweg im Notbetrieb — für das Webmail und, solange der Notfall
     ausgerufen ist, für alles, was das Gateway an Exchange übergäbe:
@@ -166,7 +175,7 @@ def zustellen(mail_from: str, rcpt_tos: list, inhalt: bytes) -> dict:
         ziel = domain_routing.aufloesen(domain_routing.DIREKT)
         reinject._an_postfix(mail_from, extern, inhalt, ziel["host"], ziel["port"])
     for e in dict.fromkeys(intern):
-        lokal_ablegen(e, "inbox", inhalt)
+        lokal_ablegen(e, eingang_ordner.get(), inhalt)
     return {"intern": len(intern), "extern": len(extern)}
 
 
@@ -299,7 +308,7 @@ _MAIL_ZUSATZ = tuple(z.split()[0] for z in _MAIL_ZUSATZ)
 # Bekannte Ordner, deren Kennung je Postfach gemerkt wird: Lokale Post wird
 # unter dem bekannten Namen abgelegt („inbox“), Exchange-Kopien unter der
 # Ordner-Id — erst die Zuordnung zeigt beide im selben Ordner.
-WK_ORDNER = ("inbox", "sentitems")
+WK_ORDNER = ("inbox", "sentitems", "junkemail")
 
 
 def _kennung(text: str) -> str:

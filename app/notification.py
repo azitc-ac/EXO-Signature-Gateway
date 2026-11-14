@@ -254,6 +254,48 @@ def _ketten_farbe(antworten: int, verhindert: int) -> str:
     return "#e67e22" if antworten >= 20 and verhindert == 0 else ""
 
 
+def _notbetrieb_zeilen(dval) -> list[str]:
+    """Notbetrieb im Tagesbericht. Die Kopie-Zeile steht IMMER, solange der
+    Notbetrieb an ist: Bleibt der Abgleich stehen, ist die Kopie im Ernstfall
+    veraltet — ein stilles Versagen, das sonst niemand bemerkt."""
+    try:
+        import notbetrieb
+        if not notbetrieb.funktion_aktiv() and not notbetrieb.sichtbar():
+            return []
+        st = notbetrieb.status()
+    except Exception as exc:                                        # noqa: BLE001
+        return [_row("Notbetrieb", f"Stand nicht lesbar: {exc}", "#e74c3c")]
+    zeilen = []
+    if st.get("ausgerufen"):
+        zeilen.append(_row("Notfall ausgerufen", "ja — Post geht in die Kopie", "#e74c3c"))
+    letzter = (st.get("letzter_lauf") or {})
+    alter_h = None
+    try:
+        alter_h = (datetime.now(timezone.utc)
+                   - datetime.fromisoformat(str(letzter.get("ts")).replace("Z", "+00:00"))).total_seconds() / 3600
+    except (TypeError, ValueError):
+        pass
+    fehler = int(letzter.get("fehler", 0) or 0) + int(letzter.get("postfaecher_fehler", 0) or 0)
+    if alter_h is None:
+        text, farbe = f"{st.get('mails', 0)} Mails, noch kein Abgleich", "#e67e22"
+    else:
+        text = (f"{st.get('mails', 0)} Mails aus {st.get('postfaecher_im_schatten', 0)} Postfächern, "
+                f"Abgleich vor {alter_h:.1f} h" + (f", {fehler} Fehler" if fehler else ""))
+        farbe = "#e67e22" if (alter_h > 1 or fehler or letzter.get("kein_token")) else ""
+    zeilen.append(_row("Kopie für den Notfall", text, farbe))
+    if st.get("lokal_offen"):
+        zeilen.append(_row("Im Notbetrieb angenommen, nicht zurückgespielt", st["lokal_offen"], "#e74c3c"))
+    angenommen = dval("notfall_angenommen")
+    abgewiesen = dval("notfall_unbekannt") + dval("notfall_unecht") + dval("notfall_gedrosselt")
+    if st.get("ausgerufen") or angenommen or abgewiesen or dval("notfall_greylist"):
+        zeilen.append(_row("Notfall-Eingang von außen",
+                           f"{angenommen} angenommen ({dval('notfall_junk')} in Junk-E-Mail), "
+                           f"{dval('notfall_unbekannt')} an unbekannte Empfänger, "
+                           f"{dval('notfall_unecht')} gefälscht, {dval('notfall_gedrosselt')} gedrosselt, "
+                           f"{dval('notfall_greylist')} aufgeschoben"))
+    return zeilen
+
+
 def send_daily_report(daily: dict, total: dict) -> bool:
     to = _get_notify_to()
     if not to:
@@ -347,6 +389,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         # 0 würde überlesen — hier zählt gerade der Ausschlag.
         *[(_row(_ae.LABELS.get(q, q), _abgewiesen[q], "#e67e22")
            if _abgewiesen.get(q) else "") for q in _ae.QUELLEN],
+        *_notbetrieb_zeilen(dval),
     ])
 
     # ── Diesen Monat ──

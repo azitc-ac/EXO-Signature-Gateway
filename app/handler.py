@@ -521,6 +521,8 @@ class SignatureHandler:
         # handle_PROXY). Der einzige gewollte Fall ohne Adresse ist der Aufruf
         # aus dem Notbetrieb-Webmail im Prozess; er kennzeichnet sich. Alles
         # andere wird abgewiesen statt still durchgelassen.
+        import notbetrieb as _nb
+        _nb.eingang_ordner.set("inbox")
         if not peer_ip and not getattr(session, "notbetrieb_intern", False):
             log.warning("SMTP: Einlieferung ohne Absenderadresse abgewiesen")
             return "554 5.7.1 Access denied"
@@ -577,6 +579,26 @@ class SignatureHandler:
                     return _nf_antwort
                 log.info("NOTFALL-EINGANG (%s): %s → %s (von %s)", _notfall_eingang,
                          sender, ", ".join(recipients[:3]), peer_ip)
+                # Echtheit (SPF/DKIM/DMARC) — im Normalbetrieb prüft das Exchange.
+                import notbetrieb_echtheit as _ne
+                try:
+                    _echt = await asyncio.to_thread(
+                        _ne.pruefen, raw, sender or "", peer_ip, str(getattr(session, "host_name", "") or ""))
+                except Exception as exc:                            # noqa: BLE001
+                    log.error("Notfall-Eingang: Echtheitsprüfung fehlgeschlagen: %s", exc)
+                    return "451 4.7.0 Vorübergehender Fehler"
+                if _echt["entscheidung"] == _ne.ABWEISEN:
+                    log.warning("NOTFALL-EINGANG abgewiesen: %s → %s: %s", sender, recipients[:3], _echt["grund"])
+                    notbetrieb_eingang._zaehlen("unecht")
+                    return "550 5.7.1 Absender nicht bestätigt (SPF/DKIM/DMARC)"
+                if _echt["entscheidung"] == _ne.SPAETER:
+                    log.info("NOTFALL-EINGANG später: %s", _echt["grund"])
+                    return "451 4.7.0 Prüfung vorübergehend nicht möglich"
+                raw = _ne.kopf_setzen(raw, _ne.kennung(), _echt["ar"])
+                _nb.eingang_ordner.set(_echt["entscheidung"])
+                if _echt["entscheidung"] == _ne.JUNK:
+                    notbetrieb_eingang._zaehlen("junk")
+                    log.info("NOTFALL-EINGANG in Junk-E-Mail: %s", _echt["grund"])
 
         if _ident:
             import sende_identitaeten
