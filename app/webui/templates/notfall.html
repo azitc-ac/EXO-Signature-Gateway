@@ -24,11 +24,19 @@
   }
 }
 * { box-sizing: border-box; }
+/* [hidden] muss gegen display:flex/grid der Klassen gewinnen — sonst standen
+   Postfachwahl und „Abmelden“ schon auf der Anmeldeseite. */
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, "Segoe UI", sans-serif; }
 header { background: var(--kopf); color: #fff; padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 header .titel { font-weight: 700; }
 header .band { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
-header .rechts { margin-left: auto; display: flex; gap: 10px; align-items: center; font-size: 13px; }
+header .rechts { margin-left: auto; display: flex; gap: 10px; align-items: center; font-size: 13px; flex-wrap: wrap; }
+/* Kopfzeile ist in beiden Modi dunkel: eigene Farben, nicht die der Fläche
+   (sonst weiß auf weiß im hellen Modus). */
+header button, header select { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); }
+header select option { color: #1e293b; background: #fff; }
+header .wer { color: #e2e8f0; }
 button, select, input { font: inherit; color: inherit; }
 button { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
 button.haupt { background: var(--akzent); color: var(--akzent-text); border-color: var(--akzent); }
@@ -63,7 +71,13 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
   #app .spalte { border-right: 0; }
   #app[data-ansicht="liste"] #lesen, #app[data-ansicht="lesen"] #ordnerspalte,
   #app[data-ansicht="lesen"] #listenspalte { display: none; }
-  #app[data-ansicht="liste"] #ordnerspalte { max-height: 30vh; }
+  /* Auf dem Handy ersetzt eine Auswahlliste den Ordnerbaum — er belegte
+     sonst den ganzen ersten Bildschirm. */
+  #app #ordnerspalte { display: none; }
+  #ordnerwahl { display: block !important; }
+  /* Lesebereich bildschirmhoch: EIN Rollbalken im Mailrahmen statt Rahmen
+     fester Höhe mit Leerraum darunter. */
+  #app[data-ansicht="lesen"] #lesen { height: calc(100vh - 48px); }
   .zurueck { display: inline-block; margin: 10px 18px 0; }
 }
 </style>
@@ -74,7 +88,7 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
   <span class="band">Notbetrieb</span>
   <span class="rechts" id="kopf-rechts" hidden>
     <select id="postfachwahl" aria-label="Postfach" onchange="postfachWaehlen(this.value)"></select>
-    <span id="ich" class="leise"></span>
+    <span id="ich" class="wer"></span>
     <button onclick="abmelden()">Abmelden</button>
   </span>
 </header>
@@ -99,6 +113,8 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
 <main id="app" hidden data-ansicht="liste">
   <nav class="spalte" id="ordnerspalte"><div id="ordner"></div></nav>
   <section class="spalte" id="listenspalte">
+    <select id="ordnerwahl" aria-label="Ordner" style="display:none;margin:8px;width:calc(100% - 16px)"
+            onchange="ordnerWaehlen(this.value)"></select>
     <form class="suche" onsubmit="event.preventDefault(); listeLaden(0)">
       <input id="suche" type="search" placeholder="Suchen in allen Ordnern" aria-label="Suchen">
       <button type="submit">Suchen</button>
@@ -162,6 +178,8 @@ async function postfachWaehlen(pf) {
   el.innerHTML = d.ordner.map(o => '<div class="eintrag" data-id="' + escAttr(o.id) + '" style="padding-left:'
     + (12 + 14 * t(o)) + 'px" onclick="ordnerWaehlen(this.dataset.id)">' + esc(o.name)
     + '<span class="zahl">' + (o.ungelesen ? o.ungelesen + ' / ' : '') + o.anzahl + '</span></div>').join('');
+  document.getElementById('ordnerwahl').innerHTML = d.ordner.map(o => '<option value="' + escAttr(o.id) + '">'
+    + esc('\u00a0'.repeat(2 * t(o)) + o.name) + ' (' + (o.ungelesen ? o.ungelesen + ' / ' : '') + o.anzahl + ')</option>').join('');
   const erster = d.ordner.find(o => o.wk === 'inbox') || d.ordner[0];
   if (erster) ordnerWaehlen(erster.id);
 }
@@ -170,6 +188,7 @@ function ordnerWaehlen(id) {
   nb.ordner = id;
   document.getElementById('suche').value = '';
   document.querySelectorAll('#ordner .eintrag').forEach(e => e.setAttribute('aria-current', e.dataset.id === id));
+  document.getElementById('ordnerwahl').value = id;
   listeLaden(0);
 }
 

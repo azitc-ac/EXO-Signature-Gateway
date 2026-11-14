@@ -259,3 +259,34 @@ def test_alte_kopfdaten_werden_nach_regelwechsel_neu_gelesen(schatten):
         conn.execute("UPDATE meta SET v='1' WHERE k='kopf_stand'")
     zeile = next(z for z in notbetrieb_lesen.liste("a@firma.at", "ord-x")["mails"] if z["graph_id"] == "g-sig-text")
     assert zeile["anhang"] == 0
+
+
+def test_kopfzeile_lesbar_und_auf_der_anmeldeseite_leer():
+    """Klicktest 14.11.2026: Postfachwahl und „Abmelden“ waren im hellen Modus
+    weiß auf weiß (Flächenfarbe in der dunklen Kopfzeile) und standen schon auf
+    der Anmeldeseite (display:flex schlug das hidden-Attribut)."""
+    html = (WURZEL / "app/webui/templates/notfall.html").read_text(encoding="utf-8")
+    assert "[hidden] { display: none !important; }" in html
+    assert "header button, header select { background: transparent; color: #fff;" in html
+    assert 'id="kopf-rechts" hidden' in html
+
+
+def test_ungelesen_kommt_aus_exchange(schatten, monkeypatch):
+    """isRead aus dem Delta landet als gelesen=0/1 in der Kopie."""
+    import test_notbetrieb as t
+    werte = schatten
+    werte["MAILBOX_CONFIG"] = {"a@firma.at": {"sig": True}}
+    werte["NOTBETRIEB_UMFANG"] = "aktivierte"
+    g = t.Graph()
+    g.seiten["mailFolders/ord-in/messages/delta"] = {"value": [
+        {"id": "u-neu", "internetMessageId": "<u@x>", "receivedDateTime": t._iso(t.JETZT), "isRead": False},
+        {"id": "r-neu", "internetMessageId": "<r@x>", "receivedDateTime": t._iso(t.JETZT), "isRead": True}],
+        "@odata.deltaLink": "https://graph/d?x=1"}
+    g.mime.update({"u-neu": TEXT_MAIL, "r-neu": TEXT_MAIL})
+    monkeypatch.setattr(notbetrieb.httpx, "Client", g.client)
+    monkeypatch.setattr(notbetrieb.graph_client, "_acquire_token", lambda: "tok")
+    notbetrieb.abgleich_alle()
+    m = {z["graph_id"]: z for z in notbetrieb_lesen.liste("a@firma.at", "ord-in")["mails"]}
+    assert m["u-neu"]["gelesen"] == 0 and m["r-neu"]["gelesen"] == 1
+    zahl = next(o for o in notbetrieb_lesen.ordner("a@firma.at") if o["id"] == "ord-in")
+    assert zahl["ungelesen"] >= 1
