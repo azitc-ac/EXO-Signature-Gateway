@@ -381,6 +381,8 @@ async function mailOeffnen(id) {
     // Die Signatur wird hier NICHT geprüft — nur angezeigt, dass eine da ist.
     + (d.signiert ? ' · S/MIME-signiert (Signatur im Notbetrieb nicht geprüft)' : '')
     + (d.verschluesselt ? ' · verschlüsselt — im Notbetrieb nicht lesbar' : '') + '</div>'
+    + (d.echtheit === 'unbestaetigt' ? '<div class="meldung" style="margin:6px 0 0">Absender nicht bestätigt '
+       + '(SPF/DKIM/DMARC) — Vorsicht bei Links, Anhängen und Zahlungsaufforderungen.</div>' : '')
     + (d.anhaenge.length ? '<div class="anhaenge">' + d.anhaenge.map(a => '<a href="/notfall/anhang?' + escAttr(p)
         + '&nr=' + a.nr + '">📎 ' + esc(a.name) + ' (' + Math.max(1, Math.round(a.groesse / 1024)) + ' KB)</a>').join('') + '</div>' : '')
     + '<div class="aktionen"><button onclick="verfassen(\'antwort\')">Antworten</button>'

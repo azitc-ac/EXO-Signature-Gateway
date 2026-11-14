@@ -657,3 +657,19 @@ def test_vor_dem_notfall_jede_inhaltsroute_gesperrt(client, schatten):
     schatten["NOTBETRIEB_PROBEGRUPPE"] = ["A@Firma.at"]
     assert client.get("/notfall/api/ordner", params={"postfach": "a@firma.at"}).status_code == 200
     assert client.get("/notfall/api/ich").json()["bereit_modus"] is False
+
+
+@pytest.mark.parametrize("kopf, erwartet", [
+    ("{k}; spf=fail smtp.mailfrom=x.de; dkim=none; dmarc=fail header.from=bank.de policy.dmarc=quarantine", "unbestaetigt"),
+    ("{k}; spf=pass smtp.mailfrom=x.de; dkim=pass header.d=x.de; dmarc=pass header.from=x.de", "bestaetigt"),
+    ("{k}; spf=none smtp.mailfrom=x.de; dkim=none; dmarc=none header.from=x.de", None),
+    # Fremde Kennung zählt nicht — jeder Absender kann sie selbst setzen.
+    ("anderer.example; dmarc=pass header.from=bank.de", None),
+])
+def test_echtheit_nur_aus_der_eigenen_kopfzeile(schatten, kopf, erwartet):
+    import notbetrieb_echtheit
+    roh = (f"Authentication-Results: {kopf.format(k=notbetrieb_echtheit.kennung())}\r\n").encode() + TEXT_MAIL
+    notbetrieb.lokal_ablegen("a@firma.at", "inbox", roh.replace(b"<t1@firma.at>", b"<echt@firma.at>"))
+    with notbetrieb._conn() as conn:
+        gid = conn.execute("SELECT graph_id FROM mails WHERE imid='<echt@firma.at>'").fetchone()["graph_id"]
+    assert notbetrieb_lesen.mail("a@firma.at", gid)["echtheit"] == erwartet

@@ -194,6 +194,26 @@ def _adressen(wert) -> list[dict]:
     return [{"name": _dekodiert(n), "adresse": a} for n, a in getaddresses([str(wert or "")]) if a]
 
 
+def _echtheit(msg) -> str | None:
+    """Urteil der Echtheitsprüfung im Notfall-Eingang (notbetrieb_echtheit) —
+    NUR aus der Kopfzeile mit der Kennung dieses Gateways; fremde
+    Authentication-Results kann jeder Absender selbst hineinschreiben.
+    "bestaetigt" | "unbestaetigt" | None (nicht geprüft, etwa Post aus Exchange)."""
+    import notbetrieb_echtheit
+    kennung = notbetrieb_echtheit.kennung().lower()
+    for wert in msg.get_all("Authentication-Results", []):
+        teile = [t.strip().lower() for t in " ".join(str(wert).split()).split(";")]
+        if not teile or teile[0] != kennung:
+            continue
+        ergebnis = {t.split("=", 1)[0]: t.split("=", 1)[1].split()[0] for t in teile[1:] if "=" in t}
+        if ergebnis.get("dmarc") == "pass":
+            return "bestaetigt"
+        if ergebnis.get("dmarc") == "fail" or ergebnis.get("spf") == "fail":
+            return "unbestaetigt"
+        return None
+    return None
+
+
 def mail(postfach: str, graph_id: str) -> dict | None:
     """Kopf, Text und Anhangsliste. Den HTML-Inhalt liefert `inhalt_html()`."""
     z = _zeile(postfach, graph_id)
@@ -212,7 +232,7 @@ def mail(postfach: str, graph_id: str) -> dict | None:
     return {"graph_id": graph_id, "betreff": _dekodiert(msg["Subject"]), "von": _adressen(msg["From"]),
             "an": _adressen(msg["To"]), "cc": _adressen(msg["Cc"]), "datum": datum,
             "message_id": str(msg["Message-ID"] or ""), "references": " ".join(str(msg["References"] or "").split()),
-            "html": hat_html, "text": text, **_smime(msg),
+            "html": hat_html, "text": text, **_smime(msg), "echtheit": _echtheit(msg),
             "anhaenge": [{"nr": i, "name": _dekodiert(t.get_filename()) or f"anhang-{i}",
                           "typ": t.get_content_type(), "groesse": len(t.get_payload(decode=True) or b"")}
                          for i, t in enumerate(_anhaenge(msg))]}
