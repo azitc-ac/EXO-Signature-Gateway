@@ -44,6 +44,7 @@ DEFAULTS: dict = {
     # kein Abgleich; ein vorhandener Schatten wird in der Oberfläche zum
     # Löschen angeboten.
     "NOTBETRIEB_AKTIV": False,
+    "NOTBETRIEB_AUSGERUFEN": False,   # Notfall: Übergabe an Exchange geht in die Kopie
     # Wie weit der Schatten reicht (Tage): Mail zurück, Kalender zurück/voraus.
     # Auflösung in notbetrieb.fenster_fuer(): erste passende Regel aus
     # NOTBETRIEB_REGELN ({ziel: "gruppe:<Name>"|"postfach:<Schlüssel>", mail,

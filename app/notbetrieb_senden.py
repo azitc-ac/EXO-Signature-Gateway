@@ -217,22 +217,13 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
         meldung = next((_klartext(z[2]) for z in zustellungen), "")
         raise SendeFehler("Nicht gesendet." + (f" {meldung}" if meldung else ""))
 
-    # Erst nach außen, dann intern: Scheitert der Direktversand, ist noch
-    # nichts halb angekommen.
-    import domain_routing
+    # Derselbe Zustellweg wie für das Gateway im ausgerufenen Notfall.
     for von, empf, inhalt in zustellungen:
-        extern_z = [e for e in empf if e.lower() not in intern_konten]
-        if extern_z:
-            ziel = domain_routing.aufloesen(domain_routing.DIREKT)
-            try:
-                reinject._an_postfix(von, extern_z, inhalt, ziel["host"], ziel["port"])
-            except Exception as exc:                                # noqa: BLE001
-                log.warning("Notbetrieb-Senden: Direktversand fehlgeschlagen: %s", exc)
-                raise SendeFehler("Versand nach außen fehlgeschlagen — bitte später erneut.") from None
-    for von, empf, inhalt in zustellungen:
-        for e in empf:
-            if e.lower() in intern_konten:
-                notbetrieb.lokal_ablegen(e.lower(), "inbox", inhalt)
+        try:
+            notbetrieb.zustellen(von, empf, inhalt)
+        except Exception as exc:                                    # noqa: BLE001
+            log.warning("Notbetrieb-Senden: Zustellung fehlgeschlagen: %s", exc)
+            raise SendeFehler("Versand nach außen fehlgeschlagen — bitte später erneut.") from None
     # Gesendet-Kopie = was hinausging (mit Signatur), dazu Bcc.
     kopie = email.message_from_bytes(haupt[2], policy=email.policy.SMTP)
     if bcc_l:
@@ -244,7 +235,9 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
 
 
 class _Sitzung:
-    """Sitzung ohne Verbindung: kein peer, nicht angemeldet."""
+    """Sitzung ohne Verbindung: kein peer, nicht angemeldet. Die Kennzeichnung
+    braucht der Handler — eine Sitzung ohne Adresse weist er sonst ab."""
+    notbetrieb_intern = True
     peer = None
     ssl = None
     authenticated = False

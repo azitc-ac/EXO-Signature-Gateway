@@ -940,3 +940,54 @@ def test_signatur_faellt_ohne_graph_auf_gesichertes_profil_zurueck(nb, graph, mo
         monkeypatch.setattr(gc.httpx, "AsyncClient", lambda **kw: _Kaputt(status))
         gc._user_data_cache.clear()
         assert asyncio.run(gc.get_user("anna@firma.at")).displayName == erwartet, status
+
+
+# ── Notfall ausgerufen: reinject geht in die Kopie ──────────────────────────
+
+@pytest.fixture
+def notfall(nb, monkeypatch):
+    import direktversand
+    import notbetrieb_rechte
+    import reinject
+    monkeypatch.setattr(notbetrieb_rechte, "alle_postfaecher", lambda: ["a@firma.at", "b@firma.at"])
+    monkeypatch.setattr(direktversand, "aktiv", lambda: True)
+    weg = {"postfix": [], "exchange": [], "wartet": []}
+    monkeypatch.setattr(reinject, "_an_postfix", lambda von, empf, inhalt, h, p: weg["postfix"].append(empf))
+    monkeypatch.setattr(reinject, "_senden", lambda *a, **k: weg["exchange"].append(a[1]))
+    import held_mails
+    monkeypatch.setattr(held_mails, "hold", lambda von, empf, inhalt, **k: weg["wartet"].append(empf) or "id")
+    monkeypatch.setattr(held_mails, "merke_zugestellt", lambda *a: None)
+    nb["NOTBETRIEB_AUSGERUFEN"] = True
+    return weg
+
+
+def test_ausgerufen_lenkt_reinject_in_die_kopie_und_den_direktversand(notfall):
+    import reinject
+    assert reinject.send("x@extern.de", ["a@firma.at", "kunde@extern.de"], MIME) == reinject.WEG_NOTBETRIEB
+    assert notfall["exchange"] == [] and notfall["postfix"] == [["kunde@extern.de"]]
+    assert [z["ordner"] for z in _zeilen("a@firma.at")] == ["inbox"]
+
+
+def test_ausgerufen_ohne_direktversand_wartet_statt_zu_verlieren(notfall, monkeypatch):
+    import direktversand
+    import reinject
+    monkeypatch.setattr(direktversand, "aktiv", lambda: False)
+    reinject.send("x@extern.de", ["a@firma.at", "kunde@extern.de"], MIME)
+    assert notfall["wartet"] == [["a@firma.at", "kunde@extern.de"]] and notfall["exchange"] == []
+    assert _zeilen("a@firma.at") == []                # nichts halb angekommen
+
+
+@pytest.mark.parametrize("aktiv, ausgerufen", [(True, False), (False, True)])
+def test_nicht_ausgerufen_geht_an_exchange(notfall, nb, aktiv, ausgerufen):
+    """Auch ein liegengebliebener Schalter bei ausgeschaltetem Notbetrieb lenkt nichts um."""
+    import reinject
+    nb["NOTBETRIEB_AKTIV"], nb["NOTBETRIEB_AUSGERUFEN"] = aktiv, ausgerufen
+    reinject.send("x@extern.de", ["a@firma.at"], MIME)
+    assert notfall["exchange"] == [["a@firma.at"]] and _zeilen("a@firma.at") == []
+
+
+def _zeilen(pf):
+    if not notbetrieb._db_pfad().exists():
+        return []
+    with notbetrieb._conn() as conn:
+        return [dict(z) for z in conn.execute("SELECT * FROM mails WHERE postfach=?", (pf,))]

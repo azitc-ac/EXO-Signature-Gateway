@@ -34,6 +34,7 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
         context={
             "active": "notbetrieb",
             "aktiv": notbetrieb.funktion_aktiv(),
+            "ausgerufen": notbetrieb.ausgerufen(),
             "gateway_name": _gateway_name(),
             "fenster": notbetrieb.standard_fenster(),
             "regeln": regeln if isinstance(regeln, list) else [],

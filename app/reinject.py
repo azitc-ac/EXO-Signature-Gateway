@@ -192,6 +192,14 @@ def umgeleitet() -> bool:
     return _umleitung.get() is not None
 
 
+def _notfall_ausgerufen() -> bool:
+    try:
+        import notbetrieb
+        return notbetrieb.ausgerufen()
+    except Exception:                                               # noqa: BLE001
+        return False
+
+
 def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
          force_mime: bool = False, queue_on_failure: bool = True) -> str | None:
     """Zustellen (siehe `_senden`) und danach festhalten, wer die Nachricht
@@ -200,6 +208,19 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     ziel = _umleitung.get()
     if ziel is not None:
         ziel(mail_from, list(rcpt_tos), content_bytes)
+        return WEG_NOTBETRIEB
+    if _notfall_ausgerufen():
+        # Exchange ist ausgefallen: nicht zurück an Exchange, sondern in die
+        # Kopie bzw. in den Direktversand. Scheitert das, geht die Mail in die
+        # Warteschlange wie jeder Zustellfehler — nach dem Notfall stellt die
+        # Freigabe sie dann regulär zu.
+        import notbetrieb
+        try:
+            notbetrieb.zustellen(mail_from, list(rcpt_tos), content_bytes)
+            log.info("NOTFALL: in die Kopie bzw. Direktversand: from=%s to=%s", mail_from, rcpt_tos)
+        except Exception as exc:                                    # noqa: BLE001
+            log.warning("NOTFALL: Zustellung im Notbetrieb fehlgeschlagen: %s", exc)
+            _fail_delivery(mail_from, rcpt_tos, content_bytes, f"notbetrieb: {exc}", queue_on_failure)
         return WEG_NOTBETRIEB
     eingereiht: set = set()
     marke = _eingereiht.set(eingereiht)

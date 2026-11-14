@@ -496,6 +496,15 @@ class SignatureHandler:
             peer_ip = (session.peer or ("",))[0]
         except Exception:
             pass
+        # Ohne Absenderadresse greift keine der Zugangsprüfungen unten (Quell-IP,
+        # Tenant-Gate, Relay) — sie fragen alle `if peer_ip`. Eine Netz-
+        # verbindung hat immer eine (PROXY ohne Ursprung schließt sie,
+        # handle_PROXY). Der einzige gewollte Fall ohne Adresse ist der Aufruf
+        # aus dem Notbetrieb-Webmail im Prozess; er kennzeichnet sich. Alles
+        # andere wird abgewiesen statt still durchgelassen.
+        if not peer_ip and not getattr(session, "notbetrieb_intern", False):
+            log.warning("SMTP: Einlieferung ohne Absenderadresse abgewiesen")
+            return "554 5.7.1 Access denied"
         # Kommt die Verbindung aus einem Netz, das ausdruecklich fuer das
         # SMTP-Relay freigegeben ist? Dann gilt die Exchange-Adressliste nicht —
         # ein Drucker steht nun einmal nicht in Microsofts Adressbereichen.

@@ -523,3 +523,16 @@ def test_senden_bessert_keine_gesendeten_elemente_in_exchange_nach(postfix, scha
     monkeypatch.setattr(handler, "_cleanup_sent_item", _merken)
     _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="x", text="x")
     assert postfix and aufrufe == []
+
+
+def test_handler_weist_einlieferung_ohne_adresse_ab(postfix):
+    """Die Zugangsprüfungen fragen alle `if peer_ip` — ohne Adresse liefen sie
+    leer. Nur der gekennzeichnete Aufruf aus dem Webmail darf ohne."""
+    import handler
+
+    class _Ohne:
+        peer = None
+        ssl = None
+    antwort = asyncio.run(handler.SignatureHandler().handle_DATA(
+        None, _Ohne(), ns._Umschlag("a@firma.at", ["kunde@extern.de"], b"Subject: x\r\n\r\nx\r\n")))
+    assert antwort.startswith("554") and postfix == []

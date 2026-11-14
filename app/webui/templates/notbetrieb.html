@@ -18,6 +18,29 @@
   .nb-tage { width:5em }
 </style>
 
+<!-- Notfall -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Notfall</h2>
+  {% if ausgerufen %}
+  <div class="alert error" style="margin-bottom:10px">
+    Der Notfall ist <strong>ausgerufen</strong>. Was das Gateway sonst an Exchange übergibt, landet
+    in der Kopie bzw. geht per Direktversand hinaus. Nach der Störung ausschalten und zurückspielen.
+  </div>
+  {% endif %}
+  <p class="hint" style="margin-top:0">
+    Schalte um, wenn Exchange Online ausgefallen ist. Interne Empfänger bekommen ihre Post dann in
+    die Kopie (lesbar im Notfall-Webmail), externe über den Direktversand. Ohne Direktversand bleibt
+    Post an externe Empfänger in der Warteschlange.
+  </p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-ausgerufen" {% if ausgerufen %}checked{% endif %}
+             {% if not aktiv %}disabled{% endif %} onchange="nbAusrufen(this)"> Notfall ausgerufen
+    </label>
+  </div>
+  <div class="msg" id="nb-ausgerufen-msg" hidden></div>
+</div>
+
 <!-- Stand -->
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Kopie für den Ernstfall</h2>
@@ -264,6 +287,19 @@ async function nbFensterSpeichern() {
                                 NOTBETRIEB_UMFANG: umfang}, 'nb-fenster-result');
   wacheFertig('nb-fenster-btn', ok);
   if (ok) nbPostfaecher();
+}
+
+// ── Notfall ──────────────────────────────────────────────────────────────
+// Reiner Schalter → speichert sofort; er lenkt den ganzen Mailfluss um, daher
+// mit Rückfrage. Danach neu laden, damit Hinweis und Stand zusammenpassen.
+async function nbAusrufen(el) {
+  const an = el.checked;
+  const frage = an
+    ? 'Notfall ausrufen? Post geht dann NICHT mehr an Exchange, sondern in die Kopie bzw. per Direktversand hinaus.'
+    : 'Notfall beenden? Post geht wieder an Exchange. Spiele danach zurück, was im Notbetrieb angenommen wurde.';
+  if (!confirm(frage)) { el.checked = !an; return; }
+  if (!await savePartial({NOTBETRIEB_AUSGERUFEN: an}, 'nb-ausgerufen-msg')) { el.checked = !an; return; }
+  location.reload();
 }
 
 // ── Stand ────────────────────────────────────────────────────────────────

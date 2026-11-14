@@ -117,6 +117,37 @@ def funktion_aktiv() -> bool:
     return bool(settings_store.get("NOTBETRIEB_AKTIV"))
 
 
+def ausgerufen() -> bool:
+    """Notfall ausgerufen: Was das Gateway an Exchange übergäbe, geht in die
+    Kopie bzw. in den Direktversand (`reinject.send`). Nur bei eingeschaltetem
+    Notbetrieb — ein liegengebliebener Schalter ohne Kopie lenkt nichts um."""
+    return funktion_aktiv() and settings_store.get("NOTBETRIEB_AUSGERUFEN") is True
+
+
+def zustellen(mail_from: str, rcpt_tos: list, inhalt: bytes) -> dict:
+    """EIN Zustellweg im Notbetrieb — für das Webmail und, solange der Notfall
+    ausgerufen ist, für alles, was das Gateway an Exchange übergäbe:
+    interne Empfänger (Postfach im Rechte-Abbild) in den Posteingang ihrer
+    Kopie, externe über den Direktversand. Erst nach außen, dann intern —
+    scheitert der Direktversand, ist noch nichts halb angekommen. Wirft bei
+    Fehler (der Aufrufer entscheidet über Warteschlange oder Meldung)."""
+    import notbetrieb_rechte
+    intern_konten = set(notbetrieb_rechte.alle_postfaecher())
+    intern = [e.strip().lower() for e in rcpt_tos if e.strip().lower() in intern_konten]
+    extern = [e for e in rcpt_tos if e.strip().lower() not in intern_konten]
+    if extern:
+        import direktversand
+        import domain_routing
+        import reinject
+        if not direktversand.aktiv():
+            raise RuntimeError("Direktversand nicht eingerichtet — externe Empfänger nicht erreichbar")
+        ziel = domain_routing.aufloesen(domain_routing.DIREKT)
+        reinject._an_postfix(mail_from, extern, inhalt, ziel["host"], ziel["port"])
+    for e in dict.fromkeys(intern):
+        lokal_ablegen(e, "inbox", inhalt)
+    return {"intern": len(intern), "extern": len(extern)}
+
+
 def sichtbar() -> bool:
     """Seite und Menüpunkt: an ODER es liegt noch eine Kopie. Eine
     ausgeschaltete Funktion darf keine Daten behalten, an die niemand mehr
