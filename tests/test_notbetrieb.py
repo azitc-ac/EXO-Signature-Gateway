@@ -51,7 +51,12 @@ class Graph:
     def __init__(self):
         self.seiten: dict[str, list] = {}      # URL → Antwort
         self.mime: dict[str, bytes] = {}
-        self.im_postfach: set[str] = set()     # internetMessageIds in Exchange
+        # internetMessageIds in Exchange — JE POSTFACH wie die echte Suche
+        # (/users/{id}/messages). Ein bloßes imid gilt für alle Postfächer
+        # (bequem für „liegt schon dort“). Bis 14.11.2026 nur global: Dann galt
+        # die Gesendet-Kopie als vorhanden, sobald die Kopie beim internen
+        # Empfänger (gleiche Message-ID) eingespielt war.
+        self.im_postfach: set = set()
         self.aufrufe: list[tuple] = []
 
     def client(self, **kw):
@@ -78,7 +83,9 @@ class Graph:
             return _Resp(200, content=self.mime[gid])
         if params and "$filter" in params:
             imid = params["$filter"].split("'", 1)[1].rsplit("'", 1)[0].replace("''", "'")
-            return _Resp(200, {"value": [{"id": "x"}] if imid in self.im_postfach else []})
+            pf = url.split("/users/", 1)[1].split("/", 1)[0]
+            da = imid in self.im_postfach or (pf, imid) in self.im_postfach
+            return _Resp(200, {"value": [{"id": "x"}] if da else []})
         for schluessel, antwort in self.seiten.items():
             if schluessel in url:
                 return antwort if isinstance(antwort, _Resp) else _Resp(200, antwort)
@@ -89,7 +96,8 @@ class Graph:
         mime = base64.b64decode(content)
         for zeile in mime.split(b"\r\n"):
             if zeile.lower().startswith(b"message-id:"):
-                self.im_postfach.add(zeile.split(b":", 1)[1].strip().decode())
+                pf = url.split("/users/", 1)[1].split("/", 1)[0]
+                self.im_postfach.add((pf, zeile.split(b":", 1)[1].strip().decode()))
         return _Resp(201, {"id": "neu-1"})
 
     def patch(self, url, json=None, headers=None):
@@ -242,7 +250,7 @@ def test_lokale_post_ohne_message_id_bekommt_eine(nb, graph):
     imid = notbetrieb.lokal_ablegen("a@firma.at", "inbox", ohne)
     assert imid.startswith("<") and imid.endswith("@firma.at>")
     notbetrieb.zurueckspielen()
-    assert imid in graph.im_postfach
+    assert ("a@firma.at", imid) in graph.im_postfach
 
 
 def test_rueckspielen_ohne_token_bleibt_offen(nb, graph, monkeypatch):
