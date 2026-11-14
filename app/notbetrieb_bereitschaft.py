@@ -110,6 +110,16 @@ def _versand() -> dict:
               "Einrichtung → Direktversand einrichten.")
 
 
+def _kontakte() -> dict:
+    import abnahme
+    import notbetrieb_pim
+    if notbetrieb_pim.kontakte_recht_fehlt():
+        return _p("Kontakte", abnahme.OFFEN,
+                  "Der App fehlt Contacts.Read — im Notfall-Webmail fehlen die persönlichen Kontakte.",
+                  "Einrichtung → Betriebsmodus → „Fehlende Berechtigungen erteilen“.")
+    return _p("Kontakte", abnahme.OK, "Lesbar.")
+
+
 def pruefen(mit_netz: bool = True) -> dict:
     """{punkte, bereit}. `mit_netz=False` nur lokale Prüfungen (Abnahme-Übersicht)."""
     import abnahme
@@ -117,7 +127,7 @@ def pruefen(mit_netz: bool = True) -> dict:
     st = notbetrieb.status()
     punkte = []
     for f in (lambda: _kopie(st), _abbild, lambda: _profile(st), lambda: _anmeldung(mit_netz), _versand,
-              abnahme._tls):
+              _kontakte, abnahme._tls):
         try:
             punkte.append(f())
         except Exception as exc:                                    # noqa: BLE001

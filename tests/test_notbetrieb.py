@@ -1097,3 +1097,30 @@ def test_mx_stand_unterscheidet_exchange_gateway_anders(nb, monkeypatch):
     monkeypatch.setattr(nbb, "_adressen", lambda n: {"gw.firma.at": {"203.0.113.5"}, "mx.zweite.de": {"203.0.113.5"}}.get(n, {"198.51.100.9"}))
     stand = {x["domain"]: x["ziel"] for x in nbb.mx_stand()}
     assert stand == {"firma.at": "exchange", "zweite.de": "gateway", "dritte.de": "anders"}
+
+
+def test_aufgabe_notbetrieb_bereit_erscheint_und_verschwindet(nb, graph, monkeypatch):
+    """Sammelpunkt oben rechts: eine stehengebliebene Kopie oder ein fehlendes
+    Recht fällt nicht erst im Ernstfall auf. Ohne Netz (Seitenaufbau)."""
+    import abnahme
+    import aufgaben
+    import direktversand
+    import notbetrieb_pim
+    monkeypatch.setattr(abnahme, "_tls", lambda: abnahme._punkt("TLS-Zertifikat", abnahme.OK))
+    monkeypatch.setattr(direktversand, "aktiv", lambda: True)
+    nb["NOTBETRIEB_LDAP_SERVER"], nb["NOTBETRIEB_LDAP_BASIS"] = "ldaps://dc01", "DC=x"
+    assert abnahme._notbetrieb_lokal()["zustand"] == abnahme.OFFEN          # noch nichts abgeglichen
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(ROH))
+    graph.seiten["/users?$select"] = {"value": [{"displayName": "A", "mail": "a@firma.at"}]}
+    notbetrieb.profile_sichern()
+    notbetrieb.abgleich_alle()
+    p = abnahme._notbetrieb_lokal()
+    assert p["zustand"] == abnahme.OK, p
+    with notbetrieb._conn() as conn:
+        conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('kontakte_recht_fehlt', '1')")
+    p = abnahme._notbetrieb_lokal()
+    assert p["zustand"] == abnahme.OFFEN and "Contacts.Read" in p["befund"] and "Berechtigungen" in p["zu_tun"]
+    assert notbetrieb_pim.kontakte_recht_fehlt()
+    nb["NOTBETRIEB_AKTIV"] = False
+    assert abnahme._notbetrieb_lokal()["zustand"] == abnahme.OK
+    assert any(a.kennung == "notbetrieb-bereit" for a in aufgaben.AUFGABEN)

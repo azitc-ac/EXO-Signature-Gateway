@@ -84,6 +84,10 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     Aufgabe("waechter-code", abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),
     # Eingetragener Key Vault ohne Datenrechte der App: Schlüssel blieben still lokal.
     Aufgabe("key-vault-zugriff", abnahme._key_vault_zugriff, "/setup#step-keyvault", seit="1.12.4"),
+    # Notbetrieb: eine stehengebliebene Kopie oder ein fehlendes Recht fiele
+    # sonst erst im Ernstfall auf. Kein `seit` — die Aufgabe entsteht aus dem
+    # Zustand, nicht aus einem Update.
+    Aufgabe("notbetrieb-bereit", abnahme._notbetrieb_lokal, "/notbetrieb"),
 )
 
 _TTL_S = 10
