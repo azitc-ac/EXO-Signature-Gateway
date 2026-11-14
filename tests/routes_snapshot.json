@@ -896,11 +896,32 @@
     "name": "api_notbetrieb_postfaecher"
   },
   {
+    "pfad": "/api/notbetrieb/rechte",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_rechte"
+  },
+  {
+    "pfad": "/api/notbetrieb/rechte",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_rechte_abgleichen"
+  },
+  {
     "pfad": "/api/notbetrieb/status",
     "methoden": [
       "GET"
     ],
     "name": "api_notbetrieb_status"
+  },
+  {
+    "pfad": "/api/notbetrieb/zugriff",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_zugriff"
   },
   {
     "pfad": "/api/notbetrieb/zurueckspielen",

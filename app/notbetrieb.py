@@ -193,6 +193,21 @@ def _conn() -> sqlite3.Connection:
             tage     INTEGER NOT NULL,
             PRIMARY KEY (postfach, ordner)
         );
+        CREATE TABLE IF NOT EXISTS konten (
+            primary_adr TEXT PRIMARY KEY,
+            upn         TEXT,
+            typ         TEXT
+        );
+        CREATE TABLE IF NOT EXISTS rechte (
+            postfach TEXT NOT NULL,
+            nutzer   TEXT NOT NULL,
+            recht    TEXT NOT NULL,
+            PRIMARY KEY (postfach, nutzer, recht)
+        );
+        CREATE TABLE IF NOT EXISTS meta (
+            k TEXT PRIMARY KEY,
+            v TEXT
+        );
         CREATE TABLE IF NOT EXISTS ordner (
             postfach TEXT NOT NULL,
             id       TEXT NOT NULL,
@@ -268,14 +283,20 @@ def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
 # ── Abgleich von Exchange ───────────────────────────────────────────────────
 
 def _postfaecher() -> list[tuple[str, str]]:
-    """(config_key, upn) je aktiviertem Postfach (sig oder smime), wie der
-    Abwesenheits-Abgleich."""
+    """(config_key, adresse) je Postfach im Schatten: die aktivierten (sig oder
+    smime, wie der Abwesenheits-Abgleich) und dazu jedes Postfach, auf das
+    einer von ihnen Vollzugriff hat (notbetrieb_rechte) — sonst stünde ein
+    geteiltes Postfach im Notbetrieb leer da. Zusatzpostfächer führen ihre
+    Adresse als Schlüssel (sie stehen nicht in MAILBOX_CONFIG)."""
+    import notbetrieb_rechte
     out = []
     for key, cfg in (settings_store.get("MAILBOX_CONFIG") or {}).items():
         if isinstance(cfg, dict) and (cfg.get("sig") or cfg.get("smime")):
             upn = (cfg.get("primary") or key or "").strip().lower()
             if "@" in upn:
                 out.append((key, upn))
+    bekannt = {upn for _, upn in out}
+    out += [(pf, pf) for pf in notbetrieb_rechte.zusatz_postfaecher(sorted(bekannt)) if pf not in bekannt]
     return out
 
 

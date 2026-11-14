@@ -36,6 +36,7 @@ _OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisiere
                                        # häufiges Pollen unschädlich für Exchanges Dedup
 _last_notbetrieb_run: float = 0.0      # monotonic; 0 = never (triggers run on first tick)
 _NOTBETRIEB_INTERVAL = 15 * 60         # Schatten nachführen (Graph-Delta, nur Änderungen)
+_NOTBETRIEB_RECHTE_INTERVAL = 24 * 60 * 60  # Postfachrechte (EXO-PowerShell) täglich
 
 
 # ── TLS / Let's Encrypt ───────────────────────────────────────────────────────
@@ -603,6 +604,14 @@ def _sync_notbetrieb() -> None:
     try:
         import notbetrieb
         if notbetrieb.funktion_aktiv():
+            # Rechte zuerst: Sie bestimmen, welche geteilten Postfächer mit in
+            # den Schatten kommen. Täglich reicht — im Störfall gilt ohnehin der
+            # zuletzt gesehene Stand.
+            import notbetrieb_rechte
+            ts = notbetrieb_rechte.stand().get("ts") or ""
+            alt = (datetime.now(timezone.utc) - datetime.fromisoformat(ts)).total_seconds() if ts else None
+            if alt is None or alt > _NOTBETRIEB_RECHTE_INTERVAL:
+                notbetrieb_rechte.abgleichen()
             notbetrieb.abgleich_alle()
     except Exception as exc:                                        # noqa: BLE001
         log.warning("scheduler: Notbetrieb-Abgleich fehlgeschlagen: %s", exc)

@@ -11,11 +11,10 @@
 {% endif %}
 
 <style>
-  #nb-pf-tabelle th, #nb-pf-tabelle td, #nb-regel-tabelle th, #nb-regel-tabelle td {
-    padding:6px 8px; text-align:left; border-bottom:1px solid #e5e7eb; font-size:13px }
-  [data-theme="dark"] #nb-pf-tabelle th, [data-theme="dark"] #nb-pf-tabelle td,
-  [data-theme="dark"] #nb-regel-tabelle th, [data-theme="dark"] #nb-regel-tabelle td { border-bottom-color:#334155 }
-  #nb-pf-tabelle th, #nb-regel-tabelle th { font-weight:600; color:#555; font-size:12px }
+  .nb-tabelle th, .nb-tabelle td {
+    padding:6px 8px; text-align:left; border-bottom:1px solid #e5e7eb; font-size:13px; vertical-align:top }
+  [data-theme="dark"] .nb-tabelle th, [data-theme="dark"] .nb-tabelle td { border-bottom-color:#334155 }
+  .nb-tabelle th { font-weight:600; color:#555; font-size:12px }
   .nb-tage { width:5em }
 </style>
 
@@ -60,7 +59,7 @@
 
   <h3>Abweichungen je Gruppe oder Postfach</h3>
   <div class="tabellen-rollbereich">
-    <table id="nb-regel-tabelle" style="min-width:560px;width:100%;border-collapse:collapse">
+    <table id="nb-regel-tabelle" class="nb-tabelle" style="min-width:560px;width:100%;border-collapse:collapse">
       <thead><tr><th>Gilt für</th><th>Mail</th><th>Kal. zurück</th><th>Kal. voraus</th><th></th></tr></thead>
       <tbody id="nb-regel-tbody"></tbody>
     </table>
@@ -93,11 +92,41 @@
   <p class="hint" id="nb-platz-text" style="margin:6px 0 0"></p>
 </div>
 
+<!-- Zugriffsrechte -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Wer darf welches Postfach</h2>
+  <p class="hint" style="margin-top:0">
+    Abbild von Vollzugriff, „Senden als“ und „Senden im Auftrag“ aus Exchange, täglich erneuert.
+    Im Störfall gilt der zuletzt gesehene Stand. Postfächer, auf die ein aktiviertes Postfach
+    Vollzugriff hat, kommen mit in die Kopie. Gruppen werden eine Ebene tief aufgelöst.
+  </p>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    {% if aktiv %}<button class="btn secondary btn-sm" id="nb-rechte-btn" onclick="nbRechteAbgleichen()">Rechte jetzt lesen</button>{% endif %}
+    <span id="nb-rechte-stand" class="muted"></span>
+  </div>
+  <div class="msg" id="nb-rechte-msg" style="margin-top:6px" hidden></div>
+  <div class="tabellen-rollbereich" style="margin-top:10px">
+    <table id="nb-rechte-tabelle" class="nb-tabelle" style="min-width:640px;width:100%;border-collapse:collapse">
+      <thead><tr><th>Postfach</th><th>Art</th><th>Vollzugriff</th><th>Senden als</th><th>Im Auftrag</th></tr></thead>
+      <tbody id="nb-rechte-tbody"><tr><td colspan="5" class="muted">Lädt…</td></tr></tbody>
+    </table>
+  </div>
+  <h3>Was sieht jemand im Notbetrieb?</h3>
+  <div class="settings-row">
+    <label for="nb-wer">Anmeldename oder Adresse</label>
+    <div class="settings-control" style="display:flex;gap:6px;flex-wrap:wrap">
+      <input type="text" id="nb-wer" placeholder="max.mustermann@firma.at" style="min-width:220px">
+      <button class="btn secondary btn-sm" id="nb-wer-btn" onclick="nbZugriff()">Zeigen</button>
+    </div>
+  </div>
+  <p class="hint" id="nb-wer-ergebnis" style="margin:4px 0 0"></p>
+</div>
+
 <!-- Postfächer -->
 <div class="settings-card">
   <h2 style="margin-top:0">Postfächer</h2>
   <div class="tabellen-rollbereich">
-    <table id="nb-pf-tabelle" style="min-width:640px;width:100%;border-collapse:collapse">
+    <table id="nb-pf-tabelle" class="nb-tabelle" style="min-width:640px;width:100%;border-collapse:collapse">
       <thead><tr><th>Postfach</th><th>Mail</th><th>Kalender</th><th>Gilt wegen</th><th>Ordner</th><th>Mails in der Kopie</th><th>Bedarf</th></tr></thead>
       <tbody id="nb-pf-tbody"><tr><td colspan="7" class="muted">Lädt…</td></tr></tbody>
     </table>
@@ -216,6 +245,41 @@ async function nbLoeschen() {
   nbStand(); nbPostfaecher();
 }
 
+// ── Zugriffsrechte ───────────────────────────────────────────────────────
+const NB_ART = {SharedMailbox: 'geteilt', UserMailbox: 'Nutzer'};
+async function nbRechte() {
+  const tb = document.getElementById('nb-rechte-tbody');
+  const d = await getJSON('/api/notbetrieb/rechte');
+  if (!d.ok) { tabelleHinweis(tb, 5, 'Nicht lesbar: ' + esc(errText(d)), true); return; }
+  const st = d.stand || {};
+  document.getElementById('nb-rechte-stand').textContent = st.ts
+    ? 'Stand ' + new Date(st.ts).toLocaleString('de-DE') + ': ' + st.konten + ' Postfächer, ' + st.rechte + ' Rechte'
+      + (st.nicht_aufgeloest ? ', ' + st.nicht_aufgeloest + ' Berechtigte nicht auflösbar' : '')
+    : 'Noch nicht gelesen.';
+  if (!d.items.length) { tabelleHinweis(tb, 5, st.ts ? 'Keine Postfächer mit Rechten für andere.' : '—'); return; }
+  const liste = a => a.length ? a.map(esc).join('<br>') : '<span class="muted">—</span>';
+  tb.innerHTML = d.items.map(p => '<tr><td>' + esc(p.postfach) + '</td><td>' + esc(NB_ART[p.typ] || p.typ) + '</td>'
+    + '<td>' + liste(p.voll) + '</td><td>' + liste(p.als) + '</td><td>' + liste(p.auftrag) + '</td></tr>').join('');
+}
+
+async function nbRechteAbgleichen() {
+  const d = await knopfAktion('nb-rechte-btn', 'Lese Rechte…', () => postJSON('/api/notbetrieb/rechte', {}));
+  showMsg('nb-rechte-msg', d.ok ? 'Rechte gelesen: ' + d.konten + ' Postfächer, ' + d.rechte + ' Rechte.'
+                                : errText(d), d.ok);
+  nbRechte(); nbPostfaecher();
+}
+
+async function nbZugriff() {
+  const el = document.getElementById('nb-wer-ergebnis');
+  const wer = feldWert('nb-wer');
+  if (!wer) { el.textContent = ''; return; }
+  const d = await knopfAktion('nb-wer-btn', '', () => getJSON('/api/notbetrieb/zugriff?wer=' + encodeURIComponent(wer)));
+  if (!d.ok) { el.textContent = 'Nicht lesbar: ' + errText(d); return; }
+  if (!d.items.length) { el.textContent = 'Unbekannt — kein Postfach mit diesem Namen im Abbild.'; return; }
+  el.textContent = d.items.map(p => p.postfach + (p.eigen ? ' (eigenes)' : ' — '
+    + [p.voll ? 'lesen' : '', p.als ? 'senden als' : '', p.auftrag ? 'im Auftrag' : ''].filter(Boolean).join(', '))).join(' · ');
+}
+
 // ── Postfächer ───────────────────────────────────────────────────────────
 async function nbPostfaecher() {
   const tb = document.getElementById('nb-pf-tbody');
@@ -291,6 +355,7 @@ document.getElementById('nb-fenster-karte').addEventListener('input', nbRechnenB
 document.getElementById('nb-fenster-karte').addEventListener('change', nbRechnenBald);
 nbRegelnZeichnen();
 nbStand();
+nbRechte();
 nbRechnen();
 </script>
 {% endblock %}

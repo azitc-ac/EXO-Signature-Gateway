@@ -479,3 +479,77 @@ def test_seite_bleibt_erreichbar_solange_eine_kopie_liegt(nb, graph):
                                           ("String 0xe08", False), ("Integer kaputt", False), (None, False)])
 def test_groessen_kennung_wird_als_zahl_erkannt(kennung, ja):
     assert notbetrieb._ist_groesse(kennung) is ja
+
+
+# ── Rechte-Abbild (geteilte Postfächer) ─────────────────────────────────────
+
+import json as _json
+import notbetrieb_rechte
+
+ROH = _json.dumps({
+    "konten": [{"primary": "a@firma.at", "upn": "a@firma.at", "typ": "UserMailbox"},
+               {"primary": "Team@Firma.at", "upn": "team@firma.onmicrosoft.com", "typ": "SharedMailbox"},
+               {"primary": "chef@firma.at", "upn": "c.chef@firma.at", "typ": "UserMailbox"}],
+    "rechte": [{"postfach": "team@firma.at", "nutzer": "A@firma.at", "recht": "voll"},
+               {"postfach": "team@firma.at", "nutzer": "a@firma.at", "recht": "als"},
+               {"postfach": "chef@firma.at", "nutzer": "a@firma.at", "recht": "auftrag"},
+               {"postfach": "a@firma.at", "nutzer": "a@firma.at", "recht": "voll"},       # selbst: Rauschen
+               {"postfach": "weg@firma.at", "nutzer": "a@firma.at", "recht": "voll"},     # kein Konto
+               {"postfach": "team@firma.at", "nutzer": "", "recht": "voll"},
+               {"postfach": "team@firma.at", "nutzer": "b@firma.at", "recht": "lesen"}],  # unbekanntes Recht
+    "nicht_aufgeloest": 1})
+
+
+def test_rechte_parse_normalisiert_und_filtert():
+    a = notbetrieb_rechte.parse(ROH)
+    assert a["rechte"] == [("chef@firma.at", "a@firma.at", "auftrag"),
+                           ("team@firma.at", "a@firma.at", "als"),
+                           ("team@firma.at", "a@firma.at", "voll")]
+    assert {k["primary"] for k in a["konten"]} == {"a@firma.at", "team@firma.at", "chef@firma.at"}
+    assert a["nicht_aufgeloest"] == 1
+
+
+@pytest.mark.parametrize("roh", ["", "kein json", "[]", "null"])
+def test_rechte_parse_unlesbar_ist_none(roh):
+    assert notbetrieb_rechte.parse(roh) is None
+
+
+def test_rechte_ein_element_wird_als_objekt_geliefert():
+    """ConvertTo-Json macht aus einer Ein-Element-Liste ein Objekt."""
+    roh = _json.dumps({"konten": {"primary": "t@firma.at", "upn": "t@firma.at", "typ": "SharedMailbox"},
+                       "rechte": {"postfach": "t@firma.at", "nutzer": "a@firma.at", "recht": "voll"}})
+    assert notbetrieb_rechte.parse(roh)["rechte"] == [("t@firma.at", "a@firma.at", "voll")]
+
+
+def test_zugriff_eigenes_zuerst_dann_fremde_auch_per_upn(nb):
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(ROH))
+    z = notbetrieb_rechte.zugriff("A@firma.at")
+    assert [p["postfach"] for p in z] == ["a@firma.at", "chef@firma.at", "team@firma.at"]
+    assert z[0]["eigen"] and z[2] == {"postfach": "team@firma.at", "eigen": False, "typ": "SharedMailbox",
+                                      "voll": True, "als": True, "auftrag": False}
+    # Anmeldung per UPN, die von der Adresse abweicht
+    assert notbetrieb_rechte.zugriff("c.chef@firma.at")[0]["postfach"] == "chef@firma.at"
+    assert notbetrieb_rechte.zugriff("fremd@x.de") == []
+
+
+def test_geteiltes_postfach_kommt_in_den_schatten(nb, graph):
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(ROH))
+    pf = [upn for _, upn in notbetrieb._postfaecher()]
+    # a@ ist aktiviert und hat Vollzugriff auf team@ — chef@ nur „im Auftrag“, kommt NICHT mit.
+    assert pf == ["a@firma.at", "team@firma.at"]
+    notbetrieb.abgleich_alle()
+    assert any("/users/team@firma.at/mailFolders" in a[1] for a in graph.aufrufe)
+
+
+def test_fehlgeschlagener_rechteabruf_behaelt_den_alten_stand(nb, monkeypatch):
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(ROH), ts="2026-11-01T00:00:00+00:00")
+    monkeypatch.setattr(notbetrieb_rechte, "fetch", lambda: None)
+    erg = notbetrieb_rechte.abgleichen()
+    assert erg["ok"] is False and erg["rechte"] == 3 and erg["ts"].startswith("2026-11-01")
+    assert len(notbetrieb_rechte.zugriff("a@firma.at")) == 3
+
+
+def test_rechte_skript_filtert_geerbte_und_systemkonten():
+    ps = notbetrieb_rechte._ps_script("app", "org.onmicrosoft.com")
+    assert "$p.IsInherited -or $p.Deny" in ps and "NT AUTHORITY*" in ps
+    assert "GrantSendOnBehalfTo" in ps and "Get-EXORecipientPermission" in ps

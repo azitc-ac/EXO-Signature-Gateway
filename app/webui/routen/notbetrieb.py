@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 import gruppen
 import notbetrieb
+import notbetrieb_rechte
 import settings_store
 from webui.deps import templates, log, _gateway_name, _require_admin
 
@@ -106,3 +107,28 @@ async def api_notbetrieb_platz_rechnen(request: Request, _user: str = Depends(_r
     regeln = body.get("regeln") if isinstance(body.get("regeln"), list) else None
     std = body.get("fenster") if isinstance(body.get("fenster"), dict) else None
     return JSONResponse(await asyncio.to_thread(notbetrieb.platz_rechnen, regeln, std))
+
+
+@router.get("/api/notbetrieb/rechte")
+async def api_notbetrieb_rechte(_user: str = Depends(_require_admin)):
+    """Abbild der Postfachrechte: Stand und je Postfach wer darf was."""
+    return JSONResponse({"ok": True, "stand": await asyncio.to_thread(notbetrieb_rechte.stand),
+                         "items": await asyncio.to_thread(notbetrieb_rechte.uebersicht)})
+
+
+@router.post("/api/notbetrieb/rechte")
+async def api_notbetrieb_rechte_abgleichen(user: str = Depends(_require_admin)):
+    """Rechte jetzt aus Exchange lesen (EXO-PowerShell, bei vielen Postfächern Minuten)."""
+    if not notbetrieb.funktion_aktiv():
+        return JSONResponse({"ok": False, "error": "Der Notbetrieb ist ausgeschaltet."}, status_code=409)
+    ergebnis = await asyncio.to_thread(notbetrieb_rechte.abgleichen)
+    log.info("Notbetrieb: Rechte-Abgleich durch %s: %s", user, ergebnis)
+    if not ergebnis.get("ok"):
+        ergebnis["error"] = "Abruf aus Exchange fehlgeschlagen — der bisherige Stand bleibt."
+    return JSONResponse(ergebnis, status_code=200 if ergebnis.get("ok") else 502)
+
+
+@router.get("/api/notbetrieb/zugriff")
+async def api_notbetrieb_zugriff(wer: str = "", _user: str = Depends(_require_admin)):
+    """Was sieht <wer> im Notbetrieb? Dieselbe Auflösung, die das Webmail nutzt."""
+    return JSONResponse({"ok": True, "items": await asyncio.to_thread(notbetrieb_rechte.zugriff, wer)})
