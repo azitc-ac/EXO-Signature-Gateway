@@ -39,6 +39,23 @@
     </label>
   </div>
   <div class="msg" id="nb-ausgerufen-msg" hidden></div>
+
+  <h3>Vor dem Notfall</h3>
+  <p class="hint" style="margin-top:0">
+    Anmelden kann sich jeder jederzeit — so lässt sich der Zugang vorab auf allen Geräten einrichten.
+    Inhalte zeigt das Webmail vor dem Notfall nur der Probegruppe (für Probealarme); alle anderen sehen
+    „bereit“. Eine Adresse je Zeile.
+  </p>
+  <div class="settings-row">
+    <label for="nb-probegruppe">Probegruppe</label>
+    <div class="settings-control"><textarea id="nb-probegruppe" rows="3" style="width:100%"
+      placeholder="max.mustermann@firma.at">{{ probegruppe | join('\n') }}</textarea></div>
+  </div>
+  <div class="settings-row">
+    <button class="btn secondary" id="nb-probe-btn" data-wache="nb-probegruppe"
+            data-wache-hinweis="nb-probe-result" onclick="nbProbeSpeichern()">Speichern</button>
+    <span id="nb-probe-result"></span>
+  </div>
 </div>
 
 <!-- Bereitschaft -->
@@ -484,6 +501,11 @@ async function nbZugriff() {
 }
 
 // ── Anmeldung ────────────────────────────────────────────────────────────
+async function nbProbeSpeichern() {
+  const liste = feldWert('nb-probegruppe').split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(x => x.includes('@'));
+  wacheFertig('nb-probe-btn', await savePartial({NOTBETRIEB_PROBEGRUPPE: liste}, 'nb-probe-result'));
+}
+
 async function nbEingangSpeichern() {
   wacheFertig('nb-eingang-btn', await savePartial({
     NOTBETRIEB_EINGANG_GREYLIST: document.getElementById('nb-eingang-grey').checked,

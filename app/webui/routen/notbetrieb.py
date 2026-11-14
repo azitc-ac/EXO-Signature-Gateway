@@ -36,6 +36,7 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "active": "notbetrieb",
             "aktiv": notbetrieb.funktion_aktiv(),
             "ausgerufen": notbetrieb.ausgerufen(),
+            "probegruppe": settings_store.get("NOTBETRIEB_PROBEGRUPPE") or [],
             "eingang": {"greylist": notbetrieb_eingang.greylisting_an(), "max_empf": notbetrieb_eingang.max_empfaenger(),
                         "max_mb": notbetrieb_eingang.max_bytes() // (1024 * 1024),
                         "je_stunde": notbetrieb_eingang.je_stunde()},

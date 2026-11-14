@@ -50,7 +50,9 @@ ROH = json.dumps({
 @pytest.fixture
 def schatten(monkeypatch, tmp_path):
     werte = {"NOTBETRIEB_AKTIV": True, "SSO_SESSION_SECRET": "s" * 64,
-             "MAILBOX_CONFIG": {"a@firma.at": {"sig": True}}}
+             "MAILBOX_CONFIG": {"a@firma.at": {"sig": True}},
+             # Inhalte vor dem Notfall nur für die Probegruppe — a@ gehört dazu.
+             "NOTBETRIEB_PROBEGRUPPE": ["a@firma.at"]}
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: werte.get(k, d))
     monkeypatch.setattr(settings_store, "force_update", lambda p: werte.update(p))
@@ -623,3 +625,35 @@ def test_kalender_endpunkt_nur_fuer_erlaubte_postfaecher(client, schatten):
     assert r.status_code == 403
     r = client.get("/notfall/api/adressen", params={"q": "fi"})
     assert r.status_code == 200 and r.json()["ok"] is True
+
+
+# ── Vor dem Notfall: anmelden ja, Inhalte nur für die Probegruppe ───────────
+
+def test_vor_dem_notfall_jede_inhaltsroute_gesperrt(client, schatten):
+    """Struktur: JEDE Route des Webmails außer Hülle, Anmelden, Abmelden und
+    „ich“ hängt an _leser — eine neue Route, die das vergisst, fällt hier auf."""
+    from webui.routen import notfall
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = []
+    _anmelden(client)
+    d = client.get("/notfall/api/ich").json()
+    assert d["ok"] and d["bereit_modus"] is True and d["zugriff"] == []
+    frei = {"/notfall", "/notfall/anmelden", "/notfall/abmelden", "/notfall/api/ich"}
+    parameter = {"postfach": "a@firma.at", "id": "g-text", "art": "antwort", "von": "2026-01-01T00:00:00Z",
+                 "bis": "2026-12-31T00:00:00Z", "nr": 0, "q": "ab", "ordner": "ord-in"}
+    geprueft = 0
+    for r in notfall.router.routes:
+        if r.path in frei:
+            continue
+        for m in r.methods:
+            antwort = (client.get(r.path, params=parameter) if m == "GET"
+                       else client.request(m, r.path, json={"postfach": "a@firma.at", "an": "b@firma.at"}))
+            assert antwort.status_code == 403, (m, r.path, antwort.status_code)
+            geprueft += 1
+    assert geprueft >= 10
+    # Ausgerufen → alles wieder offen; Probegruppe ebenso.
+    schatten["NOTBETRIEB_AUSGERUFEN"] = True
+    assert client.get("/notfall/api/ordner", params={"postfach": "a@firma.at"}).status_code == 200
+    schatten["NOTBETRIEB_AUSGERUFEN"] = False
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = ["A@Firma.at"]
+    assert client.get("/notfall/api/ordner", params={"postfach": "a@firma.at"}).status_code == 200
+    assert client.get("/notfall/api/ich").json()["bereit_modus"] is False

@@ -22,6 +22,7 @@ import notbetrieb
 import notbetrieb_anmeldung
 import notbetrieb_lesen
 import notbetrieb_rechte
+import settings_store
 import notbetrieb_senden
 from webui.deps import templates, log, _gateway_name
 
@@ -49,6 +50,24 @@ def _benutzer(request: Request) -> str:
     benutzer = str((daten or {}).get("b") or "")
     if not benutzer:
         raise HTTPException(401, "Nicht angemeldet.")
+    return benutzer
+
+
+def inhalte_erlaubt(benutzer: str) -> bool:
+    """Vor dem Notfall sieht nur die Probegruppe Inhalte (Probealarm); alle
+    anderen können sich anmelden und sehen „bereit“. So kann der Zugang vorab
+    auf jedem Gerät eingerichtet werden, ohne dass dort jemand mitliest."""
+    if notbetrieb.ausgerufen():
+        return True
+    probe = settings_store.get("NOTBETRIEB_PROBEGRUPPE") or []
+    return benutzer.strip().lower() in {str(a).strip().lower() for a in probe if a}
+
+
+def _leser(benutzer: str = Depends(_benutzer)) -> str:
+    """Wache für alle INHALTE des Webmails (Mail, Kalender, Kontakte, Senden,
+    Adresshilfe) — EINE Stelle, damit keine Route den Bereitschaftsmodus vergisst."""
+    if not inhalte_erlaubt(benutzer):
+        raise HTTPException(403, "Bereit — der Notfall ist nicht ausgerufen.")
     return benutzer
 
 
@@ -98,20 +117,25 @@ async def notfall_abmelden():
 
 @router.get("/notfall/api/ich")
 async def notfall_ich(benutzer: str = Depends(_benutzer)):
-    return JSONResponse({"ok": True, "benutzer": benutzer,
+    if not inhalte_erlaubt(benutzer):
+        # Bereitschaftsmodus: Anmeldung klappt, Inhalte erst im Notfall.
+        letzter = (notbetrieb.status().get("letzter_lauf") or {}).get("ts")
+        return JSONResponse({"ok": True, "benutzer": benutzer, "bereit_modus": True,
+                             "letzter_abgleich": letzter, "zugriff": [], "absender": []})
+    return JSONResponse({"ok": True, "benutzer": benutzer, "bereit_modus": False,
                          "zugriff": [p for p in await asyncio.to_thread(notbetrieb_rechte.zugriff, benutzer)
                                      if p["voll"]],
                          "absender": await asyncio.to_thread(notbetrieb_senden.absender, benutzer)})
 
 
 @router.get("/notfall/api/ordner")
-async def notfall_ordner(postfach: str, benutzer: str = Depends(_benutzer)):
+async def notfall_ordner(postfach: str, benutzer: str = Depends(_leser)):
     pf = _postfach(benutzer, postfach)
     return JSONResponse({"ok": True, "ordner": await asyncio.to_thread(notbetrieb_lesen.ordner, pf)})
 
 
 @router.get("/notfall/api/kalender")
-async def notfall_kalender(postfach: str, von: str, bis: str, benutzer: str = Depends(_benutzer)):
+async def notfall_kalender(postfach: str, von: str, bis: str, benutzer: str = Depends(_leser)):
     """Termine (nur lesend). Private Termine eines fremden Postfachs nur als Zeitblock."""
     import notbetrieb_pim
     pf = _postfach(benutzer, postfach)
@@ -121,7 +145,7 @@ async def notfall_kalender(postfach: str, von: str, bis: str, benutzer: str = De
 
 
 @router.get("/notfall/api/kontakte")
-async def notfall_kontakte(postfach: str, benutzer: str = Depends(_benutzer)):
+async def notfall_kontakte(postfach: str, benutzer: str = Depends(_leser)):
     import notbetrieb_pim
     pf = _postfach(benutzer, postfach)
     return JSONResponse({"ok": True, "kontakte": await asyncio.to_thread(notbetrieb_pim.kontakte, pf),
@@ -129,7 +153,7 @@ async def notfall_kontakte(postfach: str, benutzer: str = Depends(_benutzer)):
 
 
 @router.get("/notfall/api/adressen")
-async def notfall_adressen(q: str = "", benutzer: str = Depends(_benutzer)):
+async def notfall_adressen(q: str = "", benutzer: str = Depends(_leser)):
     """Adresshilfe beim Verfassen: eigene Kontakte, dann die globale Adressliste."""
     import notbetrieb_pim
     return JSONResponse({"ok": True, "treffer": await asyncio.to_thread(
@@ -138,14 +162,14 @@ async def notfall_adressen(q: str = "", benutzer: str = Depends(_benutzer)):
 
 @router.get("/notfall/api/liste")
 async def notfall_liste(postfach: str, ordner: str = "", suche: str = "", seite: int = 0,
-                        benutzer: str = Depends(_benutzer)):
+                        benutzer: str = Depends(_leser)):
     pf = _postfach(benutzer, postfach)
     return JSONResponse({"ok": True, **await asyncio.to_thread(notbetrieb_lesen.liste, pf, ordner,
                                                                suche[:200], seite)})
 
 
 @router.get("/notfall/api/mail")
-async def notfall_mail(postfach: str, id: str, benutzer: str = Depends(_benutzer)):
+async def notfall_mail(postfach: str, id: str, benutzer: str = Depends(_leser)):
     pf = _postfach(benutzer, postfach)
     m = await asyncio.to_thread(notbetrieb_lesen.mail, pf, id)
     if not m:
@@ -155,7 +179,7 @@ async def notfall_mail(postfach: str, id: str, benutzer: str = Depends(_benutzer
 
 
 @router.get("/notfall/inhalt")
-async def notfall_inhalt(postfach: str, id: str, benutzer: str = Depends(_benutzer)):
+async def notfall_inhalt(postfach: str, id: str, benutzer: str = Depends(_leser)):
     """HTML der Mail — NUR mit durchgesetzter CSP (notbetrieb_lesen.INHALT_CSP)."""
     pf = _postfach(benutzer, postfach)
     inhalt = await asyncio.to_thread(notbetrieb_lesen.inhalt_html, pf, id)
@@ -167,7 +191,7 @@ async def notfall_inhalt(postfach: str, id: str, benutzer: str = Depends(_benutz
 
 
 @router.get("/notfall/anhang")
-async def notfall_anhang(postfach: str, id: str, nr: int, benutzer: str = Depends(_benutzer)):
+async def notfall_anhang(postfach: str, id: str, nr: int, benutzer: str = Depends(_leser)):
     pf = _postfach(benutzer, postfach)
     a = await asyncio.to_thread(notbetrieb_lesen.anhang, pf, id, nr)
     if not a:
@@ -181,7 +205,7 @@ async def notfall_anhang(postfach: str, id: str, nr: int, benutzer: str = Depend
 
 
 @router.get("/notfall/api/vorlage")
-async def notfall_vorlage(postfach: str, id: str, art: str, benutzer: str = Depends(_benutzer)):
+async def notfall_vorlage(postfach: str, id: str, art: str, benutzer: str = Depends(_leser)):
     """Vorbelegung für Antworten / Allen antworten / Weiterleiten."""
     pf = _postfach(benutzer, postfach)
     try:
@@ -194,7 +218,7 @@ _MAX_RUMPF = 22 * 1024 * 1024      # 15 MB Anhänge, base64 (×4/3) plus Text
 
 
 @router.post("/notfall/api/senden")
-async def notfall_senden(request: Request, benutzer: str = Depends(_benutzer)):
+async def notfall_senden(request: Request, benutzer: str = Depends(_leser)):
     import base64
     import binascii
     if int(request.headers.get("content-length") or 0) > _MAX_RUMPF:

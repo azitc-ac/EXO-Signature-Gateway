@@ -186,6 +186,7 @@ REGISTER: dict[str, E] = {
     "ABWESENHEIT_AKTIV": E(art=OPTION, ort="setup.html"),  # Funktion Abwesenheiten (Menü/Spalte/Abgleich)
     "NOTBETRIEB_AKTIV": E(art=OPTION, ort="setup.html"),   # Notbetrieb: Schatten-Abgleich
     "NOTBETRIEB_AUSGERUFEN": E(art=OPTION, ort="notbetrieb.html"),  # Notfall ausgerufen
+    "NOTBETRIEB_PROBEGRUPPE": E(art=STRUKTUR, ort="notbetrieb.html"),  # Inhalte vor dem Notfall
     "NOTBETRIEB_EINGANG_GREYLIST": E(art=OPTION, ort="notbetrieb.html"),   # Notfall-Eingang
     "NOTBETRIEB_EINGANG_MAX_EMPF": E(art=OPTION, ort="notbetrieb.html"),
     "NOTBETRIEB_EINGANG_MAX_MB": E(art=OPTION, ort="notbetrieb.html"),

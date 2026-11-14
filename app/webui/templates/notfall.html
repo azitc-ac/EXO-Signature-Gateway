@@ -125,6 +125,14 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
   <div class="meldung" id="anmelde-meldung" hidden></div>
 </section>
 
+<section class="anmeldung" id="bereit" hidden>
+  <h1>Bereit</h1>
+  <p style="margin:0 0 8px">Dein Notfall-Zugang ist eingerichtet. Solange Exchange Online läuft, arbeitest du wie
+    gewohnt — fällt es aus, findest du hier deine Post der letzten Tage, Termine und Kontakte.</p>
+  <p class="leise" id="bereit-stand" style="margin:0 0 12px"></p>
+  <button onclick="abmelden()">Abmelden</button>
+</section>
+
 <main id="app" hidden data-ansicht="liste">
   <nav class="spalte" id="ordnerspalte"><div id="ordner"></div></nav>
   <section class="spalte" id="listenspalte">
@@ -156,6 +164,12 @@ function q(params) { return Object.entries(params).map(([k, v]) => k + '=' + enc
 async function start() {
   const d = await getJSON('/notfall/api/ich');
   if (!d.ok) { document.getElementById('anmeldung').hidden = false; return; }
+  if (d.bereit_modus) {
+    document.getElementById('bereit-stand').textContent = d.letzter_abgleich
+      ? 'Kopie zuletzt aktualisiert: ' + new Date(d.letzter_abgleich).toLocaleString('de-DE') : '';
+    document.getElementById('bereit').hidden = false;
+    return;
+  }
   nb.zugriff = d.zugriff;
   nb.absender = d.absender || [];
   document.getElementById('ich').textContent = d.benutzer;
