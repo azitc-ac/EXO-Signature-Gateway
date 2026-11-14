@@ -53,6 +53,10 @@ DEFAULTS: dict = {
     # Anmeldung im Notbetrieb per LDAP-Bind am lokalen AD (notbetrieb_anmeldung):
     # ldaps://host[:port] oder ldap://host (dann StartTLS), Basis-DN für die
     # Kontosuche, optional die CA des DC-Zertifikats als PEM (kein Geheimnis).
+    # Welche Postfächer der Schatten führt: "alle" (jedes Benutzer- und
+    # geteilte Postfach aus dem Rechte-Abbild) oder "aktivierte" (im Gateway
+    # aktivierte samt geteilter mit Vollzugriff). notbetrieb.umfang().
+    "NOTBETRIEB_UMFANG": "alle",
     "NOTBETRIEB_LDAP_SERVER": "",
     "NOTBETRIEB_LDAP_BASIS": "",
     "NOTBETRIEB_LDAP_CA": "",

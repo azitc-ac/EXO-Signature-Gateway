@@ -43,6 +43,20 @@
     Tage zurück für Mail, zurück und voraus für den Kalender. Regeln gelten von oben nach unten —
     die erste passende gewinnt, wie bei den Gruppen-Richtlinien. Greift keine, gilt die Vorgabe.
   </p>
+  <h3>Welche Postfächer</h3>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="radio" name="nb-umfang" id="nb-umfang-alle" value="alle" {% if umfang == 'alle' %}checked{% endif %}>
+      Alle Benutzer- und geteilten Postfächer
+    </label>
+  </div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="radio" name="nb-umfang" id="nb-umfang-aktivierte" value="aktivierte" {% if umfang == 'aktivierte' %}checked{% endif %}>
+      Nur die im Gateway aktivierten, samt geteilter Postfächer mit Vollzugriff
+    </label>
+  </div>
+
   <h3>Vorgabe</h3>
   <div class="settings-row">
     <label for="nb-std-mail">Mail (Tage zurück)</label>
@@ -245,7 +259,9 @@ function nbRegelWeg(i) {
 
 async function nbFensterSpeichern() {
   const f = nbFormular();
-  const ok = await savePartial({NOTBETRIEB_FENSTER: f.fenster, NOTBETRIEB_REGELN: f.regeln}, 'nb-fenster-result');
+  const umfang = (document.querySelector('input[name="nb-umfang"]:checked') || {}).value || 'alle';
+  const ok = await savePartial({NOTBETRIEB_FENSTER: f.fenster, NOTBETRIEB_REGELN: f.regeln,
+                                NOTBETRIEB_UMFANG: umfang}, 'nb-fenster-result');
   wacheFertig('nb-fenster-btn', ok);
   if (ok) nbPostfaecher();
 }

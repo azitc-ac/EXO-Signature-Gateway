@@ -42,6 +42,7 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "max_tage": notbetrieb.MAX_TAGE,
             "mess_tage": notbetrieb.MESS_TAGE,
             "ldap": notbetrieb_anmeldung.einstellungen(),
+            "umfang": notbetrieb.umfang(),
         },
     )
 

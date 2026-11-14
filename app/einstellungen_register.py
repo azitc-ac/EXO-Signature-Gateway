@@ -187,6 +187,7 @@ REGISTER: dict[str, E] = {
     "NOTBETRIEB_AKTIV": E(art=OPTION, ort="setup.html"),   # Notbetrieb: Schatten-Abgleich
     "NOTBETRIEB_FENSTER": E(art=OPTION, ort="notbetrieb.html"),   # Vorgabe-Fenster
     "NOTBETRIEB_REGELN": E(art=STRUKTUR, ort="notbetrieb.html"),  # Fenster je Gruppe/Postfach
+    "NOTBETRIEB_UMFANG": E(art=OPTION, ort="notbetrieb.html"),       # alle | aktivierte Postfächer
     "NOTBETRIEB_LDAP_SERVER": E(art=OPTION, ort="notbetrieb.html"),  # Anmeldung: Domänencontroller
     "NOTBETRIEB_LDAP_BASIS": E(art=OPTION, ort="notbetrieb.html"),   # Anmeldung: Basis-DN
     "NOTBETRIEB_LDAP_CA": E(art=OPTION, ort="notbetrieb.html"),      # Anmeldung: CA des DC (PEM)

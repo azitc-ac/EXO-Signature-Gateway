@@ -301,12 +301,29 @@ def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
 
 # ── Abgleich von Exchange ───────────────────────────────────────────────────
 
+UMFANG_ALLE, UMFANG_AKTIVIERTE = "alle", "aktivierte"
+
+
+def umfang() -> str:
+    return UMFANG_AKTIVIERTE if settings_store.get("NOTBETRIEB_UMFANG") == UMFANG_AKTIVIERTE else UMFANG_ALLE
+
+
 def _postfaecher() -> list[tuple[str, str]]:
-    """(config_key, adresse) je Postfach im Schatten: die aktivierten (sig oder
-    smime, wie der Abwesenheits-Abgleich) und dazu jedes Postfach, auf das
-    einer von ihnen Vollzugriff hat (notbetrieb_rechte) — sonst stünde ein
-    geteiltes Postfach im Notbetrieb leer da. Zusatzpostfächer führen ihre
-    Adresse als Schlüssel (sie stehen nicht in MAILBOX_CONFIG)."""
+    """(config_key, adresse) je Postfach im Schatten — EINE Auswahl für
+    Abgleich, Aufbewahrung, Platzmessung und Anzeige.
+
+    Umfang „alle“ (Vorgabe): jedes Benutzer- und geteilte Postfach aus dem
+    Rechte-Abbild. Der Notbetrieb soll ALLEN Mitarbeitern helfen, nicht nur
+    denen, deren Signatur das Gateway setzt. Solange noch kein Abbild gelesen
+    ist, gilt die engere Auswahl — sonst stünde der Schatten bis zum ersten
+    Rechte-Abgleich leer.
+
+    Umfang „aktivierte“: die im Gateway aktivierten (sig oder smime, wie der
+    Abwesenheits-Abgleich) und jedes Postfach, auf das eines von ihnen
+    Vollzugriff hat — sonst stünde ein geteiltes Postfach im Notbetrieb leer da.
+
+    Schlüssel ist der aus MAILBOX_CONFIG (Fenster-Regeln je Postfach kennen
+    ihn), sonst die Adresse."""
     import notbetrieb_rechte
     out = []
     for key, cfg in (settings_store.get("MAILBOX_CONFIG") or {}).items():
@@ -315,6 +332,14 @@ def _postfaecher() -> list[tuple[str, str]]:
             if "@" in upn:
                 out.append((key, upn))
     bekannt = {upn for _, upn in out}
+    if umfang() == UMFANG_ALLE:
+        alle = notbetrieb_rechte.alle_postfaecher()
+        if alle:
+            schluessel = {}
+            for key, cfg in (settings_store.get("MAILBOX_CONFIG") or {}).items():
+                if isinstance(cfg, dict):
+                    schluessel[(cfg.get("primary") or key or "").strip().lower()] = key
+            return [(schluessel.get(pf, pf), pf) for pf in alle]
     out += [(pf, pf) for pf in notbetrieb_rechte.zusatz_postfaecher(sorted(bekannt)) if pf not in bekannt]
     return out
 

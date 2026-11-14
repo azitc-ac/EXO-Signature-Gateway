@@ -235,6 +235,16 @@ def zugriff(anmeldung: str) -> list[dict]:
     return out
 
 
+def alle_postfaecher() -> list[str]:
+    """Jedes Benutzer- und geteilte Postfach aus dem Abbild (leer, solange
+    keins gelesen ist)."""
+    import notbetrieb
+    if not notbetrieb._db_pfad().exists():
+        return []
+    with notbetrieb._lock, notbetrieb._conn() as conn:
+        return [z["primary_adr"] for z in conn.execute("SELECT primary_adr FROM konten ORDER BY primary_adr")]
+
+
 def zusatz_postfaecher(nutzer: list[str]) -> list[str]:
     """Postfächer, auf die einer der `nutzer` Vollzugriff hat — sie kommen mit in
     den Schatten, sonst stünde das geteilte Postfach im Notbetrieb leer da."""

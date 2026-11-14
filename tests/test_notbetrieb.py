@@ -533,6 +533,7 @@ def test_zugriff_eigenes_zuerst_dann_fremde_auch_per_upn(nb):
 
 
 def test_geteiltes_postfach_kommt_in_den_schatten(nb, graph):
+    nb["NOTBETRIEB_UMFANG"] = "aktivierte"
     notbetrieb_rechte.speichern(notbetrieb_rechte.parse(ROH))
     pf = [upn for _, upn in notbetrieb._postfaecher()]
     # a@ ist aktiviert und hat Vollzugriff auf team@ — chef@ nur „im Auftrag“, kommt NICHT mit.
@@ -718,3 +719,27 @@ def test_unerreichbarer_dc(monkeypatch):
     with pytest.raises(nba.AnmeldeFehler, match="nicht erreichbar"):
         nba._ldap_pruefen("a@firma.at", "geheim", {"server": "ldaps://dc01", "basis": "DC=x", "ca": ""})
     assert "bind" not in f.ablauf
+
+
+
+# ── Umfang des Schattens ────────────────────────────────────────────────────
+
+def test_umfang_alle_nimmt_jedes_postfach_aus_dem_abbild(nb, graph):
+    """Vorgabe: ALLE Mitarbeiter, nicht nur die mit Gateway-Signatur."""
+    assert notbetrieb.umfang() == "alle"
+    nb["MAILBOX_CONFIG"] = {"guid-a": {"sig": True, "primary": "a@firma.at"}}
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(ROH))
+    # Schlüssel aus MAILBOX_CONFIG bleibt erhalten (Fenster-Regeln kennen ihn).
+    assert notbetrieb._postfaecher() == [("guid-a", "a@firma.at"), ("chef@firma.at", "chef@firma.at"),
+                                         ("team@firma.at", "team@firma.at")]
+
+
+def test_umfang_alle_ohne_abbild_faellt_auf_aktivierte_zurueck(nb):
+    assert [upn for _, upn in notbetrieb._postfaecher()] == ["a@firma.at"]
+
+
+@pytest.mark.parametrize("wert, erwartet", [("aktivierte", "aktivierte"), ("alle", "alle"),
+                                            ("quatsch", "alle"), (None, "alle")])
+def test_umfang_unbekannter_wert_ist_alle(nb, wert, erwartet):
+    nb["NOTBETRIEB_UMFANG"] = wert
+    assert notbetrieb.umfang() == erwartet
