@@ -2282,6 +2282,69 @@
     "name": "notbetrieb_page"
   },
   {
+    "pfad": "/notfall",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_seite"
+  },
+  {
+    "pfad": "/notfall/abmelden",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_abmelden"
+  },
+  {
+    "pfad": "/notfall/anhang",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_anhang"
+  },
+  {
+    "pfad": "/notfall/anmelden",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_anmelden"
+  },
+  {
+    "pfad": "/notfall/api/ich",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_ich"
+  },
+  {
+    "pfad": "/notfall/api/liste",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_liste"
+  },
+  {
+    "pfad": "/notfall/api/mail",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_mail"
+  },
+  {
+    "pfad": "/notfall/api/ordner",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_ordner"
+  },
+  {
+    "pfad": "/notfall/inhalt",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_inhalt"
+  },
+  {
     "pfad": "/outlook-addin",
     "methoden": [
       "GET"

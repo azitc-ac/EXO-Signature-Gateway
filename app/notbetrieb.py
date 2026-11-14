@@ -216,7 +216,26 @@ def _conn() -> sqlite3.Connection:
             PRIMARY KEY (postfach, id)
         );
         """)
+    # Spalten, die nach der ersten Fassung dazukamen (Bestandsdatenbanken).
+    vorhanden = {z[1] for z in conn.execute("PRAGMA table_info(mails)")}
+    for spalte in _MAIL_ZUSATZ:
+        if spalte not in vorhanden:
+            conn.execute(f"ALTER TABLE mails ADD COLUMN {spalte}")
+    if "wk" not in {z[1] for z in conn.execute("PRAGMA table_info(ordner)")}:
+        conn.execute("ALTER TABLE ordner ADD COLUMN wk TEXT")
     return conn
+
+
+# Kopfdaten für die Liste im Webmail — beim ersten Lesen aus dem MIME
+# nachgetragen (notbetrieb_lesen._kopf_nachtragen), damit Abgleich und lokale
+# Ablage nichts davon wissen müssen.
+_MAIL_ZUSATZ = ("betreff TEXT", "von TEXT", "an TEXT", "anhang INTEGER", "text TEXT")
+_MAIL_ZUSATZ = tuple(z.split()[0] for z in _MAIL_ZUSATZ)
+
+# Bekannte Ordner, deren Kennung je Postfach gemerkt wird: Lokale Post wird
+# unter dem bekannten Namen abgelegt („inbox“), Exchange-Kopien unter der
+# Ordner-Id — erst die Zuordnung zeigt beide im selben Ordner.
+WK_ORDNER = ("inbox", "sentitems")
 
 
 def _kennung(text: str) -> str:
@@ -326,10 +345,17 @@ def _ordner_abgleichen(client: httpx.Client, token: str, postfach: str, zaehlung
     (lokale Post bleibt — sie wird beim Rückspielen ohnehin neu zugeordnet)."""
     liste = _ordner_liste(client, token, postfach)
     ids = [f["id"] for f in liste if f.get("id")]
+    wk = {}
+    for name in WK_ORDNER:
+        r = client.get(f"{GRAPH}/users/{postfach}/mailFolders/{name}?$select=id",
+                       headers={"Authorization": f"Bearer {token}"})
+        if r.status_code == 200 and (r.json() or {}).get("id"):
+            wk[r.json()["id"]] = name
     with _lock, _conn() as conn:
         alt = {z["id"] for z in conn.execute("SELECT id FROM ordner WHERE postfach=?", (postfach,))}
-        conn.executemany("INSERT OR REPLACE INTO ordner (postfach, id, eltern, name) VALUES (?,?,?,?)",
-                         [(postfach, f["id"], f.get("parentFolderId") or "", f.get("displayName") or "")
+        conn.executemany("INSERT OR REPLACE INTO ordner (postfach, id, eltern, name, wk) VALUES (?,?,?,?,?)",
+                         [(postfach, f["id"], f.get("parentFolderId") or "", f.get("displayName") or "",
+                           wk.get(f["id"]))
                           for f in liste if f.get("id")])
         weg = alt - set(ids)
         dateien = []

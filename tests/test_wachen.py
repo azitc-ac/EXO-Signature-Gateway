@@ -102,6 +102,13 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     # /api/self/*-Endpunkte (die hängen an _require_self).
     "/self":                  "Self-Service-Seite, meldet sich über die API an",
 
+    # ── Notbetrieb-Webmail (webui/routen/notfall.py): Mitarbeiter haben im
+    #    Störfall keine Gateway-Sitzung. Die Seite ist nur die Hülle; alle
+    #    Daten hängen an notfall._benutzer (eigene Wache, siehe _wachen()).
+    "/notfall":          "Hülle des Notbetrieb-Webmails, meldet sich über /notfall/anmelden an",
+    "/notfall/anmelden": "LDAP-Anmeldung am lokalen AD, gedrosselt je Name und Quelle",
+    "/notfall/abmelden": "löscht nur das eigene Sitzungs-Cookie",
+
     # ── Betrieb
     "/health": "Gesundheitsprüfung für Container und Überwachung",
     "/api/csp-bericht": "CSP-Verstoßberichte senden Browser ohne Sitzung; nur Zähler, "
@@ -113,8 +120,11 @@ def _wachen():
     # _require_self ist eine vollwertige Wache (verlangt eine gültige Sitzung,
     # scopt auf das eigene Postfach) — nur eben keine Admin-Wache. Routen, die
     # ausschliesslich daran hängen, sind also NICHT ungeschützt.
+    # notfall._benutzer: Sitzung des Notbetrieb-Webmails (signiertes Cookie aus
+    # der LDAP-Anmeldung); Rechte je Postfach prüft die Route zusätzlich.
     from webui.deps import _check_auth, _require_admin, _require_self
-    return {_check_auth, _require_admin, _require_self}
+    from webui.routen.notfall import _benutzer
+    return {_check_auth, _require_admin, _require_self, _benutzer}
 
 
 def _hat_wache(dependant, wachen, tiefe: int = 0) -> bool:

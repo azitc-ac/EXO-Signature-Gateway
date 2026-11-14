@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Notbetrieb — {{ gateway_name }}</title>
+{% include "_favicon.html" %}
+<script src="/static/common.js?v={{ version }}"></script>
+<style>
+/* Eigenständige Seite für alle Mitarbeiter (nicht die Admin-Oberfläche):
+   eigene Farbvariablen, Dunkelmodus über prefers-color-scheme. */
+:root {
+  --bg: #f1f5f9; --flaeche: #fff; --rand: #e2e8f0; --text: #1e293b; --leise: #64748b;
+  --akzent: #0369a1; --akzent-text: #fff; --wahl: #e0f2fe; --warn-bg: #fef3c7; --warn: #92400e;
+  --fehler-bg: #fef2f2; --fehler: #991b1b; --kopf: #0f172a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f172a; --flaeche: #1e293b; --rand: #334155; --text: #e2e8f0; --leise: #94a3b8;
+    --akzent: #38bdf8; --akzent-text: #0f172a; --wahl: #0c4a6e; --warn-bg: #422006; --warn: #fde68a;
+    --fehler-bg: #450a0a; --fehler: #fecaca; --kopf: #020617;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, "Segoe UI", sans-serif; }
+header { background: var(--kopf); color: #fff; padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+header .titel { font-weight: 700; }
+header .band { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
+header .rechts { margin-left: auto; display: flex; gap: 10px; align-items: center; font-size: 13px; }
+button, select, input { font: inherit; color: inherit; }
+button { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button.haupt { background: var(--akzent); color: var(--akzent-text); border-color: var(--akzent); }
+input, select { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 6px; padding: 6px 8px; }
+.anmeldung { max-width: 380px; margin: 60px auto; background: var(--flaeche); border: 1px solid var(--rand); border-radius: 10px; padding: 22px; }
+.anmeldung h1 { font-size: 20px; margin: 0 0 6px; }
+.anmeldung label { display: block; margin: 12px 0 4px; font-weight: 600; }
+.anmeldung input { width: 100%; }
+.leise { color: var(--leise); }
+.meldung { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--fehler-bg); color: var(--fehler); }
+.meldung[hidden] { display: none; }
+#app { display: grid; grid-template-columns: 240px 360px 1fr; height: calc(100vh - 48px); }
+#app[hidden] { display: none; }
+.spalte { border-right: 1px solid var(--rand); overflow: auto; background: var(--flaeche); }
+#ordner .eintrag, #liste .eintrag { padding: 7px 12px; cursor: pointer; border-bottom: 1px solid var(--rand); }
+#ordner .eintrag[aria-current="true"], #liste .eintrag[aria-current="true"] { background: var(--wahl); }
+#ordner .zahl { float: right; color: var(--leise); font-size: 12px; }
+#liste .eintrag[data-ungelesen="1"] .betreff { font-weight: 700; }
+#liste .kopf { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--leise); }
+#liste .vorschau { font-size: 12px; color: var(--leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.suche { padding: 8px; border-bottom: 1px solid var(--rand); display: flex; gap: 6px; }
+.suche input { flex: 1; min-width: 0; }
+#lesen { padding: 0; overflow: auto; display: flex; flex-direction: column; background: var(--flaeche); }
+#lesen .kopfbereich { padding: 14px 18px; border-bottom: 1px solid var(--rand); }
+#lesen h2 { font-size: 18px; margin: 0 0 6px; }
+#lesen iframe { flex: 1; border: 0; width: 100%; min-height: 400px; background: #fff; }
+#lesen pre { white-space: pre-wrap; padding: 14px 18px; margin: 0; font: inherit; }
+.anhaenge a { display: inline-block; margin: 6px 8px 0 0; color: var(--akzent); }
+.zurueck { display: none; }
+@media (max-width: 800px) {
+  #app { grid-template-columns: 1fr; height: auto; }
+  #app .spalte { border-right: 0; }
+  #app[data-ansicht="liste"] #lesen, #app[data-ansicht="lesen"] #ordnerspalte,
+  #app[data-ansicht="lesen"] #listenspalte { display: none; }
+  #app[data-ansicht="liste"] #ordnerspalte { max-height: 30vh; }
+  .zurueck { display: inline-block; margin: 10px 18px 0; }
+}
+</style>
+</head>
+<body>
+<header>
+  <span class="titel">{{ gateway_name }}</span>
+  <span class="band">Notbetrieb</span>
+  <span class="rechts" id="kopf-rechts" hidden>
+    <select id="postfachwahl" aria-label="Postfach" onchange="postfachWaehlen(this.value)"></select>
+    <span id="ich" class="leise"></span>
+    <button onclick="abmelden()">Abmelden</button>
+  </span>
+</header>
+
+<section class="anmeldung" id="anmeldung" hidden>
+  <h1>Anmelden</h1>
+  <p class="leise" style="margin:0">Exchange Online ist gestört. Hier liest du deine Post der letzten Tage weiter —
+    mit deinem gewohnten Windows-Kennwort.</p>
+  {% if not eingerichtet %}
+  <div class="meldung">Die Anmeldung ist noch nicht eingerichtet. Wende dich an die IT.</div>
+  {% endif %}
+  <form onsubmit="anmelden(event)">
+    <label for="name">Anmeldename</label>
+    <input id="name" autocomplete="username" placeholder="max.mustermann@firma.at" required>
+    <label for="kennwort">Kennwort</label>
+    <input id="kennwort" type="password" autocomplete="current-password" required>
+    <div style="margin-top:14px"><button class="haupt" id="anmelde-knopf" type="submit">Anmelden</button></div>
+  </form>
+  <div class="meldung" id="anmelde-meldung" hidden></div>
+</section>
+
+<main id="app" hidden data-ansicht="liste">
+  <nav class="spalte" id="ordnerspalte"><div id="ordner"></div></nav>
+  <section class="spalte" id="listenspalte">
+    <form class="suche" onsubmit="event.preventDefault(); listeLaden(0)">
+      <input id="suche" type="search" placeholder="Suchen in allen Ordnern" aria-label="Suchen">
+      <button type="submit">Suchen</button>
+    </form>
+    <div id="liste"></div>
+  </section>
+  <article id="lesen">
+    <button class="zurueck" onclick="ansicht('liste')">← Zurück</button>
+    <p class="leise" style="padding:18px">Wähle eine Nachricht.</p>
+  </article>
+</main>
+
+<script>
+let nb = {postfach: '', ordner: '', zugriff: []};
+
+function ansicht(a) { document.getElementById('app').dataset.ansicht = a; }
+function datumKurz(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleString('de-DE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+}
+function q(params) { return Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&'); }
+
+async function start() {
+  const d = await getJSON('/notfall/api/ich');
+  if (!d.ok) { document.getElementById('anmeldung').hidden = false; return; }
+  nb.zugriff = d.zugriff;
+  document.getElementById('ich').textContent = d.benutzer;
+  document.getElementById('postfachwahl').innerHTML = d.zugriff.map(p =>
+    '<option value="' + escAttr(p.postfach) + '">' + esc(p.postfach) + (p.eigen ? '' : ' (geteilt)') + '</option>').join('');
+  document.getElementById('kopf-rechts').hidden = false;
+  document.getElementById('app').hidden = false;
+  postfachWaehlen(d.zugriff[0].postfach);
+}
+
+async function anmelden(ev) {
+  ev.preventDefault();
+  const kw = document.getElementById('kennwort');
+  const d = await knopfAktion('anmelde-knopf', 'Prüfe…', () =>
+    postJSON('/notfall/anmelden', {benutzer: feldWert('name'), passwort: kw.value}));
+  kw.value = '';
+  if (d.ok) { document.getElementById('anmeldung').hidden = true; start(); return; }
+  const m = document.getElementById('anmelde-meldung');
+  m.textContent = errText(d); m.hidden = false;
+}
+
+async function abmelden() {
+  await postJSON('/notfall/abmelden', {});
+  location.reload();
+}
+
+async function postfachWaehlen(pf) {
+  nb.postfach = pf; nb.ordner = '';
+  const d = await getJSON('/notfall/api/ordner?' + q({postfach: pf}));
+  const el = document.getElementById('ordner');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  const tiefe = {};
+  d.ordner.forEach(o => { tiefe[o.id] = 0; });
+  // Unterordner einrücken: Tiefe aus der Elternkette.
+  const nachId = Object.fromEntries(d.ordner.map(o => [o.id, o]));
+  const t = o => { let n = 0, e = o.eltern; while (nachId[e] && n < 8) { n++; e = nachId[e].eltern; } return n; };
+  el.innerHTML = d.ordner.map(o => '<div class="eintrag" data-id="' + escAttr(o.id) + '" style="padding-left:'
+    + (12 + 14 * t(o)) + 'px" onclick="ordnerWaehlen(this.dataset.id)">' + esc(o.name)
+    + '<span class="zahl">' + (o.ungelesen ? o.ungelesen + ' / ' : '') + o.anzahl + '</span></div>').join('');
+  const erster = d.ordner.find(o => o.wk === 'inbox') || d.ordner[0];
+  if (erster) ordnerWaehlen(erster.id);
+}
+
+function ordnerWaehlen(id) {
+  nb.ordner = id;
+  document.getElementById('suche').value = '';
+  document.querySelectorAll('#ordner .eintrag').forEach(e => e.setAttribute('aria-current', e.dataset.id === id));
+  listeLaden(0);
+}
+
+async function listeLaden(seite) {
+  const suche = feldWert('suche');
+  const d = await getJSON('/notfall/api/liste?' + q({postfach: nb.postfach, ordner: suche ? '' : nb.ordner,
+                                                     suche: suche, seite: seite}));
+  const el = document.getElementById('liste');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  if (!d.mails.length) { el.innerHTML = '<p class="leise" style="padding:12px">Keine Nachrichten.</p>'; return; }
+  el.innerHTML = d.mails.map(m => '<div class="eintrag" data-id="' + escAttr(m.graph_id) + '" data-ungelesen="'
+    + (m.gelesen ? 0 : 1) + '" onclick="mailOeffnen(this.dataset.id)">'
+    + '<div class="kopf"><span>' + esc(m.von || '') + '</span><span>' + datumKurz(m.empfangen) + '</span></div>'
+    + '<div class="betreff">' + (m.anhang ? '📎 ' : '') + esc(m.betreff || '(kein Betreff)') + '</div>'
+    + '<div class="vorschau">' + esc(m.vorschau || '') + '</div></div>').join('')
+    + (d.gesamt > (seite + 1) * d.je_seite
+       ? '<div style="padding:10px"><button onclick="listeLaden(' + (seite + 1) + ')">Ältere</button></div>' : '')
+    + (seite ? '<div style="padding:0 10px 10px"><button onclick="listeLaden(' + (seite - 1) + ')">Neuere</button></div>' : '');
+}
+
+function adressen(liste) { return liste.map(a => a.name ? a.name + ' <' + a.adresse + '>' : a.adresse).join(', '); }
+
+async function mailOeffnen(id) {
+  document.querySelectorAll('#liste .eintrag').forEach(e => e.setAttribute('aria-current', e.dataset.id === id));
+  const d = await getJSON('/notfall/api/mail?' + q({postfach: nb.postfach, id: id}));
+  const el = document.getElementById('lesen');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  const zeile = document.querySelector('#liste .eintrag[data-id="' + CSS.escape(id) + '"]');
+  if (zeile) zeile.dataset.ungelesen = '0';
+  const p = q({postfach: nb.postfach, id: id});
+  el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
+    + '<div class="kopfbereich"><h2>' + esc(d.betreff || '(kein Betreff)') + '</h2>'
+    + '<div><b>Von:</b> ' + esc(adressen(d.von)) + '</div>'
+    + '<div><b>An:</b> ' + esc(adressen(d.an)) + '</div>'
+    + (d.cc.length ? '<div><b>Cc:</b> ' + esc(adressen(d.cc)) + '</div>' : '')
+    + '<div class="leise">' + esc(new Date(d.datum).toLocaleString('de-DE')) + '</div>'
+    + (d.anhaenge.length ? '<div class="anhaenge">' + d.anhaenge.map(a => '<a href="/notfall/anhang?' + escAttr(p)
+        + '&nr=' + a.nr + '">📎 ' + esc(a.name) + ' (' + Math.max(1, Math.round(a.groesse / 1024)) + ' KB)</a>').join('') + '</div>' : '')
+    + '</div>'
+    + (d.html
+       // sandbox ohne Rechte: kein Skript, kein Formular, kein Zugriff auf diese Seite.
+       // Zusätzlich liefert der Server den Inhalt mit durchgesetzter CSP.
+       ? '<iframe sandbox="" referrerpolicy="no-referrer" src="/notfall/inhalt?' + escAttr(p) + '" title="Nachricht"></iframe>'
+       : '<pre>' + esc(d.text) + '</pre>');
+  ansicht('lesen');
+}
+
+start();
+</script>
+</body>
+</html>
