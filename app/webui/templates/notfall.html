@@ -205,7 +205,10 @@ async function mailOeffnen(id) {
     + '<div><b>Von:</b> ' + esc(adressen(d.von)) + '</div>'
     + '<div><b>An:</b> ' + esc(adressen(d.an)) + '</div>'
     + (d.cc.length ? '<div><b>Cc:</b> ' + esc(adressen(d.cc)) + '</div>' : '')
-    + '<div class="leise">' + esc(new Date(d.datum).toLocaleString('de-DE')) + '</div>'
+    + '<div class="leise">' + esc(new Date(d.datum).toLocaleString('de-DE'))
+    // Die Signatur wird hier NICHT geprüft — nur angezeigt, dass eine da ist.
+    + (d.signiert ? ' · S/MIME-signiert (Signatur im Notbetrieb nicht geprüft)' : '')
+    + (d.verschluesselt ? ' · verschlüsselt — im Notbetrieb nicht lesbar' : '') + '</div>'
     + (d.anhaenge.length ? '<div class="anhaenge">' + d.anhaenge.map(a => '<a href="/notfall/anhang?' + escAttr(p)
         + '&nr=' + a.nr + '">📎 ' + esc(a.name) + ' (' + Math.max(1, Math.round(a.groesse / 1024)) + ' KB)</a>').join('') + '</div>' : '')
     + '</div>'

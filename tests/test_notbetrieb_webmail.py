@@ -201,3 +201,61 @@ def test_ausgeschaltet_gibt_es_kein_webmail(client, schatten):
     schatten["NOTBETRIEB_AKTIV"] = False
     assert client.get("/notfall").status_code == 404
     assert client.get("/notfall/api/ich").status_code == 404
+
+
+
+# ── Echte Strukturen (exohv, 14.11.2026, durchs Gateway signierte Testmails) ──
+
+SIG_HTML = (b"--ALT\r\nContent-Type: text/plain\r\n\r\nText\r\n"
+            b"--ALT\r\nContent-Type: multipart/related; boundary=\"REL\"\r\n\r\n"
+            b"--REL\r\nContent-Type: text/html\r\n\r\n<p>Hallo</p><img src=\"cid:sig-img-1@gw\">\r\n"
+            b"--REL\r\nContent-Type: image/png\r\nContent-Disposition: inline\r\nContent-ID: <sig-img-1@gw>\r\n"
+            b"Content-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--REL--\r\n--ALT--\r\n")
+SIGNIERT_MIT_PDF = (
+    b"From: adelev@firma.at\r\nTo: a@firma.at\r\nSubject: PDF signiert\r\nMessage-ID: <s1@firma.at>\r\n"
+    b"Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; boundary=\"SIG\"\r\n\r\n"
+    b"--SIG\r\nContent-Type: multipart/mixed; boundary=\"MIX\"\r\n\r\n"
+    b"--MIX\r\nContent-Type: multipart/alternative; boundary=\"ALT\"\r\n\r\n" + SIG_HTML +
+    b"--MIX\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"nb-test.pdf\"\r\n"
+    b"Content-Transfer-Encoding: base64\r\n\r\nJVBERi0=\r\n--MIX--\r\n"
+    b"--SIG\r\nContent-Type: application/pkcs7-signature; name=\"smime.p7s\"\r\n"
+    b"Content-Disposition: attachment; filename=\"smime.p7s\"\r\nContent-Transfer-Encoding: base64\r\n\r\nMIIB\r\n"
+    b"--SIG--\r\n")
+SIGNIERT_NUR_TEXT = SIGNIERT_MIT_PDF.replace(b"PDF signiert", b"Text signiert").replace(
+    b"--MIX\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"nb-test.pdf\"\r\n"
+    b"Content-Transfer-Encoding: base64\r\n\r\nJVBERi0=\r\n", b"")
+
+
+def _ablegen(gid, mime):
+    pfad = notbetrieb._schreiben("a@firma.at", gid, mime)
+    with notbetrieb._conn() as conn:
+        conn.execute("INSERT INTO mails (postfach, graph_id, ordner, imid, empfangen, gelesen, datei, herkunft)"
+                     " VALUES ('a@firma.at',?,'ord-x','<s>','2026-11-14T12:28:00Z',0,?,'exo')", (gid, str(pfad)))
+
+
+def test_pdf_in_signierter_huelle_wird_gefunden_signatur_nicht(schatten):
+    _ablegen("g-sig-pdf", SIGNIERT_MIT_PDF)
+    m = notbetrieb_lesen.mail("a@firma.at", "g-sig-pdf")
+    assert [a["name"] for a in m["anhaenge"]] == ["nb-test.pdf"]
+    assert m["signiert"] is True and m["verschluesselt"] is False
+    daten, name, _ = notbetrieb_lesen.anhang("a@firma.at", "g-sig-pdf", 0)
+    assert name == "nb-test.pdf" and daten.startswith(b"%PDF")
+    # Das Signatur-Logo (cid, inline) ist kein Anhang, sondern Bild im Text.
+    assert "data:image/png;base64," in notbetrieb_lesen.inhalt_html("a@firma.at", "g-sig-pdf")
+
+
+def test_signierte_textmail_hat_keinen_anhang(schatten):
+    _ablegen("g-sig-text", SIGNIERT_NUR_TEXT)
+    assert notbetrieb_lesen.mail("a@firma.at", "g-sig-text")["anhaenge"] == []
+    zeile = next(z for z in notbetrieb_lesen.liste("a@firma.at", "ord-x")["mails"] if z["graph_id"] == "g-sig-text")
+    assert zeile["anhang"] == 0
+
+
+def test_alte_kopfdaten_werden_nach_regelwechsel_neu_gelesen(schatten):
+    _ablegen("g-sig-text", SIGNIERT_NUR_TEXT)
+    notbetrieb_lesen.liste("a@firma.at", "ord-x")
+    with notbetrieb._conn() as conn:                     # Stand einer früheren Fassung vortäuschen
+        conn.execute("UPDATE mails SET anhang=1 WHERE graph_id='g-sig-text'")
+        conn.execute("UPDATE meta SET v='1' WHERE k='kopf_stand'")
+    zeile = next(z for z in notbetrieb_lesen.liste("a@firma.at", "ord-x")["mails"] if z["graph_id"] == "g-sig-text")
+    assert zeile["anhang"] == 0

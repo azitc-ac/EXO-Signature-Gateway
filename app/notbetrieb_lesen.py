@@ -32,6 +32,9 @@ log = logging.getLogger(__name__)
 INHALT_CSP = ("default-src 'none'; img-src data:; style-src 'unsafe-inline'; "
               "font-src data:; form-action 'none'; base-uri 'none'; sandbox")
 SEITE = 50
+# Erhöhen, wenn sich die Ermittlung der Kopfdaten ändert (z. B. was als Anhang
+# zählt): Gemerkte Kopfdaten werden dann einmal neu gelesen.
+KOPF_STAND = 2
 TEXT_MAX = 20000          # so viel Klartext je Mail wird für die Suche gemerkt
 
 
@@ -67,8 +70,50 @@ def _klartext(msg) -> str:
     return re.sub(r"\s+", " ", inhalt).strip()
 
 
+_SIGNATUR = {"application/pkcs7-signature", "application/x-pkcs7-signature"}
+_SMIME_HUELLE = {"application/pkcs7-mime", "application/x-pkcs7-mime"}
+
+
 def _anhaenge(msg) -> list:
-    return [t for t in msg.iter_attachments() if t.get_filename() or t.get_content_maintype() != "text"]
+    """Was der Nutzer als Anhang sehen soll — über ALLE Ebenen, nicht nur die
+    oberste. Gemessen an echten Mails (exohv, 14.11.2026): Bei S/MIME-Signatur
+    steckt ein PDF in multipart/signed → multipart/mixed; iter_attachments()
+    der obersten Ebene fand es nicht und meldete stattdessen smime.p7s und den
+    multipart/mixed-Container.
+
+    Nicht dabei: die Signatur selbst (→ `signiert`), Textteile ohne Dateinamen
+    (der Rumpf) und eingebettete Teile mit Content-ID ohne „attachment“ — die
+    zeigt die HTML-Ansicht als Bild (Logo der Signatur, cid:-Bilder)."""
+    out = []
+    for t in msg.walk():
+        if t.is_multipart():
+            continue
+        typ = t.get_content_type()
+        disp = t.get_content_disposition()
+        if typ in _SIGNATUR:
+            continue
+        if disp != "attachment":
+            if t.get_content_maintype() == "text" and not t.get_filename():
+                continue
+            if t["Content-ID"]:
+                continue
+            if not t.get_filename() and typ not in _SMIME_HUELLE:
+                continue
+        out.append(t)
+    return out
+
+
+def _smime(msg) -> dict:
+    typen = {t.get_content_type() for t in msg.walk()}
+    return {"signiert": bool(typen & _SIGNATUR) or msg.get_content_type() == "multipart/signed",
+            "verschluesselt": bool(typen & _SMIME_HUELLE)}
+
+
+def _kopfstand_pruefen(conn) -> None:
+    z = conn.execute("SELECT v FROM meta WHERE k='kopf_stand'").fetchone()
+    if not z or z["v"] != str(KOPF_STAND):
+        conn.execute("UPDATE mails SET betreff=NULL")
+        conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('kopf_stand', ?)", (str(KOPF_STAND),))
 
 
 def _kopf_nachtragen(conn, zeilen) -> None:
@@ -121,6 +166,7 @@ def liste(postfach: str, ordner_id: str = "", suche: str = "", seite: int = 0) -
             bed.append(f"ordner IN ({','.join('?' * len(ids))})")
             werte += ids
         # Kopfdaten fehlender Zeilen erst nachtragen, sonst fände die Suche sie nicht.
+        _kopfstand_pruefen(conn)
         _kopf_nachtragen(conn, conn.execute(
             f"SELECT * FROM mails WHERE {' AND '.join(bed)} AND betreff IS NULL", werte).fetchall())
         if suche.strip():
@@ -165,7 +211,7 @@ def mail(postfach: str, graph_id: str) -> dict | None:
         text = teil.get_content() if teil is not None else ""
     return {"graph_id": graph_id, "betreff": _dekodiert(msg["Subject"]), "von": _adressen(msg["From"]),
             "an": _adressen(msg["To"]), "cc": _adressen(msg["Cc"]), "datum": datum,
-            "message_id": str(msg["Message-ID"] or ""), "html": hat_html, "text": text,
+            "message_id": str(msg["Message-ID"] or ""), "html": hat_html, "text": text, **_smime(msg),
             "anhaenge": [{"nr": i, "name": _dekodiert(t.get_filename()) or f"anhang-{i}",
                           "typ": t.get_content_type(), "groesse": len(t.get_payload(decode=True) or b"")}
                          for i, t in enumerate(_anhaenge(msg))]}
