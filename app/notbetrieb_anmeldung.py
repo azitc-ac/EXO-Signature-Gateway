@@ -108,7 +108,10 @@ def _ldap_pruefen(benutzer: str, passwort: str, e: dict) -> dict:
                             receive_timeout=ZEITLIMIT_S, raise_exceptions=False, read_only=True,
                             auto_bind=ldap3.AUTO_BIND_NONE)
     try:
-        if not conn.open():
+        # ldap3 gibt bei open() NICHTS zurück (None, gemessen 14.11.2026) —
+        # erreicht ist der DC, wenn die Verbindung danach offen ist.
+        conn.open()
+        if conn.closed:
             raise AnmeldeFehler("Domänencontroller nicht erreichbar.")
         if not ldaps and not conn.start_tls():
             # Ohne Verschlüsselung geht kein Kennwort über die Leitung.

@@ -632,8 +632,8 @@ def test_server_adresse_ungueltig(url):
 class _FalschesLdap:
     """ldap3-Attrappe: zählt, ob ein Bind ohne Verschlüsselung versucht wird."""
 
-    def __init__(self, starttls_ok=True, bind_ok=True):
-        self.starttls_ok, self.bind_ok, self.ablauf = starttls_ok, bind_ok, []
+    def __init__(self, starttls_ok=True, bind_ok=True, erreichbar=True):
+        self.starttls_ok, self.bind_ok, self.erreichbar, self.ablauf = starttls_ok, bind_ok, erreichbar, []
 
     def modul(self):
         import types
@@ -644,8 +644,12 @@ class _FalschesLdap:
                 attrappe.ablauf.append(("conn", kw.get("authentication"), kw.get("password")))
                 self.entries = []
 
+            closed = True
+
             def open(self):
-                return True
+                # Wie das echte ldap3: Rückgabe None, Zustand in .closed.
+                self.closed = not attrappe.erreichbar
+                return None
 
             def start_tls(self):
                 attrappe.ablauf.append("start_tls")
@@ -697,3 +701,20 @@ def test_kennwort_landet_nicht_im_protokoll(ldap, caplog):
         nba.anmelden("a.ad@firma.local", "richtig")
         nba.anmelden("a.ad@firma.local", "falschesKennwort123")
     assert "richtig" not in caplog.text and "falschesKennwort123" not in caplog.text
+
+
+def test_erreichbarer_dc_wird_trotz_open_none_erkannt(monkeypatch):
+    """ldap3.Connection.open() liefert None (live exohv 14.11.2026) — ein
+    Wahrheitstest darauf meldete jeden DC als unerreichbar."""
+    f = _FalschesLdap()
+    f.einsetzen(monkeypatch)
+    assert nba._ldap_pruefen("a@firma.at", "geheim", {"server": "ldaps://dc01", "basis": "DC=x", "ca": ""}) \
+        == {"mail": ["a@firma.at"]}
+
+
+def test_unerreichbarer_dc(monkeypatch):
+    f = _FalschesLdap(erreichbar=False)
+    f.einsetzen(monkeypatch)
+    with pytest.raises(nba.AnmeldeFehler, match="nicht erreichbar"):
+        nba._ldap_pruefen("a@firma.at", "geheim", {"server": "ldaps://dc01", "basis": "DC=x", "ca": ""})
+    assert "bind" not in f.ablauf
