@@ -93,18 +93,17 @@ def _postfach_aus(eintrag: dict) -> list[str]:
     return list(dict.fromkeys(a for a in out if "@" in a))
 
 
-def _ldap_pruefen(benutzer: str, passwort: str, e: dict) -> dict:
-    """Bind + eigenes Konto lesen. Gibt die Attribute zurück oder wirft."""
+def _verbinden(e: dict, benutzer: str | None = None, passwort: str | None = None):
+    """Verschlüsselte Verbindung zum DC, noch ohne Anmeldung — EIN Weg für die
+    Anmeldung und die Bereitschaftsprüfung (`erreichbar`). Wirft AnmeldeFehler."""
     import ldap3
-    from ldap3.core.exceptions import LDAPException
-    from ldap3.utils.conv import escape_filter_chars
-
     host, port, ldaps = _server_teile(e["server"])
     tls = ldap3.Tls(validate=ssl.CERT_REQUIRED, version=ssl.PROTOCOL_TLS_CLIENT,
                     ca_certs_data=e["ca"] or None)
     server = ldap3.Server(host, port=port, use_ssl=ldaps, tls=tls, connect_timeout=ZEITLIMIT_S,
                           get_info=ldap3.NONE)
-    conn = ldap3.Connection(server, user=benutzer, password=passwort, authentication=ldap3.SIMPLE,
+    conn = ldap3.Connection(server, user=benutzer, password=passwort,
+                            authentication=ldap3.SIMPLE if benutzer else ldap3.ANONYMOUS,
                             receive_timeout=ZEITLIMIT_S, raise_exceptions=False, read_only=True,
                             auto_bind=ldap3.AUTO_BIND_NONE)
     try:
@@ -116,6 +115,46 @@ def _ldap_pruefen(benutzer: str, passwort: str, e: dict) -> dict:
         if not ldaps and not conn.start_tls():
             # Ohne Verschlüsselung geht kein Kennwort über die Leitung.
             raise AnmeldeFehler("Verschlüsselte Verbindung zum Domänencontroller fehlgeschlagen.")
+    except Exception:
+        try:
+            conn.unbind()
+        except Exception:                                   # noqa: BLE001
+            pass
+        raise
+    return conn
+
+
+def erreichbar() -> tuple[bool, str]:
+    """Bereitschaft: Ist der DC verschlüsselt erreichbar (TLS samt Zertifikat)?
+    Ohne Anmeldung — die prüft „Anmeldung testen“ mit echtem Konto."""
+    if not eingerichtet():
+        return False, "Domänencontroller nicht eingetragen."
+    from ldap3.core.exceptions import LDAPException
+    try:
+        conn = _verbinden(einstellungen())
+    except AnmeldeFehler as exc:
+        return False, str(exc)
+    except LDAPException as exc:
+        return False, f"Domänencontroller nicht erreichbar ({type(exc).__name__})."
+    try:
+        conn.unbind()
+    except Exception:                                       # noqa: BLE001
+        pass
+    return True, "Domänencontroller verschlüsselt erreichbar."
+
+
+def _ldap_pruefen(benutzer: str, passwort: str, e: dict) -> dict:
+    """Bind + eigenes Konto lesen. Gibt die Attribute zurück oder wirft."""
+    import ldap3
+    from ldap3.core.exceptions import LDAPException
+    from ldap3.utils.conv import escape_filter_chars
+
+    try:
+        conn = _verbinden(e, benutzer, passwort)
+    except LDAPException as exc:
+        log.warning("Notbetrieb-Anmeldung: LDAP-Fehler: %s", type(exc).__name__)
+        raise AnmeldeFehler("Domänencontroller nicht erreichbar.") from None
+    try:
         if not conn.bind():
             raise AnmeldeFehler("Name oder Kennwort falsch.")
         if "\\" in benutzer:

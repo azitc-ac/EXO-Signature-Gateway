@@ -1,0 +1,173 @@
+"""Notbetrieb: Ist alles bereit für den Ernstfall?
+
+Ein Notbetrieb, der erst im Ernstfall geprüft wird, fällt im Ernstfall aus.
+Deshalb jederzeit abrufbar (Seite Notbetrieb, Abnahme):
+
+- Kopie aktuell (letzter Abgleich, Fehler)
+- Rechte-Abbild und Profile frisch (wer darf was; Signaturdaten ohne Graph)
+- Anmeldung: Domänencontroller verschlüsselt erreichbar
+- Versand nach außen: Direktversand eingerichtet
+- TLS-Zertifikat gültig (Webmail und SMTP)
+
+Dazu der Stand des MX je eigener Domäne (`mx_stand`): zeigt er auf Exchange
+Online oder schon auf das Gateway? Das ist der Schritt, den im Ernstfall ein
+Mensch beim DNS-Anbieter macht — das Gateway kann ihn nur prüfen.
+
+Jede Prüfung liefert dieselbe Form wie `abnahme._punkt`; UNBEKANNT ist
+ausdrücklich kein OK.
+"""
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+
+log = logging.getLogger(__name__)
+
+KOPIE_MAX_H = 1          # Abgleich alle 15 min — eine Stunde Pause ist ein Befund
+ABBILD_MAX_H = 48        # täglich — zwei Tage ohne ist ein Befund
+
+
+def _alter_h(iso) -> float | None:
+    try:
+        return (datetime.now(timezone.utc)
+                - datetime.fromisoformat(str(iso).replace("Z", "+00:00"))).total_seconds() / 3600
+    except (TypeError, ValueError):
+        return None
+
+
+def _p(name, zustand, befund="", zu_tun=""):
+    import abnahme
+    return abnahme._punkt(name, zustand, befund, zu_tun)
+
+
+def _kopie(st: dict) -> dict:
+    import abnahme
+    letzter = st.get("letzter_lauf") or {}
+    alter = _alter_h(letzter.get("ts"))
+    if alter is None:
+        return _p("Kopie", abnahme.OFFEN, "Noch kein Abgleich gelaufen.", "Notbetrieb → „Jetzt abgleichen“.")
+    if letzter.get("kein_token"):
+        return _p("Kopie", abnahme.OFFEN, "Letzter Abgleich ohne Graph-Zugang.", "Einrichtung → Anmeldung prüfen.")
+    fehler = int(letzter.get("fehler", 0) or 0) + int(letzter.get("postfaecher_fehler", 0) or 0)
+    if alter > KOPIE_MAX_H:
+        return _p("Kopie", abnahme.OFFEN, f"Letzter Abgleich vor {alter:.1f} h — er läuft sonst alle 15 Minuten.",
+                  "Protokoll auf „Notbetrieb-Abgleich fehlgeschlagen“ durchsehen.")
+    if fehler:
+        return _p("Kopie", abnahme.OFFEN, f"{fehler} Fehler beim letzten Abgleich.",
+                  "Protokoll auf „Notbetrieb:“ durchsehen.")
+    return _p("Kopie", abnahme.OK, f"{st.get('mails', 0)} Mails aus {st.get('postfaecher_im_schatten', 0)} "
+              f"Postfächern, Abgleich vor {alter * 60:.0f} min.")
+
+
+def _abbild() -> dict:
+    import abnahme
+    import notbetrieb_rechte
+    alter = _alter_h(notbetrieb_rechte.stand().get("ts"))
+    if alter is None:
+        return _p("Rechte-Abbild", abnahme.OFFEN, "Noch nicht gelesen — ohne es sieht niemand geteilte Postfächer.",
+                  "Notbetrieb → Rechte → „Jetzt lesen“.")
+    if alter > ABBILD_MAX_H:
+        return _p("Rechte-Abbild", abnahme.OFFEN, f"Zuletzt vor {alter:.0f} h gelesen (sonst täglich).",
+                  "Notbetrieb → Rechte → „Jetzt lesen“; Protokoll prüfen.")
+    return _p("Rechte-Abbild", abnahme.OK, f"Gelesen vor {alter:.0f} h.")
+
+
+def _profile(st: dict) -> dict:
+    import abnahme
+    alter = _alter_h(st.get("profile_stand"))
+    if alter is None:
+        return _p("Profile für Signaturen", abnahme.OFFEN,
+                  "Noch nicht gesichert — fällt Graph aus, wären die Signaturen leer.",
+                  "Wird mit dem nächsten Abgleich gesichert; sonst Protokoll prüfen.")
+    if alter > ABBILD_MAX_H:
+        return _p("Profile für Signaturen", abnahme.OFFEN, f"Zuletzt vor {alter:.0f} h gesichert (sonst täglich).",
+                  "Protokoll auf „Profile nicht gesichert“ prüfen.")
+    return _p("Profile für Signaturen", abnahme.OK, f"{st.get('profile', 0)} Profile, gesichert vor {alter:.0f} h.")
+
+
+def _anmeldung(mit_netz: bool) -> dict:
+    import abnahme
+    import notbetrieb_anmeldung
+    if not notbetrieb_anmeldung.eingerichtet():
+        return _p("Anmeldung (Domänencontroller)", abnahme.OFFEN,
+                  "Nicht eingerichtet — im Notfall kann sich niemand anmelden.",
+                  "Notbetrieb → Anmeldung: Domänencontroller und Basis-DN eintragen.")
+    if not mit_netz:
+        return _p("Anmeldung (Domänencontroller)", abnahme.UNBEKANNT, "Eingetragen; Erreichbarkeit nicht geprüft.",
+                  "Notbetrieb → Bereitschaft → „Jetzt prüfen“.")
+    ok, text = notbetrieb_anmeldung.erreichbar()
+    return _p("Anmeldung (Domänencontroller)", abnahme.OK if ok else abnahme.OFFEN, text,
+              "" if ok else "Notbetrieb → Anmeldung: Server, CA-Zertifikat und Firewall prüfen.")
+
+
+def _versand() -> dict:
+    import abnahme
+    import direktversand
+    if direktversand.aktiv():
+        return _p("Versand nach außen", abnahme.OK, "Direktversand eingerichtet.")
+    return _p("Versand nach außen", abnahme.OFFEN,
+              "Kein Direktversand — im Notfall bleibt Post an externe Empfänger in der Warteschlange.",
+              "Einrichtung → Direktversand einrichten.")
+
+
+def pruefen(mit_netz: bool = True) -> dict:
+    """{punkte, bereit}. `mit_netz=False` nur lokale Prüfungen (Abnahme-Übersicht)."""
+    import abnahme
+    import notbetrieb
+    st = notbetrieb.status()
+    punkte = []
+    for f in (lambda: _kopie(st), _abbild, lambda: _profile(st), lambda: _anmeldung(mit_netz), _versand,
+              abnahme._tls):
+        try:
+            punkte.append(f())
+        except Exception as exc:                                    # noqa: BLE001
+            punkte.append(_p("Prüfung gescheitert", abnahme.UNBEKANNT, str(exc)[:150]))
+    return {"punkte": punkte, "bereit": all(p["zustand"] == abnahme.OK for p in punkte)}
+
+
+# ── MX ──────────────────────────────────────────────────────────────────────
+
+def _mx(domain: str) -> list[str]:
+    """MX-Ziele (ohne Punkt am Ende), nach Vorrang. Tests ersetzen diese Funktion."""
+    import dns.resolver
+    try:
+        antwort = dns.resolver.resolve(domain, "MX", lifetime=8)
+    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+        return []
+    return [str(r.exchange).rstrip(".").lower() for r in sorted(antwort, key=lambda r: r.preference)]
+
+
+def _adressen(name: str) -> set[str]:
+    import socket
+    try:
+        return {a[4][0] for a in socket.getaddrinfo(name, 25, proto=socket.IPPROTO_TCP)}
+    except OSError:
+        return set()
+
+
+def mx_stand() -> list[dict]:
+    """Je eigener Domäne: wohin zeigt der MX? `ziel` = exchange | gateway | anders."""
+    import aussenadresse
+    import notbetrieb_rechte
+    domaenen = sorted({a.rsplit("@", 1)[1].lower() for a in notbetrieb_rechte.alle_postfaecher()
+                       if "@" in a and not a.lower().endswith(".onmicrosoft.com")})
+    eigen = (aussenadresse.ehlo_hostname() or "").lower()
+    eigen_ip = _adressen(eigen) if eigen else set()
+    out = []
+    for d in domaenen:
+        try:
+            ziele = _mx(d)
+        except Exception as exc:                                    # noqa: BLE001
+            out.append({"domain": d, "mx": [], "ziel": "unbekannt", "fehler": str(exc)[:120]})
+            continue
+        erstes = ziele[0] if ziele else ""
+        if not erstes:
+            ziel = "keiner"
+        elif erstes.endswith(".mail.protection.outlook.com"):
+            ziel = "exchange"
+        elif erstes == eigen or (eigen_ip and _adressen(erstes) & eigen_ip):
+            ziel = "gateway"
+        else:
+            ziel = "anders"
+        out.append({"domain": d, "mx": ziele, "ziel": ziel})
+    return out

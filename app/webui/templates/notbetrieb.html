@@ -41,6 +41,40 @@
   <div class="msg" id="nb-ausgerufen-msg" hidden></div>
 </div>
 
+<!-- Bereitschaft -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Bereitschaft</h2>
+  <p class="hint" style="margin-top:0">
+    Würde der Notbetrieb jetzt funktionieren? Geprüft werden Kopie, Rechte, Profile, Anmeldung am
+    Domänencontroller, Versand nach außen und Zertifikat — dazu, wohin der MX jeder Domäne zeigt.
+  </p>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button class="btn secondary btn-sm" id="nb-bereit-btn" onclick="nbBereitschaft()">Jetzt prüfen</button>
+  </div>
+  <table class="nb-tabelle" id="nb-bereit-tabelle" style="width:100%;border-collapse:collapse;margin-top:8px" hidden>
+    <thead><tr><th>Punkt</th><th>Zustand</th><th>Befund</th></tr></thead><tbody></tbody>
+  </table>
+  <table class="nb-tabelle" id="nb-mx-tabelle" style="width:100%;border-collapse:collapse;margin-top:8px" hidden>
+    <thead><tr><th>Domäne</th><th>MX zeigt auf</th><th>Einträge</th></tr></thead><tbody></tbody>
+  </table>
+  <div class="msg" id="nb-bereit-msg" style="margin-top:6px" hidden></div>
+
+  <h3>Ablauf im Ernstfall</h3>
+  <ol class="hint" style="margin:0 0 0 18px;padding:0;line-height:1.6">
+    <li>Oben <strong>Notfall ausrufen</strong> — ab dann geht Post nicht mehr an Exchange, sondern in die Kopie.</li>
+    <li>Beim DNS-Anbieter den <strong>MX</strong> jeder Domäne auf dieses Gateway stellen (kurze TTL vorab hilft).</li>
+    <li>In der Firewall <strong>Port 25 aus dem Internet</strong> zum Gateway öffnen (im Normalbetrieb nur Microsoft).</li>
+    <li>Den Mitarbeitern die Adresse des Notfall-Webmails geben: <code>/notfall</code> auf diesem Gateway.</li>
+    <li>„Jetzt prüfen“: Der MX muss auf das Gateway zeigen.</li>
+  </ol>
+  <h3>Nach der Störung</h3>
+  <ol class="hint" style="margin:0 0 0 18px;padding:0;line-height:1.6">
+    <li>MX zurück auf Exchange Online, Port 25 wieder nur für Microsoft.</li>
+    <li>Den Notfall beenden.</li>
+    <li><strong>Zurückspielen</strong> — Post aus dem Notbetrieb geht nach Exchange (doppelt Eingespieltes erkennt es).</li>
+  </ol>
+</div>
+
 <!-- Stand -->
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Kopie für den Ernstfall</h2>
@@ -337,6 +371,28 @@ async function nbAusrufen(el) {
   if (!confirm(frage)) { el.checked = !an; return; }
   if (!await savePartial({NOTBETRIEB_AUSGERUFEN: an}, 'nb-ausgerufen-msg')) { el.checked = !an; return; }
   location.reload();
+}
+
+// ── Bereitschaft ─────────────────────────────────────────────────────────
+const NB_MX_ZIEL = {exchange: 'Exchange Online', gateway: 'dieses Gateway', anders: 'anderen Server',
+                    keiner: 'keinen Eintrag', unbekannt: 'nicht lesbar'};
+
+async function nbBereitschaft() {
+  const d = await knopfAktion('nb-bereit-btn', 'Prüfe…', () => getJSON('/api/notbetrieb/bereitschaft'));
+  if (!d.ok) { showMsg('nb-bereit-msg', 'Prüfung fehlgeschlagen: ' + errText(d), false); return; }
+  const t = document.getElementById('nb-bereit-tabelle');
+  t.querySelector('tbody').innerHTML = d.punkte.map(p =>
+    '<tr><td>' + esc(p.name) + '</td><td><span class="zustand-text" data-zustand="'
+    + (p.zustand === 'ok' ? 'ok' : 'warnung') + '">' + esc({ok: 'bereit', offen: 'offen', unbekannt: 'unklar'}[p.zustand] || p.zustand)
+    + '</span></td><td>' + esc(p.befund) + (p.zu_tun ? '<br><span class="hint">' + esc(p.zu_tun) + '</span>' : '')
+    + '</td></tr>').join('');
+  t.hidden = false;
+  const m = document.getElementById('nb-mx-tabelle');
+  m.querySelector('tbody').innerHTML = (d.mx || []).map(x =>
+    '<tr><td>' + esc(x.domain) + '</td><td>' + esc(NB_MX_ZIEL[x.ziel] || x.ziel) + '</td><td>'
+    + esc((x.mx || []).join(', ') || x.fehler || '') + '</td></tr>').join('');
+  m.hidden = !(d.mx || []).length;
+  showMsg('nb-bereit-msg', d.bereit ? 'Bereit für den Ernstfall.' : 'Nicht alles bereit — siehe Befunde.', d.bereit);
 }
 
 // ── Stand ────────────────────────────────────────────────────────────────

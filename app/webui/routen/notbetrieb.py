@@ -52,6 +52,16 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
     )
 
 
+@router.get("/api/notbetrieb/bereitschaft")
+async def api_notbetrieb_bereitschaft(_user: str = Depends(_require_admin)):
+    """Bereitschaft samt Netzprüfungen (Domänencontroller, MX) — auf Abruf,
+    nicht bei jedem Seitenaufbau."""
+    import notbetrieb_bereitschaft
+    erg = await asyncio.to_thread(notbetrieb_bereitschaft.pruefen, True)
+    erg["mx"] = await asyncio.to_thread(notbetrieb_bereitschaft.mx_stand)
+    return JSONResponse({"ok": True, **erg})
+
+
 @router.get("/api/notbetrieb/postfaecher")
 async def api_notbetrieb_postfaecher(_user: str = Depends(_require_admin)):
     return JSONResponse({"ok": True, "items": await asyncio.to_thread(notbetrieb.postfach_uebersicht)})

@@ -7,6 +7,7 @@ zurückgespielt ist — und das Rückspielen legt nichts doppelt ab.
 from __future__ import annotations
 
 import base64
+import json
 import stat
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1021,3 +1022,78 @@ def test_tagesbericht_ohne_notbetrieb_keine_zeile(nb):
     import notification
     nb["NOTBETRIEB_AKTIV"] = False
     assert notification._notbetrieb_zeilen(lambda k: 0) == []
+
+
+def test_verbindungsfehler_beim_aufbau_wird_zur_meldung(monkeypatch):
+    """open() kann werfen (Socket, TLS). Seit _verbinden außerhalb des try
+    steht, muss die Übersetzung trotzdem greifen — sonst roher Fehler bis zur
+    Anmeldeseite."""
+    from ldap3.core.exceptions import LDAPSocketOpenError
+    f = _FalschesLdap()
+    f.einsetzen(monkeypatch)
+    import ldap3
+    alt = ldap3.Connection
+
+    class Wirft(alt):
+        def open(self):
+            raise LDAPSocketOpenError("weg")
+    monkeypatch.setattr(ldap3, "Connection", Wirft)
+    with pytest.raises(nba.AnmeldeFehler, match="nicht erreichbar"):
+        nba._ldap_pruefen("a@firma.at", "geheim", {"server": "ldaps://dc01", "basis": "DC=x", "ca": ""})
+    assert nba.erreichbar.__module__ and "bind" not in f.ablauf
+
+
+@pytest.mark.parametrize("ldap_kw, ok, kein_bind", [({}, True, True), ({"erreichbar": False}, False, True),
+                                                     ({"starttls_ok": False}, False, True)])
+def test_bereitschaft_dc_erreichbar_ohne_anmeldung(nb, monkeypatch, ldap_kw, ok, kein_bind):
+    """Derselbe Verbindungsweg wie die Anmeldung (TLS, StartTLS), aber ohne Bind."""
+    f = _FalschesLdap(**ldap_kw)
+    f.einsetzen(monkeypatch)
+    nb["NOTBETRIEB_LDAP_SERVER"], nb["NOTBETRIEB_LDAP_BASIS"] = "ldap://dc01", "DC=x"
+    assert nba.erreichbar()[0] is ok
+    assert "bind" not in f.ablauf and f.ablauf[0][1] == "ANONYMOUS" and f.ablauf[0][2] is None
+
+
+def test_bereitschaft_meldet_luecken_und_wird_bereit(nb, graph, monkeypatch):
+    import abnahme
+    import direktversand
+    import notbetrieb_bereitschaft as nbb
+    monkeypatch.setattr(abnahme, "_tls", lambda: abnahme._punkt("TLS-Zertifikat", abnahme.OK))
+    monkeypatch.setattr(direktversand, "aktiv", lambda: False)
+    erg = nbb.pruefen(mit_netz=False)
+    zustand = {p["name"]: p["zustand"] for p in erg["punkte"]}
+    assert erg["bereit"] is False
+    assert zustand["Kopie"] == zustand["Rechte-Abbild"] == zustand["Profile für Signaturen"] == abnahme.OFFEN
+    assert zustand["Anmeldung (Domänencontroller)"] == abnahme.OFFEN and zustand["Versand nach außen"] == abnahme.OFFEN
+    # Alles nachholen.
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(ROH))
+    graph.seiten["/users?$select"] = {"value": [{"displayName": "A", "mail": "a@firma.at"}]}
+    notbetrieb.profile_sichern()
+    notbetrieb.abgleich_alle()
+    nb["NOTBETRIEB_LDAP_SERVER"], nb["NOTBETRIEB_LDAP_BASIS"] = "ldaps://dc01", "DC=x"
+    monkeypatch.setattr(direktversand, "aktiv", lambda: True)
+    monkeypatch.setattr(nba, "erreichbar", lambda: (True, "ok"))
+    erg = nbb.pruefen(mit_netz=True)
+    assert erg["bereit"] is True, erg["punkte"]
+    # Ohne Netzprüfung ist die Anmeldung UNKLAR, nicht bereit.
+    assert nbb.pruefen(mit_netz=False)["bereit"] is False
+    # Ein alter Abgleich ist ein Befund.
+    nb["_NOTBETRIEB_LAST"]["ts"] = _iso(JETZT - timedelta(hours=2))
+    assert next(p for p in nbb.pruefen(True)["punkte"] if p["name"] == "Kopie")["zustand"] == abnahme.OFFEN
+
+
+def test_mx_stand_unterscheidet_exchange_gateway_anders(nb, monkeypatch):
+    import aussenadresse
+    import notbetrieb_bereitschaft as nbb
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(json.dumps({"konten": [
+        {"primary": "a@firma.at", "upn": "a@firma.at", "typ": "UserMailbox"},
+        {"primary": "b@zweite.de", "upn": "b@zweite.de", "typ": "UserMailbox"},
+        {"primary": "c@dritte.de", "upn": "c@dritte.de", "typ": "UserMailbox"},
+        {"primary": "d@firma.onmicrosoft.com", "upn": "d@firma.onmicrosoft.com", "typ": "UserMailbox"}],
+        "rechte": []})))
+    monkeypatch.setattr(aussenadresse, "ehlo_hostname", lambda: "gw.firma.at")
+    mx = {"firma.at": ["firma-at.mail.protection.outlook.com"], "zweite.de": ["mx.zweite.de"], "dritte.de": ["mx.fremd.example"]}
+    monkeypatch.setattr(nbb, "_mx", lambda d: mx[d])
+    monkeypatch.setattr(nbb, "_adressen", lambda n: {"gw.firma.at": {"203.0.113.5"}, "mx.zweite.de": {"203.0.113.5"}}.get(n, {"198.51.100.9"}))
+    stand = {x["domain"]: x["ziel"] for x in nbb.mx_stand()}
+    assert stand == {"firma.at": "exchange", "zweite.de": "gateway", "dritte.de": "anders"}

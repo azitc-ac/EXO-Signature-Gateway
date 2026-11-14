@@ -868,6 +868,13 @@
     "name": "api_notbetrieb_anmeldung_test"
   },
   {
+    "pfad": "/api/notbetrieb/bereitschaft",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_bereitschaft"
+  },
+  {
     "pfad": "/api/notbetrieb/loeschen",
     "methoden": [
       "POST"

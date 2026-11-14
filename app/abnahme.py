@@ -784,13 +784,30 @@ def _key_vault_zugriff() -> dict:
     return _punkt(name, OK, "Datenzugriff auf den Key Vault vorhanden.")
 
 
+def _notbetrieb_bereit() -> dict:
+    """Notbetrieb eingeschaltet → ist er bereit? Die Einzelheiten stehen auf der
+    Seite Notbetrieb (notbetrieb_bereitschaft); hier eine Zeile."""
+    name = "Notbetrieb bereit"
+    import notbetrieb
+    if not notbetrieb.funktion_aktiv():
+        return _punkt(name, OK, "Notbetrieb ist aus — nichts vorzuhalten.")
+    import notbetrieb_bereitschaft
+    erg = notbetrieb_bereitschaft.pruefen(mit_netz=True)
+    luecken = [q for q in erg["punkte"] if q["zustand"] != OK]
+    if not luecken:
+        return _punkt(name, OK, "Kopie, Rechte, Profile, Anmeldung, Versand und Zertifikat bereit.")
+    zustand = OFFEN if any(q["zustand"] == OFFEN for q in luecken) else UNBEKANNT
+    return _punkt(name, zustand, "; ".join(f"{q['name']}: {q['befund']}" for q in luecken)[:300],
+                  "Notbetrieb → Bereitschaft.")
+
+
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _addin_rollen, _addin_fassung, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,
-              _csp_berichte)
+              _csp_berichte, _notbetrieb_bereit)
 
 
 def bericht() -> dict:
