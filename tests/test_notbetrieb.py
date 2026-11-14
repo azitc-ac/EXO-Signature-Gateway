@@ -553,3 +553,143 @@ def test_rechte_skript_filtert_geerbte_und_systemkonten():
     ps = notbetrieb_rechte._ps_script("app", "org.onmicrosoft.com")
     assert "$p.IsInherited -or $p.Deny" in ps and "NT AUTHORITY*" in ps
     assert "GrantSendOnBehalfTo" in ps and "Get-EXORecipientPermission" in ps
+
+
+# ── Anmeldung im Notbetrieb (LDAP) ──────────────────────────────────────────
+
+import notbetrieb_anmeldung as nba
+
+
+@pytest.fixture
+def ldap(nb, monkeypatch):
+    """Eingerichtete LDAP-Anmeldung, Rechte-Abbild vorhanden, Drossel geleert."""
+    import login_drossel
+    monkeypatch.setattr(login_drossel, "_FEHLER", {})
+    nb.update(NOTBETRIEB_LDAP_SERVER="ldaps://dc01.firma.local", NOTBETRIEB_LDAP_BASIS="DC=firma,DC=local")
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(ROH))
+    aufrufe = []
+
+    def pruefen(benutzer, passwort, e):
+        aufrufe.append(benutzer)
+        if passwort != "richtig":
+            raise nba.AnmeldeFehler("Name oder Kennwort falsch.")
+        return {"mail": [], "userPrincipalName": ["a.ad@firma.local"],
+                "proxyAddresses": ["smtp:alias@firma.at", "SMTP:A@Firma.at", "X500:/o=x"]}
+
+    monkeypatch.setattr(nba, "_ldap_pruefen", pruefen)
+    return aufrufe
+
+
+@pytest.mark.parametrize("name, kennwort", [("a@firma.at", ""), ("", "x"), ("  ", "x"),
+                                            ("a@firma.at\x00", "x"), ("a" * 300, "x")])
+def test_anmeldung_weist_leeres_und_unsinniges_vor_dem_netz_ab(ldap, name, kennwort):
+    """Leeres Kennwort = „unauthenticated bind“, den AD als ERFOLG beantwortet."""
+    erg = nba.anmelden(name, kennwort)
+    assert erg["ok"] is False and ldap == []
+
+
+def test_anmeldung_findet_postfach_ueber_primaere_proxyadresse(ldap):
+    erg = nba.anmelden("a.ad@firma.local", "richtig", "10.99.0.5")
+    assert erg["ok"] and erg["postfach"] == "a@firma.at"
+    assert [p["postfach"] for p in erg["zugriff"]] == ["a@firma.at", "chef@firma.at", "team@firma.at"]
+
+
+def test_angemeldet_aber_ohne_exo_postfach(ldap, monkeypatch):
+    monkeypatch.setattr(nba, "_ldap_pruefen", lambda b, p, e: {"mail": ["onprem@firma.local"]})
+    erg = nba.anmelden("onprem@firma.local", "richtig")
+    assert erg["ok"] is False and erg["angemeldet"] is True
+
+
+def test_anmeldung_ohne_einrichtung(ldap, nb):
+    nb["NOTBETRIEB_LDAP_SERVER"] = ""
+    assert nba.anmelden("a@firma.at", "richtig")["ok"] is False and ldap == []
+
+
+def test_drossel_je_name_und_je_quelle(ldap):
+    for _ in range(4):
+        nba.anmelden("a.ad@firma.local", "falsch", "10.99.0.5")
+    gesperrt = nba.anmelden("a.ad@firma.local", "richtig", "10.99.0.6")
+    assert gesperrt["ok"] is False and "warten_s" in gesperrt
+    # Dieselbe Quelle probiert andere Namen: auch die Quelle ist gesperrt.
+    for i in range(4):
+        nba.anmelden(f"n{i}@firma.local", "falsch", "10.99.0.7")
+    assert "warten_s" in nba.anmelden("a@firma.at", "richtig", "10.99.0.7")
+
+
+@pytest.mark.parametrize("url, erwartet", [("ldaps://dc01.firma.local", ("dc01.firma.local", 636, True)),
+                                           ("ldap://dc01.firma.local", ("dc01.firma.local", 389, False)),
+                                           ("dc01.firma.local:3269", ("dc01.firma.local", 3269, True))])
+def test_server_adresse(url, erwartet):
+    assert nba._server_teile(url) == erwartet
+
+
+@pytest.mark.parametrize("url", ["http://dc01", "ldaps://", "ftp://x"])
+def test_server_adresse_ungueltig(url):
+    with pytest.raises(nba.AnmeldeFehler):
+        nba._server_teile(url)
+
+
+class _FalschesLdap:
+    """ldap3-Attrappe: zählt, ob ein Bind ohne Verschlüsselung versucht wird."""
+
+    def __init__(self, starttls_ok=True, bind_ok=True):
+        self.starttls_ok, self.bind_ok, self.ablauf = starttls_ok, bind_ok, []
+
+    def modul(self):
+        import types
+        attrappe = self
+
+        class Conn:
+            def __init__(self, server, **kw):
+                attrappe.ablauf.append(("conn", kw.get("authentication"), kw.get("password")))
+                self.entries = []
+
+            def open(self):
+                return True
+
+            def start_tls(self):
+                attrappe.ablauf.append("start_tls")
+                return attrappe.starttls_ok
+
+            def bind(self):
+                attrappe.ablauf.append("bind")
+                return attrappe.bind_ok
+
+            def search(self, basis, filt, **kw):
+                attrappe.ablauf.append(("search", filt))
+                e = types.SimpleNamespace(entry_attributes_as_dict={"mail": ["a@firma.at"]})
+                self.entries = [e]
+
+            def unbind(self):
+                attrappe.ablauf.append("unbind")
+
+        m = types.SimpleNamespace(Tls=lambda **kw: kw, Server=lambda *a, **kw: (a, kw), Connection=Conn,
+                                  SIMPLE="SIMPLE", NONE="NONE", AUTO_BIND_NONE="NONE")
+        return m
+
+
+def test_ohne_starttls_geht_kein_kennwort_raus(monkeypatch):
+    import sys
+    f = _FalschesLdap(starttls_ok=False)
+    monkeypatch.setitem(sys.modules, "ldap3", f.modul())
+    with pytest.raises(nba.AnmeldeFehler):
+        nba._ldap_pruefen("a@firma.at", "geheim", {"server": "ldap://dc01", "basis": "DC=x", "ca": ""})
+    assert "bind" not in f.ablauf and "start_tls" in f.ablauf
+
+
+def test_kontosuche_maskiert_den_namen(monkeypatch):
+    import sys
+    f = _FalschesLdap()
+    monkeypatch.setitem(sys.modules, "ldap3", f.modul())
+    nba._ldap_pruefen("x*)(objectClass=*@firma.at", "geheim", {"server": "ldaps://dc01", "basis": "DC=x", "ca": ""})
+    filt = next(a[1] for a in f.ablauf if isinstance(a, tuple) and a[0] == "search")
+    assert "x\\2a\\29\\28objectClass=\\2a@firma.at" in filt
+    assert f.ablauf.index("bind") < f.ablauf.index(next(a for a in f.ablauf if isinstance(a, tuple) and a[0] == "search"))
+
+
+def test_kennwort_landet_nicht_im_protokoll(ldap, caplog):
+    import logging
+    with caplog.at_level(logging.DEBUG):
+        nba.anmelden("a.ad@firma.local", "richtig")
+        nba.anmelden("a.ad@firma.local", "falschesKennwort123")
+    assert "richtig" not in caplog.text and "falschesKennwort123" not in caplog.text
