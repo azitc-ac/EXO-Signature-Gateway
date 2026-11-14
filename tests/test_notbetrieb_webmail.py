@@ -536,3 +536,90 @@ def test_handler_weist_einlieferung_ohne_adresse_ab(postfix):
     antwort = asyncio.run(handler.SignatureHandler().handle_DATA(
         None, _Ohne(), ns._Umschlag("a@firma.at", ["kunde@extern.de"], b"Subject: x\r\n\r\nx\r\n")))
     assert antwort.startswith("554") and postfix == []
+
+
+# ── Kalender, Kontakte, Adresshilfe ─────────────────────────────────────────
+
+import notbetrieb_pim as pim  # noqa: E402
+
+
+class _Antwort:
+    def __init__(self, status, daten):
+        self.status_code, self._d = status, daten
+
+    def json(self):
+        return self._d
+
+
+class _Graph:
+    def __init__(self, seiten):
+        self.seiten, self.aufrufe = seiten, []
+
+    def get(self, url, params=None, headers=None):
+        self.aufrufe.append((url, params, headers))
+        for k, v in self.seiten.items():
+            if k in url:
+                return v if isinstance(v, _Antwort) else _Antwort(200, v)
+        return _Antwort(200, {"value": []})
+
+
+TERMIN = {"id": "t1", "subject": "Planung", "start": {"dateTime": "2026-11-16T09:00:00.0000000"},
+          "end": {"dateTime": "2026-11-16T10:00:00.0000000"}, "isAllDay": False,
+          "location": {"displayName": "Raum 3"}, "organizer": {"emailAddress": {"name": "B", "address": "b@firma.at"}},
+          "attendees": [{"emailAddress": {"name": "A", "address": "a@firma.at"}, "status": {"response": "accepted"}}],
+          "body": {"content": "Agenda"}, "sensitivity": "normal"}
+
+
+def test_kalender_wird_ersetzt_und_privates_nur_fuer_den_inhaber(schatten):
+    privat = {**TERMIN, "id": "t2", "subject": "Arzt", "sensitivity": "private"}
+    g = _Graph({"/calendarView": {"value": [TERMIN, privat]}})
+    assert pim.kalender_abgleichen(g, "tok", "team@firma.at", 3, 3) == 2
+    url, params, kopf = g.aufrufe[0]
+    assert "UTC" in kopf["Prefer"] and params["startDateTime"] < params["endDateTime"]
+    alle = pim.termine("team@firma.at", "2026-11-16T00:00:00Z", "2026-11-17T00:00:00Z", eigen=True)
+    assert [t["betreff"] for t in alle] == ["Planung", "Arzt"] and alle[0]["teilnehmer"][0]["antwort"] == "accepted"
+    fremd = pim.termine("team@firma.at", "2026-11-16T00:00:00Z", "2026-11-17T00:00:00Z", eigen=False)
+    assert fremd[1]["betreff"] == "Privater Termin" and fremd[1]["text"] == "" and fremd[1]["teilnehmer"] == []
+    # Erneuter Abgleich ersetzt (abgesagter Termin verschwindet).
+    pim.kalender_abgleichen(_Graph({"/calendarView": {"value": [TERMIN]}}), "tok", "team@firma.at", 3, 3)
+    assert len(pim.termine("team@firma.at", "2026-11-16T00:00:00Z", "2026-11-17T00:00:00Z", True)) == 1
+
+
+def test_kalender_folgt_dem_hauptschalter(schatten):
+    schatten["OOO_CALENDAR_READ"] = False
+    g = _Graph({"/calendarView": {"value": [TERMIN]}})
+    assert pim.kalender_abgleichen(g, "tok", "a@firma.at", 3, 3) == 0 and g.aufrufe == []
+
+
+def test_kontakte_ohne_recht_vermerkt_und_takt(schatten):
+    g = _Graph({"/contacts": _Antwort(403, {})})
+    assert pim.kontakte_abgleichen(g, "tok", "a@firma.at", jetzt=1000.0) == 0 and pim.kontakte_recht_fehlt()
+    g = _Graph({"/contacts": {"value": [{"id": "k1", "displayName": "Erika Muster",
+                                          "emailAddresses": [{"address": "erika@kunde.example"}], "mobilePhone": "0170"}]}})
+    assert pim.kontakte_abgleichen(g, "tok", "a@firma.at", jetzt=2000.0) == 1 and not pim.kontakte_recht_fehlt()
+    assert pim.kontakte_abgleichen(g, "tok", "a@firma.at", jetzt=2000.0 + 3600) is None      # nicht fällig
+    assert pim.kontakte("a@firma.at")[0]["telefon"] == ["0170"]
+
+
+def test_adresshilfe_kontakte_zuerst_dann_adressliste(schatten):
+    g = _Graph({"/contacts": {"value": [{"id": "k1", "displayName": "Bernd Kunde",
+                                          "emailAddresses": [{"address": "bernd@kunde.example"}]}]}})
+    pim.kontakte_abgleichen(g, "tok", "a@firma.at", jetzt=1.0)
+    with notbetrieb._conn() as conn:
+        conn.execute("INSERT INTO profile (adresse, daten) VALUES (?,?)",
+                     ("b@firma.at", json.dumps({"displayName": "Bernd Kollege", "mail": "b@firma.at"})))
+    treffer = pim.adressen_suchen("a@firma.at", "bern")
+    assert [(t["adresse"], t["quelle"]) for t in treffer] == [("bernd@kunde.example", "kontakt"), ("b@firma.at", "gal")]
+    assert pim.adressen_suchen("a@firma.at", "b") == []                      # zu kurz
+    # Kontakte eines ANDEREN Postfachs erscheinen nicht.
+    assert all(t["quelle"] != "kontakt" for t in pim.adressen_suchen("b@firma.at", "bern"))
+
+
+def test_kalender_endpunkt_nur_fuer_erlaubte_postfaecher(client, schatten):
+    _anmelden(client)
+    pim.kalender_abgleichen(_Graph({"/calendarView": {"value": [TERMIN]}}), "tok", "b@firma.at", 3, 3)
+    r = client.get("/notfall/api/kalender", params={"postfach": "b@firma.at", "von": "2026-11-01T00:00:00Z",
+                                                    "bis": "2026-12-01T00:00:00Z"})
+    assert r.status_code == 403
+    r = client.get("/notfall/api/adressen", params={"q": "fi"})
+    assert r.status_code == 200 and r.json()["ok"] is True

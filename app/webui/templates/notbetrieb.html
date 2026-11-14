@@ -51,12 +51,16 @@
   <div style="display:flex;gap:6px;flex-wrap:wrap">
     <button class="btn secondary btn-sm" id="nb-bereit-btn" onclick="nbBereitschaft()">Jetzt prüfen</button>
   </div>
-  <table class="nb-tabelle" id="nb-bereit-tabelle" style="width:100%;border-collapse:collapse;margin-top:8px" hidden>
+  <div class="tabellen-rollbereich">
+  <table class="nb-tabelle" id="nb-bereit-tabelle" style="width:100%;min-width:520px;border-collapse:collapse;margin-top:8px" hidden>
     <thead><tr><th>Punkt</th><th>Zustand</th><th>Befund</th></tr></thead><tbody></tbody>
   </table>
-  <table class="nb-tabelle" id="nb-mx-tabelle" style="width:100%;border-collapse:collapse;margin-top:8px" hidden>
+  </div>
+  <div class="tabellen-rollbereich">
+  <table class="nb-tabelle" id="nb-mx-tabelle" style="width:100%;min-width:520px;border-collapse:collapse;margin-top:8px" hidden>
     <thead><tr><th>Domäne</th><th>MX zeigt auf</th><th>Einträge</th></tr></thead><tbody></tbody>
   </table>
+  </div>
   <div class="msg" id="nb-bereit-msg" style="margin-top:6px" hidden></div>
 
   <h3>Ablauf im Ernstfall</h3>

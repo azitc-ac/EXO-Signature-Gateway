@@ -110,6 +110,32 @@ async def notfall_ordner(postfach: str, benutzer: str = Depends(_benutzer)):
     return JSONResponse({"ok": True, "ordner": await asyncio.to_thread(notbetrieb_lesen.ordner, pf)})
 
 
+@router.get("/notfall/api/kalender")
+async def notfall_kalender(postfach: str, von: str, bis: str, benutzer: str = Depends(_benutzer)):
+    """Termine (nur lesend). Private Termine eines fremden Postfachs nur als Zeitblock."""
+    import notbetrieb_pim
+    pf = _postfach(benutzer, postfach)
+    eigen = any(p["postfach"] == pf and p["eigen"] for p in await asyncio.to_thread(notbetrieb_rechte.zugriff, benutzer))
+    return JSONResponse({"ok": True, "termine": await asyncio.to_thread(
+        notbetrieb_pim.termine, pf, von[:25], bis[:25], eigen)})
+
+
+@router.get("/notfall/api/kontakte")
+async def notfall_kontakte(postfach: str, benutzer: str = Depends(_benutzer)):
+    import notbetrieb_pim
+    pf = _postfach(benutzer, postfach)
+    return JSONResponse({"ok": True, "kontakte": await asyncio.to_thread(notbetrieb_pim.kontakte, pf),
+                         "recht_fehlt": await asyncio.to_thread(notbetrieb_pim.kontakte_recht_fehlt)})
+
+
+@router.get("/notfall/api/adressen")
+async def notfall_adressen(q: str = "", benutzer: str = Depends(_benutzer)):
+    """Adresshilfe beim Verfassen: eigene Kontakte, dann die globale Adressliste."""
+    import notbetrieb_pim
+    return JSONResponse({"ok": True, "treffer": await asyncio.to_thread(
+        notbetrieb_pim.adressen_suchen, benutzer, q[:100])})
+
+
 @router.get("/notfall/api/liste")
 async def notfall_liste(postfach: str, ordner: str = "", suche: str = "", seite: int = 0,
                         benutzer: str = Depends(_benutzer)):

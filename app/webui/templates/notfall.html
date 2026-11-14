@@ -54,6 +54,13 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
 #ordner .eintrag, #liste .eintrag { padding: 7px 12px; cursor: pointer; border-bottom: 1px solid var(--rand); }
 #ordner .eintrag[aria-current="true"], #liste .eintrag[aria-current="true"] { background: var(--wahl); }
 #ordner .zahl { float: right; color: var(--leise); font-size: 12px; }
+/* Je Postfach eine Kopfzeile; das geöffnete zeigt darunter seine Ordner. Die
+   Auswahlliste oben braucht es nur auf dem Handy (Spalte ausgeblendet). */
+#ordner .postfach { padding: 8px 10px; cursor: pointer; font-weight: 600; border-bottom: 1px solid var(--rand);
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ordner .postfach[aria-expanded="true"] { background: var(--wahl); }
+#ordner .postfach .art { font-weight: 400; color: var(--leise); font-size: 12px; }
+#postfachwahl { display: none; }
 #liste .eintrag[data-ungelesen="1"] .betreff { font-weight: 700; }
 #liste .kopf { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--leise); }
 #liste .vorschau { font-size: 12px; color: var(--leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -82,6 +89,7 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
      sonst den ganzen ersten Bildschirm. */
   #app #ordnerspalte { display: none; }
   #ordnerwahl { display: block !important; }
+  #postfachwahl { display: inline-block; }
   /* Lesebereich bildschirmhoch: EIN Rollbalken im Mailrahmen statt Rahmen
      fester Höhe mit Leerraum darunter. */
   #app[data-ansicht="lesen"] #lesen { height: calc(100dvh - var(--kopfhoehe, 48px)); }
@@ -190,13 +198,27 @@ async function ordnerLaden() {
   const nachId = Object.fromEntries(d.ordner.map(o => [o.id, o]));
   const t = o => { let n = 0, e = o.eltern; while (nachId[e] && n < 8) { n++; e = nachId[e].eltern; } return n; };
   const zahl = o => (o.ungelesen ? o.ungelesen + ' / ' : '') + o.anzahl;
-  el.innerHTML = d.ordner.map(o => '<div class="eintrag" data-id="' + escAttr(o.id) + '" style="padding-left:'
+  const ordnerHtml = d.ordner.map(o => '<div class="eintrag" data-id="' + escAttr(o.id) + '" style="padding-left:'
     + (12 + 14 * t(o)) + 'px" onclick="ordnerWaehlen(this.dataset.id)"'
     + (o.id === nb.ordner ? ' aria-current="true"' : '') + '>' + esc(o.name)
     + '<span class="zahl">' + zahl(o) + '</span></div>').join('');
+  // Alle erreichbaren Postfächer untereinander; nur das geöffnete klappt auf.
+  el.innerHTML = nb.zugriff.map(p => {
+    const offen = p.postfach === nb.postfach;
+    return '<div class="postfach" data-pf="' + escAttr(p.postfach) + '" aria-expanded="' + offen
+      + '" onclick="postfachWaehlen(this.dataset.pf)" title="' + escAttr(p.postfach) + '">'
+      + (offen ? '▾ ' : '▸ ') + esc(p.postfach) + (p.eigen ? '' : ' <span class="art">geteilt</span>') + '</div>'
+      + (offen ? ordnerHtml
+         + '<div class="eintrag" data-id="__kalender" onclick="ordnerWaehlen(this.dataset.id)"'
+         + (nb.ordner === '__kalender' ? ' aria-current="true"' : '') + ' style="padding-left:12px">Kalender</div>'
+         + '<div class="eintrag" data-id="__kontakte" onclick="ordnerWaehlen(this.dataset.id)"'
+         + (nb.ordner === '__kontakte' ? ' aria-current="true"' : '') + ' style="padding-left:12px">Kontakte</div>' : '');
+  }).join('');
+  document.getElementById('postfachwahl').value = nb.postfach;
   const wahl = document.getElementById('ordnerwahl');
   wahl.innerHTML = d.ordner.map(o => '<option value="' + escAttr(o.id) + '">'
-    + esc('\u00a0'.repeat(2 * t(o)) + o.name) + ' (' + zahl(o) + ')</option>').join('');
+    + esc('\u00a0'.repeat(2 * t(o)) + o.name) + ' (' + zahl(o) + ')</option>').join('')
+    + '<option value="__kalender">Kalender</option><option value="__kontakte">Kontakte</option>';
   if (nb.ordner) wahl.value = nb.ordner;
   return d.ordner.find(o => o.wk === 'inbox') || d.ordner[0] || null;
 }
@@ -206,7 +228,106 @@ function ordnerWaehlen(id) {
   document.getElementById('suche').value = '';
   document.querySelectorAll('#ordner .eintrag').forEach(e => e.setAttribute('aria-current', e.dataset.id === id));
   document.getElementById('ordnerwahl').value = id;
+  if (id === '__kalender') return kalenderZeigen();
+  if (id === '__kontakte') return kontakteZeigen();
   listeLaden(0);
+}
+
+// ── Kalender und Kontakte (nur lesend) ───────────────────────────────────
+function tagText(iso) {
+  return new Date(iso).toLocaleDateString('de-DE', {weekday: 'long', day: '2-digit', month: '2-digit'});
+}
+function uhrzeit(iso) { return new Date(iso).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}); }
+
+async function kalenderZeigen() {
+  const heute = new Date(); heute.setHours(0, 0, 0, 0);
+  const von = new Date(heute.getTime() - 14 * 864e5), bis = new Date(heute.getTime() + 15 * 864e5);
+  const d = await getJSON('/notfall/api/kalender?' + q({postfach: nb.postfach, von: von.toISOString(), bis: bis.toISOString()}));
+  const el = document.getElementById('liste');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  nb.termine = d.termine;
+  if (!d.termine.length) {
+    el.innerHTML = '<p class="leise" style="padding:12px">Keine Termine in der Kopie. Sie reicht so weit, wie im Gateway eingestellt.</p>';
+    return;
+  }
+  let tag = '';
+  el.innerHTML = d.termine.map((t, i) => {
+    const neu = tagText(t.beginn) !== tag; tag = tagText(t.beginn);
+    return (neu ? '<div class="leise" style="padding:8px 12px 2px;font-weight:600">' + esc(tag) + '</div>' : '')
+      + '<div class="eintrag" data-i="' + i + '" onclick="terminZeigen(+this.dataset.i)">'
+      + '<div class="kopf"><span>' + (t.ganztag ? 'ganztägig' : esc(uhrzeit(t.beginn) + '–' + uhrzeit(t.ende)))
+      + '</span><span>' + esc(t.ort || '') + '</span></div>'
+      + '<div class="betreff">' + (t.abgesagt ? '<s>' : '') + esc(t.betreff || '(ohne Betreff)') + (t.abgesagt ? '</s>' : '')
+      + '</div></div>';
+  }).join('');
+  if (innerWidth > 720) terminZeigen(Math.max(0, d.termine.findIndex(t => new Date(t.ende) >= new Date())));
+}
+
+function terminZeigen(i) {
+  const t = nb.termine[i]; if (!t) return;
+  document.querySelectorAll('#liste .eintrag').forEach(e => e.setAttribute('aria-current', +e.dataset.i === i));
+  const wer = a => esc(a.name ? a.name + ' <' + a.address + '>' : (a.address || ''));
+  const antw = {accepted: 'zugesagt', declined: 'abgesagt', tentativelyAccepted: 'vorläufig', none: '', notResponded: 'offen', organizer: 'Organisator'};
+  document.getElementById('lesen').innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
+    + '<div style="padding:12px 18px"><h2 style="margin:0 0 6px">' + (t.abgesagt ? 'Abgesagt: ' : '') + esc(t.betreff || '(ohne Betreff)') + '</h2>'
+    + '<div class="leise">' + esc(tagText(t.beginn)) + (t.ganztag ? ', ganztägig' : ', ' + esc(uhrzeit(t.beginn) + '–' + uhrzeit(t.ende))) + '</div>'
+    + (t.ort ? '<div>Ort: ' + esc(t.ort) + '</div>' : '')
+    + (t.organisator && t.organisator.address ? '<div>Organisator: ' + wer(t.organisator) + '</div>' : '')
+    + (t.teilnehmer.length ? '<div style="margin-top:6px">Teilnehmer:<ul style="margin:2px 0 0 18px;padding:0">'
+       + t.teilnehmer.map(a => '<li>' + wer(a) + (antw[a.antwort] ? ' <span class="leise">(' + esc(antw[a.antwort]) + ')</span>' : '') + '</li>').join('')
+       + '</ul></div>' : '')
+    + (t.online ? '<div style="margin-top:6px">Online-Besprechung: <span class="leise">' + esc(t.online) + '</span></div>' : '')
+    + (t.text ? '<div style="margin-top:10px;white-space:pre-wrap">' + esc(t.text) + '</div>' : '')
+    + '<p class="leise" style="margin-top:14px">Nur lesend — Änderungen am Kalender sind im Notbetrieb nicht möglich.</p></div>';
+  ansicht('lesen');
+}
+
+async function kontakteZeigen() {
+  const d = await getJSON('/notfall/api/kontakte?' + q({postfach: nb.postfach}));
+  const el = document.getElementById('liste');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  nb.kontakte = d.kontakte;
+  if (!d.kontakte.length) {
+    el.innerHTML = '<p class="leise" style="padding:12px">' + (d.recht_fehlt
+      ? 'Kontakte sind in der Kopie nicht verfügbar — dem Gateway fehlt das Leserecht dafür (IT).'
+      : 'Keine Kontakte in der Kopie.') + ' Beim Verfassen schlägt die Adresshilfe trotzdem Kolleginnen und Kollegen vor.</p>';
+    return;
+  }
+  el.innerHTML = d.kontakte.map((k, i) => '<div class="eintrag" data-i="' + i + '" onclick="kontaktZeigen(+this.dataset.i)">'
+    + '<div class="betreff">' + esc(k.name || k.mails[0] || '') + '</div>'
+    + '<div class="vorschau">' + esc([k.firma, k.mails[0]].filter(Boolean).join(' · ')) + '</div></div>').join('');
+}
+
+function kontaktZeigen(i) {
+  const k = nb.kontakte[i]; if (!k) return;
+  document.querySelectorAll('#liste .eintrag').forEach(e => e.setAttribute('aria-current', +e.dataset.i === i));
+  document.getElementById('lesen').innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
+    + '<div style="padding:12px 18px"><h2 style="margin:0 0 6px">' + esc(k.name) + '</h2>'
+    + (k.titel || k.firma ? '<div class="leise">' + esc([k.titel, k.firma].filter(Boolean).join(', ')) + '</div>' : '')
+    + k.mails.map(m => '<div>' + esc(m) + ' <button data-an="' + escAttr(m) + '" onclick="anSchreiben(this.dataset.an)">Mail schreiben</button></div>').join('')
+    + k.telefon.map(t => '<div>Telefon: ' + esc(t) + '</div>').join('') + '</div>';
+  ansicht('lesen');
+}
+
+async function anSchreiben(adresse) {
+  await verfassen();
+  const an = document.getElementById('vf-an'); if (an) { an.value = adresse; document.getElementById('vf-betreff').focus(); }
+}
+
+// ── Adresshilfe: Kontakte und globale Adressliste beim Tippen ────────────
+let nbAdressTakt = 0;
+async function adressVorschlag(feld) {
+  const wert = feld.value, komma = wert.lastIndexOf(',');
+  const vorne = komma >= 0 ? wert.slice(0, komma + 1) + ' ' : '', teil = wert.slice(komma + 1).trim();
+  const takt = ++nbAdressTakt;
+  if (teil.length < 2) return;
+  await new Promise(r => setTimeout(r, 200));
+  if (takt !== nbAdressTakt) return;
+  const d = await getJSON('/notfall/api/adressen?' + q({q: teil}));
+  if (!d.ok || takt !== nbAdressTakt) return;
+  document.getElementById('vf-vorschlaege').innerHTML = d.treffer.map(t =>
+    '<option value="' + escAttr(vorne + (t.name ? t.name + ' <' + t.adresse + '>' : t.adresse)) + '">'
+    + esc(t.quelle === 'kontakt' ? 'Kontakt' : 'Adressliste') + '</option>').join('');
 }
 
 async function listeLaden(seite) {
@@ -286,9 +407,9 @@ async function verfassen(art) {
     + '<div class="zeile"><label for="vf-von">Von</label><select id="vf-von">' + nb.absender.map(a =>
         '<option value="' + escAttr(a.postfach) + '"' + (a.postfach === von ? ' selected' : '') + '>'
         + esc(a.postfach + recht[a.recht]) + '</option>').join('') + '</select></div>'
-    + '<div class="zeile"><label for="vf-an">An</label><input id="vf-an" value="' + escAttr(v.an) + '"></div>'
-    + '<div class="zeile"><label for="vf-cc">Cc</label><input id="vf-cc" value="' + escAttr(v.cc) + '"></div>'
-    + '<div class="zeile"><label for="vf-bcc">Bcc</label><input id="vf-bcc"></div>'
+    + '<div class="zeile"><label for="vf-an">An</label><input id="vf-an" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.an) + '"></div>'
+    + '<div class="zeile"><label for="vf-cc">Cc</label><input id="vf-cc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.cc) + '"></div>'
+    + '<div class="zeile"><label for="vf-bcc">Bcc</label><input id="vf-bcc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)"><datalist id="vf-vorschlaege"></datalist></div>'
     + '<div class="zeile"><label for="vf-betreff">Betreff</label><input id="vf-betreff" value="' + escAttr(v.betreff) + '"></div>'
     + '<textarea id="vf-text" aria-label="Text">' + esc(v.text) + '</textarea>'
     + (art === 'weiterleiten' ? '<div class="leise">Die Nachricht wird als Anhang weitergeleitet.</div>' : '')

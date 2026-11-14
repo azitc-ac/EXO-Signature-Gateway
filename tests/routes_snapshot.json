@@ -2317,11 +2317,32 @@
     "name": "notfall_anmelden"
   },
   {
+    "pfad": "/notfall/api/adressen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_adressen"
+  },
+  {
     "pfad": "/notfall/api/ich",
     "methoden": [
       "GET"
     ],
     "name": "notfall_ich"
+  },
+  {
+    "pfad": "/notfall/api/kalender",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_kalender"
+  },
+  {
+    "pfad": "/notfall/api/kontakte",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_kontakte"
   },
   {
     "pfad": "/notfall/api/liste",

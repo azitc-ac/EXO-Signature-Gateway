@@ -607,13 +607,21 @@ def abgleich_alle() -> dict:
         return ergebnis
     with httpx.Client(timeout=30) as client:
         for key, pf in postfaecher:
-            tage = fenster_fuer(key, pf)[0]["mail"]
+            fenster = fenster_fuer(key, pf)[0]
             try:
                 for ordner in _ordner_abgleichen(client, token, pf, zaehlung):
-                    _abgleich_ordner(client, token, pf, ordner, tage, zaehlung)
+                    _abgleich_ordner(client, token, pf, ordner, fenster["mail"], zaehlung)
             except Exception as exc:                               # noqa: BLE001
                 zaehlung["postfaecher_fehler"] += 1
                 log.warning("Notbetrieb: Abgleich %s fehlgeschlagen: %s", pf, exc)
+            # Kalender und Kontakte (lesend) — ein Fehler dort stört die Mail nicht.
+            import notbetrieb_pim
+            try:
+                notbetrieb_pim.kalender_abgleichen(client, token, pf, fenster["kal_zurueck"], fenster["kal_vor"])
+                notbetrieb_pim.kontakte_abgleichen(client, token, pf)
+            except Exception as exc:                               # noqa: BLE001
+                zaehlung["pim_fehler"] = zaehlung.get("pim_fehler", 0) + 1
+                log.warning("Notbetrieb: Kalender/Kontakte %s fehlgeschlagen: %s", pf, exc)
     zaehlung["abgelaufen"] = aufbewahrung_durchsetzen()
     ergebnis = {"aktiv": True, **zaehlung, "postfaecher": len(postfaecher), **_bestand()}
     log.info("Notbetrieb: Abgleich %s Postfächer — %s neu, %s entfernt, %s abgelaufen, %s Fehler",

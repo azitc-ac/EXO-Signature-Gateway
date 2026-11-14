@@ -14,7 +14,8 @@
 | `Mail.Send` | ✓ | Mails über Graph API senden (Re-inject + ACME) |
 | `Mail.ReadWrite` | ✓* | Gesendete Elemente patchen; schließt `Mail.Read` ein |
 | `MailboxSettings.ReadWrite` | Abwesenheit | Zentrale Abwesenheitsnotiz setzen |
-| `Calendars.Read` | Abwesenheit, abschaltbar | Abwesenheit aus dem Kalender, Ankündigung; entfällt mit *Kalender der Postfächer lesen: aus* |
+| `Calendars.Read` | Abwesenheit, Notbetrieb, abschaltbar | Abwesenheit aus dem Kalender, Ankündigung, Kalender im Notbetrieb; entfällt mit *Kalender der Postfächer lesen: aus* |
+| `Contacts.Read` | Notbetrieb (optional) | Persönliche Kontakte im Notfall-Webmail; nur mit eingeschaltetem Notbetrieb |
 | `AppCatalog.Read.All` | Teams-App (optional) | Fassung der Teams-App im Katalog prüfen; nur mit *Teams-App ist bereitgestellt* |
 | `Exchange.ManageAsApp` | ✓ | EXO PowerShell (Connector/DG-Setup via Wizard) |
 | `IMAP.AccessAsApp` | IMAP-Modus | IMAP APPEND in Empfänger-Postfächer (kein Draft) |

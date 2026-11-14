@@ -65,10 +65,10 @@ def _abbild() -> dict:
     alter = _alter_h(notbetrieb_rechte.stand().get("ts"))
     if alter is None:
         return _p("Rechte-Abbild", abnahme.OFFEN, "Noch nicht gelesen — ohne es sieht niemand geteilte Postfächer.",
-                  "Notbetrieb → Rechte → „Jetzt lesen“.")
+                  "Notbetrieb → „Rechte jetzt lesen“.")
     if alter > ABBILD_MAX_H:
         return _p("Rechte-Abbild", abnahme.OFFEN, f"Zuletzt vor {alter:.0f} h gelesen (sonst täglich).",
-                  "Notbetrieb → Rechte → „Jetzt lesen“; Protokoll prüfen.")
+                  "Notbetrieb → „Rechte jetzt lesen“; Protokoll prüfen.")
     return _p("Rechte-Abbild", abnahme.OK, f"Gelesen vor {alter:.0f} h.")
 
 
