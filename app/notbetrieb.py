@@ -44,7 +44,13 @@ Idempotent über die Message-ID: Steht eine Nachricht mit derselben
 `internetMessageId` schon im Postfach, wird sie nur als erledigt vermerkt.
 Ein zweiter Lauf nach einem Abbruch spielt deshalb nichts doppelt ein. Eine
 lokale Mail ohne Message-ID bekommt beim Ablegen eine, sonst gäbe es für sie
-keinen Abgleich.
+keinen Abgleich. Gesucht wird im Zielordner, nicht im ganzen Postfach (Mail
+an sich selbst: Posteingang und Gesendet tragen dieselbe Message-ID).
+
+Angelegt wird per JSON mit PR_MESSAGE_FLAGS, NICHT per MIME — eine MIME-Anlage
+ist unwiderruflich ein Entwurf (Einzelheiten `_als_graph`). Kommt die Mail beim
+nächsten Abgleich aus Exchange zurück, wird die lokale Zeile zur Exchange-Kopie
+(gleiche Message-ID, gleicher Ordner bevorzugt) statt doppelt zu stehen.
 
 Das Rückspielen löst bewusst KEINE Abwesenheitsantwort aus (anders als die
 Ablage-Wege in `tests/test_oof_ablage.py`): Die Post wurde während der Störung
@@ -448,6 +454,23 @@ def _abgleich_ordner(client: httpx.Client, token: str, postfach: str, ordner: st
                     conn.execute("UPDATE mails SET gelesen=?, ordner=? WHERE postfach=? AND graph_id=?",
                                  (1 if m.get("isRead") else 0, ordner, postfach, gid))
                     continue
+                # Zurückgespielte lokale Post kommt mit neuer Graph-ID wieder an.
+                # Die lokale Zeile wird zur Exchange-Kopie, statt dass die Mail
+                # doppelt in der Kopie steht (exohv 14.11.2026: 5 von 5 doppelt).
+                imid = m.get("internetMessageId") or ""
+                # Erst im selben Ordner suchen: Eine Mail an sich selbst liegt mit
+                # derselben Message-ID im Posteingang UND unter Gesendet.
+                lok = conn.execute(
+                    "SELECT graph_id FROM mails WHERE postfach=? AND imid=? AND herkunft=?"
+                    " ORDER BY (ordner=? OR ordner=(SELECT wk FROM ordner WHERE postfach=? AND id=?)) DESC"
+                    " LIMIT 1", (postfach, imid, LOKAL, ordner, postfach, ordner)).fetchone() if imid else None
+                if lok:
+                    conn.execute(
+                        "UPDATE mails SET graph_id=?, ordner=?, gelesen=?, herkunft=?,"
+                        " zurueck=COALESCE(zurueck, ?) WHERE postfach=? AND graph_id=?",
+                        (gid, ordner, 1 if m.get("isRead") else 0, EXO,
+                         f"vorhanden {_iso(datetime.now(timezone.utc))}", postfach, lok["graph_id"]))
+                    continue
             # Neu — aber nur innerhalb des Fensters. Der Filter wirkt nur in der
             # ersten Runde; spätere Runden melden auch hineinverschobene Altpost.
             if empfangen is None or empfangen < grenze:
@@ -539,6 +562,110 @@ def _odata_text(wert: str) -> str:
     return wert.replace("'", "''")
 
 
+# Anhänge bis zu dieser Gesamtgröße gehen mit der Anlage, größere einzeln per
+# Upload-Sitzung. Gemessen exohv 14.11.2026: 3,5 MB beim Anlegen angenommen,
+# Upload-Sitzung (5 MB in 3-MB-Stücken) an einer Nicht-Entwurf-Mail ebenfalls.
+_ANLAGE_BUDGET = 3 * 1024 * 1024
+_STUECK = 3 * 1024 * 1024
+
+
+def _graph_zeit(dt: datetime | None) -> str | None:
+    return _iso(dt) if dt else None
+
+
+def _adressen(*koepfe) -> list[dict]:
+    return [{"emailAddress": {"address": a, **({"name": n} if n else {})}}
+            for n, a in email.utils.getaddresses([str(k) for k in koepfe if k]) if a]
+
+
+def _als_graph(mime: bytes, gelesen: bool, empfangen: datetime | None) -> tuple[dict, list]:
+    """Lokale Mail als Graph-Nachricht (JSON) — dazu die Anhänge, die nicht in
+    die Anlage passen.
+
+    Warum nicht MIME: Eine per MIME angelegte Nachricht ist IMMER ein Entwurf,
+    und `isDraft` ist danach nicht mehr änderbar (Graph v1.0 „Update message“;
+    gemessen 5 von 5, der PATCH antwortet trotzdem 200). Nur bei der Anlage
+    per JSON wirkt PR_MESSAGE_FLAGS (0x0E07) — ohne MSGFLAG_UNSENT ist die
+    Nachricht kein Entwurf (gemessen exohv 14.11.2026). Lokale Post baut
+    ausschließlich das Webmail (Text, Anhänge, weitergeleitete Mail), der
+    JSON-Nachbau verliert dabei nichts Wesentliches.
+
+    Message-ID über `internetMessageId` (beim Anlegen setzbar, per $filter
+    auffindbar — die Idempotenz hängt daran). In-Reply-To/References als
+    MAPI-Eigenschaften, Graph nimmt als Kopfzeilen nur `x-`."""
+    msg = email.message_from_bytes(mime, policy=email.policy.default)
+    rumpf = msg.get_body(preferencelist=("html", "plain"))
+    html = rumpf is not None and rumpf.get_content_subtype() == "html"
+    props = [{"id": "Integer 0x0E07", "value": "1" if gelesen else "0"}]
+    for kennung, wert in (("SystemTime 0x0E06", _graph_zeit(empfangen)),
+                          ("SystemTime 0x0039", _graph_zeit(_kopf_zeit(msg.get("Date")))),
+                          ("String 0x1042", str(msg.get("In-Reply-To") or "").strip()),
+                          ("String 0x1039", str(msg.get("References") or "").strip())):
+        if wert:
+            props.append({"id": kennung, "value": wert})
+    n = {"subject": str(msg.get("Subject") or ""),
+         "body": {"contentType": "HTML" if html else "Text", "content": rumpf.get_content() if rumpf else ""},
+         "internetMessageId": str(msg.get("Message-ID") or "").strip(),
+         "toRecipients": _adressen(*msg.get_all("To", [])),
+         "ccRecipients": _adressen(*msg.get_all("Cc", [])),
+         "bccRecipients": _adressen(*msg.get_all("Bcc", [])),
+         "replyTo": _adressen(*msg.get_all("Reply-To", [])),
+         "singleValueExtendedProperties": props}
+    for feld, kopf in (("from", "From"), ("sender", "Sender")):
+        a = _adressen(msg.get(kopf))
+        if a:
+            n[feld] = a[0]
+    anlage, gross, budget = [], [], _ANLAGE_BUDGET
+    for teil in msg.iter_attachments():
+        typ = teil.get_content_type()
+        if typ == "message/rfc822":
+            daten = teil.get_payload(0).as_bytes(policy=email.policy.SMTP)
+        else:
+            daten = teil.get_payload(decode=True) or b""
+        name = teil.get_filename() or ("nachricht.eml" if typ == "message/rfc822" else "anhang")
+        if len(daten) > budget:
+            gross.append((name, typ, daten))
+            continue
+        budget -= len(daten)
+        a = {"@odata.type": "#microsoft.graph.fileAttachment", "name": name, "contentType": typ,
+             "contentBytes": base64.b64encode(daten).decode()}
+        cid = str(teil.get("Content-ID") or "").strip().strip("<>")
+        if cid:
+            a["contentId"] = cid
+            a["isInline"] = teil.get_content_disposition() == "inline"
+        anlage.append(a)
+    if anlage:
+        n["attachments"] = anlage
+    return n, gross
+
+
+def _kopf_zeit(wert) -> datetime | None:
+    try:
+        return email.utils.parsedate_to_datetime(str(wert)) if wert else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _gross_anhaengen(client, token: str, pf: str, neu_id: str, name: str, typ: str, daten: bytes) -> None:
+    """Großen Anhang per Upload-Sitzung nachreichen (Graph: attachment createUploadSession)."""
+    s = client.post(f"{GRAPH}/users/{pf}/messages/{neu_id}/attachments/createUploadSession",
+                    json={"AttachmentItem": {"attachmentType": "file", "name": name, "size": len(daten),
+                                             "contentType": typ}},
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    timeout=60)
+    if s.status_code not in (200, 201):
+        raise RuntimeError(f"Upload-Sitzung HTTP {s.status_code}")
+    url = s.json()["uploadUrl"]
+    for pos in range(0, len(daten), _STUECK):
+        stueck = daten[pos:pos + _STUECK]
+        # Die Upload-URL ist vorab berechtigt — kein Authorization-Kopf (Graph-Doku).
+        r = client.put(url, content=stueck, timeout=120, headers={
+            "Content-Length": str(len(stueck)),
+            "Content-Range": f"bytes {pos}-{pos + len(stueck) - 1}/{len(daten)}"})
+        if r.status_code not in (200, 201):
+            raise RuntimeError(f"Upload HTTP {r.status_code}")
+
+
 def zurueckspielen() -> dict:
     """Lokale, noch nicht zurückgespielte Post nach Exchange bringen."""
     zaehlung = {"eingespielt": 0, "schon_da": 0, "fehler": 0, "offen": 0}
@@ -559,8 +686,11 @@ def zurueckspielen() -> dict:
         for z in offen:
             pf, imid = z["postfach"], z["imid"]
             try:
+                # Im Zielordner suchen, nicht im ganzen Postfach: Eine Mail an sich
+                # selbst hat Posteingang und Gesendet mit derselben Message-ID —
+                # sonst gälte die zweite als schon vorhanden.
                 such = client.get(
-                    f"{GRAPH}/users/{pf}/messages",
+                    f"{GRAPH}/users/{pf}/mailFolders/{z['ordner']}/messages",
                     params={"$filter": f"internetMessageId eq '{_odata_text(imid)}'", "$select": "id"},
                     headers={"Authorization": f"Bearer {token}"})
                 if such.status_code != 200:
@@ -569,25 +699,22 @@ def zurueckspielen() -> dict:
                     _erledigt(z, "vorhanden")
                     zaehlung["schon_da"] += 1
                     continue
-                mime = Path(z["datei"]).read_bytes()
-                # Wie graph_reinject.deliver_to_mailbox_mime: erst CRLF, dann base64.
-                mime = mime.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+                nachricht, gross = _als_graph(Path(z["datei"]).read_bytes(), bool(z["gelesen"]),
+                                              _zeit(z["empfangen"]))
                 resp = client.post(f"{GRAPH}/users/{pf}/mailFolders/{z['ordner']}/messages",
-                                   content=base64.b64encode(mime),
-                                   headers={"Authorization": f"Bearer {token}",
-                                            "Content-Type": "text/plain"})
+                                   json=nachricht, headers=json_hdr, timeout=120)
                 if resp.status_code not in (200, 201):
                     raise RuntimeError(f"Einspielen HTTP {resp.status_code} — {resp.text[:200]}")
                 neu_id = resp.json().get("id", "")
-                # Ohne diesen PATCH zeigt Outlook Classic einen Senden-Knopf.
-                patch = client.patch(f"{GRAPH}/users/{pf}/messages/{neu_id}", json={
-                    "isDraft": False,
-                    "isRead": bool(z["gelesen"]),
-                    "singleValueExtendedProperties": [{"id": "Integer 0x0e07", "value": "1"}],
-                }, headers=json_hdr)
-                if patch.status_code not in (200, 201, 204):
-                    log.warning("Notbetrieb: isDraft-PATCH für %s fehlgeschlagen: HTTP %s",
-                                pf, patch.status_code)
+                try:
+                    for name, typ, daten in gross:
+                        _gross_anhaengen(client, token, pf, neu_id, name, typ, daten)
+                except Exception:
+                    # Ohne Löschen fände der nächste Lauf die Mail über die
+                    # Message-ID und hielte sie für erledigt — ohne den Anhang.
+                    client.delete(f"{GRAPH}/users/{pf}/messages/{neu_id}",
+                                  headers={"Authorization": f"Bearer {token}"})
+                    raise
                 _erledigt(z, "eingespielt")
                 zaehlung["eingespielt"] += 1
             except Exception as exc:                                # noqa: BLE001

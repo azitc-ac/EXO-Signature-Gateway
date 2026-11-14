@@ -58,6 +58,8 @@ class Graph:
         # Empfänger (gleiche Message-ID) eingespielt war.
         self.im_postfach: set = set()
         self.aufrufe: list[tuple] = []
+        self.angelegt = 0
+        self.upload_kaputt = False
 
     def client(self, **kw):
         return self
@@ -84,21 +86,37 @@ class Graph:
         if params and "$filter" in params:
             imid = params["$filter"].split("'", 1)[1].rsplit("'", 1)[0].replace("''", "'")
             pf = url.split("/users/", 1)[1].split("/", 1)[0]
-            da = imid in self.im_postfach or (pf, imid) in self.im_postfach
+            ordner = url.split("/mailFolders/", 1)[1].split("/", 1)[0] if "/mailFolders/" in url else None
+            da = imid in self.im_postfach or (pf, imid) in self.im_postfach \
+                or (pf, ordner, imid) in self.im_postfach
             return _Resp(200, {"value": [{"id": "x"}] if da else []})
         for schluessel, antwort in self.seiten.items():
             if schluessel in url:
                 return antwort if isinstance(antwort, _Resp) else _Resp(200, antwort)
         return _Resp(200, {"value": [], "@odata.deltaLink": url + "#ende"})
 
-    def post(self, url, content=None, headers=None):
-        self.aufrufe.append(("POST", url, content, headers))
-        mime = base64.b64decode(content)
-        for zeile in mime.split(b"\r\n"):
-            if zeile.lower().startswith(b"message-id:"):
-                pf = url.split("/users/", 1)[1].split("/", 1)[0]
-                self.im_postfach.add((pf, zeile.split(b":", 1)[1].strip().decode()))
-        return _Resp(201, {"id": "neu-1"})
+    def post(self, url, content=None, json=None, headers=None, timeout=None):
+        self.aufrufe.append(("POST", url, json if json is not None else content, headers))
+        if url.endswith("/createUploadSession"):
+            if self.upload_kaputt:
+                return _Resp(500, {})
+            return _Resp(201, {"uploadUrl": "https://upload/" + json["AttachmentItem"]["name"]})
+        # Rückspielen legt per JSON an (MIME wäre unwiderruflich ein Entwurf).
+        # Exchange findet sie danach je Postfach UND Ordner über die Message-ID.
+        pf = url.split("/users/", 1)[1].split("/", 1)[0]
+        ordner = url.split("/mailFolders/", 1)[1].split("/", 1)[0]
+        self.im_postfach.add((pf, ordner, json["internetMessageId"]))
+        self.angelegt += 1
+        return _Resp(201, {"id": f"neu-{self.angelegt}"})
+
+    def put(self, url, content=None, headers=None, timeout=None):
+        self.aufrufe.append(("PUT", url, len(content), headers))
+        return _Resp(201 if int(headers["Content-Range"].split("-")[1].split("/")[0]) + 1
+                     == int(headers["Content-Range"].split("/")[1]) else 200, {})
+
+    def delete(self, url, headers=None):
+        self.aufrufe.append(("DELETE", url))
+        return _Resp(204, {})
 
     def patch(self, url, json=None, headers=None):
         self.aufrufe.append(("PATCH", url, json))
@@ -211,23 +229,131 @@ def test_loeschen_verweigert_bei_offener_lokaler_post(nb, graph):
 
 # ── Rückspielen ─────────────────────────────────────────────────────────────
 
-def test_rueckspielen_ist_idempotent_und_kodiert_richtig(nb, graph):
+def _angelegt(graph):
+    return [a for a in graph.aufrufe if a[0] == "POST" and a[1].endswith("/messages")]
+
+
+def test_rueckspielen_ist_idempotent(nb, graph):
     notbetrieb.lokal_ablegen("a@firma.at", "inbox", MIME.replace(b"\r\n", b"\n"))   # bare LF
     graph.im_postfach.add("<schon@extern.de>")
     notbetrieb.lokal_ablegen("a@firma.at", "sentitems",
                              MIME.replace(b"<m1@extern.de>", b"<schon@extern.de>"))
     erg = notbetrieb.zurueckspielen()
     assert (erg["eingespielt"], erg["schon_da"], erg["fehler"]) == (1, 1, 0)
-    post = [a for a in graph.aufrufe if a[0] == "POST"]
+    post = _angelegt(graph)
     assert len(post) == 1 and post[0][1].endswith("/users/a@firma.at/mailFolders/inbox/messages")
-    roh = base64.b64decode(post[0][2])
-    assert b"\r\n" in roh and b"\n" not in roh.replace(b"\r\n", b"")
-    patch = next(a for a in graph.aufrufe if a[0] == "PATCH")
-    assert patch[2]["isDraft"] is False
     # Zweiter Lauf: nichts mehr offen, kein weiterer Aufruf.
     graph.aufrufe.clear()
     assert notbetrieb.zurueckspielen()["eingespielt"] == 0
     assert graph.aufrufe == []
+
+
+@pytest.mark.parametrize("gelesen, flags", [(True, "1"), (False, "0")])
+def test_rueckspielen_legt_echte_mail_an_kein_entwurf(nb, graph, gelesen, flags):
+    """Per JSON mit PR_MESSAGE_FLAGS ohne MSGFLAG_UNSENT — eine MIME-Anlage wäre
+    unwiderruflich Entwurf, ein isDraft-PATCH danach wirkungslos (exohv 14.11.2026)."""
+    notbetrieb.lokal_ablegen("a@firma.at", "inbox", MIME, gelesen=gelesen,
+                             empfangen=datetime(2026, 11, 10, 8, 15, tzinfo=timezone.utc))
+    notbetrieb.zurueckspielen()
+    (_, _, n, kopf), = _angelegt(graph)
+    assert isinstance(n, dict) and kopf["Content-Type"] == "application/json"
+    props = {p["id"]: p["value"] for p in n["singleValueExtendedProperties"]}
+    assert props["Integer 0x0E07"] == flags
+    assert int(flags) & 0x8 == 0                     # MSGFLAG_UNSENT = Entwurf
+    assert props["SystemTime 0x0E06"] == "2026-11-10T08:15:00Z"
+    assert n["internetMessageId"] == "<m1@extern.de>"
+    assert n["from"]["emailAddress"]["address"] == "x@extern.de"
+    assert n["toRecipients"] == [{"emailAddress": {"address": "a@firma.at"}}]
+    assert n["subject"] == "Hallo" and n["body"] == {"contentType": "Text", "content": "Text\n"}
+    assert not [a for a in graph.aufrufe if a[0] == "PATCH"]
+
+
+def _webmail_mime(anhaenge=(), bcc=None, bezug=None):
+    import notbetrieb_senden
+    msg = notbetrieb_senden._bauen("a@firma.at", "b@firma.at", ["c@extern.de"], ["d@firma.at"],
+                                   "Betreff", "Hallo", list(anhaenge), bezug)
+    if bcc:
+        msg["Bcc"] = bcc
+    return msg.as_bytes()
+
+
+def test_rueckspielen_uebernimmt_webmail_mail_vollstaendig(nb, graph):
+    """Was das Webmail baut, kommt ohne Verlust an: Sender, Bcc der Gesendet-Kopie,
+    Bezug (In-Reply-To/References) und Anhänge samt weitergeleiteter Mail."""
+    weiter = b"From: e@extern.de\r\nSubject: Alt\r\nMessage-ID: <alt@extern.de>\r\n\r\nalt\r\n"
+    mime = _webmail_mime([("plan.pdf", "application/pdf", b"%PDF-1"), ("Alt.eml", "message/rfc822", weiter)],
+                         bcc="geheim@extern.de",
+                         bezug={"art": "antwort", "message_id": "<vor@x>", "references": "<a@x>"})
+    notbetrieb.lokal_ablegen("a@firma.at", "sentitems", mime, gelesen=True)
+    notbetrieb.zurueckspielen()
+    (_, _, n, _), = _angelegt(graph)
+    assert n["sender"]["emailAddress"]["address"] == "b@firma.at"
+    assert [x["emailAddress"]["address"] for x in n["bccRecipients"]] == ["geheim@extern.de"]
+    assert [x["emailAddress"]["address"] for x in n["ccRecipients"]] == ["d@firma.at"]
+    props = {p["id"]: p["value"] for p in n["singleValueExtendedProperties"]}
+    assert props["String 0x1042"] == "<vor@x>" and props["String 0x1039"] == "<a@x> <vor@x>"
+    anh = {a["name"]: a for a in n["attachments"]}
+    assert base64.b64decode(anh["plan.pdf"]["contentBytes"]) == b"%PDF-1"
+    assert anh["plan.pdf"]["contentType"] == "application/pdf"
+    assert b"Message-ID: <alt@extern.de>" in base64.b64decode(anh["Alt.eml"]["contentBytes"])
+
+
+def test_rueckspielen_grosser_anhang_per_upload(nb, graph, monkeypatch):
+    monkeypatch.setattr(notbetrieb, "_ANLAGE_BUDGET", 100)
+    monkeypatch.setattr(notbetrieb, "_STUECK", 40)
+    notbetrieb.lokal_ablegen("a@firma.at", "sentitems", _webmail_mime(
+        [("klein.txt", "text/plain", b"k" * 50), ("gross.bin", "application/octet-stream", b"g" * 100)]))
+    erg = notbetrieb.zurueckspielen()
+    assert erg["eingespielt"] == 1
+    (_, _, n, _), = _angelegt(graph)
+    assert [a["name"] for a in n["attachments"]] == ["klein.txt"]
+    puts = [a for a in graph.aufrufe if a[0] == "PUT"]
+    assert [a[2] for a in puts] == [40, 40, 20] and puts[0][1] == "https://upload/gross.bin"
+    assert "Authorization" not in puts[0][3]
+
+
+def test_rueckspielen_upload_scheitert_mail_wird_geloescht_und_bleibt_offen(nb, graph, monkeypatch):
+    """Sonst fände der nächste Lauf sie per Message-ID und hielte sie für erledigt — ohne Anhang."""
+    monkeypatch.setattr(notbetrieb, "_ANLAGE_BUDGET", 10)
+    notbetrieb.lokal_ablegen("a@firma.at", "sentitems", _webmail_mime([("g.bin", "application/x-a", b"g" * 50)]))
+    graph.upload_kaputt = True
+    erg = notbetrieb.zurueckspielen()
+    assert erg["fehler"] == 1 and notbetrieb._bestand()["lokal_offen"] == 1
+    assert [a[1] for a in graph.aufrufe if a[0] == "DELETE"] == ["https://graph.microsoft.com/v1.0/users/a@firma.at/messages/neu-1"]
+    graph.im_postfach.clear()                        # die gelöschte ist in Exchange weg
+    graph.upload_kaputt = False
+    assert notbetrieb.zurueckspielen()["eingespielt"] == 1
+
+
+def test_rueckspielen_mail_an_sich_selbst_beide_ordner(nb, graph):
+    """Posteingang und Gesendet mit derselben Message-ID: Die Suche je Ordner hält
+    die zweite nicht für schon vorhanden."""
+    mime = _webmail_mime()
+    notbetrieb.lokal_ablegen("a@firma.at", "inbox", mime)
+    notbetrieb.lokal_ablegen("a@firma.at", "sentitems", mime, gelesen=True)
+    erg = notbetrieb.zurueckspielen()
+    assert (erg["eingespielt"], erg["schon_da"]) == (2, 0)
+
+
+def test_abgleich_uebernimmt_zurueckgespielte_mail_statt_doppelt(nb, graph):
+    """Nach dem Rückspielen meldet das Delta die Mail mit neuer Graph-ID — die
+    lokale Zeile wird zur Exchange-Kopie (exohv 14.11.2026: 5 von 5 doppelt).
+    Bei der Mail an sich selbst je Ordner die passende Zeile."""
+    mime = _webmail_mime()
+    imid = notbetrieb.lokal_ablegen("a@firma.at", "inbox", mime)
+    notbetrieb.lokal_ablegen("a@firma.at", "sentitems", mime, gelesen=True)
+    notbetrieb.zurueckspielen()
+    graph.seiten["mailFolders/inbox?"] = {"id": "ord-in"}
+    graph.seiten["mailFolders/ord-in/messages/delta"] = {"value": [
+        {"id": "exo-1", "internetMessageId": imid, "receivedDateTime": _iso(JETZT), "isRead": True}],
+        "@odata.deltaLink": "https://graph/d?t=1"}
+    erg = notbetrieb.abgleich_alle()
+    assert erg["neu"] == 0 and erg["mails"] == 2
+    assert not any(a[1].endswith("/exo-1/$value") for a in graph.aufrufe)
+    with notbetrieb._conn() as conn:
+        zeilen = sorted(tuple(z) for z in conn.execute("SELECT graph_id, ordner, herkunft FROM mails"))
+    assert zeilen[0] == ("exo-1", "ord-in", "exo")
+    assert zeilen[1][1:] == ("sentitems", "lokal")
 
 
 def test_rueckspielen_nach_abbruch_legt_nicht_doppelt_ab(nb, graph):
@@ -242,7 +368,7 @@ def test_rueckspielen_nach_abbruch_legt_nicht_doppelt_ab(nb, graph):
         notbetrieb._erledigt = echt
     erg = notbetrieb.zurueckspielen()
     assert (erg["eingespielt"], erg["schon_da"]) == (0, 1)
-    assert len([a for a in graph.aufrufe if a[0] == "POST"]) == 1
+    assert len(_angelegt(graph)) == 1
 
 
 def test_lokale_post_ohne_message_id_bekommt_eine(nb, graph):
@@ -250,7 +376,7 @@ def test_lokale_post_ohne_message_id_bekommt_eine(nb, graph):
     imid = notbetrieb.lokal_ablegen("a@firma.at", "inbox", ohne)
     assert imid.startswith("<") and imid.endswith("@firma.at>")
     notbetrieb.zurueckspielen()
-    assert ("a@firma.at", imid) in graph.im_postfach
+    assert ("a@firma.at", "inbox", imid) in graph.im_postfach
 
 
 def test_rueckspielen_ohne_token_bleibt_offen(nb, graph, monkeypatch):

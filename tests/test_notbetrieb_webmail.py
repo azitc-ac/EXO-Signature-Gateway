@@ -427,8 +427,7 @@ def test_gesendetes_wird_ins_gesendete_zurueckgespielt(postfix, monkeypatch):
     ziele = sorted(a[1].split("/v1.0")[-1] for a in g.aufrufe if a[0] == "POST")
     assert "/users/a@firma.at/mailFolders/sentitems/messages" in ziele
     assert "/users/b@firma.at/mailFolders/inbox/messages" in ziele
-    gesendet_patch = [a for a in g.aufrufe if a[0] == "PATCH"]
-    assert erg["fehler"] == 0 and gesendet_patch
+    assert erg["fehler"] == 0 and erg["eingespielt"] == 2
 
 
 def test_senden_endpunkt(client, postfix):
