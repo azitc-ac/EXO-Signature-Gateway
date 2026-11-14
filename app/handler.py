@@ -482,6 +482,25 @@ class SignatureHandler:
         log.info("SMTP: Verbindung über Proxy %s, Ursprung %s", ueber, quelle[0])
         return True
 
+    async def handle_RCPT(self, server, session, envelope, address, rcpt_options):
+        """Wie aiosmtpd ohne Haken — außer im ausgerufenen Notfall: Dann prüft
+        `notbetrieb_eingang` Post von außen schon hier (Empfänger, Greylisting).
+        Endgültig entscheidet `handle_DATA`; ein Fehler hier lässt durch, weil
+        die Prüfung dort wiederholt wird."""
+        try:
+            import notbetrieb_eingang
+            antwort = notbetrieb_eingang.rcpt_pruefen(
+                (session.peer or ("",))[0], session, envelope.mail_from or "", address,
+                len(envelope.rcpt_tos))
+        except Exception as exc:                                    # noqa: BLE001
+            log.warning("Notfall-Eingang: Empfängerprüfung fehlgeschlagen: %s", exc)
+            antwort = None
+        if antwort:
+            return antwort
+        envelope.rcpt_tos.append(address)
+        envelope.rcpt_options.extend(rcpt_options)
+        return "250 OK"
+
     async def handle_DATA(self, server, session, envelope):
         # Trace-ID: ab hier trägt jede Log-Zeile dieser Transaktion den
         # "[mail:xxxxxxxx]"-Prefix (mail_trace.TraceFilter) — Suche nach der
@@ -529,6 +548,36 @@ class SignatureHandler:
         _ident = (getattr(session, "auth_data", None)
                   if getattr(session, "authenticated", False) else None)
 
+        # Notfall ausgerufen: Post von außen (MX zeigt aufs Gateway). Sie gilt
+        # weder als Exchange-Connector noch als Relay — eigene Prüfung in
+        # notbetrieb_eingang, danach der normale Weg für eingehende Post; die
+        # Zustellung lenkt reinject in die Kopie. Eigene Exchange-Post (eigene
+        # Tenant-Kennung) bleibt beim Connector-Weg.
+        _notfall_eingang = None
+        if not _ident:
+            try:
+                import notbetrieb_eingang
+                _notfall_eingang = notbetrieb_eingang.quelle(peer_ip, session)
+                if _notfall_eingang:
+                    import email.parser as _ep
+                    _kopf = _ep.BytesHeaderParser().parsebytes(raw)
+                    _notfall_eingang = notbetrieb_eingang.quelle_nach_kopf(
+                        _notfall_eingang, str(_kopf.get("X-MS-Exchange-CrossTenant-Id") or ""))
+                    if _notfall_eingang == notbetrieb_eingang.CONNECTOR:
+                        _notfall_eingang = None
+            except Exception as exc:                                # noqa: BLE001
+                # Im Zweifel zu: lieber eine Mail später als ein offenes Relay.
+                log.error("Notfall-Eingang: Einordnung fehlgeschlagen: %s", exc)
+                return "451 4.3.0 Vorübergehender Fehler"
+            if _notfall_eingang:
+                _nf_antwort = notbetrieb_eingang.data_pruefen(_notfall_eingang, peer_ip, recipients, len(raw))
+                if _nf_antwort:
+                    log.info("NOTFALL-EINGANG abgewiesen (%s): %s → %s: %s", _notfall_eingang,
+                             sender, recipients[:3], _nf_antwort)
+                    return _nf_antwort
+                log.info("NOTFALL-EINGANG (%s): %s → %s (von %s)", _notfall_eingang,
+                         sender, ", ".join(recipients[:3]), peer_ip)
+
         if _ident:
             import sende_identitaeten
             erlaubt, grund, antwort = sende_identitaeten.pruefe(_ident, sender, recipients)
@@ -558,7 +607,7 @@ class SignatureHandler:
                     log.warning("Sende-Identität %s über Tageskontingent (%d/%d) — "
                                 "Einlieferung läuft weiter (weiches Limit)",
                                 _ident.get("login") or "?", _heute_n, _kont)
-        elif peer_ip and not aus_relay_netz and not vorgelagert:
+        elif peer_ip and not aus_relay_netz and not vorgelagert and not _notfall_eingang:
             import exo_erkennung
             import smtp_acl
             # Exchange Online an Adresse und/oder Client-Zertifikat erkennen
@@ -714,7 +763,7 @@ class SignatureHandler:
             # Nur für Post aus dem Exchange-Weg: Relay-Geräte und authentifizierte
             # Einlieferungen (587) sind lokal — dort stammt die Kennung nicht von
             # Exchange, sondern stünde so im Kopf, wie das Gerät sie schreibt.
-            if peer_ip and not aus_relay_netz and not _ident:
+            if peer_ip and not aus_relay_netz and not _ident and not _notfall_eingang:
                 _fremd_tenant = (msg.get("X-MS-Exchange-CrossTenant-Id") or "").strip().lower()
                 _eigen_tenant = (config.TENANT_ID or settings_store.get("TENANT_ID")
                                  or "").strip().lower()
@@ -767,7 +816,7 @@ class SignatureHandler:
             # `not _ident`: Eine angemeldete Einlieferung (587) kommt von einem
             # Gerät, nicht aus Exchange — sie trägt nie eine Tenant-Kennung und
             # gehört weder in die Zählung noch unter die strenge Prüfung.
-            if (peer_ip and not aus_relay_netz and not _ident
+            if (peer_ip and not aus_relay_netz and not _ident and not _notfall_eingang
                     and settings_store.get("RELAY_TENANT_CHECK") is not False):
                 _own_tenant = (config.TENANT_ID or settings_store.get("TENANT_ID")
                                or "").strip().lower()

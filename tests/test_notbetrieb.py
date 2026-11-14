@@ -949,7 +949,10 @@ def notfall(nb, monkeypatch):
     import direktversand
     import notbetrieb_rechte
     import reinject
-    monkeypatch.setattr(notbetrieb_rechte, "alle_postfaecher", lambda: ["a@firma.at", "b@firma.at"])
+    import json
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(json.dumps({"konten": [
+        {"primary": "a@firma.at", "upn": "a@firma.at", "typ": "UserMailbox"},
+        {"primary": "b@firma.at", "upn": "b@firma.at", "typ": "UserMailbox"}], "rechte": []})))
     monkeypatch.setattr(direktversand, "aktiv", lambda: True)
     weg = {"postfix": [], "exchange": [], "wartet": []}
     monkeypatch.setattr(reinject, "_an_postfix", lambda von, empf, inhalt, h, p: weg["postfix"].append(empf))

@@ -191,9 +191,9 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
     if sum(len(d) for _, _, d in anhaenge) > MAX_GROESSE:
         raise SendeFehler("Anhänge zu groß (höchstens 15 MB).")
 
-    intern_konten = set(notbetrieb_rechte.alle_postfaecher())
-    intern = [a for a in alle if a in intern_konten]
-    extern = [a for a in alle if a not in intern_konten]
+    # Dieselbe Einordnung wie notbetrieb.zustellen (Aliase eingeschlossen).
+    intern = [a for a in alle if notbetrieb.postfach_fuer(a)]
+    extern = [a for a in alle if not notbetrieb.postfach_fuer(a)]
     if extern and not direktversand.aktiv():
         raise SendeFehler("Versand nach außen ist im Notbetrieb nicht eingerichtet (Direktversand).")
 

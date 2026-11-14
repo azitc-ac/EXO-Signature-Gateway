@@ -159,6 +159,42 @@
   <p class="hint" id="nb-wer-ergebnis" style="margin:4px 0 0"></p>
 </div>
 
+<!-- Post von außen -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Post von außen im Notfall</h2>
+  <p class="hint" style="margin-top:0">
+    Solange der Notfall ausgerufen ist, nimmt das Gateway Post aus dem Internet an — nur für Postfächer
+    des eigenen Tenants, alles andere wird schon beim Empfänger abgewiesen (kein offenes Relay).
+    Damit sie ankommt, zeigt der MX der Domäne auf das Gateway und die Firewall lässt Port 25 aus dem
+    Internet durch; beides ist im Normalbetrieb nicht so und wird nach der Störung zurückgestellt.
+    Noch ohne SPF/DKIM/DMARC-Prüfung und ohne Inhaltsfilter.
+  </p>
+  <p id="nb-eingang-stand" class="hint" style="margin:6px 0"></p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-eingang-grey" {% if eingang.greylist %}checked{% endif %}>
+      Greylisting — erster Versuch eines unbekannten Absenders wird um einige Minuten aufgeschoben
+    </label>
+  </div>
+  <div class="settings-row">
+    <label for="nb-eingang-empf">Empfänger je Mail höchstens</label>
+    <div class="settings-control"><input type="number" id="nb-eingang-empf" min="1" max="1000" value="{{ eingang.max_empf }}" class="nb-tage"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-eingang-mb">Größe je Mail höchstens (MB)</label>
+    <div class="settings-control"><input type="number" id="nb-eingang-mb" min="1" max="150" value="{{ eingang.max_mb }}" class="nb-tage"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-eingang-stunde">Mails je Absendernetz und Stunde</label>
+    <div class="settings-control"><input type="number" id="nb-eingang-stunde" min="1" max="10000" value="{{ eingang.je_stunde }}" class="nb-tage"></div>
+  </div>
+  <div class="settings-row">
+    <button class="btn secondary" id="nb-eingang-btn" data-wache="nb-eingang-grey,nb-eingang-empf,nb-eingang-mb,nb-eingang-stunde"
+            data-wache-hinweis="nb-eingang-result" onclick="nbEingangSpeichern()">Speichern</button>
+    <span id="nb-eingang-result"></span>
+  </div>
+</div>
+
 <!-- Anmeldung -->
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Anmeldung im Notbetrieb</h2>
@@ -322,6 +358,10 @@ async function nbStand() {
     t += ' · noch kein Abgleich gelaufen';
   }
   el.textContent = t;
+  const e = d.eingang || {};
+  document.getElementById('nb-eingang-stand').textContent = 'Seit dem Start: ' + (e.angenommen || 0)
+    + ' angenommen, ' + (e.unbekannt || 0) + ' an unbekannte Empfänger abgewiesen, ' + (e.greylist || 0)
+    + ' aufgeschoben (Greylisting), ' + (e.gedrosselt || 0) + ' gedrosselt.';
 }
 
 async function nbAbgleich() {
@@ -382,6 +422,15 @@ async function nbZugriff() {
 }
 
 // ── Anmeldung ────────────────────────────────────────────────────────────
+async function nbEingangSpeichern() {
+  wacheFertig('nb-eingang-btn', await savePartial({
+    NOTBETRIEB_EINGANG_GREYLIST: document.getElementById('nb-eingang-grey').checked,
+    NOTBETRIEB_EINGANG_MAX_EMPF: parseInt(feldWert('nb-eingang-empf'), 10) || 50,
+    NOTBETRIEB_EINGANG_MAX_MB: parseInt(feldWert('nb-eingang-mb'), 10) || 25,
+    NOTBETRIEB_EINGANG_JE_STUNDE: parseInt(feldWert('nb-eingang-stunde'), 10) || 30,
+  }, 'nb-eingang-result'));
+}
+
 async function nbLdapSpeichern() {
   wacheFertig('nb-ldap-btn', await savePartial({
     NOTBETRIEB_LDAP_SERVER: feldWert('nb-ldap-server'),

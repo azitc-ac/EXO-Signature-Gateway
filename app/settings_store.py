@@ -45,6 +45,10 @@ DEFAULTS: dict = {
     # Löschen angeboten.
     "NOTBETRIEB_AKTIV": False,
     "NOTBETRIEB_AUSGERUFEN": False,   # Notfall: Übergabe an Exchange geht in die Kopie
+    "NOTBETRIEB_EINGANG_GREYLIST": True,   # Notfall-Eingang von außen: Greylisting
+    "NOTBETRIEB_EINGANG_MAX_EMPF": 50,     # … höchstens Empfänger je Mail
+    "NOTBETRIEB_EINGANG_MAX_MB": 25,       # … höchstens MB je Mail
+    "NOTBETRIEB_EINGANG_JE_STUNDE": 30,    # … höchstens Mails je Absendernetz und Stunde
     # Wie weit der Schatten reicht (Tage): Mail zurück, Kalender zurück/voraus.
     # Auflösung in notbetrieb.fenster_fuer(): erste passende Regel aus
     # NOTBETRIEB_REGELN ({ziel: "gruppe:<Name>"|"postfach:<Schlüssel>", mail,

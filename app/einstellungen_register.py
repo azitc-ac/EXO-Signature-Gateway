@@ -186,6 +186,10 @@ REGISTER: dict[str, E] = {
     "ABWESENHEIT_AKTIV": E(art=OPTION, ort="setup.html"),  # Funktion Abwesenheiten (Menü/Spalte/Abgleich)
     "NOTBETRIEB_AKTIV": E(art=OPTION, ort="setup.html"),   # Notbetrieb: Schatten-Abgleich
     "NOTBETRIEB_AUSGERUFEN": E(art=OPTION, ort="notbetrieb.html"),  # Notfall ausgerufen
+    "NOTBETRIEB_EINGANG_GREYLIST": E(art=OPTION, ort="notbetrieb.html"),   # Notfall-Eingang
+    "NOTBETRIEB_EINGANG_MAX_EMPF": E(art=OPTION, ort="notbetrieb.html"),
+    "NOTBETRIEB_EINGANG_MAX_MB": E(art=OPTION, ort="notbetrieb.html"),
+    "NOTBETRIEB_EINGANG_JE_STUNDE": E(art=OPTION, ort="notbetrieb.html"),
     "NOTBETRIEB_FENSTER": E(art=OPTION, ort="notbetrieb.html"),   # Vorgabe-Fenster
     "NOTBETRIEB_REGELN": E(art=STRUKTUR, ort="notbetrieb.html"),  # Fenster je Gruppe/Postfach
     "NOTBETRIEB_UMFANG": E(art=OPTION, ort="notbetrieb.html"),       # alle | aktivierte Postfächer

@@ -124,6 +124,27 @@ def ausgerufen() -> bool:
     return funktion_aktiv() and settings_store.get("NOTBETRIEB_AUSGERUFEN") is True
 
 
+def postfach_fuer(adresse: str) -> str | None:
+    """Postfach (Primäradresse) zu einer Adresse — Primäradresse, UPN oder ein
+    Alias aus den gesicherten Profilen —, sonst None."""
+    a = (adresse or "").strip().lower()
+    if not a or not _db_pfad().exists():
+        return None
+    with _lock, _conn() as conn:
+        z = conn.execute("SELECT primary_adr FROM konten WHERE lower(primary_adr)=? OR lower(upn)=?",
+                         (a, a)).fetchone()
+        if z:
+            return z["primary_adr"].lower()
+        p = conn.execute("SELECT daten FROM profile WHERE adresse=?", (a,)).fetchone()
+    if not p:
+        return None
+    daten = json.loads(p["daten"])
+    for kandidat in (daten.get("mail"), daten.get("userPrincipalName")):
+        if kandidat and kandidat.lower() != a:
+            return postfach_fuer(kandidat)
+    return None
+
+
 def zustellen(mail_from: str, rcpt_tos: list, inhalt: bytes) -> dict:
     """EIN Zustellweg im Notbetrieb — für das Webmail und, solange der Notfall
     ausgerufen ist, für alles, was das Gateway an Exchange übergäbe:
@@ -131,10 +152,11 @@ def zustellen(mail_from: str, rcpt_tos: list, inhalt: bytes) -> dict:
     Kopie, externe über den Direktversand. Erst nach außen, dann intern —
     scheitert der Direktversand, ist noch nichts halb angekommen. Wirft bei
     Fehler (der Aufrufer entscheidet über Warteschlange oder Meldung)."""
-    import notbetrieb_rechte
-    intern_konten = set(notbetrieb_rechte.alle_postfaecher())
-    intern = [e.strip().lower() for e in rcpt_tos if e.strip().lower() in intern_konten]
-    extern = [e for e in rcpt_tos if e.strip().lower() not in intern_konten]
+    # Aliase auf ihr Postfach: Ohne das hielte die Zustellung `vorname.nachname@`
+    # für extern und schickte die Mail per Direktversand an den eigenen MX.
+    ziele = {e: postfach_fuer(e) for e in rcpt_tos}
+    intern = [pf for pf in ziele.values() if pf]
+    extern = [e for e, pf in ziele.items() if not pf]
     if extern:
         import direktversand
         import domain_routing
@@ -840,7 +862,9 @@ def _bestand() -> dict:
 
 
 def status() -> dict:
+    import notbetrieb_eingang
     return {"aktiv": funktion_aktiv(), "vorhanden": _wurzel().exists(), **_bestand(),
+            "ausgerufen": ausgerufen(), "eingang": notbetrieb_eingang.zaehler(),
             "letzter_lauf": settings_store.get(_LAST_KEY) or None,
             "fenster": standard_fenster()}
 

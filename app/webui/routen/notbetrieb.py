@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 import gruppen
 import notbetrieb
+import notbetrieb_eingang
 import notbetrieb_anmeldung
 import notbetrieb_rechte
 import settings_store
@@ -35,6 +36,9 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "active": "notbetrieb",
             "aktiv": notbetrieb.funktion_aktiv(),
             "ausgerufen": notbetrieb.ausgerufen(),
+            "eingang": {"greylist": notbetrieb_eingang.greylisting_an(), "max_empf": notbetrieb_eingang.max_empfaenger(),
+                        "max_mb": notbetrieb_eingang.max_bytes() // (1024 * 1024),
+                        "je_stunde": notbetrieb_eingang.je_stunde()},
             "gateway_name": _gateway_name(),
             "fenster": notbetrieb.standard_fenster(),
             "regeln": regeln if isinstance(regeln, list) else [],
