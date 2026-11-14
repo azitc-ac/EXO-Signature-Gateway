@@ -434,6 +434,39 @@
       {% endif %}
     </div>
 
+    <!-- ── Notbetrieb „Exchange-Schatten“ ────────────────────────────────────
+         Funktionsschalter am selben Knopf (Speichern-Regel 1). Aus → kein
+         Abgleich (notbetrieb.funktion_aktiv); ein vorhandener Schatten wird
+         unten zum Löschen angeboten, damit nichts unsichtbar liegen bleibt. -->
+    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px">
+      <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+        <input type="checkbox" id="notbetrieb-wizard" style="margin-top:3px;flex-shrink:0"
+          {% if s.NOTBETRIEB_AKTIV %}checked{% endif %}>
+        <span style="font-size:13px">
+          <strong>Notbetrieb bei Exchange-Ausfall vorbereiten</strong>
+          <span style="color:#888;font-weight:normal"> — das Gateway hält eine Kopie von
+          Posteingang und Gesendeten Elementen der letzten Tage</span>
+        </span>
+      </label>
+      <p class="hint" style="margin:6px 0 0 26px">
+        Die Kopie liegt auf diesem Gateway (nicht im Backup) und wird alle 15 Minuten
+        nachgeführt; Älteres wird automatisch gelöscht. Was im Notbetrieb ankommt, spielt
+        <em>Zurückspielen</em> nach der Störung nach Exchange — Doppeltes erkennt es an der Message-ID.
+      </p>
+      {% if e.azure_app_created %}
+      <div style="margin-left:26px">{{ berechtigungen("nb-wizard", "Mail.ReadWrite") }}</div>
+      {% endif %}
+      <div id="nb-bereich" style="margin:8px 0 0 26px" hidden>
+        <p class="hint" id="nb-stand" style="margin:0 0 6px"></p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" id="nb-abgleich-btn" onclick="nbAbgleich()">Jetzt abgleichen</button>
+          <button class="btn btn-sm" id="nb-zurueck-btn" onclick="nbZurueck()">Zurückspielen</button>
+          <button class="btn danger btn-sm" id="nb-loeschen-btn" onclick="nbLoeschen()">Kopie löschen</button>
+        </div>
+        <div class="msg" id="nb-msg" style="margin-top:6px" hidden></div>
+      </div>
+    </div>
+
     <div id="mode-result" style="display:none;margin-bottom:12px"></div>
     <div class="actions">
       <button class="btn primary" onclick="saveModeSelection()">Modus speichern &amp; Assistent anpassen</button>
@@ -1596,9 +1629,11 @@ async function saveModeSelection() {
   // Abwesenheiten: Funktionsschalter am selben Knopf (Speichern-Regel 1).
   const abwCb = document.getElementById('abwesenheit-wizard');
   const abwAn = !!(abwCb && abwCb.checked);
+  const nbCb = document.getElementById('notbetrieb-wizard');
+  const nbAn = !!(nbCb && nbCb.checked);
 
   const d = await postJSON('/settings', {REINJECT_MODE: mode, SMTP_RELAY_ENABLED: relayAn, SMIME_ENABLED: smimeAn,
-                                         ABWESENHEIT_AKTIV: abwAn});
+                                         ABWESENHEIT_AKTIV: abwAn, NOTBETRIEB_AKTIV: nbAn});
 
   if (d.ok) {
     showAlert(result, 'success', 'Modus gespeichert: <strong>' + esc(mode) + '</strong>. Assistent wurde angepasst.');
@@ -1608,6 +1643,55 @@ async function saveModeSelection() {
     showAlert(result, 'error', 'Fehler beim Speichern: ' + esc(errText(d)));
   }
 }
+
+// ── Notbetrieb: Stand und Aktionen ──────────────────────────────────────
+// Der Bereich erscheint, sobald der Notbetrieb an ist ODER noch eine Kopie
+// liegt — eine ausgeschaltete Funktion darf keine unsichtbaren Daten behalten.
+async function nbStand() {
+  const d = await getJSON('/api/notbetrieb/status');
+  const bereich = document.getElementById('nb-bereich');
+  if (!d.ok) { bereich.hidden = false; showMsg('nb-msg', 'Stand nicht lesbar: ' + errText(d), false); return; }
+  bereich.hidden = !(d.aktiv || d.vorhanden);
+  const l = d.letzter_lauf;
+  let text = d.mails + ' Mails aus ' + d.postfaecher_im_schatten + ' Postfächern in der Kopie (Fenster '
+           + d.fenster_tage + ' Tage)';
+  if (d.lokal_offen) text += ' · ' + d.lokal_offen + ' im Notbetrieb angenommen, noch nicht zurückgespielt';
+  if (l && l.ts) {
+    text += ' · letzter Abgleich ' + new Date(l.ts).toLocaleString('de-DE') + ': '
+         + (l.kein_token ? 'kein Graph-Zugang'
+            : (l.neu + ' neu, ' + l.entfernt + ' entfernt, ' + l.abgelaufen + ' abgelaufen, '
+               + (l.fehler + l.postfaecher_fehler) + ' Fehler bei ' + l.postfaecher + ' Postfächern'));
+  } else if (d.aktiv) {
+    text += ' · noch kein Abgleich gelaufen';
+  }
+  if (!d.aktiv) text += ' · Notbetrieb ist aus — die Kopie wird nicht mehr nachgeführt';
+  document.getElementById('nb-stand').textContent = text;
+  document.getElementById('nb-abgleich-btn').hidden = !d.aktiv;
+}
+
+async function nbAbgleich() {
+  const d = await knopfAktion('nb-abgleich-btn', 'Gleiche ab…', () => postJSON('/api/notbetrieb/abgleich', {}));
+  showMsg('nb-msg', d.ok ? 'Abgleich gelaufen: ' + d.neu + ' neu, ' + d.entfernt + ' entfernt.'
+                         : 'Abgleich fehlgeschlagen: ' + errText(d), d.ok);
+  nbStand();
+}
+
+async function nbZurueck() {
+  const d = await knopfAktion('nb-zurueck-btn', 'Spiele zurück…', () => postJSON('/api/notbetrieb/zurueckspielen', {}));
+  showMsg('nb-msg', d.kein_token ? 'Kein Graph-Zugang — nichts zurückgespielt.'
+      : d.eingespielt + ' eingespielt, ' + d.schon_da + ' waren schon in Exchange, ' + d.fehler + ' Fehler.',
+      d.ok);
+  nbStand();
+}
+
+async function nbLoeschen() {
+  if (!confirm('Die Kopie aller Postfächer auf diesem Gateway löschen?')) return;
+  const d = await knopfAktion('nb-loeschen-btn', 'Lösche…', () => postJSON('/api/notbetrieb/loeschen', {}));
+  showMsg('nb-msg', d.ok ? 'Kopie gelöscht.' : errText(d), d.ok);
+  nbStand();
+}
+
+nbStand();
 
 // Apply mode-based visibility on page load
 (function() {

@@ -854,6 +854,34 @@
     "name": "api_set_maintenance_mode"
   },
   {
+    "pfad": "/api/notbetrieb/abgleich",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_abgleich"
+  },
+  {
+    "pfad": "/api/notbetrieb/loeschen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_loeschen"
+  },
+  {
+    "pfad": "/api/notbetrieb/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_status"
+  },
+  {
+    "pfad": "/api/notbetrieb/zurueckspielen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_zurueckspielen"
+  },
+  {
     "pfad": "/api/notification/test",
     "methoden": [
       "POST"

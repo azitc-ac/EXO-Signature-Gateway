@@ -39,6 +39,11 @@ DEFAULTS: dict = {
     # die Abwesenheit im Self-Service ein. Aus → auch kein Hintergrund-Abgleich
     # (abwesenheit.zentral_aktiv), damit nichts unsichtbar weiterläuft.
     "ABWESENHEIT_AKTIV": False,
+    # Notbetrieb „Exchange-Schatten" (notbetrieb.py): hält Posteingang und
+    # Gesendete der letzten Tage als Kopie für einen Exchange-Ausfall. Aus →
+    # kein Abgleich; ein vorhandener Schatten wird in der Oberfläche zum
+    # Löschen angeboten.
+    "NOTBETRIEB_AKTIV": False,
     # Abwesenheit automatisch aus dem Kalender aktivieren (opt-in): Termine mit
     # Status „Abwesend" (showAs=oof) ab OOO_CALENDAR_MIN_HOURS Dauer schalten die
     # native Abwesenheit für ihr Zeitfenster ein. Braucht Calendars.Read (Consent).
@@ -465,6 +470,7 @@ INTERNAL_KEYS = frozenset({
     "_DAILY_LAST_RUN",            # scheduler.py
     "_OOO_STATE",                 # abwesenheit.py — zuletzt gesetzter OOF-Text je Postfach
     "_OOO_LAST",                  # abwesenheit.py — Zählung des letzten Poll-Laufs
+    "_NOTBETRIEB_LAST",           # notbetrieb.py — Zählung des letzten Schatten-Abgleichs
     "_OOO_UEBERSICHT",            # abwesenheit.py — gecachter Status-Scan (Admin-Dashboard)
     "_ADDIN_MANIFEST_STAND",      # webui/routen/addin.py — {hash, version} des zuletzt
                                   # ausgelieferten Manifests; Version steigt nur bei Änderung

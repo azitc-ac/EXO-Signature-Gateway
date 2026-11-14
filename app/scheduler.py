@@ -34,6 +34,8 @@ _last_ooo_run: float = 0.0             # monotonic; 0 = never (triggers run on f
 _OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisieren; dank
                                        # Idempotenz (nur PATCH bei echter Abweichung) ist
                                        # häufiges Pollen unschädlich für Exchanges Dedup
+_last_notbetrieb_run: float = 0.0      # monotonic; 0 = never (triggers run on first tick)
+_NOTBETRIEB_INTERVAL = 15 * 60         # Schatten nachführen (Graph-Delta, nur Änderungen)
 
 
 # ── TLS / Let's Encrypt ───────────────────────────────────────────────────────
@@ -595,6 +597,19 @@ def _sync_ooo() -> None:
         _last_ooo_run = time.monotonic()
 
 
+def _sync_notbetrieb() -> None:
+    """Notbetrieb-Schatten nachführen (nur wenn eingeschaltet)."""
+    global _last_notbetrieb_run
+    try:
+        import notbetrieb
+        if notbetrieb.funktion_aktiv():
+            notbetrieb.abgleich_alle()
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("scheduler: Notbetrieb-Abgleich fehlgeschlagen: %s", exc)
+    finally:
+        _last_notbetrieb_run = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -625,6 +640,8 @@ def _loop() -> None:
                 _refresh_onprem_mailusers()
             if time.monotonic() - _last_ooo_run > _OOO_INTERVAL:
                 _sync_ooo()
+            if time.monotonic() - _last_notbetrieb_run > _NOTBETRIEB_INTERVAL:
+                _sync_notbetrieb()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)
