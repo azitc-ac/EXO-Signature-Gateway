@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 import gruppen
 import notbetrieb
+import notbetrieb_anmeldung
 import notbetrieb_rechte
 import settings_store
 from webui.deps import templates, log, _gateway_name, _require_admin
@@ -40,6 +41,7 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "postfaecher": [upn for _key, upn in notbetrieb._postfaecher()],
             "max_tage": notbetrieb.MAX_TAGE,
             "mess_tage": notbetrieb.MESS_TAGE,
+            "ldap": notbetrieb_anmeldung.einstellungen(),
         },
     )
 
@@ -132,3 +134,19 @@ async def api_notbetrieb_rechte_abgleichen(user: str = Depends(_require_admin)):
 async def api_notbetrieb_zugriff(wer: str = "", _user: str = Depends(_require_admin)):
     """Was sieht <wer> im Notbetrieb? Dieselbe Auflösung, die das Webmail nutzt."""
     return JSONResponse({"ok": True, "items": await asyncio.to_thread(notbetrieb_rechte.zugriff, wer)})
+
+
+@router.post("/api/notbetrieb/anmeldung-test")
+async def api_notbetrieb_anmeldung_test(request: Request, user: str = Depends(_require_admin)):
+    """Notbetrieb-Anmeldung mit eingegebenen Zugangsdaten durchspielen — dieselbe
+    Prüfung wie im Webmail. Nichts davon wird gespeichert."""
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        body = {}
+    quelle = request.client.host if request.client else ""
+    ergebnis = await asyncio.to_thread(notbetrieb_anmeldung.anmelden, str(body.get("benutzer") or ""),
+                                       str(body.get("passwort") or ""), quelle)
+    log.info("Notbetrieb: Anmeldetest durch %s für %s: %s", user, body.get("benutzer"),
+             "ok" if ergebnis.get("ok") else ergebnis.get("error"))
+    return JSONResponse(ergebnis)

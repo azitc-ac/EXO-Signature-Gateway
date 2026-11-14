@@ -861,6 +861,13 @@
     "name": "api_notbetrieb_abgleich"
   },
   {
+    "pfad": "/api/notbetrieb/anmeldung-test",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_anmeldung_test"
+  },
+  {
     "pfad": "/api/notbetrieb/loeschen",
     "methoden": [
       "POST"

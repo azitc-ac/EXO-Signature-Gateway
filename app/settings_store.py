@@ -50,6 +50,12 @@ DEFAULTS: dict = {
     # kal_zurueck, kal_vor}), sonst NOTBETRIEB_FENSTER.
     "NOTBETRIEB_FENSTER": {"mail": 3, "kal_zurueck": 3, "kal_vor": 3},
     "NOTBETRIEB_REGELN": [],
+    # Anmeldung im Notbetrieb per LDAP-Bind am lokalen AD (notbetrieb_anmeldung):
+    # ldaps://host[:port] oder ldap://host (dann StartTLS), Basis-DN für die
+    # Kontosuche, optional die CA des DC-Zertifikats als PEM (kein Geheimnis).
+    "NOTBETRIEB_LDAP_SERVER": "",
+    "NOTBETRIEB_LDAP_BASIS": "",
+    "NOTBETRIEB_LDAP_CA": "",
     # Abwesenheit automatisch aus dem Kalender aktivieren (opt-in): Termine mit
     # Status „Abwesend" (showAs=oof) ab OOO_CALENDAR_MIN_HOURS Dauer schalten die
     # native Abwesenheit für ihr Zeitfenster ein. Braucht Calendars.Read (Consent).

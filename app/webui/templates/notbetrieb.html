@@ -122,6 +122,52 @@
   <p class="hint" id="nb-wer-ergebnis" style="margin:4px 0 0"></p>
 </div>
 
+<!-- Anmeldung -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Anmeldung im Notbetrieb</h2>
+  <p class="hint" style="margin-top:0">
+    Im Störfall ist womöglich auch Entra nicht erreichbar. Die Nutzer melden sich dann mit ihrem
+    gewohnten Kennwort an; das Gateway prüft es direkt am Domänencontroller (LDAP, nur verschlüsselt).
+    Es braucht kein Dienstkonto und speichert kein Kennwort.
+  </p>
+  <div class="settings-row">
+    <label for="nb-ldap-server">Domänencontroller</label>
+    <div class="settings-control"><input type="text" id="nb-ldap-server" value="{{ ldap.server }}"
+      placeholder="ldaps://dc01.firma.local" style="min-width:260px"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-ldap-basis">Basis-DN</label>
+    <div class="settings-control"><input type="text" id="nb-ldap-basis" value="{{ ldap.basis }}"
+      placeholder="DC=firma,DC=local" style="min-width:260px"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-ldap-ca">CA-Zertifikat (PEM, optional)</label>
+    <div class="settings-control"><textarea id="nb-ldap-ca" rows="4" style="width:100%;font-family:monospace;font-size:12px"
+      placeholder="-----BEGIN CERTIFICATE-----">{{ ldap.ca }}</textarea></div>
+  </div>
+  <div class="actions">
+    <button class="btn secondary" id="nb-ldap-btn" data-wache="nb-ldap-server,nb-ldap-basis,nb-ldap-ca"
+            data-wache-hinweis="nb-ldap-result" onclick="nbLdapSpeichern()">Speichern</button>
+    <span id="nb-ldap-result"></span>
+  </div>
+
+  <h3>Anmeldung testen</h3>
+  <p class="hint" style="margin-top:0">Spielt die Anmeldung durch, wie sie im Notbetrieb abliefe. Wird nicht gespeichert.</p>
+  <div class="settings-row">
+    <label for="nb-test-name">Anmeldename</label>
+    <div class="settings-control"><input type="text" id="nb-test-name" autocomplete="off"
+      placeholder="max.mustermann@firma.at" style="min-width:220px"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-test-kennwort">Kennwort</label>
+    <div class="settings-control"><input type="password" id="nb-test-kennwort" autocomplete="new-password" style="min-width:220px"></div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <button class="btn secondary btn-sm" id="nb-test-btn" onclick="nbAnmeldungTesten()">Anmeldung testen</button>
+  </div>
+  <div class="msg" id="nb-test-msg" style="margin-top:6px" hidden></div>
+</div>
+
 <!-- Postfächer -->
 <div class="settings-card">
   <h2 style="margin-top:0">Postfächer</h2>
@@ -278,6 +324,25 @@ async function nbZugriff() {
   if (!d.items.length) { el.textContent = 'Unbekannt — kein Postfach mit diesem Namen im Abbild.'; return; }
   el.textContent = d.items.map(p => p.postfach + (p.eigen ? ' (eigenes)' : ' — '
     + [p.voll ? 'lesen' : '', p.als ? 'senden als' : '', p.auftrag ? 'im Auftrag' : ''].filter(Boolean).join(', '))).join(' · ');
+}
+
+// ── Anmeldung ────────────────────────────────────────────────────────────
+async function nbLdapSpeichern() {
+  wacheFertig('nb-ldap-btn', await savePartial({
+    NOTBETRIEB_LDAP_SERVER: feldWert('nb-ldap-server'),
+    NOTBETRIEB_LDAP_BASIS: feldWert('nb-ldap-basis'),
+    NOTBETRIEB_LDAP_CA: feldWert('nb-ldap-ca'),
+  }, 'nb-ldap-result'));
+}
+
+async function nbAnmeldungTesten() {
+  const pw = document.getElementById('nb-test-kennwort');
+  const d = await knopfAktion('nb-test-btn', 'Prüfe…', () => postJSON('/api/notbetrieb/anmeldung-test',
+    {benutzer: feldWert('nb-test-name'), passwort: pw.value}));
+  pw.value = '';
+  showMsg('nb-test-msg', d.ok
+    ? 'Angemeldet als ' + d.benutzer + ' — sieht: ' + d.zugriff.map(p => p.postfach + (p.eigen ? ' (eigenes)' : '')).join(', ')
+    : errText(d), d.ok);
 }
 
 // ── Postfächer ───────────────────────────────────────────────────────────
