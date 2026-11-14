@@ -604,7 +604,8 @@ def _als_graph(mime: bytes, gelesen: bool, empfangen: datetime | None) -> tuple[
         if wert:
             props.append({"id": kennung, "value": wert})
     n = {"subject": str(msg.get("Subject") or ""),
-         "body": {"contentType": "HTML" if html else "Text", "content": rumpf.get_content() if rumpf else ""},
+         "body": {"contentType": "HTML" if html else "Text",
+                  "content": rumpf.get_content().replace("\r\n", "\n") if rumpf else ""},
          "internetMessageId": str(msg.get("Message-ID") or "").strip(),
          "toRecipients": _adressen(*msg.get_all("To", [])),
          "ccRecipients": _adressen(*msg.get_all("Cc", [])),

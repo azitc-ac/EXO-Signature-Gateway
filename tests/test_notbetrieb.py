@@ -87,8 +87,11 @@ class Graph:
             imid = params["$filter"].split("'", 1)[1].rsplit("'", 1)[0].replace("''", "'")
             pf = url.split("/users/", 1)[1].split("/", 1)[0]
             ordner = url.split("/mailFolders/", 1)[1].split("/", 1)[0] if "/mailFolders/" in url else None
+            # Ohne Ordner sucht Graph im ganzen Postfach — wie dort hier auch.
             da = imid in self.im_postfach or (pf, imid) in self.im_postfach \
-                or (pf, ordner, imid) in self.im_postfach
+                or (pf, ordner, imid) in self.im_postfach \
+                or (ordner is None and any(e[0] == pf and e[-1] == imid
+                                           for e in self.im_postfach if isinstance(e, tuple)))
             return _Resp(200, {"value": [{"id": "x"}] if da else []})
         for schluessel, antwort in self.seiten.items():
             if schluessel in url:
@@ -253,14 +256,14 @@ def test_rueckspielen_legt_echte_mail_an_kein_entwurf(nb, graph, gelesen, flags)
     """Per JSON mit PR_MESSAGE_FLAGS ohne MSGFLAG_UNSENT — eine MIME-Anlage wäre
     unwiderruflich Entwurf, ein isDraft-PATCH danach wirkungslos (exohv 14.11.2026)."""
     notbetrieb.lokal_ablegen("a@firma.at", "inbox", MIME, gelesen=gelesen,
-                             empfangen=datetime(2026, 11, 10, 8, 15, tzinfo=timezone.utc))
+                             empfangen=JETZT - timedelta(days=4))
     notbetrieb.zurueckspielen()
     (_, _, n, kopf), = _angelegt(graph)
     assert isinstance(n, dict) and kopf["Content-Type"] == "application/json"
     props = {p["id"]: p["value"] for p in n["singleValueExtendedProperties"]}
     assert props["Integer 0x0E07"] == flags
     assert int(flags) & 0x8 == 0                     # MSGFLAG_UNSENT = Entwurf
-    assert props["SystemTime 0x0E06"] == "2026-11-10T08:15:00Z"
+    assert props["SystemTime 0x0E06"] == _iso(JETZT - timedelta(days=4))
     assert n["internetMessageId"] == "<m1@extern.de>"
     assert n["from"]["emailAddress"]["address"] == "x@extern.de"
     assert n["toRecipients"] == [{"emailAddress": {"address": "a@firma.at"}}]
