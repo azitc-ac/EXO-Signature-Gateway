@@ -10,7 +10,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, notbetrieb]
   pull_request:
   workflow_dispatch:
   # Wöchentlich auch ohne Push: Neue Lücken in den festgenagelten
