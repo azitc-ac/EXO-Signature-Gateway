@@ -454,7 +454,7 @@
         unter dem Menüpunkt <strong>Notbetrieb</strong>.
       </p>
       {% if e.azure_app_created %}
-      <div style="margin-left:26px">{{ berechtigungen("nb-wizard", "Mail.ReadWrite") }}</div>
+      <div style="margin-left:26px">{{ berechtigungen("nb-wizard", "Mail.ReadWrite,Calendars.Read,Contacts.Read") }}</div>
       {% endif %}
       {% if notbetrieb_sichtbar() and not s.NOTBETRIEB_AKTIV %}
       <p class="hint" style="margin:6px 0 0 26px">
