@@ -880,3 +880,63 @@ def test_umfang_alle_ohne_abbild_faellt_auf_aktivierte_zurueck(nb):
 def test_umfang_unbekannter_wert_ist_alle(nb, wert, erwartet):
     nb["NOTBETRIEB_UMFANG"] = wert
     assert notbetrieb.umfang() == erwartet
+
+
+# ── Profile für die Signatur ────────────────────────────────────────────────
+
+def test_profile_sichern_ueber_alle_seiten_und_adressen(nb, graph):
+    graph.seiten["/users?$select"] = {"value": [
+        {"displayName": "Anna Muster", "mail": "anna@firma.at", "userPrincipalName": "anna@firma.onmicrosoft.com",
+         "proxyAddresses": ["SMTP:anna@firma.at", "smtp:a.muster@firma.at", "X500:/o=alt"]}],
+        "@odata.nextLink": "https://graph/users-seite2"}
+    graph.seiten["users-seite2"] = {"value": [{"displayName": "Bert", "mail": "bert@firma.at"}]}
+    assert notbetrieb.profile_sichern() == {"ok": True, "adressen": 4}
+    assert notbetrieb.profil("A.Muster@firma.at")["displayName"] == "Anna Muster"
+    assert notbetrieb.profil("anna@firma.onmicrosoft.com")["displayName"] == "Anna Muster"
+    assert notbetrieb.profil("bert@firma.at")["displayName"] == "Bert"
+    assert "proxyAddresses" not in notbetrieb.profil("anna@firma.at")
+    st = notbetrieb.status()
+    assert st["profile"] == 2 and st["profile_stand"]
+
+
+def test_profile_sichern_fehler_behaelt_alten_stand(nb, graph):
+    graph.seiten["/users?$select"] = {"value": [{"displayName": "Anna", "mail": "anna@firma.at"}]}
+    notbetrieb.profile_sichern()
+    graph.seiten["/users?$select"] = _Resp(503, {})
+    assert notbetrieb.profile_sichern()["ok"] is False
+    assert notbetrieb.profil("anna@firma.at")["displayName"] == "Anna"
+
+
+def test_signatur_faellt_ohne_graph_auf_gesichertes_profil_zurueck(nb, graph, monkeypatch):
+    """Graph nicht erreichbar (kein Token, Netzfehler, 5xx) → gesichertes Profil;
+    unbekannt bei Entra (404) → KEIN Rückfall."""
+    import asyncio
+    graph.seiten["/users?$select"] = {"value": [{"displayName": "Anna Muster", "mail": "anna@firma.at"}]}
+    notbetrieb.profile_sichern()
+    gc = notbetrieb.graph_client
+    gc._user_data_cache.clear()
+
+    async def _kein_token():
+        return None
+    monkeypatch.setattr(gc, "_acquire_token_async", _kein_token)
+    assert asyncio.run(gc.get_user("anna@firma.at")).displayName == "Anna Muster"
+
+    async def _token():
+        return "tok"
+    monkeypatch.setattr(gc, "_acquire_token_async", _token)
+
+    class _Kaputt:
+        def __init__(self, status):
+            self.status = status
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *a):
+            return False
+        async def get(self, url, headers=None, **kw):
+            if self.status is None:
+                raise gc.httpx.ConnectError("weg")
+            return gc.httpx.Response(self.status, request=gc.httpx.Request("GET", url), json={"value": []})
+    for status, erwartet in ((None, "Anna Muster"), (503, "Anna Muster"), (404, "")):
+        monkeypatch.setattr(gc.httpx, "AsyncClient", lambda **kw: _Kaputt(status))
+        gc._user_data_cache.clear()
+        assert asyncio.run(gc.get_user("anna@firma.at")).displayName == erwartet, status

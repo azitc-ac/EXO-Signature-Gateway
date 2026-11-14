@@ -342,6 +342,12 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
     import email.policy as _ep
     ndr_bytes = msg.as_bytes(policy=_ep.SMTP)
 
+    # Notbetrieb-Webmail: Exchange ist nicht erreichbar — die Meldung geht an
+    # die Umleitung, das Webmail zeigt sie der Person an (notbetrieb_senden).
+    if reinject.umgeleitet():
+        reinject.send(original_sender, [original_sender], ndr_bytes)
+        return
+
     # Primär: Graph sendMail — Port 25 outbound ist z.B. in Azure blockiert,
     # der SMTP-Smarthost-Weg schlug dort mit "Network is unreachable" fehl.
     try:
@@ -1699,8 +1705,12 @@ class SignatureHandler:
             # sender can't read their own sent mails. Always patch it with the
             # pre-encryption plaintext body so Sent Items stay readable.
             mid = msg.get("Message-ID", "").strip()
+            # Nicht im Notbetrieb: Die Gesendet-Kopie führt dort die Kopie, ein
+            # Graph-Aufruf ins Postfach ginge ins Leere (oder, solange Exchange
+            # läuft, an ein Postfach, das die Mail nie gesehen hat).
             _do_cleanup = (
-                mid and _is_first_for_mid(sender, mid)
+                not reinject.umgeleitet()
+                and mid and _is_first_for_mid(sender, mid)
                 and (wants_encryption or settings_store.get("SENT_ITEMS_UPDATE"))
             )
             if _do_cleanup:

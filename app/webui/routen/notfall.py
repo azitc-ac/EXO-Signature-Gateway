@@ -181,8 +181,10 @@ async def notfall_senden(request: Request, benutzer: str = Depends(_benutzer)):
     except (ValueError, binascii.Error, AttributeError, TypeError):
         return JSONResponse({"ok": False, "error": "Ungültige Anfrage."}, status_code=400)
     try:
-        erg = await asyncio.to_thread(
-            notbetrieb_senden.senden, benutzer, str(body.get("postfach") or ""), str(body.get("an") or ""),
+        # Im Ereignis-Takt, nicht in einem Thread: senden() ruft den Handler —
+        # wie jede Mail vom Connector (dort läuft reinject ebenfalls synchron).
+        erg = await notbetrieb_senden.senden(
+            benutzer, str(body.get("postfach") or ""), str(body.get("an") or ""),
             str(body.get("cc") or ""), str(body.get("bcc") or ""), str(body.get("betreff") or "")[:500],
             str(body.get("text") or "")[:500000], anhaenge, str(body.get("bezug") or ""),
             str(body.get("art") or "neu"))

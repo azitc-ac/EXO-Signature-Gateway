@@ -274,6 +274,9 @@ async function nbStand() {
   const l = d.letzter_lauf;
   let t = d.mails + ' Mails aus ' + d.postfaecher_im_schatten + ' Postfächern in der Kopie';
   if (d.lokal_offen) t += ' · ' + d.lokal_offen + ' im Notbetrieb angenommen, noch nicht zurückgespielt';
+  t += ' · ' + (d.profile_stand
+    ? d.profile + ' Profile für Signaturen gesichert (' + new Date(d.profile_stand).toLocaleString('de-DE') + ')'
+    : 'Profile für Signaturen noch nicht gesichert');
   if (l && l.ts) {
     t += ' · letzter Abgleich ' + new Date(l.ts).toLocaleString('de-DE') + ': '
       + (l.kein_token ? 'kein Graph-Zugang'

@@ -612,6 +612,12 @@ def _sync_notbetrieb() -> None:
             alt = (datetime.now(timezone.utc) - datetime.fromisoformat(ts)).total_seconds() if ts else None
             if alt is None or alt > _NOTBETRIEB_RECHTE_INTERVAL:
                 notbetrieb_rechte.abgleichen()
+            # Im selben Takt: Profile für die Signatur (falls Graph ausfällt).
+            ps = notbetrieb.status().get("profile_stand") or ""
+            alt = (datetime.now(timezone.utc) - datetime.fromisoformat(ps.replace("Z", "+00:00"))
+                   ).total_seconds() if ps else None
+            if alt is None or alt > _NOTBETRIEB_RECHTE_INTERVAL:
+                notbetrieb.profile_sichern()
             notbetrieb.abgleich_alle()
     except Exception as exc:                                        # noqa: BLE001
         log.warning("scheduler: Notbetrieb-Abgleich fehlgeschlagen: %s", exc)

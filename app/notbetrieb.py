@@ -63,6 +63,7 @@ import email
 import email.policy
 import email.utils
 import hashlib
+import json
 import logging
 import shutil
 from collections import defaultdict
@@ -213,6 +214,10 @@ def _conn() -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS meta (
             k TEXT PRIMARY KEY,
             v TEXT
+        );
+        CREATE TABLE IF NOT EXISTS profile (
+            adresse TEXT PRIMARY KEY,
+            daten   TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS ordner (
             postfach TEXT NOT NULL,
@@ -733,17 +738,74 @@ def _erledigt(zeile, wie: str) -> None:
                      (f"{wie} {_iso(datetime.now(timezone.utc))}", zeile["postfach"], zeile["graph_id"]))
 
 
+# ── Profile für die Signatur ────────────────────────────────────────────────
+
+def profile_sichern() -> dict:
+    """Entra-Profile aller Benutzer sichern — dieselben Felder, die die Signatur
+    liest (`graph_client._build_select_fields`). Im Normalbetrieb kommt Name,
+    Telefon usw. live aus Graph; fällt Microsoft aus, wäre die Signatur leer.
+    `graph_client._graph_user_data` fällt dann auf diese Fassung zurück.
+    Schlüssel: Mail, UPN und jede SMTP-Proxyadresse (wie die Nachschlage-Reihenfolge
+    dort). Bei einem Fehler bleibt der alte Stand."""
+    token = graph_client._acquire_token()
+    if not token:
+        return {"ok": False, "fehler": "kein Graph-Zugang"}
+    felder = graph_client._build_select_fields() + ",proxyAddresses"
+    zeilen: dict[str, str] = {}
+    url = f"{GRAPH}/users?$select={felder}&$top=999"
+    try:
+        with httpx.Client(timeout=60) as client:
+            while url:
+                r = client.get(url, headers={"Authorization": f"Bearer {token}"})
+                if r.status_code != 200:
+                    raise RuntimeError(f"HTTP {r.status_code}")
+                d = r.json()
+                for u in d.get("value") or []:
+                    adressen = {u.get("mail") or "", u.get("userPrincipalName") or ""}
+                    adressen |= {a.split(":", 1)[1] for a in (u.get("proxyAddresses") or [])
+                                 if a.lower().startswith("smtp:")}
+                    daten = json.dumps({k: v for k, v in u.items() if k != "proxyAddresses"})
+                    for a in adressen:
+                        if a:
+                            zeilen[a.lower()] = daten
+                url = d.get("@odata.nextLink") or ""
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("Notbetrieb: Profile nicht gesichert: %s", exc)
+        return {"ok": False, "fehler": str(exc)}
+    with _lock, _conn() as conn:
+        conn.execute("DELETE FROM profile")
+        conn.executemany("INSERT INTO profile (adresse, daten) VALUES (?,?)", zeilen.items())
+        conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('profile_stand', ?)",
+                     (_iso(datetime.now(timezone.utc)),))
+    log.info("Notbetrieb: %s Profiladressen gesichert", len(zeilen))
+    return {"ok": True, "adressen": len(zeilen)}
+
+
+def profil(adresse: str) -> dict | None:
+    """Gesichertes Profil (Graph-Form) oder None."""
+    if not _db_pfad().exists():
+        return None
+    with _lock, _conn() as conn:
+        z = conn.execute("SELECT daten FROM profile WHERE adresse=?",
+                         ((adresse or "").strip().lower(),)).fetchone()
+    return json.loads(z["daten"]) if z else None
+
+
 # ── Bestand und Löschen ─────────────────────────────────────────────────────
 
 def _bestand() -> dict:
     if not _db_pfad().exists():
-        return {"mails": 0, "lokal_offen": 0, "postfaecher_im_schatten": 0}
+        return {"mails": 0, "lokal_offen": 0, "postfaecher_im_schatten": 0,
+                "profile": 0, "profile_stand": None}
     with _lock, _conn() as conn:
         mails = conn.execute("SELECT COUNT(*) FROM mails").fetchone()[0]
         offen = conn.execute("SELECT COUNT(*) FROM mails WHERE herkunft=? AND zurueck IS NULL",
                              (LOKAL,)).fetchone()[0]
         pf = conn.execute("SELECT COUNT(DISTINCT postfach) FROM mails").fetchone()[0]
-    return {"mails": mails, "lokal_offen": offen, "postfaecher_im_schatten": pf}
+        profile = conn.execute("SELECT COUNT(DISTINCT daten) FROM profile").fetchone()[0]
+        stand = conn.execute("SELECT v FROM meta WHERE k='profile_stand'").fetchone()
+    return {"mails": mails, "lokal_offen": offen, "postfaecher_im_schatten": pf,
+            "profile": profile, "profile_stand": stand["v"] if stand else None}
 
 
 def status() -> dict:

@@ -1,6 +1,7 @@
 import smtplib
 import ssl
 import logging
+import contextlib
 import contextvars
 import threading
 import time as _time
@@ -168,11 +169,38 @@ _eingereiht: contextvars.ContextVar[set | None] = contextvars.ContextVar(
     "reinject_eingereiht", default=None)
 
 
+WEG_NOTBETRIEB = "notbetrieb"
+
+# Notbetrieb: Das Webmail lässt seine Post durch den Handler laufen (Signatur,
+# Banner, Disclaimer, S/MIME wie im Normalbetrieb). Exchange ist dann nicht
+# erreichbar — die fertige Nachricht geht stattdessen an `ziel(mail_from,
+# rcpt_tos, content_bytes)`. Gesetzt NUR für die Dauer dieses einen Aufrufs
+# (notbetrieb_senden); der reguläre Mailfluss sieht die Variable nie.
+_umleitung: contextvars.ContextVar = contextvars.ContextVar("reinject_umleitung", default=None)
+
+
+@contextlib.contextmanager
+def umleiten(ziel):
+    marke = _umleitung.set(ziel)
+    try:
+        yield
+    finally:
+        _umleitung.reset(marke)
+
+
+def umgeleitet() -> bool:
+    return _umleitung.get() is not None
+
+
 def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
          force_mime: bool = False, queue_on_failure: bool = True) -> str | None:
     """Zustellen (siehe `_senden`) und danach festhalten, wer die Nachricht
     bekommen hat. Eine Kopie, die wegen eines früheren Zustellfehlers noch in
     der Warteschlange liegt, würde sonst ein zweites Mal zugestellt."""
+    ziel = _umleitung.get()
+    if ziel is not None:
+        ziel(mail_from, list(rcpt_tos), content_bytes)
+        return WEG_NOTBETRIEB
     eingereiht: set = set()
     marke = _eingereiht.set(eingereiht)
     try:

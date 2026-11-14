@@ -6,6 +6,8 @@ Anhänge nur als Download).
 """
 from __future__ import annotations
 
+import asyncio
+
 import json
 import sys
 from pathlib import Path
@@ -310,7 +312,28 @@ def postfix(monkeypatch, schatten):
     monkeypatch.setattr(reinject, "_an_postfix",
                         lambda von, empf, inhalt, host, port: uebergeben.append((von, empf, inhalt)))
     monkeypatch.setattr(ns, "_gesendet", {})
+    # Der echte Handler läuft mit — Graph, Vorlagen und Protokoll ersetzt.
+    # Erreicht eine Mail den Weg nach Exchange, greift die Umleitung nicht.
+    monkeypatch.setattr(reinject, "_senden",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("Exchange-Weg im Notbetrieb")))
+    import graph_client
+    import mail_audit
+    import sig_thread
+    import signature_engine
+
+    async def _user(e):
+        return graph_client.UserData(mail=e, displayName="Anna Muster")
+    monkeypatch.setattr(graph_client, "get_user", _user)
+    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None, **kw: (
+        f"<p>SIG {u.displayName}</p>", f"SIG {u.displayName}"))
+    monkeypatch.setattr(sig_thread, "kennt", lambda *a: False)
+    monkeypatch.setattr(sig_thread, "merken", lambda *a: None)
+    monkeypatch.setattr(mail_audit, "log_event", lambda **kw: None)
     return uebergeben
+
+
+def _senden(*a, **k):
+    return asyncio.run(ns.senden(*a, **k))
 
 
 def _lokal(postfach, ordner):
@@ -331,7 +354,7 @@ def test_senderecht_aus_dem_abbild(schatten):
 
 
 def test_intern_landet_in_der_kopie_des_empfaengers_extern_bei_postfix(postfix):
-    erg = ns.senden("a@firma.at", "a@firma.at", "b@firma.at, Kunde <kunde@extern.de>", bcc="geheim@extern.de",
+    erg = _senden("a@firma.at", "a@firma.at", "b@firma.at, Kunde <kunde@extern.de>", bcc="geheim@extern.de",
                     betreff="Hallo Ü", text="Grüße")
     assert (erg["intern"], erg["extern"]) == (1, 2)
     # Postfix bekommt nur die externen, OHNE Bcc-Kopf
@@ -353,14 +376,14 @@ def test_ohne_direktversand_geht_nichts_raus_auch_nicht_intern(schatten, monkeyp
     monkeypatch.setattr(direktversand, "aktiv", lambda: False)
     monkeypatch.setattr(ns, "_gesendet", {})
     with pytest.raises(ns.SendeFehler, match="Direktversand"):
-        ns.senden("a@firma.at", "a@firma.at", "b@firma.at, kunde@extern.de", betreff="x")
+        _senden("a@firma.at", "a@firma.at", "b@firma.at, kunde@extern.de", betreff="x")
     assert _lokal("b@firma.at", "inbox") == [] and _lokal("a@firma.at", "sentitems") == []
     # Rein intern braucht keinen Direktversand
-    assert ns.senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="x")["intern"] == 1
+    assert _senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="x")["intern"] == 1
 
 
 def test_im_auftrag_setzt_sender(postfix):
-    ns.senden("a@firma.at", "chef@firma.at", "kunde@extern.de", betreff="Termin")
+    _senden("a@firma.at", "chef@firma.at", "kunde@extern.de", betreff="Termin")
     kopf = _email.message_from_bytes(postfix[0][2], policy=_policy.default)
     assert kopf["From"] == "chef@firma.at" and kopf["Sender"] == "a@firma.at"
     assert len(_lokal("chef@firma.at", "sentitems")) == 1
@@ -368,7 +391,7 @@ def test_im_auftrag_setzt_sender(postfix):
 
 def test_nur_vollzugriff_darf_nicht_senden(postfix):
     with pytest.raises(ns.SendeFehler):
-        ns.senden("a@firma.at", "team@firma.at", "kunde@extern.de", betreff="x")
+        _senden("a@firma.at", "team@firma.at", "kunde@extern.de", betreff="x")
     assert postfix == []
 
 
@@ -376,7 +399,7 @@ def test_nur_vollzugriff_darf_nicht_senden(postfix):
                                          ("kunde@extern.de", "Hallo\r\nBcc: boese@x.de"), ("", "x")])
 def test_ungueltiges_wird_abgewiesen(postfix, an, betreff):
     with pytest.raises(ns.SendeFehler):
-        ns.senden("a@firma.at", "a@firma.at", an, betreff=betreff)
+        _senden("a@firma.at", "a@firma.at", an, betreff=betreff)
     assert postfix == []
 
 
@@ -384,11 +407,11 @@ def test_antwort_und_weiterleiten(postfix):
     v = ns.vorlage("a@firma.at", "a@firma.at", "g-html", "allen")
     assert v["betreff"] == "AW: Angebot für Sie" and v["an"] == "kunde@extern.de"
     assert v["cc"] == "team@firma.at" and "> Hallo Welt Rabattcode XK42" in v["text"]
-    ns.senden("a@firma.at", "a@firma.at", v["an"], v["cc"], betreff=v["betreff"], text=v["text"],
+    _senden("a@firma.at", "a@firma.at", v["an"], v["cc"], betreff=v["betreff"], text=v["text"],
               bezug_id="g-html", art="antwort")
     antwort = _email.message_from_bytes(postfix[-1][2], policy=_policy.default)
     assert antwort["In-Reply-To"] == "<h1@extern.de>"
-    ns.senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="WG: x", bezug_id="g-html", art="weiterleiten")
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="WG: x", bezug_id="g-html", art="weiterleiten")
     wg = _email.message_from_bytes(postfix[-1][2], policy=_policy.default)
     teile = [t.get_content_type() for t in wg.iter_attachments()]
     assert "message/rfc822" in teile
@@ -397,19 +420,19 @@ def test_antwort_und_weiterleiten(postfix):
 
 def test_weiterleiten_nur_aus_lesbarem_postfach(postfix):
     with pytest.raises(ns.SendeFehler):
-        ns.senden("a@firma.at", "a@firma.at", "kunde@extern.de", bezug_id="g-b", art="weiterleiten")
+        _senden("a@firma.at", "a@firma.at", "kunde@extern.de", bezug_id="g-b", art="weiterleiten")
 
 
 def test_drossel_je_person(postfix, monkeypatch):
     monkeypatch.setattr(ns, "JE_STUNDE", 2)
-    ns.senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="1")
-    ns.senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="2")
+    _senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="1")
+    _senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="2")
     with pytest.raises(ns.SendeFehler, match="Zu viele"):
-        ns.senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="3")
+        _senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="3")
 
 
 def test_dateiname_und_typ_werden_entschaerft(postfix):
-    ns.senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="Anhang",
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="Anhang",
               anhaenge=[("../../etc/passwd\r\nX: y", "text/html; evil=1\r\n", b"<b>x</b>")])
     m = _email.message_from_bytes(postfix[-1][2], policy=_policy.default)
     a = next(m.iter_attachments())
@@ -418,7 +441,7 @@ def test_dateiname_und_typ_werden_entschaerft(postfix):
 
 
 def test_gesendetes_wird_ins_gesendete_zurueckgespielt(postfix, monkeypatch):
-    ns.senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="zurück")
+    _senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="zurück")
     import test_notbetrieb as t
     g = t.Graph()
     monkeypatch.setattr(notbetrieb.httpx, "Client", g.client)
@@ -443,3 +466,60 @@ def test_senden_endpunkt(client, postfix):
     r = client.post("/notfall/api/senden", json={"postfach": "a@firma.at", "an": "kunde@extern.de",
                                                  "anhaenge": [{"name": "a", "daten": "kein base64!"}]})
     assert r.status_code == 400
+
+
+# ── Signatur: derselbe Handler wie im Normalbetrieb ─────────────────────────
+
+def _teile(inhalt):
+    m = _email.message_from_bytes(inhalt, policy=_policy.default)
+    return (m.get_body(preferencelist=("plain",)).get_content(),
+            m.get_body(preferencelist=("html",)).get_content())
+
+
+def test_senden_traegt_gateway_signatur_in_text_und_html(postfix):
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de, b@firma.at", betreff="Sig", text="Hallo <Welt>")
+    (von, empf, inhalt), = postfix
+    text, html = _teile(inhalt)
+    assert "SIG Anna Muster" in text and "SIG Anna Muster" in html
+    assert "Hallo &lt;Welt&gt;" in html                # Text wird maskiert, nicht als HTML gelesen
+    intern, = _lokal("b@firma.at", "inbox")
+    assert "SIG Anna Muster" in _teile(Path(intern["datei"]).read_bytes())[1]
+    # Gesendet-Kopie = was hinausging, plus Bcc.
+    gesendet, = _lokal("a@firma.at", "sentitems")
+    assert "SIG Anna Muster" in _teile(Path(gesendet["datei"]).read_bytes())[0]
+
+
+def test_senden_ohne_freigabe_bleibt_ohne_signatur(postfix, schatten):
+    """Wie im Normalbetrieb: nicht in MAILBOX_CONFIG → unverändert durchgereicht."""
+    schatten["MAILBOX_CONFIG"] = {"b@firma.at": {"sig": True}}
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="ohne", text="Hallo")
+    assert "SIG" not in _teile(postfix[-1][2])[0]
+
+
+def test_senden_verschluesselung_ohne_zertifikat_meldet_und_sendet_nichts(postfix, schatten):
+    """Der Handler weist ab und schreibt eine Rückmeldung — im Notbetrieb geht
+    sie an die Umleitung und erscheint als Fehlermeldung, nicht per Graph."""
+    import smime_store
+    schatten["MAILBOX_CONFIG"] = {"a@firma.at": {"sig": True, "smime": True}}
+    _monkey = pytest.MonkeyPatch()
+    _monkey.setattr(smime_store, "get_recipient_cert_path", lambda r: None)
+    try:
+        with pytest.raises(ns.SendeFehler, match="Verschlüsselungszertifikat"):
+            _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="geheim #enc", text="x")
+    finally:
+        _monkey.undo()
+    assert postfix == [] and _lokal("a@firma.at", "sentitems") == []
+
+
+def test_senden_bessert_keine_gesendeten_elemente_in_exchange_nach(postfix, schatten, monkeypatch):
+    """SENT_ITEMS_UPDATE greift im Normalbetrieb per Graph ins Postfach — im
+    Notbetrieb führt die Kopie die Gesendet-Fassung."""
+    import handler
+    schatten["SENT_ITEMS_UPDATE"] = True
+    aufrufe = []
+
+    async def _merken(*a, **k):
+        aufrufe.append(a)
+    monkeypatch.setattr(handler, "_cleanup_sent_item", _merken)
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="x", text="x")
+    assert postfix and aufrufe == []

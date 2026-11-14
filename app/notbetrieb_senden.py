@@ -11,6 +11,16 @@ hat (`senderecht()`, Quelle: Rechte-Abbild):
 
 Vollzugriff allein ist KEIN Senderecht — so hält es auch Exchange.
 
+SIGNATUR
+--------
+Die Mail läuft durch DENSELBEN Handler wie im Normalbetrieb (`handler.
+SignatureHandler.handle_DATA`): Signatur, Antwort-Signatur, Banner, Disclaimer,
+S/MIME, Mailprotokoll — keine zweite Signaturlogik. Aufgerufen im Prozess, ohne
+Verbindung; die Zugangsprüfungen dort gelten nur für Verbindungen mit Adresse.
+Was der Handler sonst an Exchange übergäbe, fängt `reinject.umleiten` ab.
+Gebaut wird Text UND HTML (wie Outlook) — an reinen Text hängt der Handler nur
+die Textfassung der Signatur.
+
 ZUSTELLUNG
 ----------
 Exchange Online ist im Notbetrieb nicht erreichbar. Deshalb:
@@ -28,6 +38,7 @@ Bcc steht nur in der Kopie unter „Gesendet“, nie in der übertragenen Mail.
 """
 from __future__ import annotations
 
+import html
 import logging
 import threading
 import time
@@ -105,6 +116,12 @@ def _drossel(benutzer: str) -> None:
         _gesendet[benutzer] = liste
 
 
+def _als_html(text: str) -> str:
+    """Textfassung als HTML — damit der Handler die HTML-Signatur einsetzen kann."""
+    return ('<html><body><div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;'
+            'white-space:pre-wrap">' + html.escape(text) + "</div></body></html>")
+
+
 def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text: str,
            anhaenge: list, bezug: dict | None) -> EmailMessage:
     msg = EmailMessage(policy=SMTP)
@@ -122,6 +139,7 @@ def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text:
         msg["In-Reply-To"] = bezug["message_id"]
         msg["References"] = " ".join(x for x in (bezug.get("references", ""), bezug["message_id"]) if x)
     msg.set_content(text or "")
+    msg.add_alternative(_als_html(text or ""), subtype="html")
     for name, typ, daten in anhaenge:
         name = _dateiname(name)
         if typ == "message/rfc822":
@@ -136,7 +154,7 @@ def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text:
     return msg
 
 
-def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str = "", betreff: str = "",
+async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str = "", betreff: str = "",
            text: str = "", anhaenge: list | None = None, bezug_id: str = "", art: str = "neu") -> dict:
     """Senden. Gibt {ok, message_id, intern, extern} zurück oder wirft SendeFehler."""
     import direktversand
@@ -182,26 +200,72 @@ def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str = "", b
     _drossel(benutzer)
     sender = benutzer if recht == "auftrag" else None
     msg = _bauen(postfach, sender, an_l, cc_l, betreff or "", text or "", anhaenge, bezug)
-    uebertragen = msg.as_bytes()
-    if bcc_l:
-        msg["Bcc"] = ", ".join(bcc_l)
-    gesendet_kopie = msg.as_bytes()
+    mid = msg["Message-ID"]
 
-    if extern:
-        import domain_routing
-        import reinject
-        ziel = domain_routing.aufloesen(domain_routing.DIREKT)
-        try:
-            reinject._an_postfix(postfach, extern, uebertragen, ziel["host"], ziel["port"])
-        except Exception as exc:                                    # noqa: BLE001
-            log.warning("Notbetrieb-Senden: Direktversand fehlgeschlagen: %s", exc)
-            raise SendeFehler("Versand nach außen fehlgeschlagen — bitte später erneut.") from None
-    for empf in intern:
-        notbetrieb.lokal_ablegen(empf, "inbox", uebertragen)
-    notbetrieb.lokal_ablegen(postfach, "sentitems", gesendet_kopie, gelesen=True)
+    import handler
+    import reinject
+    zustellungen: list[tuple[str, list, bytes]] = []
+    with reinject.umleiten(lambda von, empf, inhalt: zustellungen.append((von, empf, inhalt))):
+        antwort = await handler.SignatureHandler().handle_DATA(
+            None, _Sitzung(), _Umschlag(postfach, alle, msg.as_bytes()))
+    if not str(antwort).startswith("250"):
+        raise SendeFehler(f"Nicht gesendet: {antwort}")
+    haupt = next((z for z in zustellungen if _message_id(z[2]) == mid), None)
+    if haupt is None:
+        # Der Handler hat die Mail nicht hinausgegeben (z. B. Verschlüsselung
+        # ohne Zertifikat) — seine Rückmeldung an den Absender erklärt, warum.
+        meldung = next((_klartext(z[2]) for z in zustellungen), "")
+        raise SendeFehler("Nicht gesendet." + (f" {meldung}" if meldung else ""))
+
+    # Erst nach außen, dann intern: Scheitert der Direktversand, ist noch
+    # nichts halb angekommen.
+    import domain_routing
+    for von, empf, inhalt in zustellungen:
+        extern_z = [e for e in empf if e.lower() not in intern_konten]
+        if extern_z:
+            ziel = domain_routing.aufloesen(domain_routing.DIREKT)
+            try:
+                reinject._an_postfix(von, extern_z, inhalt, ziel["host"], ziel["port"])
+            except Exception as exc:                                # noqa: BLE001
+                log.warning("Notbetrieb-Senden: Direktversand fehlgeschlagen: %s", exc)
+                raise SendeFehler("Versand nach außen fehlgeschlagen — bitte später erneut.") from None
+    for von, empf, inhalt in zustellungen:
+        for e in empf:
+            if e.lower() in intern_konten:
+                notbetrieb.lokal_ablegen(e.lower(), "inbox", inhalt)
+    # Gesendet-Kopie = was hinausging (mit Signatur), dazu Bcc.
+    kopie = email.message_from_bytes(haupt[2], policy=email.policy.SMTP)
+    if bcc_l:
+        kopie["Bcc"] = ", ".join(bcc_l)
+    notbetrieb.lokal_ablegen(postfach, "sentitems", kopie.as_bytes(), gelesen=True)
     log.info("Notbetrieb-Senden: %s aus %s (%s) — %s intern, %s extern, %s", benutzer, postfach, recht,
-             len(intern), len(extern), msg["Message-ID"])
-    return {"ok": True, "message_id": msg["Message-ID"], "intern": len(intern), "extern": len(extern)}
+             len(intern), len(extern), mid)
+    return {"ok": True, "message_id": mid, "intern": len(intern), "extern": len(extern)}
+
+
+class _Sitzung:
+    """Sitzung ohne Verbindung: kein peer, nicht angemeldet."""
+    peer = None
+    ssl = None
+    authenticated = False
+    auth_data = None
+
+
+class _Umschlag:
+    def __init__(self, mail_from: str, rcpt_tos: list, content: bytes):
+        self.mail_from, self.rcpt_tos, self.content = mail_from, list(rcpt_tos), content
+
+
+def _message_id(inhalt: bytes) -> str:
+    kopf = inhalt.split(b"\r\n\r\n", 1)[0].split(b"\n\n", 1)[0]
+    m = email.message_from_bytes(kopf + b"\r\n\r\n", policy=email.policy.compat32)
+    return (m.get("Message-ID") or "").strip()
+
+
+def _klartext(inhalt: bytes) -> str:
+    m = email.message_from_bytes(inhalt, policy=email.policy.default)
+    teil = m.get_body(preferencelist=("plain",))
+    return " ".join((teil.get_content() if teil else "").split())[:500]
 
 
 def vorlage(benutzer: str, postfach: str, bezug_id: str, art: str) -> dict:
