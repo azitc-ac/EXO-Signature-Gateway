@@ -419,9 +419,9 @@ def test_messung_summiert_groessen_je_tag_und_wartet_bei_429(nb, monkeypatch):
     seiten = [
         _Resp(429, {}),
         _Resp(200, {"value": [
-            {"id": "g1", "receivedDateTime": _iso(JETZT), "singleValueExtendedProperties": [{"id": "Integer 0x0e08", "value": "1000"}]},
+            {"id": "g1", "receivedDateTime": _iso(JETZT), "singleValueExtendedProperties": [{"id": "Integer 0xe08", "value": "1000"}]},
             {"id": "g2", "receivedDateTime": _iso(JETZT - timedelta(days=2, hours=1)),
-             "singleValueExtendedProperties": [{"id": "Integer 0x0E08", "value": "500"}]},
+             "singleValueExtendedProperties": [{"id": "Integer 0xe08", "value": "500"}]},
             {"receivedDateTime": _iso(JETZT)},                       # ohne Größe → 0
         ]}),
     ]
@@ -448,6 +448,8 @@ def test_messung_summiert_groessen_je_tag_und_wartet_bei_429(nb, monkeypatch):
     assert "0x0E08" in gesehen[0] and "$select=receivedDateTime" in gesehen[0]
     assert nb["_NOTBETRIEB_MESSUNG"]["postfaecher"]
     assert notbetrieb.messlauf()["laeuft"] is False
+    # Graph antwortet mit „Integer 0xe08“ (echte Antwort, exohv 14.11.2026), nicht
+    # in der angefragten Schreibweise — ein Textvergleich ergab Bedarf 0.
     # Eichung: 2 Stichproben à 250 B MIME gegen 1500 B Exchange-Größe.
     assert m["eich_n"] == 2 and m["faktor"] == round(500 / 1500, 3)
     assert "stichprobe" not in pf
@@ -470,3 +472,10 @@ def test_seite_bleibt_erreichbar_solange_eine_kopie_liegt(nb, graph):
     notbetrieb.zurueckspielen()
     notbetrieb.schatten_loeschen()
     assert notbetrieb.sichtbar() is False
+
+
+@pytest.mark.parametrize("kennung, ja", [("Integer 0xe08", True), ("Integer 0x0E08", True),
+                                          ("integer 0xE08", True), ("Integer 0xe07", False),
+                                          ("String 0xe08", False), ("Integer kaputt", False), (None, False)])
+def test_groessen_kennung_wird_als_zahl_erkannt(kennung, ja):
+    assert notbetrieb._ist_groesse(kennung) is ja

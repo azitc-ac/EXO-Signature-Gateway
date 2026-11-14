@@ -596,6 +596,17 @@ def schatten_loeschen() -> dict:
 _GROESSE = "Integer 0x0E08"
 
 
+def _ist_groesse(kennung) -> bool:
+    """Ist das die Größen-Eigenschaft? Graph liefert sie NICHT in der angefragten
+    Schreibweise zurück, sondern als „Integer 0xe08“ (ohne führende Null, klein;
+    gemessen 14.11.2026). Deshalb der Zahlenwert, nicht der Text."""
+    typ, _, tag = str(kennung or "").partition(" ")
+    try:
+        return typ.lower() == "integer" and int(tag, 16) == 0x0E08
+    except ValueError:
+        return False
+
+
 MESS_PARALLEL = 4
 _messlauf: dict = {"laeuft": False, "fertig": 0, "gesamt": 0}
 
@@ -626,7 +637,7 @@ def _postfach_messen(token: str, upn: str, tage: int, jetzt: datetime) -> dict:
                     continue
                 groesse = next((int(e.get("value") or 0)
                                 for e in m.get("singleValueExtendedProperties") or []
-                                if str(e.get("id", "")).lower() == _GROESSE.lower()), 0)
+                                if _ist_groesse(e.get("id"))), 0)
                 je_tag[min(tage, max(0, (jetzt - zeit).days))] += groesse
                 anzahl += 1
                 if groesse and m.get("id"):
