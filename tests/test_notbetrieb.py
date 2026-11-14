@@ -663,24 +663,28 @@ class _FalschesLdap:
             def unbind(self):
                 attrappe.ablauf.append("unbind")
 
-        m = types.SimpleNamespace(Tls=lambda **kw: kw, Server=lambda *a, **kw: (a, kw), Connection=Conn,
-                                  SIMPLE="SIMPLE", NONE="NONE", AUTO_BIND_NONE="NONE")
-        return m
+        return Conn
+
+    def einsetzen(self, monkeypatch):
+        """Nur die Netzklassen im ECHTEN ldap3 tauschen — Fehlerklassen und
+        Filtermaskierung (ldap3.core, ldap3.utils) bleiben die echten."""
+        import ldap3
+        monkeypatch.setattr(ldap3, "Connection", self.modul())
+        monkeypatch.setattr(ldap3, "Server", lambda *a, **kw: (a, kw))
+        monkeypatch.setattr(ldap3, "Tls", lambda **kw: kw)
 
 
 def test_ohne_starttls_geht_kein_kennwort_raus(monkeypatch):
-    import sys
     f = _FalschesLdap(starttls_ok=False)
-    monkeypatch.setitem(sys.modules, "ldap3", f.modul())
+    f.einsetzen(monkeypatch)
     with pytest.raises(nba.AnmeldeFehler):
         nba._ldap_pruefen("a@firma.at", "geheim", {"server": "ldap://dc01", "basis": "DC=x", "ca": ""})
     assert "bind" not in f.ablauf and "start_tls" in f.ablauf
 
 
 def test_kontosuche_maskiert_den_namen(monkeypatch):
-    import sys
     f = _FalschesLdap()
-    monkeypatch.setitem(sys.modules, "ldap3", f.modul())
+    f.einsetzen(monkeypatch)
     nba._ldap_pruefen("x*)(objectClass=*@firma.at", "geheim", {"server": "ldaps://dc01", "basis": "DC=x", "ca": ""})
     filt = next(a[1] for a in f.ablauf if isinstance(a, tuple) and a[0] == "search")
     assert "x\\2a\\29\\28objectClass=\\2a@firma.at" in filt
