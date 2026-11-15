@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.27 — 2026-11-15 — Kopien-Stand: steigt nur mit Begründung, sinkt nur festgeschrieben
+
+`tools/kopien_stand.json` hält fest, wie viel kopierter Code je Datei
+hingenommen wird. Bisher liess sich der Stand mit `--schreiben` beliebig
+anheben; die Begründung stand nur in der Commit-Nachricht. Jetzt verlangt
+`tests/test_kopien_stand.py` für jeden Anstieg einen Eintrag in
+`begruendungen` (Datei, von, auf, Grund) und vergleicht dazu die Fassungen in
+der Git-Historie. In der Gegenrichtung scheitert `kopiencheck` jetzt, wenn
+weniger kopiert ist als im Stand: Der Gewinn muss festgeschrieben werden, sonst
+bliebe der Spielraum für die nächste Kopie stehen.
+
+**Zu tun:** nichts.
+
 ## v1.12.26 — 2026-11-15 — CI: übersprungene Tests sind ein Fehler; Prüfungen am Verhalten statt am Text
 
 Mehrere Prüfungen der Testsuite liefen grün, ohne etwas zu prüfen:
