@@ -537,6 +537,13 @@ class Sitzung:
                         re.IGNORECASE if muster.upper().startswith("INBOX") else 0)
         zeilen = []
         namen = {o["name"] for o in self._ordnerliste()}
+        # Zwischenebenen ohne eigenen Ordner („Geteilt“, „Geteilt/<postfach>“)
+        # als \Noselect (RFC 3501 §6.3.8) — Outlook wählte sie sonst an und
+        # meldete bei jedem Abgleich 8004DF03.
+        for ebene in sorted({n.rsplit(TRENNER, k)[0] for n in namen for k in range(1, n.count(TRENNER) + 1)}
+                            - namen):
+            if rx.match(ebene):
+                zeilen.append(f'* {b} (\\Noselect \\HasChildren) "{TRENNER}" '.encode() + _q(mutf7(ebene)) + b"\r\n")
         for o in self._ordnerliste():
             if not rx.match(o["name"]):
                 continue

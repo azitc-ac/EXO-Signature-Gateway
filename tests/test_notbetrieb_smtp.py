@@ -136,8 +136,11 @@ def test_vor_dem_notfall_nur_probegruppe(listener):
 def test_nur_mit_senderecht(listener):
     senden, _, _, uebergeben = listener
     for von in ("team@firma.at", "b@firma.at", "Zwei <a@firma.at>, b@firma.at"):   # nur Vollzugriff / fremd / zwei
-        with pytest.raises(smtplib.SMTPDataError):
+        with pytest.raises(smtplib.SMTPDataError) as fehler:
             senden(_mail(von=von), von="a@firma.at", an=["kunde@extern.de"])
+        fehler.value.smtp_error.decode("ascii")          # RFC 5321: nur ASCII (Outlook zeigte „fÃ¼r“)
+        if von == "team@firma.at":
+            assert fehler.value.smtp_error == b"5.7.1 Kein Senderecht fuer team@firma.at"
     assert uebergeben == []
     # „Im Auftrag“: From bleibt, Sender = die angemeldete Person — auch wenn das
     # Programm einen anderen Sender mitschickt.

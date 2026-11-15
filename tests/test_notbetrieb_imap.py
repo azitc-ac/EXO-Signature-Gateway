@@ -74,6 +74,11 @@ def test_anmelden_listen_und_lesen(imap):
     namen = _namen(c)
     assert "INBOX" in namen and "Archiv" in namen
     assert any(n.startswith("Geteilt/team@firma.at/") for n in namen)         # geteiltes Postfach (Vollzugriff)
+    # Zwischenebenen erscheinen als \Noselect, nicht anwählbar.
+    typ, daten = c.list()
+    ebenen = [d for d in daten if d.decode().endswith(('"Geteilt"', '"Geteilt/team@firma.at"'))]
+    assert len(ebenen) == 2 and all(b"\\Noselect" in d for d in ebenen), daten
+    assert c.select('"Geteilt"')[0] == "NO"
     assert not any("b@firma.at" in n for n in namen)                           # fremdes Postfach nicht
     assert not any("chef@firma.at" in n for n in namen)                        # nur „im Auftrag“, kein Vollzugriff
     typ, daten = c.select("INBOX")

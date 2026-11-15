@@ -30,10 +30,27 @@ from webui.app import app as fastapi_app
 log = logging.getLogger(__name__)
 
 
+_ASCII_ERSATZ = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue",
+                               "ß": "ss", "—": "-", "–": "-", "„": '"', "“": '"', "”": '"', "…": "..."})
+
+
+def smtp_ascii(text: str) -> str:
+    """SMTP-Antworttext als ASCII: Umlaute umschreiben, Rest durch „?“."""
+    return text.translate(_ASCII_ERSATZ).encode("ascii", "replace").decode("ascii")
+
+
 class _LenientSMTP(_BaseSMTP):
     """Like aiosmtpd.SMTP but silently discards unrecognized MAIL FROM
     parameters instead of returning 555.  EXO may send AUTH=, REQUIRETLS
     etc. when forwarding messages; we don't need them but must not reject."""
+
+    async def push(self, status):
+        """Antwortzeilen nur in ASCII (RFC 5321 §4.2) — Texte im Code dürfen
+        Umlaute tragen. Outlook zeigte „Kein Senderecht fÃ¼r …“: aiosmtpd
+        schickt sonst UTF-8 (oder wirft bei abgeschaltetem SMTPUTF8)."""
+        if isinstance(status, str):
+            status = smtp_ascii(status)
+        await super().push(status)
 
     # AUTH LOGIN: die üblichen Rückfragen (base64 „Username:“/„Password:“).
     # aiosmtpd fragt sonst „User Name\0“/„Password\0“ — Outlook Classic
