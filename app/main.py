@@ -157,7 +157,11 @@ class _LenientSMTP(_BaseSMTP):
             import runtime_state
             anfordern = getattr(runtime_state, "tls_kontext_anfordern", None)
             ip = (self.session.peer or ("",))[0]
-            if anfordern is not None and exo_erkennung.zertifikat_anfordern(ip):
+            # Submission (587, Anmeldung Pflicht): dort spricht nie Exchange,
+            # sondern ein Programm oder Gerät — keine Anforderung. Outlook
+            # Classic hing nach einer CertificateRequest still (Klicktest).
+            if (anfordern is not None and not self._auth_required
+                    and exo_erkennung.zertifikat_anfordern(ip)):
                 self.tls_context = anfordern
                 self._zert_angefordert = True
             else:

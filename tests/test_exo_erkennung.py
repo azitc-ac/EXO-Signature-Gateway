@@ -106,7 +106,7 @@ def aufbau(monkeypatch, tmp_path):
                                    require_starttls=True)
     ctrl.start()
     yield {"port": port, "werte": werte, "erlaubt": erlaubt, "relay": relay,
-           "merker": merker, "exo": exo, "fremd": fremd}
+           "merker": merker, "exo": exo, "fremd": fremd, "srv": srv}
     ctrl.stop()
 
 
@@ -151,6 +151,41 @@ def test_bei_zugelassener_adresse_wird_nichts_angefordert(aufbau):
     aufbau["erlaubt"]["ja"] = True
     _senden(aufbau["port"], aufbau["exo"])
     assert aufbau["merker"].urteile == [(True, "Adresse")]
+
+
+def test_submission_587_fordert_kein_zertifikat_an(aufbau, caplog):
+    """Auf dem Submission-Listener (Anmeldung Pflicht) spricht nie Exchange.
+    Eine CertificateRequest ließ Outlook Classic dort still hängen — sie darf
+    nicht kommen, auch nicht für eine Adresse, bei der Port 25 anfordert."""
+    import logging
+    from aiosmtpd.smtp import AuthResult
+    import smtp_cert
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    ctrl = main._LenientController(aufbau["merker"], hostname="127.0.0.1", port=port,
+                                   tls_context=smtp_cert.baue_listener_kontext([aufbau["srv"]]),
+                                   require_starttls=True, auth_required=True, auth_require_tls=True,
+                                   authenticator=lambda *a: AuthResult(success=False, handled=False))
+    ctrl.start()
+    try:
+        caplog.set_level(logging.INFO)
+        k = ssl.create_default_context()
+        k.check_hostname = False
+        k.verify_mode = ssl.CERT_NONE
+        k.load_cert_chain(*aufbau["exo"])
+        with smtplib.SMTP("127.0.0.1", port, timeout=10) as c:
+            c.ehlo("outlook.test")
+            c.starttls(context=k)
+            c.ehlo("outlook.test")
+            assert c.has_extn("auth")
+        assert not [r for r in caplog.records if "SMTP-TLS von" in r.getMessage()]
+        # Gegenprobe: Port-25-Listener fordert für dieselbe Adresse an.
+        caplog.clear()
+        _senden(aufbau["port"], aufbau["exo"])
+        assert [r for r in caplog.records if "SMTP-TLS von" in r.getMessage()]
+    finally:
+        ctrl.stop()
 
 
 def test_relay_geraet_bekommt_keine_anforderung(aufbau):
