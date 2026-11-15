@@ -95,7 +95,7 @@ def test_webkit_praefix_ist_dabei():
         assert "-webkit-mask-image" in regel, zustand
 
 
-@pytest.mark.parametrize("vorlage", ["relay.html"])
+@pytest.mark.parametrize("vorlage", ["relay.html", "settings_routing.html"])
 def test_einstellungsseiten_sind_gleich_breit(vorlage):
     """⚠️ Der zweite Teil des Befunds.
 
@@ -122,7 +122,10 @@ def test_relay_tabellen_nutzen_den_gemeinsamen_rollbereich():
     # (v1.9.51: durch das Gateway geroutete Hybrid-Post), dazu deren
     # Einzelvorgänge hinter den anklickbaren Zahlen (v1.9.152), Tenant→Ziel
     # (v1.10.18), DKIM-Schlüssel (v1.10.20).
-    assert text.count('class="tabellen-rollbereich"') == 14
+    # Seit v1.12.18 stehen die sechs Routing-Tabellen (Weiterleitungsziele,
+    # Domäne→Ziel, Tenant→Ziel, DKIM, Koexistenz-Fluss + Einzelvorgänge) unter
+    # Einstellungen → Mail-Routing (Test darunter).
+    assert text.count('class="tabellen-rollbereich"') == 8
     assert "overflow-x:auto" not in text, (
         "Der Rollbereich ist mit Inline-CSS nachgebaut statt die vorhandene "
         "Klasse zu nutzen.")
@@ -130,7 +133,14 @@ def test_relay_tabellen_nutzen_den_gemeinsamen_rollbereich():
     # (Statistik-Top-Listen, v1.9.22) — die gemeinsame Basisklasse bleibt.
     plain = text.count('class="config-table"')
     eng = text.count('class="config-table stats-eng"')
-    assert plain + eng == 14, (
+    assert plain + eng == 8, (
         "Die Tabellen brauchen die gemeinsame Tabellenklasse — sonst fehlen "
         "Rahmen, Zeilentrenner und die Dark-Mode-Abdeckung.")
     assert eng == 4, "Die vier Statistik-Top-Listen tragen den stats-eng-Modifier."
+
+
+def test_routing_tabellen_nutzen_den_gemeinsamen_rollbereich():
+    text = (VORLAGEN / "settings_routing.html").read_text("utf-8")
+    assert text.count('class="tabellen-rollbereich"') == 6
+    assert text.count('class="config-table"') == 6
+    assert "overflow-x:auto" not in text

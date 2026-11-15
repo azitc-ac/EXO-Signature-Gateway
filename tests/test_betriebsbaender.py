@@ -196,8 +196,12 @@ def test_wartung_zaehlt_zustellfehler_nicht_mit(monkeypatch):
     import held_mails
     import settings_store
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: k == "MAINTENANCE_MODE" or d)
+    # Zustellfehler und Rückläufe (v1.12.12) gehören nicht zur Wartung — „alle
+    # minus delivery_failed“ hätte die Rückläufe als zurückgehalten gezählt.
+    je_grund = {"maintenance": 5, "delivery_failed": 2, "ruecklauf": 3}
     monkeypatch.setattr(held_mails, "count",
-                        lambda reason=None: 2 if reason == "delivery_failed" else 7)
+                        lambda reason=None: sum(je_grund.values()) if reason is None
+                        else je_grund.get(reason, 0))
     assert deps._wartung_gemeldet() == {"zurueck": 5}
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: d)
     assert deps._wartung_gemeldet() is None

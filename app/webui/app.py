@@ -132,6 +132,7 @@ from webui.routen import abwesenheit as _routen_abwesenheit  # noqa: E402
 from webui.routen import addin_verfassen as _routen_addin_verfassen  # noqa: E402
 from webui.routen import notbetrieb as _routen_notbetrieb    # noqa: E402
 from webui.routen import notfall as _routen_notfall          # noqa: E402
+from webui.routen import mail_routing as _routen_mail_routing  # noqa: E402
 
 # EINE Quelle: hieraus werden die Router eingebunden, und `tests/test_routes.py`
 # zaehlt daraus die Routen ab.
@@ -148,7 +149,7 @@ ROUTENMODULE = [_routen_addin, _routen_backup, _routen_hub, _routen_mailboxes,
                 _routen_anmeldung, _routen_relay, _routen_waechter,
                 _routen_campaigns, _routen_selfservice, _routen_abwesenheit,
                 _routen_addin_verfassen, _routen_notbetrieb,
-                _routen_notfall]
+                _routen_notfall, _routen_mail_routing]
 
 for _modul in ROUTENMODULE:
     app.include_router(_modul.router)

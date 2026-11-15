@@ -574,7 +574,20 @@ function varLabel(f, fallback) {
   return (v.startsWith('custom.') || v.startsWith('bearbeiter.')) ? v : `user.${v}`;
 }
 
+// Wann der Baustein erscheint — Werte wie template_builder.BEDINGUNGEN.
+// Für geteilte Postfächer: Die Person kennt das Add-in immer, das Gateway nur
+// bei „Senden im Auftrag von“ (bei „Senden als“ schreibt scheinbar der Inhaber).
+const BEDINGUNG_TEXT = {
+  '': 'Immer',
+  selbst: 'Verfasser im eigenen Postfach',
+  fuer_postfach: 'Verfasser im fremden Postfach',
+};
 function blockSummary(b) {
+  const zusatz = b.bedingung && BEDINGUNG_TEXT[b.bedingung] ? ` · nur: ${BEDINGUNG_TEXT[b.bedingung]}` : '';
+  return _blockSummaryRoh(b) + zusatz;
+}
+
+function _blockSummaryRoh(b) {
   switch (b.type) {
     case 'greeting':    return b.text || '';
     case 'spacer':      return `${b.height || 8} px`;
@@ -1117,8 +1130,18 @@ function buildBlockForm(b) {
       ${unterPicker(b.id, 'children', KASTEN_TYPEN)}
     </div>`;
   }
+  rows += bedingungZeile(b);
   rows += verschiebeZeile(b);
   return rows;
+}
+
+function bedingungZeile(b) {
+  const wert = BEDINGUNG_TEXT[b.bedingung || ''] ? (b.bedingung || '') : '';
+  return `<div class="prop-row"><label>Anzeigen wenn</label><div>`
+    + `<select name="bedingung" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)">`
+    + Object.entries(BEDINGUNG_TEXT).map(([v, l]) =>
+        `<option value="${escAttr(v)}"${v === wert ? ' selected' : ''}>${esc(l)}</option>`).join('')
+    + `</select></div></div>`;
 }
 
 // ── Render whole block list ───────────────────────────────────────────────────

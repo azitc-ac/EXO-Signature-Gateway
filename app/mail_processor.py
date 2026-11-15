@@ -502,6 +502,11 @@ def inject(
         src_charset = msg.get_content_charset() or "utf-8"
         payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
         new_payload = _insert_txt_sig(payload, sig_txt) if sig_txt else payload
+        was = "Banner/Disclaimer" if zusatz else "Signatur"
+        if sig_txt:
+            log.info("Nur-Text: %s eingefügt (%d Zeichen)", was, len(sig_txt))
+        else:
+            log.warning("Nur-Text: %s ohne Textfassung — nichts eingefügt", was)
         msg.set_param("charset", "utf-8")
         _set_part_payload(msg, new_payload, "utf-8")
     else:
@@ -1578,6 +1583,16 @@ def extract_html(msg: email.message.Message) -> str | None:
     for part in msg.walk():
         if part.get_content_type() == "text/html" and not part.get_param("attachment", header="content-disposition"):
             return part.get_payload(decode=True).decode(part.get_content_charset() or "utf-8", errors="replace")
+    return None
+
+
+def extract_text(msg: email.message.Message) -> str | None:
+    """Text/plain-Rumpf (kein Anhang), oder None. Gegenstück zu extract_html."""
+    for part in msg.walk():
+        if part.get_content_type() == "text/plain" and not part.get_param(
+                "attachment", header="content-disposition"):
+            return part.get_payload(decode=True).decode(
+                part.get_content_charset() or "utf-8", errors="replace")
     return None
 
 

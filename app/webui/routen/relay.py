@@ -318,61 +318,6 @@ async def api_relay_extern_route(request: Request, user: str = Depends(_require_
     return JSONResponse({"ok": True})
 
 
-# ── Direktversand (Postfix-Container) ────────────────────────────────────────
-
-@router.post("/api/direkt/einstellungen")
-async def api_direkt_einstellungen(request: Request, user: str = Depends(_require_admin)):
-    """Betriebsart, HELO, Smarthost und Hauptschalter des Direktversands.
-    Einschalten per MX verlangt einen bestandenen Port-25-Test (in
-    `direktversand.speichern`, nicht nur hier) — blockierend, daher im Thread."""
-    import asyncio
-    daten = await request.json()
-    try:
-        e = await asyncio.to_thread(direktversand.speichern, daten)
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-    log.info("Direktversand durch %s gespeichert: aktiv=%s modus=%s",
-             user, e.get("aktiv"), e.get("modus"))
-    return JSONResponse({"ok": True, "direkt": e})
-
-
-@router.post("/api/direkt/port25-test")
-async def api_direkt_port25_test(user: str = Depends(_require_admin)):
-    """Ist ausgehender Port 25 offen? Nur Verbindung + Begrüßung, keine Mail."""
-    import asyncio
-    return JSONResponse(await asyncio.to_thread(direktversand.port25_test))
-
-
-@router.post("/api/direkt/dkim")
-async def api_direkt_dkim(request: Request, user: str = Depends(_require_admin)):
-    """DKIM-Schlüssel für eine Domäne erzeugen (neuer Selektor je Aufruf)."""
-    daten = await request.json()
-    try:
-        eintrag = dkim_signatur.schluessel_erzeugen(daten.get("domain") or "",
-                                                    daten.get("selektor") or "")
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-    log.info("DKIM-Schlüssel für %s (Selektor %s) durch %s erzeugt",
-             eintrag.get("domain"), eintrag.get("selektor"), user)
-    return JSONResponse({"ok": True, "eintrag": eintrag})
-
-
-@router.post("/api/direkt/dkim/loeschen")
-async def api_direkt_dkim_loeschen(request: Request, user: str = Depends(_require_admin)):
-    daten = await request.json()
-    weg = dkim_signatur.entfernen(daten.get("domain") or "")
-    if weg:
-        log.info("DKIM für %s durch %s entfernt", daten.get("domain"), user)
-    return JSONResponse({"ok": weg})
-
-
-@router.get("/api/direkt/dns-pruefung")
-async def api_direkt_dns_pruefung(domain: str = "", user: str = Depends(_require_admin)):
-    """SPF, DKIM-Eintrag und PTR so, wie ein Empfänger sie sieht."""
-    import asyncio
-    return JSONResponse({"ok": True, **await asyncio.to_thread(direktversand.dns_pruefen, domain)})
-
-
 @router.post("/api/relay/coex")
 async def api_relay_coex(request: Request, user: str = Depends(_require_admin)):
     """Parameter des on-prem-Koexistenz-Connectors speichern und das Auf-/Abbau-

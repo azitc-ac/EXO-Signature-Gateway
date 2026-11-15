@@ -73,7 +73,7 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     Aufgabe("postfaecher", abnahme._postfaecher, "/mailboxes"),
     Aufgabe("wartende-zertifikate", abnahme._wartende_zertifikate, "/smime#wartend",
             seit="1.10.110"),
-    Aufgabe("tls-rueckweg", abnahme._tls_rueckweg, "/relay#weiterleitungsziele",
+    Aufgabe("tls-rueckweg", abnahme._tls_rueckweg, "/settings/routing#weiterleitungsziele",
             seit="1.10.112"),
     Aufgabe("bestand-durchsicht", abnahme._bestand_durchsicht, "/smime#durchsicht",
             seit="1.10.115"),

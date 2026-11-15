@@ -9,6 +9,7 @@ Leerraum dürfen abweichen), sondern die MERKMALE, an denen das Band hängt.
 Ein Vergleich der ganzen Zeichenkette wäre beim ersten Umbau des Renderers
 fällig geworden, ohne dass etwas kaputt ist.
 """
+import pytest
 import re
 
 import template_builder as tb
@@ -99,23 +100,52 @@ def test_runde_ecken_mit_umlaufendem_rahmen_weiter_mit_vml():
     assert "v:roundrect" in html
 
 
-def test_kein_block_ohne_textfassung():
-    """Wächter: jeder Blocktyp im HTML-Verteiler muss auch im Textteil
-    vorkommen. Sonst verschwindet er still aus der Nur-Text-Signatur — und
-    das sieht niemand, der nur die HTML-Vorschau ansieht."""
-    import inspect
-    quelle = inspect.getsource(tb._render_block_txt) if hasattr(tb, "_render_block_txt") \
-        else inspect.getsource(tb)
-    # Bewusst ohne Textfassung, mit Grund — sonst meldet der Wächter dauerhaft
-    # und wird ignoriert.
-    OHNE_TEXTFASSUNG = {
-        "logo": "ein Bild hat in der Nur-Text-Fassung keine Entsprechung; der "
-                "Block trägt keinen Alternativtext, aus dem sich einer bilden ließe",
-    }
-    fehlend = [t for t in tb._HTML_RENDERERS
-               if f'"{t}"' not in quelle and t not in OHNE_TEXTFASSUNG]
-    assert not fehlend, (f"Blocktypen ohne Textfassung: {fehlend} — "
-                         f"sie fehlen still in der Nur-Text-Signatur.")
+# Bewusst ohne Textfassung, mit Grund — sonst meldet der Wächter dauerhaft
+# und wird ignoriert.
+OHNE_TEXTFASSUNG = {
+    "logo": "ein Bild hat in der Nur-Text-Fassung keine Entsprechung; der "
+            "Block trägt keinen Alternativtext, aus dem sich einer bilden ließe",
+}
+
+# Je Blocktyp ein gefüllter Baustein. Ein neuer Typ ohne Eintrag hier lässt
+# test_kein_block_ohne_textfassung scheitern — er muss also bewusst ein
+# Beispiel bekommen (oder mit Grund in OHNE_TEXTFASSUNG).
+_KIND = {"type": "freetext", "html": "Kind"}
+BEISPIEL = {
+    "greeting": {},
+    "spacer": {},
+    "name_field": {},
+    "field": {"field": "jobTitle"},
+    "divider": {},
+    "phone": {},
+    "mobile": {},
+    "email_link": {},
+    "web_link": {},
+    "booking_link": {},
+    "social": {"platform": "linkedin", "url": "https://example.org/x"},
+    "freetext": {"html": "<p>Hallo</p>"},
+    "text": {"text": "Hallo"},
+    "two_col": {"left": [_KIND], "right": []},
+    "box": {"children": [_KIND]},
+    "badge": {"label": "RSS", "html": "Neu"},
+    "address": {},
+}
+
+
+@pytest.mark.parametrize("typ", sorted(set(tb._HTML_RENDERERS) - set(OHNE_TEXTFASSUNG)))
+def test_kein_block_ohne_textfassung(typ):
+    """Wächter: jeder Blocktyp im HTML-Verteiler muss im Textteil eine Zeile
+    ergeben. Sonst verschwindet er still aus der Nur-Text-Signatur — und das
+    sieht niemand, der nur die HTML-Vorschau ansieht.
+
+    Ausgeführt statt im Quelltext gesucht: Eine Textsuche nach dem Typnamen
+    fand auch Feld-Vorgaben ("phone" steht dort zweimal) und hätte eine
+    fehlende Verzweigung übersehen."""
+    assert typ in BEISPIEL, (f"Blocktyp {typ!r} hat kein Beispiel in BEISPIEL — "
+                             f"ergänzen oder mit Grund in OHNE_TEXTFASSUNG.")
+    zeilen: list[str] = []
+    tb._render_block_txt_roh({"id": "1", "type": typ, **BEISPIEL[typ]}, {}, zeilen)
+    assert zeilen, f"Blocktyp {typ!r} fehlt still in der Nur-Text-Signatur."
 
 
 # ── Klartext-Umwandlung: der Eckfall, der beim Nachbau auffiel ────────────────

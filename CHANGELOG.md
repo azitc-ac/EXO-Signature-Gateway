@@ -5,6 +5,269 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.23 — 2026-11-15 — Telefonbreite: alle Seiten werden gemessen statt fotografiert
+
+Ein neuer Browsertest (`tests/test_mobil_alle_seiten.py`, im CI-Browserjob)
+ruft jede Seite der Oberfläche bei 320 und 393 px auf. Die Seitenliste kommt
+aus der Routenübersicht, eine neue Seite wird also automatisch mitgeprüft.
+Listen, die per JavaScript entstehen (Bypass-Wächter, Relay-Geräte,
+Mail-Routing, Postfächer, Warteschlange), werden dafür mit Beispieldaten
+gefüllt. Leer konnten sie nie umbrechen. Geprüft wird je Seite:
+
+- **Nichts ragt rechts aus dem Fenster**, außer in einem eigenen Rollbereich.
+  Weil der Hauptbereich zu Breites abschneidet, statt die Seite rollen zu
+  lassen, misst der Test jedes Element einzeln. Ein abgeschnittener Knopf
+  wäre auf dem Telefon sonst unerreichbar, ohne dass es auffällt.
+- **Kein Text wird von Knöpfen daneben zusammengequetscht** (schmaler als
+  120 px und auf drei oder mehr Zeilen umgebrochen).
+
+`tools/mobilecheck.py` entfällt. Es fotografierte die Seiten nur, beurteilte
+nichts und lief nirgends automatisch.
+
+Behoben, was der Test im Bestand fand:
+
+- **Live-Protokoll:** Die Knöpfe „verbose“, „logging“ und die Verbindungsanzeige
+  ragten bei 320 px aus dem Bild.
+- **Postfächer** (Links zu Datenschutz und Nutzungsbedingungen) und **Relay**
+  (Kommentarfeld beim Hinzufügen eines Geräts): Eingabefelder mit fester
+  Mindestbreite von 320 px.
+- **Vorschau:** Die Umschalter HTML / Plaintext / Quelltext brachen nicht um.
+- **Anbindung & Lizenzen:** In der Liste der Rechtsdokumente stand der Titel
+  in drei Zeilen à 90 px neben „Lesen“ und „PDF“.
+- **Erweitert** (Kopf der Warteschlange) und **Debug** (Schritt D): Titel und
+  Knöpfe brechen jetzt um.
+
+**Zu tun:** nichts.
+
+## v1.12.22 — 2026-11-15 — Band „Transportregel ohne Absender-Gate“
+
+Die Signatur-Transportregel greift nur für Absender aus der Verteilerliste
+des Gateways (Absender-Gate, `FromMemberOf`). Ist die Regel aktiv und das Gate
+leer, läuft **jeder interne Absender** durchs Gateway. Kann das Gateway dann
+nicht zustellen, staut sich die gesamte interne Post.
+
+Die tägliche Regelabfrage des Gateways las bisher nur, ob die Regel aktiv ist
+und ob sie eine Empfängerbedingung trägt. Ein leeres Gate fiel im Betrieb
+nicht auf. Jetzt liest sie auch das Gate und zeigt bei aktiver Regel ohne Gate
+ein rotes Band auf jeder Seite. Behoben wird das über **Postfächer →
+Speichern**: Das setzt das Gate wieder auf die Verteilerliste.
+
+Die Abfrage ist rein lesend und braucht keine zusätzliche Berechtigung.
+
+**Zu tun:** nichts.
+
+## v1.12.21 — 2026-11-15 — Tests: Schleifen- und Gate-Schutz am Verhalten statt am Quelltext geprüft
+
+Drei Tests sicherten Schutzfunktionen ab, deren Ausfall den Mailfluss trifft,
+prüften aber nur Text im Quelltext. Ein Fehler wäre jeweils unbemerkt geblieben:
+
+- **Absender-Gate der Transportregel.** Der Test suchte `-FromMemberOf` im
+  Aktualisieren-Zweig der Einrichtung. Derselbe Text steht dort auch in einem
+  Kommentar; fehlte die echte Codezeile, blieb der Test grün. Jetzt prüfen alle
+  Gate-Tests die PowerShell-Aufrufe selbst, ohne Kommentare und mit
+  zusammengeführten Fortsetzungszeilen.
+- **Schleifenmarkierung beim Graph-Versand.** Geprüft war nur, dass die
+  Markierung zusammengebaut wird, nicht, dass sie im Aufruf an Exchange
+  ankommt. Jetzt läuft der Graph-Versand im Test echt durch, nur der
+  HTTP-Aufruf ist abgefangen.
+- **Durchgeleitete Post fremder Absender.** Geprüft war eine bestimmte
+  Schreibweise im Quelltext. Jetzt läuft eine Mail eines nicht eingerichteten
+  Absenders durch das Gateway, und die zugestellte Fassung muss die eigene
+  Markierung tragen.
+
+**Zu tun:** nichts.
+
+## v1.12.20 — 2026-11-15 — Mail-Routing: Seite nach Zweck gegliedert, Port 25 wird vor „Selbst per MX“ geprüft
+
+Die Seite *Einstellungen → Mail-Routing* erklärt jetzt, was sie tut, statt ein
+einzelnes Einsatzszenario zu beschreiben. Sie ist nach der Frage „Wohin geht
+eine Mail?“ gegliedert:
+
+- **Zielserver** (bisher „Weiterleitungsziele“): Server, an die das Gateway Post
+  übergeben kann. Ein Ziel allein bewirkt nichts.
+- **Regeln**: nach Absender-Tenant, nach Empfängerdomäne und für externe
+  Empfänger, in dieser Reihenfolge geprüft. Der Hinweis, dass Domänen- und
+  Externen-Regeln nur mit dem Rückweg „SMTP Port 25“ wirken, steht einmal oben
+  statt versteckt in einer Karte. „Per-Empfänger-Routing“ heißt jetzt „Nur
+  Postfächer weiterleiten, die nicht in Exchange Online liegen“ und ist
+  eingeklappt.
+- **Selbst zustellen** (bisher „Direktversand (eigener Postfix)“).
+- **Wenn das Ziel ein lokaler Exchange ist** (bisher „Hybrid-Koexistenz“),
+  eingeklappt, mit einem kurzen Sicherheitsabsatz.
+- **Verlauf** (bisher „Durch das Gateway geroutet“).
+
+Felder, gespeicherte Einstellungen und Schnittstellen sind unverändert.
+
+**Port 25 vor „Selbst per MX zustellen“.** Läuft das Gateway in Azure, AWS oder
+einer ähnlichen Cloud, ist Port 25 ausgehend dort in aller Regel gesperrt;
+Zustellen geht dann nur über einen Smarthost. Wer „Selbst zustellen“ mit der
+Betriebsart „Selbst per MX zustellen“ speichert, bekommt jetzt vorher
+automatisch denselben Test wie mit „Port 25 prüfen“. Ist der Port gesperrt,
+fragt die Seite nach; ohne Bestätigung wird nicht gespeichert. Gemessen wird die
+tatsächliche Verbindung, nicht die Umgebung erraten — so greift es auch bei
+Providern und Firmenfirewalls.
+
+**Zu tun:** nichts.
+
+## v1.12.19 — 2026-11-15 — Bypass-Wächter: Zeile auf dem Handy lesbar
+
+In der Liste der Bypass-Wächter (Erweitert → Failover) standen die Knöpfe
+„Code aktualisieren“, „Umbenennen“ und „Entfernen“ ohne Umbruch neben dem
+Text. Auf dem Handy blieben für Name und Zustand nur wenige Zeichen, der Name
+stand Wort für Wort untereinander. Jetzt rutschen die Knöpfe auf schmalen
+Bildschirmen unter den Text.
+
+**Zu tun:** nichts.
+
+## v1.12.18 — 2026-11-15 — Neuer Einstellungsreiter „Mail-Routing“
+
+Domänen-Routing, Direktversand und Hybrid-Koexistenz richtest du jetzt unter
+**Einstellungen → Mail-Routing** ein. Bisher standen sie als Karten auf der Seite
+*SMTP-Relay*. Die erscheint nur bei eingeschaltetem Relay, und die Karten nur mit
+dem Anzeige-Schalter „Domänen-Routing“ bzw. „Hybrid-Koexistenz“ unter
+*Einstellungen → Erweitert*. Wer den Direktversand ohne Relay nutzen wollte,
+kam an die Einrichtung nicht heran.
+
+- **Funktion und Einrichtung getrennt:** Das Hauptmenü *SMTP-Relay* zeigt den
+  Betrieb (Statistik, Lernmodus, Geräte, Abgewiesene, Protokoll,
+  Sende-Identitäten) und eine Zeile zum Stand des Routings mit dem Knopf
+  *Einrichten*. Die Einrichtung liegt im neuen Reiter, unabhängig davon, ob das
+  Relay aktiv ist.
+- **Anzeige-Schalter entfallen:** Die beiden Schalter unter *Erweitert* haben
+  nur Karten ein- und ausgeblendet, am Mailfluss änderten sie nichts. Mit dem
+  eigenen Reiter sind sie überflüssig. Die gespeicherten Werte
+  (`DOMAIN_ROUTING_ENABLED`, `COEX_ENABLED`) werden beim Start entfernt.
+- Die Aufgabe „TLS am Rückweg“ verweist auf die Weiterleitungsziele im neuen
+  Reiter.
+- Schnittstellen und gespeicherte Routing-Daten sind unverändert.
+
+**Zu tun:** nichts. Deine Ziele, Routen, DKIM-Schlüssel und die
+Koexistenz-Parameter findest du unter *Einstellungen → Mail-Routing*.
+
+## v1.12.17 — 2026-11-15 — Nur-Text-Mails: „Gesendete Elemente“ bleibt Nur-Text, Signatur im Protokoll
+
+**Gesendete Elemente.** Ist „Gesendete Elemente aktualisieren“ eingeschaltet,
+ersetzt das Gateway den Eintrag durch die versandte Fassung mit Signatur. Bei
+einer Nur-Text-Mail wurde der Rumpf dabei in HTML verpackt (`<pre>`), der Eintrag
+erschien danach als HTML-Mail. Jetzt bleibt er Nur-Text. Eine Nur-Text-Mail
+**mit Anhang** wurde bisher gar nicht nachgebessert, weil nur nach einem
+HTML-Teil gesucht wurde; sie wird jetzt ebenfalls aktualisiert. Dasselbe gilt
+für Mails, die aus der Warteschlange freigegeben werden.
+
+**Protokoll.** Jede eingefügte Signatur hinterlässt jetzt eine Zeile
+`SIGNATUR: Vorlage '…' für … (Format[, Bearbeiter …])`. Bisher schrieb nur der
+HTML-Weg etwas; bei einer signierten Nur-Text-Mail war im Protokoll nicht zu
+sehen, ob und mit welcher Vorlage signiert wurde. Hat die Vorlage keine
+Textfassung, meldet das Gateway das als Warnung.
+
+**Zu tun:** nichts.
+
+## v1.12.16 — 2026-11-15 — Test: Wächter für die Nur-Text-Fassung führt die Bausteine aus
+
+Der Test, der prüft, dass jeder Bausteintyp in der Nur-Text-Signatur
+erscheint, suchte bisher nur den Typnamen im Quelltext. Ein Name, der dort
+noch an anderer Stelle stand (etwa als Vorgabe-Feldname), täuschte eine
+Verzweigung vor, die es nicht gab. Jetzt rendert der Test für jeden Typ einen
+gefüllten Beispielbaustein und verlangt mindestens eine Textzeile. Ein neuer
+Bausteintyp braucht ein Beispiel im Test, sonst schlägt er fehl.
+
+**Zu tun:** nichts.
+
+## v1.12.15 — 2026-11-15 — Test: Wächter für die Nur-Text-Fassung liest die richtige Funktion
+
+Seit v1.12.14 steht die Weiche der Bausteintypen für die Nur-Text-Signatur in
+einer eigenen Funktion; die bisherige legt nur noch die Bedingung „Anzeigen
+wenn“ darum. Der Test, der prüft, dass jeder Bausteintyp eine Textfassung hat,
+las noch die alte Funktion und meldete deshalb alle Typen als fehlend. Er liest
+jetzt die Weiche selbst.
+
+**Zu tun:** nichts.
+
+## v1.12.14 — 2026-11-15 — Baukasten: Baustein nur zeigen, wenn jemand für ein Postfach schreibt
+
+Jeder Baustein im Baukasten hat die neue Einstellung **„Anzeigen wenn“**:
+*Immer* (Vorgabe, wie bisher), *Verfasser im eigenen Postfach* oder
+*Verfasser im fremden Postfach*.
+
+Gedacht ist das für geteilte Postfächer. Eine Vorlage kann mit
+`{{ bearbeiter.displayName }}` die Person zeigen, die schreibt, und daneben den
+Namen des Postfachs. Das Verfassen-Add-in kennt diese Person immer. Das Gateway
+kennt sie nur bei „Senden im Auftrag von“, weil dann der `Sender`-Kopf sie nennt.
+Bei „Senden als“ fehlt dieser Kopf, und `bearbeiter` ist das Postfach selbst.
+Ohne Bedingung stünde der Postfachname dann zweimal in der Signatur. Setzt du den
+Baustein mit dem Postfachnamen auf *Verfasser im fremden Postfach*, erscheint er
+nur, wenn die Person bekannt ist.
+
+Die Einstellung wirkt in der HTML- und in der Text-Signatur, auch in zweispaltigen
+Bausteinen. Verglichen wird die Adresse ohne Rücksicht auf Groß- und
+Kleinschreibung. Unbekannte Werte werden ignoriert und gelangen nicht in die
+Vorlage.
+
+**Zu tun:** nichts. Bestehende Vorlagen bleiben unverändert.
+
+## v1.12.13 — 2026-11-15 — Test zum Wartungsband an die Zählung je Grund angepasst
+
+Seit v1.12.12 zählt das Band „Wartungsmodus“ nur Mails, die wegen der Wartung
+zurückgehalten werden. Vorher zählte es alle Mails außer den Zustellfehlern,
+also auch die neu geparkten Rückläufe. Der zugehörige Test prüft jetzt jeden
+Grund einzeln.
+
+**Zu tun:** nichts.
+
+## v1.12.12 — 2026-11-15 — Zurückkommender Graph-Versand wird geparkt statt verworfen
+
+Schickt das Gateway eine Mail per Graph `sendMail` an Exchange zurück, trägt
+sie die Gateway-Markierung `X-Sig-Applied`. Daran erkennt die Transportregel,
+dass sie nicht noch einmal ans Gateway gehen soll. Beim Versand aus einem
+**geteilten Postfach** hat Exchange diese Markierung in Messungen verworfen,
+nicht in jedem Fall. Die Mail lief dann ein zweites Mal ans Gateway, mit
+gleicher Message-ID und gleichen Empfängern. Die Duplikat-Sperre hielt das
+für ein Duplikat, meldete „OK“, und die Mail wurde **nie zugestellt**. Es gab
+keine Unzustellbarkeitsmeldung und keine Zahl, die es zeigte.
+
+- **Rücklauf erkannt:** Ein Rücklauf ist bei Exchange eine neue Einlieferung
+  und trägt eine andere `Network-Message-Id` als die erste. Ein echtes Duplikat
+  wird weiter übersprungen. Ein Rücklauf kommt in die Warteschlange (Grund
+  „Rücklauf“), und zwar in der Fassung des ersten Durchlaufs. Dazu erscheinen
+  ein Hinweisband und eine Zeile im Tagesbericht.
+- **Keine automatische Wiederholung:** Sie nähme denselben Weg und käme
+  wieder zurück. Ein Zustellweg für geteilte Postfächer, der die Markierung
+  sicher erhält, folgt.
+- **Sperre erst nach angenommenem Versand:** Die Duplikat-Sperre merkte sich
+  eine Mail schon vor dem Versand. Scheiterte er, hielt sie den ersten
+  Wiederholungsversuch aus der Warteschlange (nach einer Minute, Fenster 120 s)
+  für ein Duplikat und meldete ihn als zugestellt. Jetzt merkt sie sich die
+  Mail erst, wenn Graph den Versand angenommen hat.
+
+Betroffen sind die Modi Graph-only und Graph++. Im Modus SMTP geht nur Post
+von Sende-Identitäten über Graph.
+
+**Zu tun:** nichts, das Update genügt. Steht nach dem Update das Band
+„Nicht zugestellt: Rücklauf“ an, liegen dort Mails, die das Gateway früher
+verworfen hätte.
+
+## v1.12.11 — 2026-11-14 — Eingehende Post im Rückfallweg nicht mehr als Entwurf
+
+Findet das Gateway für eingehende Post keinen Zustellweg (587, Graph sendMail
+über den Empfänger), legt es die Nachricht per Graph direkt in den Posteingang
+— zuerst als MIME, dann als JSON-Nachbau. Danach folgte bisher ein PATCH, der
+sie als „nicht Entwurf“ markieren sollte. Der PATCH meldete Erfolg und wirkte
+nie: `isDraft` lässt sich nach dem Anlegen nicht mehr ändern (Graph v1.0,
+„Update message“), die Nachricht blieb ein Entwurf, und Outlook zeigte in einer
+empfangenen Mail einen Senden-Knopf.
+
+- **JSON-Nachbau:** Die Kennzeichnung als empfangene, ungelesene Nachricht
+  (`PR_MESSAGE_FLAGS`) geht jetzt beim Anlegen mit — nur so wirkt sie.
+- **MIME-Anlage:** bleibt ein Entwurf; beim MIME-Anlegen lässt sich die
+  Kennzeichnung nicht mitgeben. Der wirkungslose PATCH entfällt, und das
+  Protokoll sagt jetzt „als Entwurf“.
+
+Der Weg wird nur erreicht, wenn alle regulären Zustellwege scheitern; im Modus
+Graph++ stellt das Gateway eingehende Post per IMAP zu; der Rückfallweg greift
+dort nur für Empfänger, bei denen das scheitert.
+
+**Zu tun:** nichts — kommt mit dem nächsten Update.
+
 ## v1.12.10 — 2026-11-13 — dnspython 2.9.2; Reiter-Test misst den Platzbedarf
 
 - **dnspython 2.9.0 → 2.9.2** (GHSA-vvf4-9x63-8xvv, CVE-2026-128089, CVSS 7.5):

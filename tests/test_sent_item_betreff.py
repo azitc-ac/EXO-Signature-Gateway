@@ -13,6 +13,8 @@ import asyncio
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 
 import graph_client as gc
@@ -83,3 +85,19 @@ def test_verschluesselt_patcht_den_betreff_weiterhin(monkeypatch):
     items = [{"id": "ID1", "createdDateTime": "2026-01-01T00:00:00Z"}]
     _res, patches = _lauf(monkeypatch, items, subject="Geheim", replace_all=True)
     assert patches and patches[0].get("subject") == "Geheim"
+
+
+@pytest.mark.parametrize("art,erwartet", [("text", "text"), ("html", "html")])
+def test_rumpf_art_bestimmt_den_content_type(monkeypatch, art, erwartet):
+    """Nur-Text bleibt Nur-Text: bis v1.12.16 immer contentType html."""
+    items = [{"id": "ID1", "createdDateTime": "2026-01-01T00:00:00Z"}]
+    patches = []
+
+    async def _tok():
+        return "tok"
+    monkeypatch.setattr(gc, "_acquire_token_async", _tok)
+    import httpx
+    monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **k: _Client(patches, items))
+    asyncio.run(gc.cleanup_sent_items("a@f.de", "<mid@x>", "Hallo\n--\nSig",
+                                      subject="S", rumpf_art=art))
+    assert patches[0]["body"] == {"contentType": erwartet, "content": "Hallo\n--\nSig"}

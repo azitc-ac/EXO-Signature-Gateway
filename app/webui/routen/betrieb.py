@@ -92,14 +92,19 @@ def _sent_items_nach_freigabe_aufraeumen(sender: str, empfaenger: list[str],
         log.info("Freigabe: verschlüsselte Mail — gesendete Elemente bleiben unberührt")
         return
 
-    html = _mp.extract_html(msg)
-    if not html:
+    # Wie im Handler: Nur-Text bleibt Nur-Text (bis v1.12.16 ging eine
+    # freigegebene Nur-Text-Mail hier leer aus).
+    rumpf, art = _mp.extract_html(msg), "html"
+    if not rumpf:
+        rumpf, art = _mp.extract_text(msg), "text"
+    if not rumpf:
         return
     asyncio.create_task(_handler._cleanup_sent_item(
-        sender, mid, html,
+        sender, mid, rumpf,
         subject=msg.get("Subject", "") or "",
         to_recipients=list(empfaenger or []),
         replace_all=False,
+        rumpf_art=art,
     ))
 
 

@@ -103,6 +103,7 @@ SEITEN = [
     ("/settings/smime",      "adv-cb-smime"),
     ("/settings/signature",  "adv-cb-sig"),
     ("/settings/connect",    "adv-cb-digicert"),
+    ("/settings/routing",    "direkt-aktiv"),
     ("/advanced",            "acl-count"),
     ("/debug",               "acme-proxy-input"),
     ("/backup",              "backup-dl-btn"),

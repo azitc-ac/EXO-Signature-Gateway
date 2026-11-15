@@ -112,6 +112,7 @@ async def _cleanup_sent_item(
     sender: str, message_id: str, html_body: str,
     subject: str = "", to_recipients: list[str] | None = None,
     replace_all: bool = False, nur_duplikate: bool = False,
+    rumpf_art: str = "html",
 ) -> None:
     """Delete the original unsigned Sent Item; for encrypted mails replace all copies.
 
@@ -126,6 +127,7 @@ async def _cleanup_sent_item(
             sender, message_id, html_body,
             subject=subject, to_recipients=to_recipients or [],
             replace_all=replace_all, nur_duplikate=nur_duplikate,
+            rumpf_art=rumpf_art,
         )
         if result is None:           # permanent 4xx — no point retrying
             return
@@ -1561,6 +1563,12 @@ class SignatureHandler:
                 outbound = _smtp_bytes(msg)
                 log.info("HTML-Auto-Signatur unterdrückt für %s", sender)
             else:
+                # Eine Zeile je Signatur, in JEDEM Format. Bis v1.12.16 schrieb
+                # nur der HTML-Weg (in mail_processor) etwas — eine signierte
+                # Nur-Text-Mail hinterliess keine Spur, welche Vorlage griff.
+                log.info("SIGNATUR: Vorlage %r für %s (%s%s)", template_name, sender,
+                         msg.get_content_type(),
+                         f", Bearbeiter {_bearbeiter}" if _bearbeiter else "")
                 modified = mail_processor.inject(msg, sig_html, sig_txt,
                                                   use_cid_images=_use_cid, force=_force_sig)
                 outbound = _smtp_bytes(modified)
@@ -1803,19 +1811,20 @@ class SignatureHandler:
                 and (wants_encryption or settings_store.get("SENT_ITEMS_UPDATE"))
             )
             if _do_cleanup:
-                html = mail_processor.extract_html(modified)
-                if html is None and modified.get_content_type() == "text/plain":
-                    raw_bytes = modified.get_payload(decode=True) or b""
-                    txt = raw_bytes.decode(
-                        modified.get_content_charset() or "utf-8", errors="replace")
-                    html = (f"<html><body><pre>"
-                            f"{mail_processor._escape_html(txt)}</pre></body></html>")
-                if html:
+                # Nur-Text bleibt Nur-Text: Bis v1.12.16 wurde der Rumpf als
+                # <pre>-HTML eingesetzt, der Eintrag erschien danach als HTML.
+                # Auch Nur-Text MIT Anhang (multipart/mixed ohne HTML-Teil)
+                # bekam bis dahin gar keine Nachbesserung.
+                rumpf, art = mail_processor.extract_html(modified), "html"
+                if rumpf is None:
+                    rumpf, art = mail_processor.extract_text(modified), "text"
+                if rumpf:
                     asyncio.create_task(_cleanup_sent_item(
-                        sender, mid, html,
+                        sender, mid, rumpf,
                         subject=_sent_subject,
                         to_recipients=recipients,
                         replace_all=wants_encryption,
+                        rumpf_art=art,
                     ))
 
             return "250 OK"

@@ -19,15 +19,44 @@ WURZEL = Path(__file__).resolve().parent.parent
 SKRIPTE = WURZEL / "app" / "scripts"
 
 
+def _anweisungen(text: str) -> list[str]:
+    """PowerShell-Anweisungen ohne Kommentarzeilen, Backtick-Fortsetzungen
+    zusammengeführt. Bis v1.12.19 suchten die Tests im Rohtext — im
+    Aktualisieren-Zweig stand `-FromMemberOf @($dgName)` auch in einem
+    Kommentar, und der Test blieb grün, wenn die echte Codezeile fehlte."""
+    zeilen = [z for z in text.splitlines() if not z.lstrip().startswith("#")]
+    anweisungen, teil = [], ""
+    for z in zeilen:
+        roh = z.rstrip()
+        if roh.endswith("`"):
+            teil += roh[:-1] + " "
+            continue
+        anweisungen.append(" ".join((teil + roh).split()))
+        teil = ""
+    return [a for a in anweisungen if a]
+
+
+def _aufrufe(anweisungen: list[str], cmdlet: str) -> list[str]:
+    return [a for a in anweisungen if a.startswith(cmdlet + " ")]
+
+
+def _zweig(text: str, anfang: str, ende: str) -> list[str]:
+    """Anweisungen zwischen zwei Ankern — Anker im CODE gesucht, nicht im Kommentar."""
+    a = _anweisungen(text)
+    i = next(n for n, x in enumerate(a) if x.startswith(anfang))
+    j = next(n for n, x in enumerate(a) if n > i and x.startswith(ende))
+    return a[i:j]
+
+
 def test_connector_legt_regel_mit_gate_und_deaktiviert_an():
     """New-TransportRule muss das FromMemberOf-Gate als festen Bestandteil tragen
     UND die Regel deaktiviert anlegen (doppelt ausfallsicher)."""
     s = (SKRIPTE / "setup_exo_connector.ps1").read_text()
-    i = s.index("New-TransportRule")
-    j = s.index("Out-Null", i)
-    anlege_block = s[i:j]
-    assert "-FromMemberOf @($dgName)" in anlege_block, "DL-Gate fehlt bei der Anlage"
-    assert "-Enabled $false" in anlege_block, "Regel wird NICHT deaktiviert angelegt"
+    anlage = _aufrufe(_anweisungen(s), "New-TransportRule")
+    assert len(anlage) == 1, anlage
+    assert "-FromMemberOf @($dgName)" in anlage[0], "DL-Gate fehlt bei der Anlage"
+    assert "-Enabled $false" in anlage[0], "Regel wird NICHT deaktiviert angelegt"
+    assert "-SentTo" not in anlage[0], "empfängerbezogene Bedingung bifurkiert die interne Fork"
 
 
 def test_connector_legt_die_dg_vor_der_regel_an():
@@ -41,11 +70,12 @@ def test_connector_legt_die_dg_vor_der_regel_an():
 def test_connector_update_stellt_gate_wieder_her():
     """Der Aktualisieren-Zweig heilt ein abhandengekommenes Gate."""
     s = (SKRIPTE / "setup_exo_connector.ps1").read_text()
-    # Set-TransportRule im existingRule-Zweig setzt FromMemberOf.
-    i = s.index("if ($existingRule)")
-    j = s.index("} else {", i)
-    update_block = s[i:j]
-    assert "-FromMemberOf @($dgName)" in update_block
+    # Set-TransportRule im existingRule-Zweig setzt FromMemberOf — geprüft am
+    # AUFRUF, nicht am Block (dort steht derselbe Text im Kommentar).
+    zweig = _zweig(s, "if ($existingRule)", "} else {")
+    setzen = _aufrufe(zweig, "Set-TransportRule")
+    assert setzen, "kein Set-TransportRule im Aktualisieren-Zweig"
+    assert any("-FromMemberOf @($dgName)" in a for a in setzen), setzen
 
 
 def test_split_skript_haelt_dieselben_invarianten():
@@ -55,13 +85,12 @@ def test_split_skript_haelt_dieselben_invarianten():
     # Gate wird nie geleert.
     assert "-FromMemberOf $null" not in code
     # Gate immer auf die DG gesetzt; Aktivierung nach Mitgliederzahl.
-    assert "-FromMemberOf @($dgName)" in code            # in Set-RuleGate
+    assert any("-FromMemberOf @($dgName)" in a
+               for a in _aufrufe(_anweisungen(s), "Set-TransportRule"))   # in Set-RuleGate
     assert "Enable-TransportRule" in code
     assert "Disable-TransportRule" in code
     # Neue S/MIME-Regel: gegated + deaktiviert angelegt, keine Empfaengerbedingung.
-    i = code.index("New-TransportRule")
-    j = code.index("Out-Null", i)
-    anlage = code[i:j]
+    anlage = " ".join(_aufrufe(_anweisungen(s), "New-TransportRule"))
     assert "-FromMemberOf @($smimeDg)" in anlage
     assert "-Enabled $false" in anlage
     assert "-SentToScope" not in code
@@ -78,8 +107,9 @@ def test_dg_update_leert_das_gate_nie():
     code = "\n".join(z for z in s.splitlines() if not z.lstrip().startswith("#"))
     # Der fail-dangerous Fall darf im CODE nicht zurückkehren.
     assert "-FromMemberOf $null" not in code, "-FromMemberOf $null öffnet die Regel für ALLE"
-    # Das Gate wird immer auf die DG gesetzt.
-    assert "-FromMemberOf @($dgName)" in s
+    # Das Gate wird immer auf die DG gesetzt — am Aufruf geprüft, nicht im Text.
+    a = _anweisungen(s)
+    assert any("-FromMemberOf @($dgName)" in x for x in _aufrufe(a, "Set-TransportRule"))
     # Aktivieren nur mit Postfächern, sonst deaktivieren.
-    assert "Enable-TransportRule" in s
-    assert "Disable-TransportRule" in s
+    assert _aufrufe(a, "Enable-TransportRule")
+    assert _aufrufe(a, "Disable-TransportRule")

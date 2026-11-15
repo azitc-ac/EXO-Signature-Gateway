@@ -27,9 +27,10 @@ Verwechslung hat am 23.08.2026 eine ganze Fehlersuche in die Irre geführt.
 
 Warum 587 überhaupt: Graph sendMail verlangt Send-As-Rechte für die
 Absenderadresse. Für externe Absender (hotmail o.ä.) sind die nie zu
-erteilen. Und /mailFolders/inbox/messages erzeugt stets einen Entwurf
-(MSGFLAG_UNSENT, beim PATCH still zurückgesetzt) — Outlook zeigt dann einen
-Senden-Knopf in einer empfangenen Mail.
+erteilen. Und /mailFolders/inbox/messages erzeugt einen Entwurf
+(MSGFLAG_UNSENT; ein PATCH danach wirkt nicht) — Outlook zeigt dann einen
+Senden-Knopf in einer empfangenen Mail. Vermeidbar nur beim JSON-Anlegen mit
+PR_MESSAGE_FLAGS, siehe graph_reinject.deliver_to_mailbox.
 
 Auth: OAuth2 XOAUTH2 using the existing app credentials
   (scope: https://outlook.office365.com/.default).

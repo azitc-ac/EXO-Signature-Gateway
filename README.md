@@ -151,8 +151,8 @@ ein, und Exchange Online ist am Versand nicht beteiligt.
   `include`), DKIM-Eintrag, PTR und HELO-Name, DMARC-Richtlinie. Wo etwas
   fehlt, steht der passende Eintrag zum Kopieren daneben.
 - **Postfix erledigt den Zustellbetrieb:** MX mit Ausweichen, Warteschlange,
-  Wiederholung bis zu fünf Tage, Unzustellbarkeitsberichte. Die Relay-Seite
-  zeigt Zustellungen, Rückstellungen und die letzten Zustellprobleme.
+  Wiederholung bis zu fünf Tage, Unzustellbarkeitsberichte. *Einstellungen →
+  Mail-Routing* zeigt Zustellungen, Rückstellungen und die letzten Zustellprobleme.
 - **Was hinausgeht, bestimmst du:** alle externen Empfänger oder einzelne
   Domänen. Interne Post bleibt bei Exchange Online.
 

@@ -2611,6 +2611,13 @@
     "name": "settings_connect_page"
   },
   {
+    "pfad": "/settings/routing",
+    "methoden": [
+      "GET"
+    ],
+    "name": "settings_routing_page"
+  },
+  {
     "pfad": "/settings/signature",
     "methoden": [
       "GET"

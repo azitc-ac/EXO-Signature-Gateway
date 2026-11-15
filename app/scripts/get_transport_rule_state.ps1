@@ -1,5 +1,5 @@
 # get_transport_rule_state.ps1
-# READ-ONLY: reports whether a transport rule is Enabled/Disabled.
+# READ-ONLY: reports State, SentToScope and FromMemberOf of a transport rule.
 # Used by the bypass watchdog banner (independent of the external watchdog).
 # Parameters are passed via -File (no string interpolation). Output: one JSON line.
 param(
@@ -27,7 +27,11 @@ try {
     # SentToScope: leer = keine Empfängerbedingung (Soll). Alt-Installationen
     # tragen mitunter noch NotInOrganization — dann erreicht interne Post das
     # Gateway nie (regel_bedingung.py).
-    Write-Output (@{ ok = $true; state = [string]$r.State; sent_to_scope = [string]$r.SentToScope } | ConvertTo-Json -Compress)
+    # FromMemberOf: das Absender-Gate. Leer bei aktiver Regel = jeder interne
+    # Absender läuft durchs Gateway (Vorfall 04.09., regel_soll.gate_offen).
+    # @(...) hält auch ein einzelnes Element als Liste.
+    $gate = @($r.FromMemberOf | ForEach-Object { [string]$_ })
+    Write-Output (@{ ok = $true; state = [string]$r.State; sent_to_scope = [string]$r.SentToScope; from_member_of = $gate } | ConvertTo-Json -Compress)
 } catch {
     Write-Output (@{ ok = $false; error = "rule: $($_.Exception.Message)" } | ConvertTo-Json -Compress)
 } finally {

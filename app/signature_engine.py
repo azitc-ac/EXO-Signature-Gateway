@@ -120,7 +120,19 @@ def _kontext(user: UserData, extra: dict | None) -> dict:
         # Inhaber selbst (handler/Add-in reichen sie über `extra` herein).
         "bearbeiter": user,
         **(extra or {}),
+        # Baukasten-Bedingung „nur wenn jemand für das Postfach schreibt“
+        # (template_builder.BEDINGUNGEN): eine andere Person als der Inhaber.
+        # Bei „Senden als“ ohne Add-in kennt das Gateway sie nicht — dann ist
+        # `bearbeiter` der Inhaber selbst und das Merkmal falsch.
+        "fuer_postfach": _fuer_postfach(user, (extra or {}).get("bearbeiter", user)),
     }
+
+
+def _fuer_postfach(user, bearbeiter) -> bool:
+    if bearbeiter is None or bearbeiter is user:
+        return False
+    return (getattr(bearbeiter, "mail", "") or "").strip().lower() != \
+        (getattr(user, "mail", "") or "").strip().lower()
 
 
 def render_fehler(user: UserData, template_name: str | None = None,
