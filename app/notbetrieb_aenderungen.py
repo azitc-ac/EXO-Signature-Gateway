@@ -248,6 +248,8 @@ def _eine_mail(client: httpx.Client, hdr: dict, pf: str, gid: str, liste: list) 
     verworfen = 0
     for a in liste:
         if a["art"] == GELESEN:
+            if isinstance(exo_gelesen, bool) and exo_gelesen == (a["wert"] == "1"):
+                continue                              # steht schon so da (auch: beide Seiten gleich geändert)
             if a["vorher"] is not None and isinstance(exo_gelesen, bool) and exo_gelesen != (a["vorher"] == "1"):
                 # Exchange steht nicht mehr auf dem Stand vor der lokalen
                 # Änderung: dort wurde geändert, Exchange gilt.
@@ -271,7 +273,8 @@ def _eine_mail(client: httpx.Client, hdr: dict, pf: str, gid: str, liste: list) 
             neu = r.json().get("id") or ""
             if neu and neu != ziel:
                 _neue_kennung(pf, zeile, neu)
-    return "verworfen" if verworfen == len(liste) else "geschrieben"
+    # Verworfen heisst: eine lokale Absicht ging verloren — nicht „war schon so“.
+    return "verworfen" if verworfen and verworfen == len(liste) else "geschrieben"
 
 
 def _neue_kennung(pf: str, zeile, neu: str) -> None:

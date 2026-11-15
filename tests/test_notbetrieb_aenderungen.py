@@ -152,6 +152,15 @@ def test_gelesen_ohne_aenderung_in_exchange_wird_geschrieben(ex):
     assert na.zurueckschreiben()["geschrieben"] == 1 and ex.mails["g1"]["isRead"] is True
 
 
+def test_beide_seiten_gleich_geaendert_ist_nicht_verworfen(ex):
+    _zeile()
+    ex.mails["g1"] = {"geaendert": _vorher(), "isRead": False}
+    na.merken(PF, PF, "g1", na.GELESEN, "1")
+    ex.mails["g1"]["isRead"] = True                                  # in Outlook ebenfalls gelesen
+    z = na.zurueckschreiben()
+    assert z["verworfen"] == 0 and z["geschrieben"] == 1 and not any(a[0] == "PATCH" for a in ex.aufrufe)
+
+
 def test_bestandszeile_ohne_vorher_wird_geschrieben(ex):
     _zeile()
     ex.mails["g1"] = {"geaendert": _vorher(), "isRead": True}
