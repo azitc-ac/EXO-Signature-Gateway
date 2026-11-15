@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 import gruppen
+import aussenadresse
 import notbetrieb
 import notbetrieb_eingang
 import notbetrieb_anmeldung
@@ -37,6 +38,8 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "aktiv": notbetrieb.funktion_aktiv(),
             "ausgerufen": notbetrieb.ausgerufen(),
             "probegruppe": settings_store.get("NOTBETRIEB_PROBEGRUPPE") or [],
+            "imap": settings_store.get("NOTBETRIEB_IMAP") is True,
+            "imap_host": aussenadresse.ehlo_hostname() or "",
             "eingang": {"greylist": notbetrieb_eingang.greylisting_an(), "max_empf": notbetrieb_eingang.max_empfaenger(),
                         "max_mb": notbetrieb_eingang.max_bytes() // (1024 * 1024),
                         "je_stunde": notbetrieb_eingang.je_stunde()},

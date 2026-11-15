@@ -251,6 +251,28 @@
   </div>
 </div>
 
+<!-- Mailprogramme -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Zugang für Mailprogramme (IMAP)</h2>
+  <p class="hint" style="margin-top:0">
+    Outlook (als zusätzliches Konto) und Mail-Apps auf dem Handy lesen die Kopie per IMAP — nur lesend;
+    gesendet wird über das Notfall-Webmail. Vor dem Notfall zeigt das Konto einen leeren Posteingang
+    (außer für die Probegruppe), es kann also vorab auf allen Geräten eingerichtet werden.
+  </p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-imap" {% if imap %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
+             onchange="nbImap(this)"> IMAP-Zugang einschalten
+    </label>
+  </div>
+  <div class="msg" id="nb-imap-msg" hidden></div>
+  <p class="hint" style="margin:6px 0 0">
+    Kontodaten: Server <code>{{ imap_host or 'Hostname dieses Gateways' }}</code>, Port <code>993</code>,
+    SSL/TLS, Benutzername und Kennwort wie bei der Windows-Anmeldung. Die Firewall muss Port 993 zum Gateway
+    durchlassen.
+  </p>
+</div>
+
 <!-- Anmeldung -->
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Anmeldung im Notbetrieb</h2>
@@ -504,6 +526,11 @@ async function nbZugriff() {
 async function nbProbeSpeichern() {
   const liste = feldWert('nb-probegruppe').split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(x => x.includes('@'));
   wacheFertig('nb-probe-btn', await savePartial({NOTBETRIEB_PROBEGRUPPE: liste}, 'nb-probe-result'));
+}
+
+// Reiner Schalter → speichert sofort (Speichern-Linie Regel 4).
+async function nbImap(el) {
+  if (!await savePartial({NOTBETRIEB_IMAP: el.checked}, 'nb-imap-msg')) el.checked = !el.checked;
 }
 
 async function nbEingangSpeichern() {

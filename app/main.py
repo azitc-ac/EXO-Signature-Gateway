@@ -811,10 +811,21 @@ async def _run_smtp() -> None:
     else:
         log.info("Submission listener NOT started — kein TLS-Zertifikat "
                  "(Port %d bleibt zu)", config.SUBMISSION_PORT)
+    # Notbetrieb: IMAP-Zugang zur Kopie. Gebunden, sobald TLS da ist; ob er
+    # Verbindungen annimmt, entscheidet NOTBETRIEB_IMAP je Verbindung (live
+    # umschaltbar, wie SUBMISSION_ENABLED).
+    imap_server = None
+    try:
+        import notbetrieb_imap
+        imap_server = await notbetrieb_imap.starten(tls_ctx, config.NOTBETRIEB_IMAP_PORT)
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("Notbetrieb-IMAP nicht gestartet: %s", exc)
     try:
         while True:
             await asyncio.sleep(3600)
     finally:
+        if imap_server is not None:
+            imap_server.close()
         controller.stop()
         if sub_controller is not None:
             sub_controller.stop()
