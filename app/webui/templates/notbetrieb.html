@@ -278,7 +278,8 @@
     Kontodaten: Server <code>{{ imap_host or 'Hostname dieses Gateways' }}</code>, eingehend IMAP Port
     <code>993</code> (SSL/TLS), ausgehend SMTP Port <code>587</code> (STARTTLS, Anmeldung erforderlich),
     Benutzername und Kennwort wie bei der Windows-Anmeldung. Die Firewall muss beide Ports zum Gateway
-    durchlassen. Gesendet wird aus dem eigenen Postfach oder einem mit „Senden als“/„Senden im Auftrag“;
+    durchlassen. Als Server immer den Namen eintragen, nie die IP-Adresse: Er muss zum Zertifikat passen,
+    sonst lehnt das Programm die Verbindung ab — Outlook bricht das Senden dann womöglich ohne Rückfrage ab. Gesendet wird aus dem eigenen Postfach oder einem mit „Senden als“/„Senden im Auftrag“;
     die Kopie unter „Gesendete Elemente“ legt das Gateway selbst ab.
   </p>
 </div>
