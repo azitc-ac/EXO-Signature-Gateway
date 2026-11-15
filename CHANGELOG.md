@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.25 — 2026-11-15 — Oberfläche: Erweitert nach Zweck gegliedert, Texte ohne Entstehungsgeschichte
+
+**Einstellungen → Erweitert** ist in fünf Abschnitte gegliedert statt in der
+Reihenfolge, in der die Karten entstanden sind: *Betrieb & Ausfallsicherheit*,
+*Zustellwege (Feinheiten)*, *Sicherheit am Eingang*, *Kompatibilität mit
+Absender-Programmen* und *Diagnose & Support*. Alle Schalter, Felder und Sprungziele
+(etwa `/advanced#maintenance`, `#watchdog`, `#quell-ip`) bleiben gleich. Die
+Lexware-Korrektur heißt jetzt „Rechnungsmails aus Lexware lesbar machen“ und steht
+unter Kompatibilität.
+
+Mehrere Erklärtexte beschreiben jetzt, was eine Einstellung tut, statt wie sie
+entstanden ist: keine Versionshinweise („Verhalten vor v…“, „wie bisher“), keine
+Testnotizen beim Add-in, keine Fallbeispiele einzelner Zertifizierungsstellen.
+Betroffen sind Erweitert, Einrichtung (Add-in), Debug, S/MIME, Übersicht und Backup.
+Die Überschrift der Aufrufzählung auf der Übersicht heißt „Cloud-Aufrufe (Microsoft
+Graph, Azure Key Vault)“, weil sie beides zählt. Der Proxy auf der Debug-Seite heißt
+„Proxy für die Zertifizierungsstelle (ACME)“; er gilt für alle ACME-Aufrufe. Das
+Exchange-Kopfzeilen-Labor auf der Debug-Seite ist eingeklappt.
+
+**Zu tun:** nichts.
+
 ## v1.12.24 — 2026-11-15 — Port 587 mit Outlook Classic: kein Hängen nach STARTTLS, übliche Anmelde-Rückfragen, Meldungen ohne Zeichensalat
 
 Drei Korrekturen am Submission-Listener (Port 587), alle mit Outlook Classic

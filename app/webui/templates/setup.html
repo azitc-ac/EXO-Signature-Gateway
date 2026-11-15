@@ -2317,7 +2317,7 @@ async function saveKeyvault() {
         </label>
       </div>
       <p class="hint" style="margin:0 0 8px">Auf dem Handy erscheint die Zeile immer. Am PC nennt sie zusätzlich den Anlass
-        (Empfänger oder Absender geändert) — hilfreich beim Testen. Wirkt ohne Änderung am Manifest — im Web und im neuen Outlook ab der nächsten neuen Mail, im klassischen Outlook nach einem Neustart (es lädt die Laufzeit nur beim Start).</p>
+        (Empfänger oder Absender geändert). Wirkt ohne Änderung am Manifest — im Web und im neuen Outlook ab der nächsten neuen Mail, im klassischen Outlook nach einem Neustart (es lädt die Laufzeit nur beim Start).</p>
       <p class="hint" style="line-height:1.7;margin:0 0 8px">
         <strong>Voraussetzung:</strong> Das Add-in meldet sich ohne Fenster an (NAA, Nested App Authentication).
         Dafür braucht die Bootstrap-App eine SPA-Adresse <code>brk-multihub://…</code> und den Bereich
@@ -2338,10 +2338,10 @@ async function saveKeyvault() {
             Administrator so bereitstellt — nicht für eine Installation durch den Nutzer.</li>
           <li>Wie beim Knopf nennt Microsoft <strong>24 bis 72 Stunden</strong>. <code>Get-App</code> meldet
             dieses Add-in mitunter noch als unbekannt, wenn es schon einfügt. Eine schon offene
-            Outlook-Sitzung (vor allem im Web) bemerkt die Bereitstellung nicht — zum Testen ab- und neu
-            anmelden. Nachweis ist die Zeile <code>Verfassen-Add-in: Signatur … geliefert</code> im Protokoll.
-            Steht darin <code>Ereignis: Empfänger geändert</code> oder <code>Absender geändert</code>, hat
-            Outlook das Manifest ab v1.11.56 geladen — die ältere Fassung kennt nur <code>Start</code>.</li>
+            Outlook-Sitzung (vor allem im Web) bemerkt die Bereitstellung erst nach erneuter
+            Anmeldung. Nachweis ist die Zeile <code>Verfassen-Add-in: Signatur … geliefert</code> im Protokoll.
+            Steht darin <code>Ereignis: Empfänger geändert</code> oder <code>Absender geändert</code>, ist
+            die aktuelle Fassung des Add-ins geladen; eine ältere meldet nur <code>Start</code>.</li>
           <li>Steigt die Fassung: Add-in in <strong>Integrierte Apps</strong> auswählen → <strong>Aktualisieren</strong>
             und der Abfrage zustimmen.</li>
         </ol>
@@ -2403,7 +2403,7 @@ async function saveKeyvault() {
               → <strong>Einstellungen → Integrierte Apps</strong> → <strong>Apps hochladen</strong> → das .zip wählen</li>
             <li>Zuweisen: <strong>Alle Benutzer</strong> (empfohlen) und bereitstellen</li>
             <li>Wie beim Add-in: Microsoft nennt <strong>24 bis 72 Stunden</strong>, bis die App erscheint.
-              Eine schon offene Outlook-Sitzung bemerkt das nicht — zum Testen ab- und neu anmelden.</li>
+              Eine schon offene Outlook-Sitzung bemerkt das erst nach erneuter Anmeldung.</li>
             <li>Hochgeladen wird eine Datei, keine Adresse — eine neue Fassung erscheint hier mit höherer
               Versionsnummer im Dateinamen und muss erneut hochgeladen werden.</li>
             <li>Nutzer finden die App in Outlook unter <strong>Weitere Apps → Apps hinzufügen → Für Ihre
@@ -2417,7 +2417,7 @@ async function saveKeyvault() {
             Nur nötig, wenn nach dem Hochladen noch die alte Fassung erscheint:
             <a href="https://admin.teams.microsoft.com" target="_blank" style="color:#0078d4">admin.teams.microsoft.com</a>
             → <strong>Teams-Apps → Apps verwalten</strong> → die App öffnen → <strong>Neue Version hochladen</strong>.
-            Der Store in Outlook folgt dem Teams-Katalog mit Verzögerung (gemessen rund eine halbe Stunde).
+            Der Store in Outlook folgt dem Teams-Katalog mit Verzögerung; das kann bis zu einer Stunde dauern.
           </p>
           <p class="hint" style="line-height:1.7;margin:8px 0 0">
             <strong>In Teams für alle anheften:</strong> <strong>Teams-Apps → Einrichtungsrichtlinien</strong>

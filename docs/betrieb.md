@@ -348,7 +348,7 @@ bildet `443 → 8080` ab. Alle Einstellungen werden in der Oberfläche gepflegt
 | **Log** | Live-Ansicht der Gateway-Logs |
 | **Add-in** | Office-Add-in für Outlook (Signatur-Vorschau und -Auswahl im Verfassenfenster, Self-Service beim Lesen) und App-Paket für die linke Leiste von Outlook und Teams |
 | **Setup** | Erstkonfigurationsassistent (App-Registrierung, Connector, IMAP-Zugriff, Anmeldung prüfen) |
-| **Debug** | ACME-Versandmethode, Account-Key-Reset, Exchange Header Observatory |
+| **Debug** | ACME-Versandmethode, Account-Key-Reset, Labor „Was Exchange an ausgehenden Mails ändert“ |
 
 Die Oberfläche folgt der Systemeinstellung für **hellen und dunklen Modus** und ist auf Telefonbreite (ab 320 px) bedienbar.
 

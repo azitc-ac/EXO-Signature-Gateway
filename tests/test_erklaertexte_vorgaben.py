@@ -74,7 +74,7 @@ ZUSAGEN = [
     ("settings_smime.html", "SECURE_PORTAL_RETENTION_DAYS",
      "Standard: 14", 14),
     ("settings_smime.html", "SECURE_PORTAL_ENABLED",
-     "Standard: aus — dann wird wie bisher ein Unzustellbarkeitsbericht", False),
+     "Standard: aus — dann bekommt der Absender einen Unzustellbarkeitsbericht", False),
     # Auswahlfelder: die als „Standard" ausgezeichnete Option muss die sein,
     # die DEFAULTS liefert — sonst zeigt die Oberflaeche beim ersten Aufruf
     # etwas anderes an, als daneben behauptet wird.
