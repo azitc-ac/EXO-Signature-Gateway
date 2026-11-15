@@ -68,12 +68,12 @@ def _ps_script(app_id: str, org: str) -> str:
         "  return ,$res",
         "}",
         "$mbx = @(Get-EXOMailbox -RecipientTypeDetails UserMailbox,SharedMailbox -ResultSize Unlimited"
-        " -Properties GrantSendOnBehalfTo)",
+        " -Properties GrantSendOnBehalfTo,HiddenFromAddressListsEnabled)",
         "$konten = @(); $rechte = @(); $offen = 0",
         "foreach ($m in $mbx) {",
         "  $pf = \"$($m.PrimarySmtpAddress)\".ToLower()",
         "  $konten += [pscustomobject]@{ primary = $pf; upn = \"$($m.UserPrincipalName)\".ToLower();"
-        " typ = \"$($m.RecipientTypeDetails)\" }",
+        " typ = \"$($m.RecipientTypeDetails)\"; versteckt = [bool]$m.HiddenFromAddressListsEnabled }",
         "  foreach ($p in @(Get-EXOMailboxPermission -Identity $m.UserPrincipalName -ErrorAction SilentlyContinue)) {",
         "    if ($p.IsInherited -or $p.Deny -or -not ($p.AccessRights -contains 'FullAccess')) { continue }",
         "    if (\"$($p.User)\" -like 'NT AUTHORITY*' -or \"$($p.User)\" -like 'S-1-5-*') { continue }",
@@ -125,7 +125,9 @@ def parse(roh: str) -> dict | None:
         primary = str(k.get("primary") or "").strip().lower()
         if "@" in primary:
             konten[primary] = {"primary": primary, "upn": str(k.get("upn") or "").strip().lower(),
-                               "typ": str(k.get("typ") or "")}
+                               "typ": str(k.get("typ") or ""),
+                               # In Adresslisten ausgeblendet: erreichbar, aber nicht vorgeschlagen.
+                               "versteckt": k.get("versteckt") is True}
     rechte = set()
     for r in _liste(daten.get("rechte")):
         if not isinstance(r, dict):
@@ -179,8 +181,9 @@ def speichern(abbild: dict, ts: str | None = None) -> None:
     with notbetrieb._lock, notbetrieb._conn() as conn:
         conn.execute("DELETE FROM konten")
         conn.execute("DELETE FROM rechte")
-        conn.executemany("INSERT INTO konten (primary_adr, upn, typ) VALUES (?,?,?)",
-                         [(k["primary"], k["upn"], k["typ"]) for k in abbild["konten"]])
+        conn.executemany("INSERT INTO konten (primary_adr, upn, typ, versteckt) VALUES (?,?,?,?)",
+                         [(k["primary"], k["upn"], k["typ"], 1 if k.get("versteckt") else 0)
+                          for k in abbild["konten"]])
         conn.executemany("INSERT INTO rechte (postfach, nutzer, recht) VALUES (?,?,?)", abbild["rechte"])
         conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('rechte_stand', ?)",
                      (json.dumps({"ts": ts, "konten": len(abbild["konten"]), "rechte": len(abbild["rechte"]),

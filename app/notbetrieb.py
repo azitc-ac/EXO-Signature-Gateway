@@ -345,6 +345,8 @@ def _conn() -> sqlite3.Connection:
             conn.execute(f"ALTER TABLE mails ADD COLUMN {spalte}")
     if "wk" not in {z[1] for z in conn.execute("PRAGMA table_info(ordner)")}:
         conn.execute("ALTER TABLE ordner ADD COLUMN wk TEXT")
+    if "versteckt" not in {z[1] for z in conn.execute("PRAGMA table_info(konten)")}:
+        conn.execute("ALTER TABLE konten ADD COLUMN versteckt INTEGER NOT NULL DEFAULT 0")
     return conn
 
 

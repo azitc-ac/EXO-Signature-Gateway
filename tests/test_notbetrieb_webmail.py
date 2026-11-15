@@ -1044,3 +1044,31 @@ def test_handy_eingabefelder_16px_gegen_zoom(schatten):
     block = html[html.index("@media (max-width: 800px)"):]
     block = block[:block.index("\n}\n")]
     assert re.search(r"input, select, textarea \{ font-size: 16px; \}", block), block[:400]
+
+
+def test_ausgeblendete_postfaecher_nicht_vorgeschlagen_aber_erreichbar(client, schatten):
+    """HiddenFromAddressListsEnabled (live exohv: 1 von 3 geteilten Postfächern)
+    — Outlook schlägt sie nicht vor; das Webmail bis dahin schon."""
+    import notbetrieb_rechte
+    abbild = notbetrieb_rechte.parse(json.dumps({
+        "konten": [{"primary": "a@firma.at", "upn": "a@firma.at", "typ": "UserMailbox"},
+                   {"primary": "geheim@firma.at", "upn": "geheim@firma.at", "typ": "SharedMailbox", "versteckt": True},
+                   {"primary": "gesehen@firma.at", "upn": "gesehen@firma.at", "typ": "SharedMailbox", "versteckt": False}],
+        "rechte": [{"postfach": "geheim@firma.at", "nutzer": "a@firma.at", "recht": "voll"}]}))
+    assert {k["primary"]: k["versteckt"] for k in abbild["konten"]}["geheim@firma.at"] is True
+    notbetrieb_rechte.speichern(abbild)
+    with notbetrieb._conn() as conn:
+        conn.execute("INSERT INTO profile (adresse, daten) VALUES (?,?)",
+                     ("geheim@firma.at", json.dumps({"displayName": "Geheim Team", "mail": "geheim@firma.at"})))
+    gefunden = {t["adresse"] for t in pim.adressen_suchen("a@firma.at", "ge")}
+    assert "gesehen@firma.at" in gefunden and "geheim@firma.at" not in gefunden
+    _anmelden(client)
+    assert "geheim@firma.at" not in {t["adresse"] for t in client.get("/notfall/api/adressbuch").json()["treffer"]}
+    # Erreichbar bleibt es: Zugriff und Postfachliste unverändert.
+    assert "geheim@firma.at" in notbetrieb_rechte.alle_postfaecher()
+    assert any(p["postfach"] == "geheim@firma.at" for p in notbetrieb_rechte.zugriff("a@firma.at"))
+
+
+def test_bestandsdatenbank_bekommt_spalte_versteckt(schatten):
+    with notbetrieb._conn() as conn:
+        assert "versteckt" in {z[1] for z in conn.execute("PRAGMA table_info(konten)")}

@@ -202,12 +202,17 @@ def adressen_suchen(benutzer: str, text: str, mindestens: int = 2, hoechstens: i
             nehmen(k["name"], m, "kontakt")
     with notbetrieb._lock, notbetrieb._conn() as conn:
         profile = conn.execute("SELECT DISTINCT daten FROM profile").fetchall()
-        konten = conn.execute("SELECT primary_adr, typ FROM konten").fetchall()
+        konten = conn.execute("SELECT primary_adr, versteckt FROM konten").fetchall()
+    # In Adresslisten ausgeblendete Postfächer schlägt auch Outlook nicht vor —
+    # sie bleiben erreichbar, wer die Adresse kennt, tippt sie aus.
+    versteckt = {z["primary_adr"] for z in konten if z["versteckt"]}
     for z in profile:
         p = json.loads(z["daten"])
-        nehmen(p.get("displayName"), p.get("mail"), "gal")
+        if str(p.get("mail") or "").lower() not in versteckt:
+            nehmen(p.get("displayName"), p.get("mail"), "gal")
     for z in konten:
-        nehmen("", z["primary_adr"], "gal")
+        if not z["versteckt"]:
+            nehmen("", z["primary_adr"], "gal")
     # Treffer am Anfang von Name oder Adresse zuerst.
     return sorted(treffer.values(), key=lambda x: (not (x["adresse"].lower().startswith(t)
                                                         or x["name"].lower().startswith(t)),

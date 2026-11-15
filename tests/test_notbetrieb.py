@@ -692,6 +692,9 @@ def test_rechte_skript_filtert_geerbte_und_systemkonten():
     ps = notbetrieb_rechte._ps_script("app", "org.onmicrosoft.com")
     assert "$p.IsInherited -or $p.Deny" in ps and "NT AUTHORITY*" in ps
     assert "GrantSendOnBehalfTo" in ps and "Get-EXORecipientPermission" in ps
+    # Ausgeblendete Postfächer: Eigenschaft anfordern UND ausgeben (sonst fehlt sie still).
+    assert "-Properties GrantSendOnBehalfTo,HiddenFromAddressListsEnabled" in ps
+    assert "versteckt = [bool]$m.HiddenFromAddressListsEnabled" in ps
 
 
 # ── Anmeldung im Notbetrieb (LDAP) ──────────────────────────────────────────
