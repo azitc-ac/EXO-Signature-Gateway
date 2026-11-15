@@ -156,6 +156,27 @@ def _mailprogramme() -> dict:
     return _p("Mailprogramme", abnahme.OK, ", ".join(an) + " — Firewall muss die Ports durchlassen.")
 
 
+def _rueckweg(st: dict) -> dict:
+    """Dauerbetrieb: Läuft der Weg zurück nach Exchange? Derselbe Code wie
+    nach einer Störung — steht er, fiele es erst im Ernstfall auf."""
+    import abnahme
+    import notbetrieb
+    import notbetrieb_aenderungen
+    import settings_store
+    if not (notbetrieb.lesen_alle() and settings_store.get("NOTBETRIEB_SENDEN_ALLE") is True):
+        return _p("Rückweg nach Exchange", abnahme.ENTFAELLT, "Webmail im Normalbetrieb nicht zum Senden frei.")
+    if st.get("ausgerufen"):
+        return _p("Rückweg nach Exchange", abnahme.ENTFAELLT, "Notfall ausgerufen — der Rückweg ruht bis danach.")
+    aend = notbetrieb_aenderungen.offen()
+    stau = int(st.get("lokal_stau", 0) or 0)
+    befund = (f"{stau} Mails länger als {notbetrieb.STAU_MIN} min nicht zurückgespielt, "
+              f"{aend['offen']} Änderungen wartend ({aend['mit_fehler']} mit Fehler)")
+    if stau or aend["mit_fehler"]:
+        return _p("Rückweg nach Exchange", abnahme.OFFEN, befund + ".",
+                  "Protokoll nach „Rückspielen“ / „Änderung … nicht zurückgeschrieben“ durchsehen.")
+    return _p("Rückweg nach Exchange", abnahme.OK, befund + ".")
+
+
 def pruefen(mit_netz: bool = True) -> dict:
     """{punkte, bereit}. `mit_netz=False` nur lokale Prüfungen (Abnahme-Übersicht)."""
     import abnahme
@@ -163,7 +184,7 @@ def pruefen(mit_netz: bool = True) -> dict:
     st = notbetrieb.status()
     punkte = []
     for f in (lambda: _kopie(st), _abbild, lambda: _profile(st), lambda: _anmeldung(mit_netz), _versand,
-              _kontakte, _zweitfaktor, _mailprogramme, abnahme._tls):
+              _kontakte, _zweitfaktor, _mailprogramme, lambda: _rueckweg(st), abnahme._tls):
         try:
             punkte.append(f())
         except Exception as exc:                                    # noqa: BLE001

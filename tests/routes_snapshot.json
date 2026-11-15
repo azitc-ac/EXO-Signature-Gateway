@@ -2485,6 +2485,13 @@
     "name": "notfall_senden"
   },
   {
+    "pfad": "/notfall/api/verschieben",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_verschieben"
+  },
+  {
     "pfad": "/notfall/api/vorlage",
     "methoden": [
       "GET"

@@ -492,6 +492,7 @@ async function ordnerLaden() {
   const d = await getJSON('/notfall/api/ordner?' + q({postfach: nb.postfach}));
   const el = document.getElementById('ordner');
   if (!d.ok) { el.textContent = errText(d); return null; }
+  nb.ordnerliste = d.ordner;
   // Unterordner einrücken: Tiefe aus der Elternkette.
   const nachId = Object.fromEntries(d.ordner.map(o => [o.id, o]));
   const t = o => { let n = 0, e = o.eltern; while (nachId[e] && n < 8) { n++; e = nachId[e].eltern; } return n; };
@@ -696,7 +697,11 @@ async function mailOeffnen(id) {
         + '&nr=' + a.nr + '">📎 ' + esc(a.name) + ' (' + Math.max(1, Math.round(a.groesse / 1024)) + ' KB)</a>').join('') + '</div>' : '')
     + (nb.senden ? '<div class="aktionen"><button onclick="verfassen(\'antwort\')">Antworten</button>'
       + '<button onclick="verfassen(\'allen\')">Allen antworten</button>'
-      + '<button onclick="verfassen(\'weiterleiten\')">Weiterleiten</button></div>' : '')
+      + '<button onclick="verfassen(\'weiterleiten\')">Weiterleiten</button>'
+      + '<button onclick="mailVerschieben(\'deleteditems\', this)">Löschen</button>'
+      + '<select aria-label="Verschieben nach" onchange="if (this.value) mailVerschieben(this.value, this)">'
+      + '<option value="">Verschieben nach…</option>' + (nb.ordnerliste || []).filter(o => o.id !== nb.ordner)
+        .map(o => '<option value="' + escAttr(o.id) + '">' + esc(o.name) + '</option>').join('') + '</select></div>' : '')
     + '</div>'
     + (d.html
        // sandbox ohne Rechte: kein Skript, kein Formular, kein Zugriff auf diese Seite.
@@ -714,6 +719,20 @@ window.addEventListener('resize', kopfhoeheMerken);
 kopfhoeheMerken();
 
 // ── Verfassen ────────────────────────────────────────────────────────────
+// Löschen = nach „Gelöschte Elemente“. Wirkt sofort in der Kopie; nach
+// Exchange schreibt das Gateway es im Hintergrund zurück.
+async function mailVerschieben(ziel, el) {
+  // Eine Auswahlliste ist kein Knopf — knopfAktion ersetzte ihren Inhalt.
+  const d = await knopfAktion(el.tagName === 'SELECT' ? null : el, 'Verschiebe…', () =>
+    postJSON('/notfall/api/verschieben', {postfach: nb.postfach, id: nb.mail, ziel: ziel}));
+  if (!d.ok) { alert(errText(d)); return; }
+  document.getElementById('lesen').innerHTML = '<p class="leise" style="padding:18px">'
+    + (ziel === 'deleteditems' ? 'Gelöscht.' : 'Verschoben.') + '</p>';
+  ansicht('liste');
+  await ordnerLaden();
+  listeLaden(0);
+}
+
 // art: '' (neu) | 'antwort' | 'allen' | 'weiterleiten' (bezieht sich auf nb.mail)
 async function verfassen(art, entwurf) {
   let v = {an: '', cc: '', bcc: '', betreff: '', text: ''};

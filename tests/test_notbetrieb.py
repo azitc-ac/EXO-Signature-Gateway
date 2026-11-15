@@ -1011,11 +1011,56 @@ def test_tagesbericht_kopie_zeile_immer_und_alter_warnt(nb, graph):
     assert "Abgleich vor 0.0 h" in zeilen and "#e67e22" not in zeilen
     nb["_NOTBETRIEB_LAST"]["ts"] = _iso(JETZT - timedelta(hours=3))
     assert "#e67e22" in "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
-    # Offene lokale Post und Notfall-Eingang erscheinen, sobald es sie gibt.
+    # Im Notfall: offene lokale Post und Notfall-Eingang erscheinen, sobald es sie gibt.
+    nb["NOTBETRIEB_AUSGERUFEN"] = True
     notbetrieb.lokal_ablegen("a@firma.at", "inbox", MIME)
     tage.update(notfall_angenommen=2, notfall_unecht=1)
     zeilen = "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
     assert "nicht zurückgespielt" in zeilen and "2 angenommen" in zeilen and "1 gefälscht" in zeilen
+
+
+def test_tagesbericht_rueckweg_immer_im_dauerbetrieb_und_rot_bei_stau(nb, monkeypatch):
+    """Dauerbetrieb: Die Zeile steht immer (die Null ist die Meldung), mit
+    Bezugsgröße; Stau oder Fehler färben sie rot."""
+    import notbetrieb_aenderungen
+    import notification
+    tage = {}
+    zeilen = "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
+    assert "Rückweg nach Exchange" not in zeilen                    # Dauerbetrieb aus
+    nb["NOTBETRIEB_LESEN_ALLE"] = nb["NOTBETRIEB_SENDEN_ALLE"] = True
+    zeilen = "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
+    assert "Rückweg nach Exchange" in zeilen and "0 über Exchange gesendet" in zeilen and "#e74c3c" not in zeilen
+    # Junge lokale Post ist kein Stau …
+    notbetrieb.lokal_ablegen("a@firma.at", "sentitems", MIME)
+    assert "#e74c3c" not in "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
+    # … alte schon.
+    notbetrieb.lokal_ablegen("a@firma.at", "sentitems", MIME.replace(b"<m1@", b"<m2@"),
+                             empfangen=JETZT - timedelta(hours=2))
+    zeilen = "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
+    assert "wartend: 1 Mails" in zeilen and "#e74c3c" in zeilen
+    assert "nicht zurückgespielt" not in zeilen                     # die Notfall-Zeile gilt nur im Notfall
+    # Fehler aus dem Tag färben ebenfalls.
+    with notbetrieb._conn() as conn:
+        conn.execute("UPDATE mails SET zurueck='eingespielt x'")
+    tage.update(dauer_gesendet=4, dauer_schreib_fehler=1)
+    zeilen = "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
+    assert "4 über Exchange gesendet" in zeilen and "1 Fehler" in zeilen and "#e74c3c" in zeilen
+    monkeypatch.setattr(notbetrieb_aenderungen, "offen", lambda: {"offen": 2, "mit_fehler": 1})
+    tage.clear()
+    zeilen = "".join(notification._notbetrieb_zeilen(lambda k: tage.get(k, 0)))
+    assert "2 Änderungen (1 mit Fehler)" in zeilen and "#e74c3c" in zeilen
+
+
+def test_bereitschaft_rueckweg(nb):
+    import abnahme
+    import notbetrieb_bereitschaft as nbb
+    assert nbb._rueckweg(notbetrieb.status())["zustand"] == abnahme.ENTFAELLT
+    nb["NOTBETRIEB_LESEN_ALLE"] = nb["NOTBETRIEB_SENDEN_ALLE"] = True
+    z = nbb._rueckweg(notbetrieb.status())
+    assert z["zustand"] == abnahme.OK and z["befund"].startswith("0 Mails")
+    notbetrieb.lokal_ablegen("a@firma.at", "sentitems", MIME, empfangen=JETZT - timedelta(hours=2))
+    assert nbb._rueckweg(notbetrieb.status())["zustand"] == abnahme.OFFEN
+    assert any(p["name"] == "Rückweg nach Exchange" for p in nbb.pruefen(mit_netz=False)["punkte"])
 
 
 def test_tagesbericht_ohne_notbetrieb_keine_zeile(nb):

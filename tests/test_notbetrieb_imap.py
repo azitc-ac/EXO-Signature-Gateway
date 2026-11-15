@@ -117,6 +117,25 @@ def test_nur_lesend_aber_gelesen_flag_in_der_kopie(imap):
     c.logout()
 
 
+def test_gelesen_ueber_imap_bleibt_und_geht_den_einen_schreibweg(imap, monkeypatch):
+    """STORE \\Seen wirkt in der Kopie (auch in der nächsten Verbindung) und
+    landet für wer im Webmail arbeitet in derselben Warteschlange wie das
+    Webmail (notbetrieb_aenderungen) — kein zweiter Weg."""
+    import notbetrieb_aenderungen
+    monkeypatch.setattr(notbetrieb_aenderungen, "bald", lambda: None)
+    verbinden, _, _ = imap
+    c = verbinden()
+    c.select("INBOX")
+    nr = c.search(None, "UNSEEN")[1][0].split()[0]
+    c.store(nr, "+FLAGS", "(\\Seen)")
+    c.logout()
+    c = verbinden()
+    c.select("INBOX")
+    assert nr not in c.search(None, "UNSEEN")[1][0].split()         # neu gelesen aus der Kopie
+    c.logout()
+    assert notbetrieb_aenderungen.offen()["offen"] == 1            # a@ arbeitet (Probegruppe)
+
+
 def test_uids_stabil_und_neu_beim_verschieben(imap):
     verbinden, _, _ = imap
     c = verbinden()

@@ -787,6 +787,29 @@ def test_abgleich_spielt_zurueck_ausser_im_notfall(schatten, monkeypatch):
     assert len(aufrufe) == 1
 
 
+def test_loeschen_und_verschieben(client, schatten, monkeypatch):
+    """Nur wer im Webmail arbeitet; Ziel muss ein Ordner des Postfachs sein;
+    Löschen = „Gelöschte Elemente“, auch wenn die Kopie den Ordner nicht führt."""
+    import notbetrieb_aenderungen
+    monkeypatch.setattr(notbetrieb_aenderungen, "bald", lambda: None)
+    _anmelden(client)
+    r = client.post("/notfall/api/verschieben", json={"postfach": "a@firma.at", "id": "g-text", "ziel": "gibtsnicht"})
+    assert r.status_code == 400
+    r = client.post("/notfall/api/verschieben", json={"postfach": "a@firma.at", "id": "g-text", "ziel": "deleteditems"})
+    assert r.status_code == 200
+    with notbetrieb._conn() as conn:
+        assert conn.execute("SELECT ordner FROM mails WHERE graph_id='g-text'").fetchone()[0] == "deleteditems"
+    assert client.post("/notfall/api/verschieben", json={"postfach": "a@firma.at", "id": "fehlt",
+                                                         "ziel": "deleteditems"}).status_code == 404
+    assert client.post("/notfall/api/verschieben", json={"postfach": "team@firma.at", "id": "g-text",
+                                                         "ziel": "deleteditems"}).status_code == 404  # fremde Kennung
+    # Reine Vorschau: kein Verschieben.
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = []
+    schatten["NOTBETRIEB_LESEN_ALLE"] = True
+    assert client.post("/notfall/api/verschieben", json={"postfach": "a@firma.at", "id": "g-text",
+                                                         "ziel": "ord-in"}).status_code == 403
+
+
 def test_entwuerfe_sichern_oeffnen_senden(client, postfix, schatten):
     """Entwurf je angemeldeter Person; Senden mit Entwurf räumt ihn weg;
     ohne Senderecht gibt es keine Entwürfe (sie wären nicht absendbar)."""

@@ -429,7 +429,7 @@ async def notfall_mail(postfach: str, id: str, benutzer: str = Depends(_leser)):
     m = await asyncio.to_thread(notbetrieb_lesen.mail, pf, id)
     if not m:
         raise HTTPException(404)
-    await asyncio.to_thread(notbetrieb_lesen.als_gelesen, pf, id)
+    await asyncio.to_thread(notbetrieb_lesen.als_gelesen, benutzer, pf, id)
     return JSONResponse({"ok": True, **m})
 
 
@@ -498,6 +498,28 @@ async def notfall_senden(request: Request, benutzer: str = Depends(_sender)):
     if body.get("entwurf"):
         await asyncio.to_thread(notbetrieb_entwuerfe.loeschen, benutzer, str(body["entwurf"]))
     return JSONResponse(erg)
+
+
+# ── Löschen und Verschieben (in der Kopie, zurück nach Exchange) ────────────
+
+@router.post("/notfall/api/verschieben")
+async def notfall_verschieben(request: Request, benutzer: str = Depends(_sender)):
+    """Ziel: Ordner-Kennung des Postfachs oder „deleteditems“ (Löschen).
+    Nur wer im Webmail arbeitet (_sender) — in der reinen Vorschau ändert
+    niemand sein echtes Postfach."""
+    import notbetrieb_aenderungen
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    pf = _postfach(benutzer, str(body.get("postfach") or ""))
+    ziel = await asyncio.to_thread(notbetrieb_lesen.ordner_kennung, pf, str(body.get("ziel") or ""))
+    if not ziel:
+        return JSONResponse({"ok": False, "error": "Diesen Ordner gibt es nicht."}, status_code=400)
+    if not await asyncio.to_thread(notbetrieb_aenderungen.merken, benutzer, pf, str(body.get("id") or ""),
+                                   notbetrieb_aenderungen.VERSCHIEBEN, ziel):
+        raise HTTPException(404)
+    return JSONResponse({"ok": True})
 
 
 # ── Entwürfe (automatisch gesichert, je angemeldetem Benutzer) ──────────────

@@ -125,6 +125,11 @@ KEYS = (
     # angenommen ist die Bezugsgröße der übrigen.
     "notfall_angenommen", "notfall_unbekannt", "notfall_greylist", "notfall_gedrosselt",
     "notfall_unecht", "notfall_junk",
+    # Notbetrieb im Dauerbetrieb: über Exchange gesendet (Bezugsgröße), Kopien
+    # zurückgespielt, Änderungen zurückgeschrieben bzw. verworfen (Exchange
+    # jünger oder weg), Fehler je Weg. Tagesbericht „Rückweg nach Exchange“.
+    "dauer_gesendet", "dauer_zurueckgespielt", "dauer_zurueck_fehler",
+    "dauer_geschrieben", "dauer_verworfen", "dauer_schreib_fehler",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}
@@ -243,6 +248,12 @@ def get_period(year: int, month: int | None = None) -> dict:
     except Exception as exc:
         log.warning("stats: get_period error: %s", exc)
     return result
+
+
+def increment_um(key: str, n: int) -> None:
+    """Mehrfach zählen (Läufe, die mehrere Ereignisse auf einmal melden)."""
+    for _ in range(max(0, int(n or 0))):
+        increment(key)
 
 
 def increment(key: str) -> None:

@@ -239,6 +239,9 @@ async def _hinaus(benutzer: str, postfach: str, recht: str, alle: list, inhalt: 
             # Exchange; die Kopie holt sie beim nächsten Abgleich.
             erg = reinject.send(von, empf, roh)
             exchange_kopie |= erg == reinject.WEG_GRAPH_MIT_KOPIE and _message_id(roh) == mid
+            if _message_id(roh) == mid:
+                import stats
+                stats.increment("dauer_gesendet")
             continue
         # Notfall bzw. Probealarm: derselbe Weg wie für das Gateway im Notfall.
         try:

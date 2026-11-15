@@ -685,7 +685,7 @@ class Sitzung:
                         teile.append(name.encode() + b" {%d}\r\n" % len(daten) + daten)
                         gelesen_setzen |= not mm.group(1).upper().endswith(".PEEK")
             if gelesen_setzen and not m["gelesen"] and not self.nur_lesen:
-                await asyncio.to_thread(_gelesen, self.gewaehlt["postfach"], m["graph_id"], True)
+                await asyncio.to_thread(_gelesen, self.benutzer, self.gewaehlt["postfach"], m["graph_id"], True)
                 m["gelesen"] = 1
                 teile.append(b"FLAGS (\\Seen)")
             await self.senden(b"* %d FETCH (" % nr + b" ".join(teile) + b")\r\n")
@@ -715,7 +715,7 @@ class Sitzung:
             elif art.startswith("FLAGS"):
                 ziel = 1 if seen else 0
             if ziel != m["gelesen"]:
-                await asyncio.to_thread(_gelesen, self.gewaehlt["postfach"], m["graph_id"], bool(ziel))
+                await asyncio.to_thread(_gelesen, self.benutzer, self.gewaehlt["postfach"], m["graph_id"], bool(ziel))
                 m["gelesen"] = ziel
             if not art.endswith(".SILENT"):
                 uid = b" UID %d" % m["uid"] if per_uid else b""
@@ -748,9 +748,10 @@ class Sitzung:
         await self.senden(f"{tag} OK IDLE\r\n".encode())
 
 
-def _gelesen(postfach: str, graph_id: str, wert: bool) -> None:
-    with notbetrieb._lock, notbetrieb._conn() as conn:
-        conn.execute("UPDATE mails SET gelesen=? WHERE postfach=? AND graph_id=?", (1 if wert else 0, postfach, graph_id))
+def _gelesen(benutzer: str, postfach: str, graph_id: str, wert: bool) -> None:
+    """Derselbe Schreibweg wie im Webmail (notbetrieb_aenderungen)."""
+    import notbetrieb_aenderungen
+    notbetrieb_aenderungen.merken(benutzer, postfach, graph_id, notbetrieb_aenderungen.GELESEN, "1" if wert else "0")
 
 
 def _datum(text: str) -> datetime:

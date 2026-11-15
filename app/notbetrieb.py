@@ -584,8 +584,14 @@ def _abgleich_ordner(client: httpx.Client, token: str, postfach: str, ordner: st
                 da = conn.execute("SELECT ordner FROM mails WHERE postfach=? AND graph_id=?",
                                   (postfach, gid)).fetchone()
                 if da:
-                    conn.execute("UPDATE mails SET gelesen=?, ordner=? WHERE postfach=? AND graph_id=?",
-                                 (1 if m.get("isRead") else 0, ordner, postfach, gid))
+                    # Wartet noch eine lokale Änderung (gelesen, verschoben),
+                    # bleibt die Zeile, wie sie ist — das Zurückschreiben
+                    # entscheidet, wer jünger ist (notbetrieb_aenderungen).
+                    if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='aenderungen'").fetchone() or \
+                            not conn.execute("SELECT 1 FROM aenderungen WHERE postfach=? AND graph_id=?",
+                                             (postfach, gid)).fetchone():
+                        conn.execute("UPDATE mails SET gelesen=?, ordner=? WHERE postfach=? AND graph_id=?",
+                                     (1 if m.get("isRead") else 0, ordner, postfach, gid))
                     continue
                 # Zurückgespielte lokale Post kommt mit neuer Graph-ID wieder an.
                 # Die lokale Zeile wird zur Exchange-Kopie, statt dass die Mail
@@ -675,10 +681,12 @@ def abgleich_alle() -> dict:
     # danach findet es dort und übernimmt die Zeile. Im Notfall nicht
     # (Exchange ist dann gerade das, was fehlt).
     if not ausgerufen():
+        import notbetrieb_aenderungen
         try:
             zaehlung["zurueck"] = zurueckspielen(min_alter_s=RUECKSPIEL_WARTEN_S)
+            zaehlung["aenderungen"] = notbetrieb_aenderungen.zurueckschreiben()
         except Exception as exc:                                    # noqa: BLE001
-            log.warning("Notbetrieb: Rückspielen vor dem Abgleich fehlgeschlagen: %s", exc)
+            log.warning("Notbetrieb: Zurückspielen vor dem Abgleich fehlgeschlagen: %s", exc)
     with httpx.Client(timeout=30) as client:
         for key, pf in postfaecher:
             fenster = fenster_fuer(key, pf)[0]
@@ -822,6 +830,7 @@ def _gross_anhaengen(client, token: str, pf: str, neu_id: str, name: str, typ: s
 # eine eigene an (die WEG_GRAPH_MIT_KOPIE nicht meldet, etwa nach einer
 # Warteschlange). Die Abfrage nach der Message-ID sähe sie sonst noch nicht.
 RUECKSPIEL_WARTEN_S = 120
+STAU_MIN = 35                 # > zwei Abgleichtakte (scheduler: 15 min) plus Wartezeit
 _bald_lock = threading.Lock()
 _bald: threading.Timer | None = None
 
@@ -902,6 +911,12 @@ def zurueckspielen(min_alter_s: int = 0) -> dict:
                 zaehlung["fehler"] += 1
                 log.warning("Notbetrieb: Rückspielen %s für %s fehlgeschlagen: %s", imid, pf, exc)
     zaehlung["offen"] = zaehlung["fehler"]
+    try:
+        import stats
+        stats.increment_um("dauer_zurueckgespielt", zaehlung["eingespielt"] + zaehlung["schon_da"])
+        stats.increment_um("dauer_zurueck_fehler", zaehlung["fehler"])
+    except Exception as exc:                                        # noqa: BLE001
+        log.debug("stats: %s", exc)
     log.info("Notbetrieb: Rückspielen — %s eingespielt, %s schon vorhanden, %s Fehler",
              zaehlung["eingespielt"], zaehlung["schon_da"], zaehlung["fehler"])
     return zaehlung
@@ -977,10 +992,14 @@ def _bestand() -> dict:
         mails = conn.execute("SELECT COUNT(*) FROM mails").fetchone()[0]
         offen = conn.execute("SELECT COUNT(*) FROM mails WHERE herkunft=? AND zurueck IS NULL",
                              (LOKAL,)).fetchone()[0]
+        # Stau im Dauerbetrieb: lokal, nicht zurück, älter als zwei Abgleich-
+        # takte — im Normalbetrieb dauert das sonst höchstens Minuten.
+        stau = conn.execute("SELECT COUNT(*) FROM mails WHERE herkunft=? AND zurueck IS NULL AND empfangen<?",
+                            (LOKAL, _iso(datetime.now(timezone.utc) - timedelta(minutes=STAU_MIN)))).fetchone()[0]
         pf = conn.execute("SELECT COUNT(DISTINCT postfach) FROM mails").fetchone()[0]
         profile = conn.execute("SELECT COUNT(DISTINCT daten) FROM profile").fetchone()[0]
         stand = conn.execute("SELECT v FROM meta WHERE k='profile_stand'").fetchone()
-    return {"mails": mails, "lokal_offen": offen, "postfaecher_im_schatten": pf,
+    return {"mails": mails, "lokal_offen": offen, "lokal_stau": stau, "postfaecher_im_schatten": pf,
             "profile": profile, "profile_stand": stand["v"] if stand else None}
 
 

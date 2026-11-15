@@ -155,6 +155,22 @@ def ordner(postfach: str) -> list[dict]:
     return sorted(out, key=lambda o: (rang.get(o["wk"], 2), o["name"].lower()))
 
 
+def ordner_kennung(postfach: str, ziel: str) -> str | None:
+    """Ziel eines Verschiebens: eine Ordner-Kennung dieses Postfachs oder ein
+    bekannter Name („deleteditems“) — als Kennung, wie sie der Abgleich führt.
+    Fehlt „Gelöschte Elemente“ in der Kopie, bleibt der bekannte Name (Graph
+    nimmt ihn als destinationId, die Ordnerliste zählt ihn mit)."""
+    ziel = (ziel or "").strip()
+    if not ziel:
+        return None
+    with notbetrieb._lock, notbetrieb._conn() as conn:
+        z = conn.execute("SELECT id FROM ordner WHERE postfach=? AND (id=? OR wk=?)",
+                         (postfach.lower(), ziel, ziel)).fetchone()
+    if z:
+        return z["id"]
+    return ziel if ziel == "deleteditems" else None
+
+
 def liste(postfach: str, ordner_id: str = "", suche: str = "", seite: int = 0) -> dict:
     """Mails eines Ordners (oder bei `suche` aller Ordner), neueste zuerst."""
     pf = postfach.lower()
@@ -289,7 +305,8 @@ def anhang(postfach: str, graph_id: str, nr: int) -> tuple[bytes, str, str] | No
             t.get_content_type())
 
 
-def als_gelesen(postfach: str, graph_id: str) -> None:
-    """Nur im Schatten. Zurück nach Exchange geht das (noch) nicht."""
-    with notbetrieb._lock, notbetrieb._conn() as conn:
-        conn.execute("UPDATE mails SET gelesen=1 WHERE postfach=? AND graph_id=?", (postfach.lower(), graph_id))
+def als_gelesen(benutzer: str, postfach: str, graph_id: str) -> None:
+    """In der Kopie — und nach Exchange, wer im Webmail arbeitet
+    (notbetrieb_aenderungen, der eine Schreibweg)."""
+    import notbetrieb_aenderungen
+    notbetrieb_aenderungen.merken(benutzer, postfach, graph_id, notbetrieb_aenderungen.GELESEN, "1")
