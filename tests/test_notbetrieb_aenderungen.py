@@ -54,7 +54,9 @@ class Exchange:
         mid = url.rsplit("/", 1)[1]
         if mid not in self.mails:
             return _Resp(404)
-        return _Resp(200, {"lastModifiedDateTime": self.mails[mid]["geaendert"]})
+        # Wie Exchange: isRead ändert lastModifiedDateTime NICHT (gemessen 15.11.).
+        return _Resp(200, {"lastModifiedDateTime": self.mails[mid]["geaendert"],
+                           "isRead": self.mails[mid].get("isRead", False)})
 
     def patch(self, url, json=None, headers=None):
         self.aufrufe.append(("PATCH", url, json))
@@ -124,6 +126,40 @@ def test_exchange_juenger_gewinnt(ex):
     z = na.zurueckschreiben()
     assert z["verworfen"] == 1 and not any(a[0] == "PATCH" for a in ex.aufrufe)
     assert na.offen()["offen"] == 0
+
+
+def test_gelesen_in_exchange_geaendert_gewinnt_ohne_neue_zeit(ex):
+    """Live 15.11.: Gelesen ändert in Exchange weder lastModifiedDateTime noch
+    changeKey — die Zeitprüfung allein überschrieb Exchange mit dem lokalen Stand."""
+    _zeile()                                                         # Kopie: ungelesen (= Exchange beim Abgleich)
+    ex.mails["g1"] = {"geaendert": _vorher(), "isRead": False}
+    na.merken(PF, PF, "g1", na.GELESEN, "1")                         # lokal gelesen …
+    ex.mails["g1"]["isRead"] = True                                  # … Exchange inzwischen auch, Zeit unverändert
+    na.merken(PF, PF, "g1", na.GELESEN, "0")                         # lokal wieder ungelesen: vorher bleibt 0
+    ex.mails["g1"]["isRead"] = True
+    z = na.zurueckschreiben()
+    assert z["verworfen"] == 1 and not any(a[0] == "PATCH" for a in ex.aufrufe)
+    assert ex.mails["g1"]["isRead"] is True and _mail()["gelesen"] == 1   # Kopie übernimmt Exchange sofort
+    assert na.offen()["offen"] == 0
+
+
+def test_gelesen_ohne_aenderung_in_exchange_wird_geschrieben(ex):
+    _zeile()
+    ex.mails["g1"] = {"geaendert": _vorher(), "isRead": False}
+    na.merken(PF, PF, "g1", na.GELESEN, "1")
+    na.merken(PF, PF, "g1", na.GELESEN, "0")                         # zweimal geklickt ist keine Exchange-Änderung
+    na.merken(PF, PF, "g1", na.GELESEN, "1")
+    assert na.zurueckschreiben()["geschrieben"] == 1 and ex.mails["g1"]["isRead"] is True
+
+
+def test_bestandszeile_ohne_vorher_wird_geschrieben(ex):
+    _zeile()
+    ex.mails["g1"] = {"geaendert": _vorher(), "isRead": True}
+    with notbetrieb._lock, notbetrieb._conn() as conn:
+        na._tabelle(conn)
+        conn.execute("INSERT INTO aenderungen (postfach, graph_id, art, wert, ts) VALUES (?,?,?,?,?)",
+                     (PF, "g1", na.GELESEN, "0", na._jetzt()))
+    assert na.zurueckschreiben()["geschrieben"] == 1 and ex.mails["g1"]["isRead"] is False
 
 
 def test_in_exchange_weg(ex):

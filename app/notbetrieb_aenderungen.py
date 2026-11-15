@@ -17,6 +17,14 @@ KONFLIKTE: DAS JÜNGERE GEWINNT
 Vor dem Schreiben wird die Mail in Exchange gelesen. Wurde sie dort NACH der
 lokalen Änderung geändert (lastModifiedDateTime), verfällt die lokale — der
 nächste Abgleich bringt den Stand aus Exchange. Ist sie dort weg, ebenso.
+
+⚠️ Den Gelesen-Stand sieht lastModifiedDateTime NICHT: Exchange ändert dabei
+weder die Zeit noch den changeKey (gemessen 15.11.2026, Graph v1.0, isRead per
+PATCH dreimal umgestellt; eine Markierung/flag änderte beides). Für „gelesen“
+gilt deshalb ein Dreiwegevergleich: Jede Änderung merkt sich den Stand der
+Kopie davor (`vorher` = Exchange beim letzten Abgleich). Steht Exchange beim
+Schreiben nicht mehr darauf, hat dort jemand geändert — Exchange gilt, und
+die Kopie übernimmt seinen Stand sofort.
 Mehrere Änderungen derselben Mail werden zusammen geschrieben (sonst hielte
 die zweite die Wirkung der ersten für eine fremde, jüngere Änderung).
 
@@ -58,8 +66,11 @@ def _tabelle(conn) -> None:
         wert     TEXT NOT NULL,
         ts       TEXT NOT NULL,
         fehler   INTEGER NOT NULL DEFAULT 0,
-        meldung  TEXT
+        meldung  TEXT,
+        vorher   TEXT
     )""")
+    if "vorher" not in {z[1] for z in conn.execute("PRAGMA table_info(aenderungen)")}:
+        conn.execute("ALTER TABLE aenderungen ADD COLUMN vorher TEXT")   # Bestand vor dem Dreiwegevergleich
 
 
 def _jetzt() -> str:
@@ -78,6 +89,8 @@ def merken(benutzer: str, postfach: str, graph_id: str, art: str, wert: str) -> 
         raise ValueError(art)
     with notbetrieb._lock, notbetrieb._conn() as conn:
         _tabelle(conn)
+        alt = conn.execute("SELECT gelesen, ordner FROM mails WHERE postfach=? AND graph_id=?",
+                           (postfach, graph_id)).fetchone()
         if art == GELESEN:
             n = conn.execute("UPDATE mails SET gelesen=? WHERE postfach=? AND graph_id=?",
                              (1 if wert == "1" else 0, postfach, graph_id)).rowcount
@@ -88,11 +101,15 @@ def merken(benutzer: str, postfach: str, graph_id: str, art: str, wert: str) -> 
             return False
         if not zurueckschreiben_fuer(benutzer):
             return True
-        # Nur die letzte Änderung je Mail und Art zählt.
+        # Nur die letzte Änderung je Mail und Art zählt — „vorher“ bleibt der
+        # Stand vor der ERSTEN (sonst sähe zweimal Klicken wie Exchange aus).
+        frueher = conn.execute("SELECT vorher FROM aenderungen WHERE postfach=? AND graph_id=? AND art=? "
+                               "ORDER BY nr LIMIT 1", (postfach, graph_id, art)).fetchone()
+        vorher = frueher[0] if frueher else (str(alt[0]) if art == GELESEN else alt[1])
         conn.execute("DELETE FROM aenderungen WHERE postfach=? AND graph_id=? AND art=?",
                      (postfach, graph_id, art))
-        conn.execute("INSERT INTO aenderungen (postfach, graph_id, art, wert, ts) VALUES (?,?,?,?,?)",
-                     (postfach, graph_id, art, wert, _jetzt()))
+        conn.execute("INSERT INTO aenderungen (postfach, graph_id, art, wert, ts, vorher) VALUES (?,?,?,?,?,?)",
+                     (postfach, graph_id, art, wert, _jetzt(), vorher))
     if not notbetrieb.ausgerufen():
         bald()
     return True
@@ -215,7 +232,7 @@ def _eine_mail(client: httpx.Client, hdr: dict, pf: str, gid: str, liste: list) 
         log.info("Notbetrieb: %s/%s in Exchange nicht eindeutig auffindbar — Änderung verworfen", pf, gid)
         return "verworfen"
     r = client.get(f"{notbetrieb.GRAPH}/users/{pf}/messages/{ziel}", headers=hdr,
-                   params={"$select": "lastModifiedDateTime"})
+                   params={"$select": "lastModifiedDateTime,isRead"})
     if r.status_code == 404:
         return "verworfen"
     if r.status_code != 200:
@@ -227,8 +244,20 @@ def _eine_mail(client: httpx.Client, hdr: dict, pf: str, gid: str, liste: list) 
                  pf, gid, geaendert.isoformat(), frueheste.isoformat())
         return "verworfen"
     json_hdr = {**hdr, "Content-Type": "application/json"}
+    exo_gelesen = r.json().get("isRead")
+    verworfen = 0
     for a in liste:
         if a["art"] == GELESEN:
+            if a["vorher"] is not None and isinstance(exo_gelesen, bool) and exo_gelesen != (a["vorher"] == "1"):
+                # Exchange steht nicht mehr auf dem Stand vor der lokalen
+                # Änderung: dort wurde geändert, Exchange gilt.
+                log.info("Notbetrieb: %s/%s Gelesen-Stand in Exchange geändert (%s) — Exchange gilt", pf, gid,
+                         exo_gelesen)
+                with notbetrieb._lock, notbetrieb._conn() as conn:
+                    conn.execute("UPDATE mails SET gelesen=? WHERE postfach=? AND graph_id=?",
+                                 (1 if exo_gelesen else 0, pf, gid))
+                verworfen += 1
+                continue
             r = client.patch(f"{notbetrieb.GRAPH}/users/{pf}/messages/{ziel}", headers=json_hdr,
                              json={"isRead": a["wert"] == "1"})
             if r.status_code != 200:
@@ -242,7 +271,7 @@ def _eine_mail(client: httpx.Client, hdr: dict, pf: str, gid: str, liste: list) 
             neu = r.json().get("id") or ""
             if neu and neu != ziel:
                 _neue_kennung(pf, zeile, neu)
-    return "geschrieben"
+    return "verworfen" if verworfen == len(liste) else "geschrieben"
 
 
 def _neue_kennung(pf: str, zeile, neu: str) -> None:
