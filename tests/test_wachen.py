@@ -108,6 +108,9 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     "/notfall":          "Hülle des Notbetrieb-Webmails, meldet sich über /notfall/anmelden an",
     "/notfall/anmelden": "LDAP-Anmeldung am lokalen AD, gedrosselt je Name und Quelle",
     "/notfall/abmelden": "löscht nur das eigene Sitzungs-Cookie",
+    "/notfall/anmelden/faktor": "zweiter Anmeldeschritt: signierter Vorgang (5 min) aus geprüftem Kennwort, "
+                                "Code gedrosselt und hart gesperrt (notbetrieb_faktor)",
+    "/notfall/einrichten": "Hülle der Einrichtungsseite; Daten hängen an notfall._entra_postfach",
 
     # ── Betrieb
     "/health": "Gesundheitsprüfung für Container und Überwachung",
@@ -123,8 +126,10 @@ def _wachen():
     # notfall._benutzer: Sitzung des Notbetrieb-Webmails (signiertes Cookie aus
     # der LDAP-Anmeldung); Rechte je Postfach prüft die Route zusätzlich.
     from webui.deps import _check_auth, _require_admin, _require_self
-    from webui.routen.notfall import _benutzer
-    return {_check_auth, _require_admin, _require_self, _benutzer}
+    # notfall._entra_postfach: Bescheinigung einer frischen, vollständig
+    # geprüften Entra-Anmeldung (15 min, nur /notfall) — fürs Einrichten.
+    from webui.routen.notfall import _benutzer, _entra_postfach
+    return {_check_auth, _require_admin, _require_self, _benutzer, _entra_postfach}
 
 
 def _hat_wache(dependant, wachen, tiefe: int = 0) -> bool:

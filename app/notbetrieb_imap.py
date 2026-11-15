@@ -509,6 +509,14 @@ class Sitzung:
                 return
             name, kennwort = str(args[0]), str(args[1])
         import notbetrieb_anmeldung
+        import notbetrieb_faktor
+        if not notbetrieb_faktor.nur_kennwort_erlaubt():
+            # Zweiter Faktor ist Pflicht — IMAP kann keinen abfragen. Vor dem
+            # Bind abgewiesen: die Antwort verrät nichts über das Kennwort.
+            log.info("Notbetrieb-IMAP: Anmeldung abgewiesen — zweiter Faktor Pflicht (von %s)", self.quelle)
+            await self.senden(f"{tag} NO [AUTHENTICATIONFAILED] Zweiter Faktor Pflicht - bitte das "
+                              "Notfall-Webmail nutzen\r\n".encode())
+            return
         erg = await asyncio.to_thread(notbetrieb_anmeldung.anmelden, name, kennwort, self.quelle)
         if not erg.get("ok"):
             self.fehlversuche += 1

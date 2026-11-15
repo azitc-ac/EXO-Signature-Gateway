@@ -71,6 +71,7 @@ PyJWT==2.15.0
 pyspf==2.0.14
 python-multipart==0.0.32
 requests==2.34.2
+segno==1.6.6
 starlette==1.4.0
 tnefparse==1.4.0
 typing-inspection==0.4.2

@@ -27,7 +27,7 @@ def _iso(dt):
 
 @pytest.fixture
 def nb(monkeypatch, tmp_path):
-    werte = {"NOTBETRIEB_AKTIV": True,
+    werte = {"NOTBETRIEB_AKTIV": True, "NOTBETRIEB_ZWEITFAKTOR": False,
              "MAILBOX_CONFIG": {"a@firma.at": {"sig": True}, "b@firma.at": {"sig": False}}}
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: werte.get(k, d))

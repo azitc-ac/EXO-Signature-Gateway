@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 import gruppen
@@ -17,6 +17,7 @@ import aussenadresse
 import notbetrieb
 import notbetrieb_eingang
 import notbetrieb_anmeldung
+import notbetrieb_faktor
 import notbetrieb_rechte
 import settings_store
 from webui.deps import templates, log, _gateway_name, _require_admin
@@ -40,6 +41,7 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "probegruppe": settings_store.get("NOTBETRIEB_PROBEGRUPPE") or [],
             "imap": settings_store.get("NOTBETRIEB_IMAP") is True,
             "smtp": settings_store.get("NOTBETRIEB_SMTP") is True,
+            "zweitfaktor": {"pflicht": notbetrieb_faktor.pflicht(), "notfall_ohne": notbetrieb_faktor.im_notfall_ohne()},
             "imap_host": aussenadresse.ehlo_hostname() or "",
             "eingang": {"greylist": notbetrieb_eingang.greylisting_an(), "max_empf": notbetrieb_eingang.max_empfaenger(),
                         "max_mb": notbetrieb_eingang.max_bytes() // (1024 * 1024),
@@ -149,6 +151,24 @@ async def api_notbetrieb_rechte_abgleichen(user: str = Depends(_require_admin)):
     if not ergebnis.get("ok"):
         ergebnis["error"] = "Abruf aus Exchange fehlgeschlagen — der bisherige Stand bleibt."
     return JSONResponse(ergebnis, status_code=200 if ergebnis.get("ok") else 502)
+
+
+@router.get("/api/notbetrieb/faktoren")
+async def api_notbetrieb_faktoren(_user: str = Depends(_require_admin)):
+    """Wer hat einen zweiten Faktor (ohne Geheimnisse)."""
+    return JSONResponse({"ok": True, "items": await asyncio.to_thread(notbetrieb_faktor.uebersicht)})
+
+
+@router.post("/api/notbetrieb/faktoren/zuruecksetzen")
+async def api_notbetrieb_faktor_zuruecksetzen(request: Request, user: str = Depends(_require_admin)):
+    try:
+        postfach = str((await request.json()).get("postfach") or "").strip().lower()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    if not await asyncio.to_thread(notbetrieb_faktor.zuruecksetzen, postfach, user):
+        return JSONResponse({"ok": False, "error": "Für dieses Postfach ist kein zweiter Faktor eingerichtet."},
+                            status_code=404)
+    return JSONResponse({"ok": True})
 
 
 @router.get("/api/notbetrieb/zugriff")

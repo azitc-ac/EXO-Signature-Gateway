@@ -875,6 +875,20 @@
     "name": "api_notbetrieb_bereitschaft"
   },
   {
+    "pfad": "/api/notbetrieb/faktoren",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_faktoren"
+  },
+  {
+    "pfad": "/api/notbetrieb/faktoren/zuruecksetzen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_faktor_zuruecksetzen"
+  },
+  {
     "pfad": "/api/notbetrieb/loeschen",
     "methoden": [
       "POST"
@@ -2317,11 +2331,46 @@
     "name": "notfall_anmelden"
   },
   {
+    "pfad": "/notfall/anmelden/faktor",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_anmelden_faktor"
+  },
+  {
     "pfad": "/notfall/api/adressen",
     "methoden": [
       "GET"
     ],
     "name": "notfall_adressen"
+  },
+  {
+    "pfad": "/notfall/api/faktor",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_faktor_stand"
+  },
+  {
+    "pfad": "/notfall/api/faktor/beginnen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_faktor_beginnen"
+  },
+  {
+    "pfad": "/notfall/api/faktor/bestaetigen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_faktor_bestaetigen"
+  },
+  {
+    "pfad": "/notfall/api/faktor/codes",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_faktor_codes"
   },
   {
     "pfad": "/notfall/api/ich",
@@ -2378,6 +2427,13 @@
       "GET"
     ],
     "name": "notfall_vorlage"
+  },
+  {
+    "pfad": "/notfall/einrichten",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_einrichten_seite"
   },
   {
     "pfad": "/notfall/inhalt",

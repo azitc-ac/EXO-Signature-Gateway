@@ -52,7 +52,9 @@ def schatten(monkeypatch, tmp_path):
     werte = {"NOTBETRIEB_AKTIV": True, "SSO_SESSION_SECRET": "s" * 64,
              "MAILBOX_CONFIG": {"a@firma.at": {"sig": True}},
              # Inhalte vor dem Notfall nur für die Probegruppe — a@ gehört dazu.
-             "NOTBETRIEB_PROBEGRUPPE": ["a@firma.at"]}
+             "NOTBETRIEB_PROBEGRUPPE": ["a@firma.at"],
+             # Zweiter Faktor: eigene Tests in test_notbetrieb_faktor.py.
+             "NOTBETRIEB_ZWEITFAKTOR": False}
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: werte.get(k, d))
     monkeypatch.setattr(settings_store, "force_update", lambda p: werte.update(p))
@@ -646,7 +648,11 @@ def test_vor_dem_notfall_jede_inhaltsroute_gesperrt(client, schatten):
     _anmelden(client)
     d = client.get("/notfall/api/ich").json()
     assert d["ok"] and d["bereit_modus"] is True and d["zugriff"] == []
-    frei = {"/notfall", "/notfall/anmelden", "/notfall/abmelden", "/notfall/api/ich"}
+    frei = {"/notfall", "/notfall/anmelden", "/notfall/abmelden", "/notfall/api/ich",
+            # Zweiter Faktor: Anmeldeschritt und Einrichten — vor jeder Sitzung, eigene Wachen
+            # (Vorgang bzw. Entra-Bescheinigung), geprüft in test_notbetrieb_faktor.py.
+            "/notfall/anmelden/faktor", "/notfall/einrichten", "/notfall/api/faktor",
+            "/notfall/api/faktor/beginnen", "/notfall/api/faktor/bestaetigen", "/notfall/api/faktor/codes"}
     parameter = {"postfach": "a@firma.at", "id": "g-text", "art": "antwort", "von": "2026-01-01T00:00:00Z",
                  "bis": "2026-12-31T00:00:00Z", "nr": 0, "q": "ab", "ordner": "ord-in"}
     geprueft = 0

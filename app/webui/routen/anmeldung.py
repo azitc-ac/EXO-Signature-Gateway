@@ -529,6 +529,12 @@ async def auth_callback_implicit(request: Request):
     upn = (claims.get("preferred_username") or claims.get("upn")
            or claims.get("email") or "").strip()
     oid = (claims.get("oid") or claims.get("sub") or "").strip()
+    # Notbetrieb: Anmeldung nur als Nachweis fürs Einrichten des zweiten
+    # Faktors — kurze, eigene Bescheinigung (nur /notfall) statt einer Sitzung
+    # des Gateways. So braucht es weder eine Rolle noch Self-Service.
+    if _sicheres_ziel(session_obj.get("next_url", "/")).startswith("/notfall/einrichten"):
+        from webui.routen import notfall as _notfall
+        return _notfall.einrichten_bescheinigen(upn)
     role = (sso_mod.get_role_by_oid(oid) if oid else None) or sso_mod.get_role(upn)
     if not role:
         role = self_service_rolle(upn)   # kein Admin/Editor, aber ggf. Self-Service

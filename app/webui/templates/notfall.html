@@ -46,6 +46,11 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
 .anmeldung label { display: block; margin: 12px 0 4px; font-weight: 600; }
 .anmeldung input { width: 100%; }
 .leise { color: var(--leise); }
+.qr svg { width: 200px; height: 200px; background: #fff; padding: 6px; border-radius: 6px; }
+.codes { font-size: 15px; line-height: 1.7; background: var(--bg); border: 1px solid var(--rand); border-radius: 6px;
+         padding: 8px 12px; columns: 2; }
+a.knopf { display: inline-block; text-decoration: none; border-radius: 6px; padding: 6px 14px; }
+a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 .meldung { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--fehler-bg); color: var(--fehler); }
 .meldung[hidden] { display: none; }
 #app { display: grid; grid-template-columns: 240px 360px 1fr; height: calc(100vh - 48px); }
@@ -125,6 +130,50 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
   <div class="meldung" id="anmelde-meldung" hidden></div>
 </section>
 
+<section class="anmeldung" id="faktor" hidden>
+  <h1>Zweiter Faktor</h1>
+  <p class="leise" style="margin:0">Gib den 6-stelligen Code aus deiner Authenticator-App ein — oder einen deiner
+    Wiederherstellungscodes.</p>
+  <form onsubmit="faktorSenden(event)">
+    <label for="faktor-code">Code</label>
+    <input id="faktor-code" autocomplete="one-time-code" inputmode="numeric" required>
+    <div style="margin-top:14px"><button class="haupt" id="faktor-knopf" type="submit">Bestätigen</button></div>
+  </form>
+  <div class="meldung" id="faktor-meldung" hidden></div>
+</section>
+
+<section class="anmeldung" id="einrichten" hidden>
+  <h1>Zweiter Faktor für den Notfall-Zugang</h1>
+  <p class="leise" style="margin:0 0 10px">Im Notfall meldest du dich hier mit deinem Windows-Kennwort und einem
+    Code aus einer Authenticator-App an (z. B. Microsoft Authenticator). Eingerichtet wird jetzt, solange die
+    Microsoft-Anmeldung funktioniert.</p>
+  <div id="ein-anmelden" hidden>
+    <p style="margin:0 0 10px">Bestätige dafür zuerst mit deiner Microsoft-Anmeldung, dass du es bist
+      (gilt {{ frisch_min }} Minuten).</p>
+    <a class="knopf haupt" href="/auth/login/microsoft?next=/notfall/einrichten">Mit Microsoft anmelden</a>
+  </div>
+  <div id="ein-stand" hidden>
+    <p style="margin:0 0 10px">Angemeldet als <strong id="ein-wer"></strong>. <span id="ein-zustand"></span></p>
+    <button class="haupt" id="ein-beginnen" onclick="faktorBeginnen()">Authenticator-App einrichten</button>
+    <button id="ein-codes" onclick="codesErneuern()" hidden>Neue Wiederherstellungscodes</button>
+  </div>
+  <div id="ein-qr" hidden>
+    <p style="margin:10px 0 6px">Scanne den Code mit der App — oder gib den Schlüssel von Hand ein:</p>
+    <div id="ein-qr-bild" class="qr"></div>
+    <p class="leise" style="word-break:break-all;margin:6px 0"><code id="ein-geheimnis"></code></p>
+    <label for="ein-code">Code aus der App</label>
+    <input id="ein-code" autocomplete="one-time-code" inputmode="numeric">
+    <div style="margin-top:10px"><button class="haupt" id="ein-bestaetigen" onclick="faktorBestaetigen()">Bestätigen</button></div>
+  </div>
+  <div id="ein-fertig" hidden>
+    <div class="ok" style="margin:10px 0">Eingerichtet. Bewahre diese Wiederherstellungscodes sicher auf — jeder
+      gilt einmal, falls das Telefon fehlt. Sie werden nur jetzt angezeigt.</div>
+    <pre id="ein-liste" class="codes"></pre>
+    <p class="leise">Testen kannst du die Anmeldung unter <a href="/notfall">/notfall</a>.</p>
+  </div>
+  <div class="meldung" id="ein-meldung" hidden></div>
+</section>
+
 <section class="anmeldung" id="bereit" hidden>
   <h1>Bereit</h1>
   <p style="margin:0 0 8px">Dein Notfall-Zugang ist eingerichtet. Solange Exchange Online läuft, arbeitest du wie
@@ -186,9 +235,86 @@ async function anmelden(ev) {
   const d = await knopfAktion('anmelde-knopf', 'Prüfe…', () =>
     postJSON('/notfall/anmelden', {benutzer: feldWert('name'), passwort: kw.value}));
   kw.value = '';
+  if (d.ok && d.faktor) {
+    nb.vorgang = d.vorgang;
+    document.getElementById('anmeldung').hidden = true;
+    document.getElementById('faktor').hidden = false;
+    document.getElementById('faktor-code').focus();
+    return;
+  }
   if (d.ok) { document.getElementById('anmeldung').hidden = true; start().then(kopfhoeheMerken); return; }
   const m = document.getElementById('anmelde-meldung');
+  m.innerHTML = esc(errText(d)) + (d.einrichten
+    ? ' <a href="/notfall/einrichten">Jetzt einrichten</a>' : '');
+  m.hidden = false;
+}
+
+async function faktorSenden(ev) {
+  ev.preventDefault();
+  const feld = document.getElementById('faktor-code');
+  const d = await knopfAktion('faktor-knopf', 'Prüfe…', () =>
+    postJSON('/notfall/anmelden/faktor', {vorgang: nb.vorgang, code: feld.value}));
+  feld.value = '';
+  if (d.ok) { document.getElementById('faktor').hidden = true; start().then(kopfhoeheMerken); return; }
+  if (d.neu) { location.reload(); return; }
+  const m = document.getElementById('faktor-meldung');
   m.textContent = errText(d); m.hidden = false;
+}
+
+// ── Einrichten (nach Microsoft-Anmeldung) ──
+function einMeldung(text) {
+  const m = document.getElementById('ein-meldung');
+  m.textContent = text; m.hidden = !text;
+}
+
+async function einrichtenStart() {
+  document.getElementById('einrichten').hidden = false;
+  const d = await getJSON('/notfall/api/faktor');
+  if (!d.ok) {
+    if (d.http === 401) { document.getElementById('ein-anmelden').hidden = false; return; }
+    einMeldung(errText(d)); return;
+  }
+  document.getElementById('ein-wer').textContent = d.postfach;
+  document.getElementById('ein-zustand').textContent = d.gesperrt
+    ? 'Dein zweiter Faktor ist nach Fehlversuchen gesperrt — richte ihn neu ein.'
+    : d.totp ? 'Eingerichtet seit ' + new Date(d.seit).toLocaleDateString('de-DE') + ', noch '
+      + d.codes_uebrig + ' Wiederherstellungscodes.' : 'Noch kein zweiter Faktor eingerichtet.';
+  document.getElementById('ein-beginnen').textContent = d.totp ? 'Neues Telefon einrichten' : 'Authenticator-App einrichten';
+  document.getElementById('ein-codes').hidden = !d.totp || d.gesperrt;
+  document.getElementById('ein-stand').hidden = false;
+}
+
+async function faktorBeginnen() {
+  const d = await knopfAktion('ein-beginnen', 'Bereite vor…', () => postJSON('/notfall/api/faktor/beginnen', {}));
+  if (!d.ok) { einMeldung(errText(d)); return; }
+  einMeldung('');
+  // Das SVG erzeugt das Gateway selbst (segno) aus dem eigenen otpauth-Text.
+  document.getElementById('ein-qr-bild').innerHTML = d.qr_svg;
+  document.getElementById('ein-geheimnis').textContent = d.geheimnis.replace(/(.{4})/g, '$1 ').trim();
+  document.getElementById('ein-qr').hidden = false;
+  document.getElementById('ein-code').focus();
+}
+
+async function faktorBestaetigen() {
+  const d = await knopfAktion('ein-bestaetigen', 'Prüfe…', () =>
+    postJSON('/notfall/api/faktor/bestaetigen', {code: feldWert('ein-code')}));
+  if (!d.ok) { einMeldung(errText(d)); return; }
+  codesZeigen(d.codes);
+}
+
+async function codesErneuern() {
+  if (!confirm('Neue Wiederherstellungscodes erzeugen? Die bisherigen gelten dann nicht mehr.')) return;
+  const d = await knopfAktion('ein-codes', 'Erzeuge…', () => postJSON('/notfall/api/faktor/codes', {}));
+  if (!d.ok) { einMeldung(errText(d)); return; }
+  codesZeigen(d.codes);
+}
+
+function codesZeigen(codes) {
+  einMeldung('');
+  document.getElementById('ein-qr').hidden = true;
+  document.getElementById('ein-stand').hidden = true;
+  document.getElementById('ein-liste').textContent = codes.join('\n');
+  document.getElementById('ein-fertig').hidden = false;
 }
 
 async function abmelden() {
@@ -472,7 +598,7 @@ function verwerfen() {
   ansicht('liste');
 }
 
-start().then(kopfhoeheMerken);
+{% if einrichten %}einrichtenStart();{% else %}start().then(kopfhoeheMerken);{% endif %}
 </script>
 </body>
 </html>

@@ -120,6 +120,27 @@ def _kontakte() -> dict:
     return _p("Kontakte", abnahme.OK, "Lesbar.")
 
 
+def _zweitfaktor() -> dict:
+    """Wie viele könnten sich im Notfall anmelden? Mit Bezugsgröße — „0“
+    allein wäre nicht zu deuten."""
+    import abnahme
+    import notbetrieb
+    import notbetrieb_faktor
+    if not notbetrieb_faktor.pflicht():
+        return _p("Zweiter Faktor", abnahme.ENTFAELLT, "Nicht vorgeschrieben — Anmeldung nur mit Kennwort.")
+    eingerichtet = {f["postfach"] for f in notbetrieb_faktor.uebersicht() if not f["gesperrt"]}
+    with notbetrieb._lock, notbetrieb._conn() as conn:
+        nutzer = {z["primary_adr"].lower() for z in conn.execute(
+            "SELECT primary_adr FROM konten WHERE typ='UserMailbox'")}
+    befund = f"{len(eingerichtet & nutzer)} von {len(nutzer)} Benutzerpostfächern eingerichtet"
+    if notbetrieb_faktor.im_notfall_ohne():
+        befund += "; im ausgerufenen Notfall geht es auch ohne"
+    elif not eingerichtet & nutzer:
+        return _p("Zweiter Faktor", abnahme.OFFEN, befund + " — im Notfall könnte sich niemand anmelden.",
+                  "Notbetrieb → Anmeldung: Link zum Einrichten an alle verteilen.")
+    return _p("Zweiter Faktor", abnahme.OK, befund + ".")
+
+
 def _mailprogramme() -> dict:
     """IMAP (993) und SMTP (587) sind Zusatzwege — aus heißt „entfällt“, nicht
     „nicht bereit“. Beide Listener binden nur mit TLS-Zertifikat — das prüft
@@ -142,7 +163,7 @@ def pruefen(mit_netz: bool = True) -> dict:
     st = notbetrieb.status()
     punkte = []
     for f in (lambda: _kopie(st), _abbild, lambda: _profile(st), lambda: _anmeldung(mit_netz), _versand,
-              _kontakte, _mailprogramme, abnahme._tls):
+              _kontakte, _zweitfaktor, _mailprogramme, abnahme._tls):
         try:
             punkte.append(f())
         except Exception as exc:                                    # noqa: BLE001

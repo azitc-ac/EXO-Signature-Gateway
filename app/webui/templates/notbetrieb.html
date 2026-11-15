@@ -313,6 +313,36 @@
     <span id="nb-ldap-result"></span>
   </div>
 
+  <h3>Zweiter Faktor</h3>
+  <p class="hint" style="margin-top:0">
+    Kennwort allein reicht nicht: Dazu kommt ein Code aus einer Authenticator-App (TOTP). Eingerichtet wird er im
+    Normalbetrieb nach einer Microsoft-Anmeldung, damit nur die Person selbst ihn einrichten kann — unter
+    <code>https://{{ imap_host or 'Hostname dieses Gateways' }}/notfall/einrichten</code>. Auch das prüft das Gateway
+    ohne Cloud. Solange der zweite Faktor Pflicht ist, nehmen IMAP und SMTP kein reines Kennwort an.
+  </p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-zweitfaktor" {% if zweitfaktor.pflicht %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
+             onchange="nbZweitfaktor(this)"> Zweiter Faktor Pflicht
+    </label>
+  </div>
+  <div class="msg" id="nb-zweitfaktor-msg" hidden></div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-zf-notfall" {% if zweitfaktor.notfall_ohne %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
+             onchange="nbZfNotfallOhne(this)"> Im ausgerufenen Notfall auch ohne eingerichteten Faktor
+    </label>
+    <span class="hint">Mehr erreichen dann, aber nur mit Kennwort</span>
+  </div>
+  <div class="msg" id="nb-zf-notfall-msg" hidden></div>
+  <div class="tabellen-rollbereich">
+    <table class="nb-tabelle" style="min-width:520px;width:100%;border-collapse:collapse;margin-top:8px">
+      <thead><tr><th>Postfach</th><th>Eingerichtet</th><th>Wiederherstellungscodes</th><th>Zustand</th><th></th></tr></thead>
+      <tbody id="nb-faktor-tbody"></tbody>
+    </table>
+  </div>
+  <div class="msg" id="nb-faktor-msg" style="margin-top:6px" hidden></div>
+
   <h3>Anmeldung testen</h3>
   <p class="hint" style="margin-top:0">Spielt die Anmeldung durch, wie sie im Notbetrieb abliefe. Wird nicht gespeichert.</p>
   <div class="settings-row">
@@ -515,6 +545,32 @@ async function nbRechte() {
     + '<td>' + liste(p.voll) + '</td><td>' + liste(p.als) + '</td><td>' + liste(p.auftrag) + '</td></tr>').join('');
 }
 
+// ── Zweiter Faktor ──────────────────────────────────────────────────────────
+// Reine Schalter → speichern sofort (Speichern-Linie Regel 4).
+async function nbZweitfaktor(el) {
+  if (!await savePartial({NOTBETRIEB_ZWEITFAKTOR: el.checked}, 'nb-zweitfaktor-msg')) el.checked = !el.checked;
+}
+async function nbZfNotfallOhne(el) {
+  if (!await savePartial({NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE: el.checked}, 'nb-zf-notfall-msg')) el.checked = !el.checked;
+}
+async function nbFaktoren() {
+  const tb = document.getElementById('nb-faktor-tbody');
+  const d = await getJSON('/api/notbetrieb/faktoren');
+  if (!d.ok) { tabelleHinweis(tb, 5, 'Nicht lesbar: ' + esc(errText(d)), true); return; }
+  if (!d.items.length) { tabelleHinweis(tb, 5, 'Noch niemand hat einen zweiten Faktor eingerichtet.'); return; }
+  tb.innerHTML = d.items.map(f => '<tr><td>' + esc(f.postfach) + '</td><td>'
+    + esc(new Date(f.seit).toLocaleDateString('de-DE')) + '</td><td>' + esc(String(f.codes_uebrig)) + '</td><td>'
+    + (f.gesperrt ? 'gesperrt (Fehlversuche)' : 'aktiv') + '</td><td><button class="btn danger btn-sm" '
+    + 'onclick="nbFaktorZuruecksetzen(this, \'' + escJsAttr(f.postfach) + '\')">Zurücksetzen</button></td></tr>').join('');
+}
+async function nbFaktorZuruecksetzen(knopf, postfach) {
+  if (!confirm('Zweiten Faktor von ' + postfach + ' zurücksetzen? Die Person muss ihn danach neu einrichten.')) return;
+  const d = await knopfAktion(knopf, 'Setze zurück…', () =>
+    postJSON('/api/notbetrieb/faktoren/zuruecksetzen', {postfach: postfach}));
+  showMsg('nb-faktor-msg', d.ok ? 'Zurückgesetzt: ' + postfach : errText(d), d.ok);
+  nbFaktoren();
+}
+
 async function nbRechteAbgleichen() {
   const d = await knopfAktion('nb-rechte-btn', 'Lese Rechte…', () => postJSON('/api/notbetrieb/rechte', {}));
   showMsg('nb-rechte-msg', d.ok ? 'Rechte gelesen: ' + d.konten + ' Postfächer, ' + d.rechte + ' Rechte.'
@@ -650,6 +706,7 @@ document.getElementById('nb-fenster-karte').addEventListener('change', nbRechnen
 nbRegelnZeichnen();
 nbStand();
 nbRechte();
+nbFaktoren();
 nbRechnen();
 </script>
 {% endblock %}

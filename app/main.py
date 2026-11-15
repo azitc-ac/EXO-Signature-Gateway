@@ -292,9 +292,14 @@ class _NotbetriebOffen:
 
 
 def _notbetrieb_smtp_an() -> bool:
+    """AD-Kennwort auf 587 zulassen? Nur mit Schalter — und nicht, solange der
+    zweite Faktor Pflicht ist (SMTP kann keinen abfragen), außer im
+    ausgerufenen Notfall mit erlaubtem Verzicht."""
     try:
         import notbetrieb
-        return notbetrieb.funktion_aktiv() and settings_store.get("NOTBETRIEB_SMTP") is True
+        import notbetrieb_faktor
+        return (notbetrieb.funktion_aktiv() and settings_store.get("NOTBETRIEB_SMTP") is True
+                and notbetrieb_faktor.nur_kennwort_erlaubt())
     except Exception:                                         # noqa: BLE001
         return False
 

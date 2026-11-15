@@ -20,6 +20,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 import notbetrieb
 import notbetrieb_anmeldung
+import notbetrieb_faktor
 import notbetrieb_lesen
 import notbetrieb_rechte
 import settings_store
@@ -79,8 +80,9 @@ async def notfall_seite(request: Request):
     if not notbetrieb.funktion_aktiv():
         raise HTTPException(404)
     return templates.TemplateResponse(request=request, name="notfall.html",
-                                      context={"gateway_name": _gateway_name(),
-                                               "eingerichtet": notbetrieb_anmeldung.eingerichtet()})
+                                      context={"gateway_name": _gateway_name(), "einrichten": False,
+                                               "eingerichtet": notbetrieb_anmeldung.eingerichtet(),
+                                               "frisch_min": FRISCH_S // 60})
 
 
 @router.post("/notfall/anmelden")
@@ -97,11 +99,138 @@ async def notfall_anmelden(request: Request):
     if not erg.get("ok"):
         return JSONResponse({"ok": False, "error": erg.get("error"), "warten_s": erg.get("warten_s")},
                             status_code=401)
+    postfach = erg["postfach"]
+    # Zweiter Faktor: erst das Kennwort, dann der Code (sonst verriete die
+    # Antwort ohne Kennwort, wer einen Faktor hat). Das Kennwort ist hier
+    # geprüft; der Vorgang trägt das Postfach für 5 Minuten.
+    if notbetrieb_faktor.eingerichtet(postfach):
+        return JSONResponse({"ok": True, "faktor": True,
+                             "vorgang": _vorgang_signierer().dumps({"b": postfach})})
+    if notbetrieb_faktor.pflicht() and not (notbetrieb.ausgerufen() and notbetrieb_faktor.im_notfall_ohne()):
+        log.info("Notbetrieb-Webmail: %s ohne zweiten Faktor abgewiesen (von %s)", postfach, quelle)
+        return JSONResponse({"ok": False, "einrichten": True,
+                             "error": "Für den Notfall-Zugang brauchst du einen zweiten Faktor. Richte ihn "
+                                      "einmalig ein — mit deiner Microsoft-Anmeldung, solange sie geht."},
+                            status_code=403)
+    return _anmeldung_fertig(postfach, erg.get("benutzer"), quelle, "ohne Faktor")
+
+
+def _vorgang_signierer() -> URLSafeTimedSerializer:
+    import sso
+    return URLSafeTimedSerializer(sso._get_secret(), salt="notbetrieb-faktor-vorgang")
+
+
+def _anmeldung_fertig(postfach: str, anmeldename, quelle: str, wie: str) -> JSONResponse:
     antwort = JSONResponse({"ok": True})
-    antwort.set_cookie(COOKIE, _signierer().dumps({"b": erg["postfach"]}), max_age=TTL_S,
+    antwort.set_cookie(COOKIE, _signierer().dumps({"b": postfach}), max_age=TTL_S,
                        path="/notfall", httponly=True, secure=True, samesite="strict")
-    log.info("Notbetrieb-Webmail: Anmeldung %s → %s von %s", erg.get("benutzer"), erg["postfach"], quelle)
+    log.info("Notbetrieb-Webmail: Anmeldung %s → %s von %s (%s)", anmeldename, postfach, quelle, wie)
     return antwort
+
+
+@router.post("/notfall/anmelden/faktor")
+async def notfall_anmelden_faktor(request: Request):
+    """Zweiter Schritt: Code aus der Authenticator-App oder ein Wiederherstellungscode."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    try:
+        postfach = str(_vorgang_signierer().loads(str(body.get("vorgang") or ""), max_age=300).get("b") or "")
+    except (BadSignature, SignatureExpired):
+        return JSONResponse({"ok": False, "error": "Die Anmeldung ist abgelaufen — bitte erneut mit Kennwort.",
+                             "neu": True}, status_code=401)
+    quelle = request.client.host if request.client else ""
+    ok, meldung = await asyncio.to_thread(notbetrieb_faktor.pruefen, postfach, str(body.get("code") or ""), quelle)
+    if not ok:
+        return JSONResponse({"ok": False, "error": meldung}, status_code=401)
+    return _anmeldung_fertig(postfach, postfach, quelle, "mit Faktor")
+
+
+# ── Zweiten Faktor einrichten (nach frischer Entra-Anmeldung) ───────────────
+
+FRISCH_S = 15 * 60
+
+
+EINRICHTEN_COOKIE = "nb_einrichten"
+
+
+def _einrichten_signierer() -> URLSafeTimedSerializer:
+    import sso
+    return URLSafeTimedSerializer(sso._get_secret(), salt="notbetrieb-faktor-einrichten")
+
+
+def einrichten_bescheinigen(upn: str):
+    """Nach der vollständig geprüften Entra-Anmeldung (anmeldung.py,
+    /auth/id-callback): Bescheinigung für 15 Minuten, nur /notfall. Keine
+    Sitzung des Gateways — der Nachweis berechtigt zu nichts anderem."""
+    from fastapi.responses import RedirectResponse
+    antwort = RedirectResponse("/notfall/einrichten", status_code=302)
+    if notbetrieb.funktion_aktiv() and upn:
+        antwort.set_cookie(EINRICHTEN_COOKIE, _einrichten_signierer().dumps({"u": upn.strip().lower()}),
+                           max_age=FRISCH_S, path="/notfall", httponly=True, secure=True, samesite="strict")
+        log.info("Notbetrieb-Faktor: Entra-Nachweis für %s (Einrichten)", upn)
+    return antwort
+
+
+def _entra_postfach(request: Request) -> str:
+    """Postfach aus einer FRISCHEN Entra-Anmeldung (Bescheinigung, höchstens
+    15 Minuten alt). Frisch, damit ein länger liegendes Cookie keinen Faktor
+    einrichten kann."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    try:
+        daten = _einrichten_signierer().loads(request.cookies.get(EINRICHTEN_COOKIE) or "", max_age=FRISCH_S)
+    except (BadSignature, SignatureExpired):
+        raise HTTPException(401, "Bitte mit Microsoft anmelden.")
+    postfach = notbetrieb.postfach_fuer(str((daten or {}).get("u") or ""))
+    if not postfach:
+        raise HTTPException(403, "Zu diesem Konto gibt es kein Postfach im Notbetrieb.")
+    return postfach
+
+
+@router.get("/notfall/einrichten", response_class=HTMLResponse)
+async def notfall_einrichten_seite(request: Request):
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    return templates.TemplateResponse(request=request, name="notfall.html",
+                                      context={"gateway_name": _gateway_name(), "einrichten": True,
+                                               "eingerichtet": notbetrieb_anmeldung.eingerichtet(),
+                                               "frisch_min": FRISCH_S // 60})
+
+
+@router.get("/notfall/api/faktor")
+async def notfall_faktor_stand(postfach: str = Depends(_entra_postfach)):
+    return JSONResponse({"ok": True, "postfach": postfach, **notbetrieb_faktor.stand(postfach)})
+
+
+@router.post("/notfall/api/faktor/beginnen")
+async def notfall_faktor_beginnen(postfach: str = Depends(_entra_postfach)):
+    return JSONResponse({"ok": True, **await asyncio.to_thread(notbetrieb_faktor.totp_beginnen, postfach)})
+
+
+@router.post("/notfall/api/faktor/bestaetigen")
+async def notfall_faktor_bestaetigen(request: Request, postfach: str = Depends(_entra_postfach)):
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    try:
+        codes = await asyncio.to_thread(notbetrieb_faktor.totp_bestaetigen, postfach, str(body.get("code") or ""))
+    except notbetrieb_faktor.FaktorFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "codes": codes})
+
+
+@router.post("/notfall/api/faktor/codes")
+async def notfall_faktor_codes(postfach: str = Depends(_entra_postfach)):
+    try:
+        codes = await asyncio.to_thread(notbetrieb_faktor.codes_erneuern, postfach)
+    except notbetrieb_faktor.FaktorFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "codes": codes})
 
 
 @router.post("/notfall/abmelden")
