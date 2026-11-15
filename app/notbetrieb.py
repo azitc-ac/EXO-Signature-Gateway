@@ -348,9 +348,9 @@ def _conn() -> sqlite3.Connection:
     return conn
 
 
-# Kopfdaten für die Liste im Webmail — beim ersten Lesen aus dem MIME
-# nachgetragen (notbetrieb_lesen._kopf_nachtragen), damit Abgleich und lokale
-# Ablage nichts davon wissen müssen.
+# Kopfdaten für die Liste im Webmail — gleich nach dem Ablegen aus dem MIME
+# gelesen (_kopf_sofort → notbetrieb_lesen.kopf_auffuellen), nicht erst beim
+# ersten Abruf: Am Morgen eines Notfalls öffnen alle zugleich zum ersten Mal.
 _MAIL_ZUSATZ = ("betreff TEXT", "von TEXT", "an TEXT", "anhang INTEGER", "text TEXT",
                # Kennung in Exchange nach dem Rückspielen — Ziel späterer
                # Änderungen (gelesen, verschoben), bis der Abgleich die Zeile übernimmt.
@@ -401,6 +401,16 @@ def _zeit(text: str) -> datetime | None:
         return None
 
 
+def _kopf_sofort(postfach: str, graph_id: str, pfad) -> None:
+    """Kopfdaten gleich nach dem Ablegen (ohne Sperre zerlegt). Scheitert es,
+    trägt der Hintergrund bzw. die Liste nach — der Abgleich läuft weiter."""
+    try:
+        import notbetrieb_lesen
+        notbetrieb_lesen.kopf_auffuellen([{"postfach": postfach.lower(), "graph_id": graph_id, "datei": str(pfad)}])
+    except Exception as exc:                                        # noqa: BLE001
+        log.debug("Notbetrieb: Kopfdaten für %s später: %s", graph_id[:12], exc)
+
+
 def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
                   empfangen: datetime | None = None, gelesen: bool = False,
                   schon_zurueck: str | None = None) -> str:
@@ -425,6 +435,7 @@ def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
             (postfach.lower(), graph_id, ordner, imid,
              _iso(empfangen or datetime.now(timezone.utc)), 1 if gelesen else 0, str(pfad), LOKAL,
              f"{schon_zurueck} {_iso(datetime.now(timezone.utc))}" if schon_zurueck else None))
+    _kopf_sofort(postfach, graph_id, pfad)
     return imid
 
 
@@ -619,6 +630,7 @@ def _abgleich_ordner(client: httpx.Client, token: str, postfach: str, ordner: st
                     " gelesen, datei, herkunft) VALUES (?,?,?,?,?,?,?,?)",
                     (postfach, gid, ordner, m.get("internetMessageId") or "", _iso(empfangen),
                      1 if m.get("isRead") else 0, str(pfad), EXO))
+            _kopf_sofort(postfach, gid, pfad)
             zaehlung["neu"] += 1
         url = daten.get("@odata.nextLink") or ""
         ende = daten.get("@odata.deltaLink") or ""

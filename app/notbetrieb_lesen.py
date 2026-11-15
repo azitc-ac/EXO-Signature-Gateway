@@ -116,20 +116,45 @@ def _kopfstand_pruefen(conn) -> None:
         conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('kopf_stand', ?)", (str(KOPF_STAND),))
 
 
-def _kopf_nachtragen(conn, zeilen) -> None:
-    """Kopfdaten für Zeilen ohne Betreff aus dem MIME lesen und merken."""
-    for z in zeilen:
-        if z["betreff"] is not None:
-            continue
-        try:
-            msg = _laden(z["datei"])
-            werte = (_dekodiert(msg["Subject"]), _dekodiert(msg["From"]),
-                     _dekodiert(msg["To"]), len(_anhaenge(msg)), _klartext(msg)[:TEXT_MAX])
-        except Exception as exc:                              # noqa: BLE001
-            log.warning("Notbetrieb: Mail nicht lesbar (%s): %s", z["graph_id"][:12], exc)
-            werte = ("(nicht lesbar)", "", "", 0, "")
-        conn.execute("UPDATE mails SET betreff=?, von=?, an=?, anhang=?, text=? WHERE postfach=? AND graph_id=?",
-                     (*werte, z["postfach"], z["graph_id"]))
+def _kopf_werte(datei: str, graph_id: str) -> tuple:
+    try:
+        msg = _laden(datei)
+        return (_dekodiert(msg["Subject"]), _dekodiert(msg["From"]),
+                _dekodiert(msg["To"]), len(_anhaenge(msg)), _klartext(msg)[:TEXT_MAX])
+    except Exception as exc:                                  # noqa: BLE001
+        log.warning("Notbetrieb: Mail nicht lesbar (%s): %s", graph_id[:12], exc)
+        return ("(nicht lesbar)", "", "", 0, "")
+
+
+def kopf_auffuellen(zeilen) -> int:
+    """Kopfdaten (Betreff, Von, An, Anhänge, Vorschautext) für die Liste aus
+    dem MIME lesen und merken — EIN Weg für Ablage, Hintergrund und Liste.
+
+    Zerlegt wird OHNE die Sperre der Kopie, geschrieben mit ihr. Lasttest
+    15.11.2026 (1020 Postfächer, 61 200 Mails): Der erste Listenabruf je
+    Postfach kostete 314–781 ms statt 11–13 ms, weil er das hier unter der
+    Sperre tat; mit 500 Nutzern in einer Minute standen dahinter alle anderen
+    Aufrufe an (p50 18 s, 436 Zeitüberschreitungen). Deshalb geschieht es jetzt
+    schon beim Ablegen — die Liste trägt nur noch Ausnahmen nach."""
+    werte = [(*_kopf_werte(z["datei"], z["graph_id"]), z["postfach"], z["graph_id"])
+             for z in zeilen if z["datei"]]
+    if werte:
+        with notbetrieb._lock, notbetrieb._conn() as conn:
+            conn.executemany("UPDATE mails SET betreff=?, von=?, an=?, anhang=?, text=? "
+                             "WHERE postfach=? AND graph_id=? AND betreff IS NULL", werte)
+    return len(werte)
+
+
+def kopf_auffuellen_offen(hoechstens: int = 2000) -> int:
+    """Hintergrund (Scheduler): Zeilen ohne Kopfdaten — Altbestand vor dem
+    Ablegen mit Kopfdaten, oder nach einem neuen KOPF_STAND."""
+    if not notbetrieb._db_pfad().exists():
+        return 0
+    with notbetrieb._lock, notbetrieb._conn() as conn:
+        _kopfstand_pruefen(conn)
+        zeilen = conn.execute("SELECT postfach, graph_id, datei FROM mails WHERE betreff IS NULL LIMIT ?",
+                              (hoechstens,)).fetchall()
+    return kopf_auffuellen(zeilen)
 
 
 def ordner(postfach: str) -> list[dict]:
@@ -194,10 +219,14 @@ def liste(postfach: str, ordner_id: str = "", suche: str = "", seite: int = 0,
             ids = [ordner_id] + ([wk["wk"]] if wk and wk["wk"] else [])
             bed.append(f"ordner IN ({','.join('?' * len(ids))})")
             werte += ids
-        # Kopfdaten fehlender Zeilen erst nachtragen, sonst fände die Suche sie nicht.
         _kopfstand_pruefen(conn)
-        _kopf_nachtragen(conn, conn.execute(
-            f"SELECT * FROM mails WHERE {' AND '.join(bed)} AND betreff IS NULL", werte).fetchall())
+        fehlend = conn.execute(f"SELECT postfach, graph_id, datei FROM mails WHERE {' AND '.join(bed)} "
+                               f"AND betreff IS NULL", werte).fetchall()
+    # Kopfdaten fehlender Zeilen erst nachtragen, sonst fände die Suche sie
+    # nicht — außerhalb der Sperre (kopf_auffuellen); meist ist nichts offen.
+    if fehlend:
+        kopf_auffuellen(fehlend)
+    with notbetrieb._lock, notbetrieb._conn() as conn:
         if suche.strip():
             for wort in suche.split()[:5]:
                 muster = "%" + wort.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"

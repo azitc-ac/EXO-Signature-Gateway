@@ -963,3 +963,40 @@ def test_echtheit_nur_aus_der_eigenen_kopfzeile(schatten, kopf, erwartet):
     with notbetrieb._conn() as conn:
         gid = conn.execute("SELECT graph_id FROM mails WHERE imid='<echt@firma.at>'").fetchone()["graph_id"]
     assert notbetrieb_lesen.mail("a@firma.at", gid)["echtheit"] == erwartet
+
+
+# ── Last: Kopfdaten beim Ablegen, Zerlegen nie unter der Sperre ────────────
+
+def test_kopfdaten_gleich_beim_ablegen(schatten):
+    """Lasttest 15.11.: Der erste Listenabruf je Postfach war 30–60× teurer,
+    weil er die Kopfdaten erst dann aus dem MIME las."""
+    import notbetrieb
+    notbetrieb.lokal_ablegen("a@firma.at", "inbox", TEXT_MAIL.replace(b"Nur Text", b"Sofort da"))
+    with notbetrieb._conn() as conn:
+        z = conn.execute("SELECT betreff, von FROM mails WHERE herkunft='lokal' ORDER BY rowid DESC LIMIT 1").fetchone()
+    assert z[0] is not None and z[1]
+
+
+def test_liste_zerlegt_nicht_unter_der_sperre(schatten, monkeypatch):
+    import notbetrieb
+    with notbetrieb._conn() as conn:
+        conn.execute("UPDATE mails SET betreff=NULL")                  # Altbestand ohne Kopfdaten
+    echt, gesehen = notbetrieb_lesen._laden, []
+
+    def laden(datei):
+        gesehen.append(notbetrieb._lock.locked())
+        return echt(datei)
+    monkeypatch.setattr(notbetrieb_lesen, "_laden", laden)
+    erg = notbetrieb_lesen.liste("a@firma.at", "ord-in")
+    assert gesehen and not any(gesehen), gesehen                     # zerlegt, aber nie mit Sperre
+    assert all(m["betreff"] for m in erg["mails"])
+
+
+def test_hintergrund_traegt_altbestand_nach(schatten):
+    import notbetrieb
+    with notbetrieb._conn() as conn:
+        conn.execute("UPDATE mails SET betreff=NULL")
+    assert notbetrieb_lesen.kopf_auffuellen_offen() >= 3
+    with notbetrieb._conn() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM mails WHERE betreff IS NULL").fetchone()[0] == 0
+    assert notbetrieb_lesen.kopf_auffuellen_offen() == 0

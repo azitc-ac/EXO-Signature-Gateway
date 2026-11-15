@@ -648,6 +648,10 @@ def _sync_notbetrieb() -> None:
             if alt is None or alt > _NOTBETRIEB_RECHTE_INTERVAL:
                 notbetrieb.profile_sichern()
             notbetrieb.abgleich_alle()
+            # Altbestand ohne Kopfdaten im Hintergrund nachtragen, nicht beim
+            # ersten Abruf im Webmail (Lasttest 15.11.: kalt 30–60× teurer).
+            import notbetrieb_lesen
+            notbetrieb_lesen.kopf_auffuellen_offen()
     except Exception as exc:                                        # noqa: BLE001
         log.warning("scheduler: Notbetrieb-Abgleich fehlgeschlagen: %s", exc)
     finally:
