@@ -243,27 +243,65 @@ def _encode_subject(text: str) -> str:
         return email.header.Header(text, "utf-8").encode()
 
 
-def _build_subject_tag(enc: bool, signer_name: str | None) -> str:
-    """Build [verschlüsselt] / [signiert von X] / [verschlüsselt, signiert von X]."""
+def _build_subject_tag(enc: bool, signer_name: str | None, unbestaetigt: bool = False) -> str:
+    """Build [verschlüsselt] / [signiert von X] / [verschlüsselt, signiert von X].
+
+    `unbestaetigt`: Die Signatur ließ sich nicht bestätigen, die Hülle wurde
+    trotzdem entfernt → Warnvermerk (SMIME_TAG_UNBESTAETIGT) statt „signiert
+    von". Er erscheint IMMER, auch wenn die übrigen Vermerke abgeschaltet sind:
+    Er ersetzt die Warnung, die Outlook an der Hülle selbst gezeigt hätte."""
     parts = []
     if enc and settings_store.get("SMIME_TAG_ENCRYPTED_ENABLED") is not False:
         parts.append(settings_store.get("SMIME_TAG_ENCRYPTED") or "verschlüsselt")
-    if signer_name and settings_store.get("SMIME_TAG_SIGNED_ENABLED") is not False:
+    if unbestaetigt:
+        parts.append(settings_store.get("SMIME_TAG_UNBESTAETIGT") or "Signatur nicht bestätigt")
+    elif signer_name and settings_store.get("SMIME_TAG_SIGNED_ENABLED") is not False:
         tmpl = settings_store.get("SMIME_TAG_SIGNED") or "signiert von {signer}"
         parts.append(tmpl.replace("{signer}", signer_name))
     return f"[{', '.join(parts)}]" if parts else ""
 
 
+def _unbestaetigt_entfernen(msg: email.message.Message, sender: str,
+                            grund: str | None) -> bytes | None:
+    """Hülle einer NICHT bestätigten Signatur trotzdem abnehmen (seit v1.12.33).
+
+    Bis dahin ging solche Post signiert weiter, damit Outlook selbst warnt
+    (smime_harvest: „ERST PRÜFEN, DANN ENTFERNEN"). Jetzt übernimmt der
+    Betreff-Vermerk SMIME_TAG_UNBESTAETIGT die Warnung — einheitlich mit der
+    bestätigten Post, deren Hülle das Gateway ohnehin entfernt, und auch auf
+    Wegen, die eine Signaturhülle nicht abbilden können (Graph-Anlage).
+
+    Eingesammelt wird dabei NICHTS Neues: Das hat strip_and_harvest schon nach
+    seinen Regeln entschieden (nur bei inhaltlich gültiger Signatur). Keine
+    Hülle (kein S/MIME, unvollständig) → None, nichts zu tun. Abgeschaltet
+    mit SMIME_STRIP_INBOUND = false."""
+    if grund in ("kein S/MIME", "unvollständig"):
+        return None
+    if settings_store.get("SMIME_STRIP_INBOUND") is False:
+        return None
+    import smime_harvest
+    inhalt = smime_harvest.nur_entfernen(msg)
+    if inhalt:
+        stats.increment("smime_unbestaetigt")
+        log.warning("S/MIME-Signatur von %s nicht bestätigt (%s) — Hülle entfernt, "
+                    "Warnvermerk im Betreff", sender, grund)
+    return inhalt
+
+
 def _strip_subject_tags(subject: str) -> str:
-    """Remove gateway-added [verschlüsselt …] / [signiert von …] blocks from subject."""
+    """Remove gateway-added [verschlüsselt …] / [signiert von …] /
+    [Signatur nicht bestätigt] blocks from subject."""
     enc_tag = settings_store.get("SMIME_TAG_ENCRYPTED") or "verschlüsselt"
     signed_tmpl = settings_store.get("SMIME_TAG_SIGNED") or "signiert von {signer}"
     signed_prefix = signed_tmpl.split("{signer}")[0]
+    unbest_tag = settings_store.get("SMIME_TAG_UNBESTAETIGT") or "Signatur nicht bestätigt"
     pattern = (
         r"\s*\[(?:"
         + re.escape(enc_tag)
         + r"|"
         + re.escape(signed_prefix)
+        + r"|"
+        + re.escape(unbest_tag)
         + r")[^\]]*\]"
     )
     return re.sub(pattern, "", subject, flags=re.IGNORECASE).strip()
@@ -909,6 +947,7 @@ class SignatureHandler:
                         outer_subject = _decode_subject(msg.get("Subject", ""))
                         _restore_envelope_headers(inner_msg, msg)
                         signer_name: str | None = None
+                        unbestaetigt = False
 
                         # Encrypted mail may also be signed inside (sign-then-encrypt).
                         # Handle two S/MIME signing formats:
@@ -921,9 +960,12 @@ class SignatureHandler:
                             inner_proto = (inner_msg.get_param("protocol") or "").lower()
                             if "pkcs7" in inner_proto:
                                 import smime_harvest
-                                stripped, signer_name, _ = smime_harvest.strip_and_harvest(
+                                stripped, signer_name, _grund = smime_harvest.strip_and_harvest(
                                     inner_msg, smime_harvest.kopf_adressen(msg) or [sender],
                                     raw=decrypted)
+                                if not stripped:
+                                    stripped = _unbestaetigt_entfernen(inner_msg, sender, _grund)
+                                    unbestaetigt = bool(stripped)
                                 if stripped:
                                     body_msg = email.message_from_bytes(stripped)
                                     _restore_envelope_headers(body_msg, msg)
@@ -940,7 +982,8 @@ class SignatureHandler:
                                 log.warning("signed-data nicht entfernt für %s (%s) — "
                                             "signiert zugestellt", sender, _grund)
 
-                        tag = _build_subject_tag(enc=True, signer_name=signer_name)
+                        tag = _build_subject_tag(enc=True, signer_name=signer_name,
+                                                 unbestaetigt=unbestaetigt)
                         _apply_subject_tag(inner_msg, tag, outer_subject)
                         loop_detector.mark_as_signed(inner_msg)
                         reinject.send(sender, recipients, _smtp_bytes(inner_msg),
@@ -1004,21 +1047,29 @@ class SignatureHandler:
                             outer_subject = _decode_subject(msg.get("Subject", ""))
                             stripped, signer_name, _grund = smime_harvest.strip_and_harvest(
                                 msg, smime_harvest.kopf_adressen(msg) or [sender], raw=raw)
+                            unbestaetigt = False
+                            if not stripped:
+                                stripped = _unbestaetigt_entfernen(msg, sender, _grund)
+                                unbestaetigt = bool(stripped)
                             if stripped:
                                 inner_msg = email.message_from_bytes(stripped)
                                 _restore_envelope_headers(inner_msg, msg)
-                                tag = _build_subject_tag(enc=False, signer_name=signer_name)
+                                tag = _build_subject_tag(enc=False, signer_name=signer_name,
+                                                         unbestaetigt=unbestaetigt)
                                 _apply_subject_tag(inner_msg, tag, outer_subject)
                                 loop_detector.mark_as_signed(inner_msg)
                                 reinject.send(sender, recipients, _smtp_bytes(inner_msg))
                                 stats.increment("processed")
                                 stats.increment("smime_signiert_empfangen")
-                                _audit("smime_signiert_empfangen")
-                                log.info("S/MIME inbound signed stripped from=%s signer=%s",
-                                         sender, signer_name)
+                                _audit("smime_signiert_empfangen", error=(
+                                    f"Signatur nicht bestätigt ({_grund}), Hülle entfernt, "
+                                    "Warnvermerk im Betreff" if unbestaetigt else None))
+                                log.info("S/MIME inbound signed stripped from=%s signer=%s%s",
+                                         sender, signer_name,
+                                         " (nicht bestätigt, Warnvermerk)" if unbestaetigt else "")
                                 return "250 OK"
-                            # Nicht bestätigt → NICHT entfernen: Outlook prüft selbst und
-                            # warnt, statt dass ein Vermerk eine Prüfung bescheinigt.
+                            # Hülle ließ sich nicht abnehmen (kein lesbarer Inhalt) —
+                            # dann signiert weiter, Outlook urteilt selbst.
                             log.warning("S/MIME-Signatur von %s nicht bestätigt (%s) — "
                                         "signiert zugestellt", sender, _grund)
                             _fehler = f"Signatur nicht bestätigt ({_grund}), signiert zugestellt"

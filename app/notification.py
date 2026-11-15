@@ -273,6 +273,25 @@ def _direktversand_probe_row() -> str:
     return _row("Direktversand-Probe", text, _PROBE_FARBE.get(ampel, "#e74c3c"))
 
 
+def _eingang_rows(dval) -> str:
+    """Zeilen zur Ablage externer Post (Graph++) und zu nicht bestätigten Signaturen.
+
+    „Eingang abgelegt (Graph / IMAP)" steht IMMER, wenn Graph++ den Graph-Weg
+    nutzt — auch mit 0: Der Weg ist neu, und „0 / 12" heisst, dass er nicht
+    trägt und alles auf IMAP zurückfällt (Verifikationspflicht 8). Die
+    Signatur-Zeile nur bei Vorkommen — ein Warnzähler, dessen 0 nichts sagt."""
+    zeilen = ""
+    if (settings_store.reinject_mode() == "graph_plus"
+            and settings_store.graph_plus_eingang() == "graph"):
+        g, i = dval("eingang_graph"), dval("eingang_imap")
+        zeilen += _row("Eingang abgelegt (Graph / IMAP)", f"{g} / {i}",
+                       "#e67e22" if i and not g else "")
+    if dval("smime_unbestaetigt"):
+        zeilen += _row("Signatur nicht bestätigt (entfernt, Warnvermerk)",
+                       dval("smime_unbestaetigt"), "#e67e22")
+    return zeilen
+
+
 def send_daily_report(daily: dict, total: dict) -> bool:
     to = _get_notify_to()
     if not to:
@@ -342,6 +361,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         # welche gab; ohne Abwesenheit ist die Null der Normalfall.
         (_row("Abwesenheitsantworten (Gateway)", dval("oof_ablage_antwort"))
          if dval("oof_ablage_antwort") else ""),
+        _eingang_rows(dval),
         # ⚠️ Hier gilt das UMGEKEHRTE: Diese Zeile erscheint IMMER, auch mit 0.
         # Bei der Ketten-Erkennung ist die Null die Meldung — sie bedeutet,
         # dass Signaturen womoeglich doppelt hinausgehen. Genau dieser Zustand

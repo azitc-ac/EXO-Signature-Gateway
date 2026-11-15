@@ -5,6 +5,39 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.33 — 2026-11-15 — Graph++: Eingang wahlweise per Graph statt IMAP; nicht bestätigte Signaturen mit Warnvermerk
+
+**Eingang per Graph statt IMAP (Graph++, in Erprobung).** Post von externen
+Absendern, die das Gateway bearbeitet hat – vor allem entschlüsselte
+S/MIME-Post –, legt Graph++ bisher per IMAP APPEND in den Posteingang. Unter
+*Erweitert → Zustellwege → Eingang per Graph statt IMAP* lässt sich jetzt
+stattdessen die Graph-API wählen: Die Nachricht wird direkt als empfangene
+Mail angelegt, mit Absender, Message-ID, Zeiten und Unterhaltung. Gemessen
+trägt dieser Weg HTML mit eingebetteten Bildern, große Anhänge und Nur-Text.
+Scheitert die Graph-Anlage, versucht das Gateway IMAP; scheitert auch das,
+geht die Mail den bisherigen Weg bis zur Warteschlange – verloren geht nichts.
+Mails, die noch verschlüsselt oder signiert sind (etwa wenn dem Gateway der
+Schlüssel fehlt), gehen weiter per IMAP, weil die Graph-Anlage eine solche
+Hülle nicht abbilden kann. Verschlüsselte oder signierte Einladungen externer
+Absender kommen über den Graph-Weg als `.ics`-Anlage an, und die
+Original-Kopfzeilen stehen nicht in der Nachricht. Der Tagesbericht zeigt bei
+eingeschaltetem Graph-Weg immer die Zeile „Eingang abgelegt (Graph / IMAP)“ –
+fällt alles auf IMAP zurück, ist sie orange.
+
+**Nicht bestätigte Signatur: Hülle entfernt, Warnvermerk im Betreff.** Ließ
+sich die S/MIME-Signatur einer eingehenden Mail nicht bestätigen (Inhalt
+verändert, Aussteller unbekannt, Zertifikat passt nicht zum Absender), ging
+die Mail bisher signiert weiter, und Outlook warnte selbst. Jetzt entfernt
+das Gateway die Hülle auch dann – wie bei bestätigten Signaturen – und setzt
+stattdessen den Vermerk „[Signatur nicht bestätigt]“ in den Betreff. Er
+behauptet nie „signiert von …“, und eingesammelt wird dabei kein Zertifikat,
+das nicht schon vorher eingesammelt worden wäre. Der Text ist unter
+*Einstellungen → S/MIME → Betreff* anpassbar. Mit ausgeschaltetem „S/MIME-
+Signaturen eingehender Mails entfernen“ bleibt es beim alten Verhalten.
+
+**Zu tun:** nichts. Die Vorgabe bleibt IMAP. Nutzt du Graph++, kannst du den
+neuen Weg unter *Erweitert* einschalten und im Tagesbericht verfolgen.
+
 ## v1.12.32 — 2026-11-15 — Graph-Rückfall in den Posteingang behält Message-ID, Sendezeit und Unterhaltung
 
 Scheitern die anderen Zustellwege, legt das Gateway eingehende Post per Graph

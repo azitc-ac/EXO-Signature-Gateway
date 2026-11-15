@@ -82,6 +82,15 @@ KEYS = (
     # per Ablage (IMAP APPEND / Graph-Inject) statt per Zustellung ins Postfach
     # kam — dort schickt Exchange keine (oof_ablage.py).
     "oof_ablage_antwort",
+    # Graph++: Post externer Absender, je nach GRAPH_PLUS_EINGANG per Graph-Anlage
+    # oder IMAP APPEND abgelegt — gezählt NACH erfolgreicher Ablage. Zeigt, welcher
+    # Weg wirklich trägt (der Graph-Weg ist neu und in Erprobung).
+    "eingang_graph",
+    "eingang_imap",
+    # Eingehende Signatur nicht bestätigt: Hülle trotzdem entfernt, Betreff mit
+    # Warnvermerk (SMIME_TAG_UNBESTAETIGT). Bis v1.12.32 ging solche Post
+    # signiert weiter und Outlook warnte selbst.
+    "smime_unbestaetigt",
     # Empfaengerzertifikate, die beim Verschluesseln abgelehnt wurden (abgelaufen,
     # noch nicht gueltig oder unlesbar). Die Nachricht geht dann ueber das Portal
     # bzw. per Unzustellbarkeitsmeldung hinaus — sie faellt also nicht aus, aber

@@ -362,6 +362,41 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   </div>
 </div>
 
+<!-- ── Graph++: Eingang per Graph statt IMAP ──────────────────────────────── -->
+<div class="wizard-step" id="graph-plus-eingang" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
+    <span class="step-title">Eingang per Graph statt IMAP
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur im Modus Graph++, neu und in Erprobung</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Post von <strong>externen Absendern</strong>, die das Gateway bearbeitet hat — vor allem
+      entschlüsselte S/MIME-Post —, legt Graph++ bisher per <strong>IMAP APPEND</strong> in den
+      Posteingang. Mit <strong>Graph</strong> legt das Gateway sie stattdessen über die Graph-API
+      als empfangene Nachricht an (Absender, Message-ID, Zeiten und Unterhaltung bleiben erhalten).
+      Scheitert das, versucht es IMAP; erst wenn beides scheitert, gilt die Mail als nicht zugestellt.
+    </p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <select id="graph-plus-eingang-select" style="width:360px;max-width:100%">
+        <option value="imap" {% if (s.GRAPH_PLUS_EINGANG or 'imap') != 'graph' %}selected{% endif %}>IMAP APPEND (Standard)</option>
+        <option value="graph" {% if s.GRAPH_PLUS_EINGANG == 'graph' %}selected{% endif %}>Graph (in Erprobung)</option>
+      </select>
+      <button class="btn secondary" id="graph-plus-eingang-btn" data-wache-hinweis="graph-plus-eingang-result" data-wache="graph-plus-eingang-select" onclick="saveGraphPlusEingang()">Speichern</button>
+      <span id="graph-plus-eingang-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+    <p class="hint" style="margin-bottom:0">
+      Bekannte Grenzen des Graph-Wegs: Verschlüsselte oder signierte Einladungen externer
+      Absender kommen über diesen Weg als <code>.ics</code>-Anlage an, und die
+      Original-Kopfzeilen stehen nicht in der Nachricht.
+      Mails, die noch verschlüsselt oder signiert sind (etwa ohne Schlüssel im Gateway), gehen
+      weiter per IMAP — Graph kann sie nicht abbilden. In den Modi SMTP und Graph-only hat die
+      Einstellung keine Wirkung.
+    </p>
+  </div>
+</div>
+
 <!-- ── Sende-Identitäten: Zustellweg ──────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">
@@ -1537,6 +1572,12 @@ async function saveMixedFork() {
 </script>
 
 <script>
+async function saveGraphPlusEingang() {
+  wacheFertig('graph-plus-eingang-btn', await savePartial(
+    {GRAPH_PLUS_EINGANG: document.getElementById('graph-plus-eingang-select').value},
+    'graph-plus-eingang-result', 'advanced:graphPlusEingang'));
+}
+
 async function saveGraphFallback() {
   wacheFertig('graph-fallback-btn', await savePartial(
     {GRAPH_SMTP_FALLBACK: document.getElementById('graph-smtp-fallback').checked},

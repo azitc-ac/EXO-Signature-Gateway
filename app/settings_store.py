@@ -98,6 +98,10 @@ DEFAULTS: dict = {
     "SMIME_TAG_ENCRYPTED_ENABLED": True,
     "SMIME_TAG_SIGNED": "signiert von {signer}",
     "SMIME_TAG_SIGNED_ENABLED": True,
+    # Vermerk, wenn die Signatur einer eingehenden Mail nicht bestätigt werden
+    # konnte (Inhalt verändert, Zertifikat unbekannt oder passt nicht zum From).
+    # Die Hülle wird dann trotzdem entfernt — der Vermerk übernimmt die Warnung.
+    "SMIME_TAG_UNBESTAETIGT": "Signatur nicht bestätigt",
     "SMIME_TAG_POSITION": "prepend",  # "prepend" or "append"
     "SMIME_STRIP_INBOUND": True,      # Strip S/MIME signature wrapper from inbound signed mails
     "SMIME_KEY_ENCRYPT": True,        # Encrypt stored private keys with SMIME_KEY_PASSWORD
@@ -180,6 +184,11 @@ DEFAULTS: dict = {
     #                   zugestellt. Kein Duplikat, keine Verzögerung, aber Externe
     #                   sehen den internen Mitempfänger NICHT (Reply-All unvollständig).
     "GRAPH_MIXED_FORK_MODE": "send_to_all",
+    # Graph++: Wie Post externer Absender (vor allem entschlüsselte S/MIME-Post)
+    # in den Posteingang kommt. "imap" = IMAP APPEND (bisher, Vorgabe),
+    # "graph" = Graph-Anlage mit PR_MESSAGE_FLAGS beim Anlegen
+    # (graph_reinject.deliver_to_mailbox). Gelesen nur über graph_plus_eingang().
+    "GRAPH_PLUS_EINGANG": "imap",
     # ── SMTP-Listener Quell-IP-Härtung ───────────────────────────────────────
     # Nur Exchange Online (Outbound-Connector) darf legitim auf :25 zugreifen.
     # Ohne diese Prüfung könnte ein Angreifer mit Netzwerkzugang das Gateway zum
@@ -852,6 +861,14 @@ def reinject_mode() -> str:
                         "bitte in den Einstellungen auf 'graph_plus' umstellen", roh)
         return _REINJECT_ALIASES[roh]
     return roh
+
+
+def graph_plus_eingang() -> str:
+    """Ablageweg für Post externer Absender in Graph++: ``"imap"`` | ``"graph"``.
+
+    Jeder andere Wert gilt als ``"imap"`` — die bisherige Zustellung bleibt der
+    sichere Normalfall, ein Tippfehler schaltet nichts um."""
+    return "graph" if (get("GRAPH_PLUS_EINGANG") or "").strip().lower() == "graph" else "imap"
 
 
 _TRUTHY = ("1", "true", "yes", "on")
