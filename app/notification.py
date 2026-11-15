@@ -270,7 +270,13 @@ def _direktversand_probe_row() -> str:
         return ""
     import direktversand_probe
     ampel, text = direktversand_probe.bewertung()
-    return _row("Direktversand-Probe", text, _PROBE_FARBE.get(ampel, "#e74c3c"))
+    zeilen = _row("Direktversand-Probe", text, _PROBE_FARBE.get(ampel, "#e74c3c"))
+    # Externe Probe-Empfänger nur, wenn welche eingetragen sind (Empfehlung,
+    # keine Pflicht) — je Adresse eine Zeile, eigene Ampel.
+    for e in direktversand_probe.extern_bewertung():
+        zeilen += _row(f"Direktversand-Probe → {e['adresse']}", e["text"],
+                       _PROBE_FARBE.get(e["ampel"], "#888"))
+    return zeilen
 
 
 def _eingang_rows(dval) -> str:

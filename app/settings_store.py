@@ -265,6 +265,7 @@ DEFAULTS: dict = {
     "DIREKT_SMARTHOST_PW": "",
     "DIREKT_AUSSEN_IP": "",   # öffentliche Ausgangsadresse — nur für die DNS-Prüfung (SPF/PTR)
     "DIREKTVERSAND_PROBE_POSTFACH": "",  # internes Postfach für die tägliche Probe (direktversand_probe.py)
+    "DIREKTVERSAND_PROBE_EXTERN": "",    # optionale externe Probe-Empfänger (Komma), z. B. Gmail/Outlook.com
     "DKIM_DOMAINS": {},       # {"example.com": "gw202610"} — Schlüssel in data/dkim/<domain>.<selektor>.pem
     "ONPREM_MAILUSERS": [],   # ["max.mustermann@zarenko.net", …] — via EXO Get-MailUser
     "ONPREM_MAILUSERS_TS": "", # ISO8601 des letzten erfolgreichen Abgleichs
