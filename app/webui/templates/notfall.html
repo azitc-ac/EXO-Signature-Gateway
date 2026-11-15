@@ -357,7 +357,7 @@ async function einrichtenStart() {
     ? '<div class="tabellen-rollbereich"><table class="liste" style="width:100%;min-width:420px"><thead><tr><th>Passkey</th><th>Für</th><th>Zuletzt benutzt</th><th></th></tr></thead><tbody>'
       + d.passkeys.map(p => '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.rp) + '</td><td>'
         + esc(p.zuletzt ? new Date(p.zuletzt).toLocaleString('de-DE') : 'noch nie') + '</td><td>'
-        + '<button onclick="passkeyEntfernen(this, \'' + escJsAttr(p.id) + '\')">Entfernen</button></td></tr>').join('')
+        + '<button data-id="' + escAttr(p.id) + '" onclick="passkeyEntfernen(this, this.dataset.id)">Entfernen</button></td></tr>').join('')
       + '</tbody></table></div>' : '';
   const pk = document.getElementById('ein-pk'), hinweis = document.getElementById('ein-pk-hinweis');
   pk.hidden = !pkMoeglich();

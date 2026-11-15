@@ -283,18 +283,26 @@ for (const f of gemeinsam) {
   deklarationen(a).forEach(n => gemeinsameNamen.add(n));
   zuweisungsNamen(a).forEach(n => gemeinsameNamen.add(n));
 }
+// base.html getrennt: Ihre Helfer (escJsAttr, tabelleHinweis …) hat nur, wer
+// base.html ERWEITERT. Eine eigenständige Seite, die bloß common.js lädt
+// (notfall.html), hat sie nicht. Bis 2026-11-15 lagen beide in einem Topf —
+// escJsAttr auf notfall.html galt als gebunden und warf im Browser
+// „escJsAttr is not defined“.
+const basisNamen = new Set();
 const basis = path.join(dir, 'base.html');
 if (fs.existsSync(basis)) {
   const q = ohneJinja(skripte(fs.readFileSync(basis, 'utf8')));
   const a = acorn.parse(q, { ecmaVersion: 'latest', sourceType: 'script' });
-  deklarationen(a).forEach(n => gemeinsameNamen.add(n));
-  zuweisungsNamen(a).forEach(n => gemeinsameNamen.add(n));
+  deklarationen(a).forEach(n => basisNamen.add(n));
+  zuweisungsNamen(a).forEach(n => basisNamen.add(n));
 }
 
-function nutztGemeinsamesDirekt(html, datei) {
-  return datei === 'base.html'
-    || /\{%\s*extends\s+["']base\.html["']\s*%\}/.test(html)
-    || /<script[^>]*\bsrc\s*=\s*["'][^"']*common\.js/.test(html);
+// 'basis' = erweitert base.html (common.js + base.html), 'common' = lädt nur
+// common.js, null = eigenständig.
+function versorgungDirekt(html, datei) {
+  if (datei === 'base.html' || /\{%\s*extends\s+["']base\.html["']\s*%\}/.test(html)) return 'basis';
+  if (/<script[^>]*\bsrc\s*=\s*["'][^"']*common\.js/.test(html)) return 'common';
+  return null;
 }
 
 // Baustein (`_name.html`, per {% from %}/{% include %} eingebunden): hat kein
@@ -303,19 +311,20 @@ function nutztGemeinsamesDirekt(html, datei) {
 // Seite gibt und JEDE davon die Helfer hat. Bindet eine eigenständige Seite
 // (portal.html o.ä.) ihn ein, bleibt er streng geprüft — sonst gälte er zu Unrecht
 // als versorgt.
-function nutztGemeinsames(html, datei) {
-  if (nutztGemeinsamesDirekt(html, datei)) return true;
-  if (!datei.startsWith('_')) return false;
+// Bausteine: die SCHWÄCHSTE Versorgung aller einbindenden Seiten.
+function versorgung(html, datei) {
+  const direkt = versorgungDirekt(html, datei);
+  if (direkt || !datei.startsWith('_')) return direkt;
   const muster = new RegExp('\\{%\\s*(?:from|include|import)\\s+["\']'
                             + datei.replace(/\./g, '\\.') + '["\']');
-  const einbinder = fs.readdirSync(dir).filter(x => x.endsWith('.html') && x !== datei)
+  const arten = fs.readdirSync(dir).filter(x => x.endsWith('.html') && x !== datei)
     .map(x => [x, fs.readFileSync(path.join(dir, x), 'utf8')])
-    .filter(([, h]) => muster.test(h));
-  return einbinder.length > 0
-    && einbinder.every(([x, h]) => nutztGemeinsamesDirekt(h, x));
+    .filter(([, h]) => muster.test(h)).map(([x, h]) => versorgungDirekt(h, x));
+  if (!arten.length || arten.includes(null)) return null;
+  return arten.includes('common') ? 'common' : 'basis';
 }
 
-// Gegenrichtung zu nutztGemeinsames(): Eine SEITE ruft Funktionen auf, die ein
+// Gegenrichtung zu versorgung(): Eine SEITE ruft Funktionen auf, die ein
 // eingebundener Baustein bereitstellt (z. B. zustimmungDann() aus _zustimmung.html,
 // seit 2026-10-21). Deren Namen — Deklarationen und `window.x = …` — gelten auf
 // der Seite als gebunden. Nur direkt eingebundene Bausteine, nicht transitiv.
@@ -342,8 +351,10 @@ for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.html')).sort()) {
   geprueft++;
 
   const bekannt = new Set(GLOBALS);
-  if (nutztGemeinsames(html, f)) gemeinsameNamen.forEach(n => bekannt.add(n));
-  else eigenstaendig++;
+  const art = versorgung(html, f);
+  if (art) gemeinsameNamen.forEach(n => bekannt.add(n));
+  if (art === 'basis') basisNamen.forEach(n => bekannt.add(n));
+  if (!art) eigenstaendig++;
   bausteinNamen(html).forEach(n => bekannt.add(n));
 
   let funde;
