@@ -443,7 +443,7 @@
         <input type="checkbox" id="notbetrieb-wizard" style="margin-top:3px;flex-shrink:0"
           {% if s.NOTBETRIEB_AKTIV %}checked{% endif %}>
         <span style="font-size:13px">
-          <strong>Notbetrieb bei Exchange-Ausfall vorbereiten</strong>
+          <strong>EXO-Ausfallschutz vorbereiten</strong>
           <span style="color:#888;font-weight:normal"> — das Gateway hält eine Kopie von
           Posteingang und Gesendeten Elementen der letzten Tage</span>
         </span>
@@ -451,7 +451,7 @@
       <p class="hint" style="margin:6px 0 0 26px">
         Die Kopie liegt auf diesem Gateway (nicht im Backup) und wird alle 15 Minuten
         nachgeführt; Älteres wird automatisch gelöscht. Eingestellt und bedient wird er danach
-        unter dem Menüpunkt <strong>Notbetrieb</strong>.
+        unter dem Menüpunkt <strong>EXO-Ausfallschutz</strong>.
       </p>
       {% if e.azure_app_created %}
       <div style="margin-left:26px">{{ berechtigungen("nb-wizard", "Mail.ReadWrite,Calendars.Read,Contacts.Read") }}</div>
@@ -459,7 +459,7 @@
       {% if notbetrieb_sichtbar() and not s.NOTBETRIEB_AKTIV %}
       <p class="hint" style="margin:6px 0 0 26px">
         Es liegt noch eine Kopie aus dem Notbetrieb. Zurückspielen und Löschen unter
-        <a href="/notbetrieb">Notbetrieb</a>.
+        <a href="/notbetrieb">EXO-Ausfallschutz</a>.
       </p>
       {% endif %}
     </div>

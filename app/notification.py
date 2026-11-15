@@ -287,7 +287,7 @@ def _notbetrieb_zeilen(dval) -> list[str]:
             return []
         st = notbetrieb.status()
     except Exception as exc:                                        # noqa: BLE001
-        return [_row("Notbetrieb", f"Stand nicht lesbar: {exc}", "#e74c3c")]
+        return [_row("EXO-Ausfallschutz", f"Stand nicht lesbar: {exc}", "#e74c3c")]
     zeilen = []
     if st.get("ausgerufen"):
         zeilen.append(_row("Notfall ausgerufen", "ja — Post geht in die Kopie", "#e74c3c"))

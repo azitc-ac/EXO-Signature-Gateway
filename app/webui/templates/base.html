@@ -51,7 +51,7 @@
                 <li><a href="/relay" class="{% if active == 'relay' %}active{% endif %}">SMTP-Relay</a></li>
                 {% endif %}
                 {% if notbetrieb_sichtbar() %}
-                <li><a href="/notbetrieb" class="{% if active == 'notbetrieb' %}active{% endif %}">Notbetrieb</a></li>
+                <li><a href="/notbetrieb" class="{% if active == 'notbetrieb' %}active{% endif %}">EXO-Ausfallschutz</a></li>
                 {% endif %}
                 <li><a href="/settings" class="{% if active in ('settings', 'settings-signature', 'settings-smime', 'settings-connect', 'setup', 'advanced', 'debug', 'backup') %}active{% endif %}">Einstellungen</a></li>
                 <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Protokolle</a></li>

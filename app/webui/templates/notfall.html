@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
-<title>Notbetrieb — {{ gateway_name }}</title>
+<title>Notfall-Mail — {{ gateway_name }}</title>
 {% include "_favicon.html" %}
 <link rel="manifest" href="/notfall/app.webmanifest">
 <meta name="theme-color" content="#0f172a">
@@ -116,7 +116,7 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 <body>
 <header>
   <span class="titel">{{ gateway_name }}</span>
-  <span class="band" id="band">Notbetrieb</span>
+  <span class="band" id="band">Notfall-Mail</span>
   <span class="rechts" id="kopf-rechts" hidden>
     <select id="postfachwahl" aria-label="Postfach" onchange="postfachWaehlen(this.value)"></select>
     <span id="ich" class="wer"></span>
@@ -247,7 +247,7 @@ async function start() {
   nb.sendeweg = d.sendeweg;
   nb.vorschau = d.vorschau;
   document.getElementById('neu-zeile').hidden = !nb.senden;
-  document.getElementById('band').textContent = d.vorschau ? 'Vorschau' : 'Notbetrieb';
+  document.getElementById('band').textContent = d.vorschau ? 'Vorschau' : 'Notfall';
   document.getElementById('ich').textContent = d.benutzer;
   document.getElementById('postfachwahl').innerHTML = d.zugriff.map(p =>
     '<option value="' + escAttr(p.postfach) + '">' + esc(p.postfach) + (p.eigen ? '' : ' (geteilt)') + '</option>').join('');
