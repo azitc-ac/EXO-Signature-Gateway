@@ -759,24 +759,55 @@ def _addin_rollen() -> dict:
 
 def _addin_fassung() -> dict:
     """Liefert Exchange den Postfächern noch eine ältere Fassung des
-    Verfassen-Add-ins aus? Bei Event-Add-ins verlangt JEDE Manifest-Änderung
-    eine neue Bestätigung im Admin Center; bis dahin bleibt die alte Fassung
-    (MS Learn, „Deploy manifest updates“). Liest nur das Ergebnis der letzten
-    Postfachprüfung (MAILBOX_HEALTH → addin_verfassen), fragt nichts live ab."""
+    Verfassen-Add-ins aus — und muss der Betreiber dafür etwas tun?
+
+    Bei Event-Add-ins verlangt JEDE Manifest-Änderung eine neue Bestätigung im
+    Admin Center (MS Learn, „Deploy manifest updates“); danach verteilt
+    Exchange Postfach für Postfach. Die Einordnung kommt aus
+    `addin_verteilung.einordnen` — derselben wie in der Postfachprüfung:
+    Ist die neue Fassung schon bei einem Postfach angekommen, ist das
+    Aktualisieren erledigt, und solange die Verteilung läuft, gibt es keine
+    Aufgabe (bis v1.12.34 gab es eine, mit „Aktualisieren“ — obwohl nichts zu
+    tun war). Liest nur das Ergebnis der letzten Postfachprüfung
+    (MAILBOX_HEALTH), fragt nichts live ab; die 72-h-Frist wird hier gegen
+    JETZT gerechnet, nicht gegen den Prüfzeitpunkt."""
+    import addin_verteilung as av
+    import health_check
     import settings_store
     name = "Verfassen-Add-in aktuell"
+    soll = next((a["version"] for a in health_check._addin_soll() if a["art"] == "verfassen"), "")
+    if not soll:
+        return _punkt(name, ENTFAELLT, "Verfassen-Add-in nicht eingerichtet.")
     gesundheit = settings_store.get("MAILBOX_HEALTH") or {}
-    alt = sorted(e for e, h in gesundheit.items()
-                 if isinstance(h, dict)
-                 and ((h.get("checks") or {}).get("addin_verfassen") or {}).get("status") == "warn")
-    if not alt:
-        return _punkt(name, OK, "Keine Postfächer mit älterer Fassung gemeldet "
-                                "(Stand der letzten Postfachprüfung).")
-    return _punkt(name, OFFEN,
-                  f"{len(alt)} Postfach/Postfächer mit älterer Fassung (z. B. {alt[0]}).",
-                  "Admin Center → Einstellungen → Integrierte Apps → Verfassen-Add-in → "
-                  "Aktualisieren und die neuen Berechtigungen bestätigen. Exchange verteilt "
-                  "die neue Fassung danach binnen bis zu 72 Stunden.")
+    lagen: dict[str, list[str]] = {}
+    for email, h in gesundheit.items():
+        c = ((h or {}).get("checks") or {}).get("addin_verfassen") or {} if isinstance(h, dict) else {}
+        if c.get("soll") != soll:
+            continue                       # nicht abgefragt, oder gegen eine ältere Soll-Fassung
+        lagen.setdefault(av.einordnen("verfassen", soll, c.get("ist") or ""), []).append(email)
+    gesamt = sum(len(v) for v in lagen.values())
+    if not gesamt:
+        return _punkt(name, UNBEKANNT, "Noch keine Postfachprüfung gegen die aktuelle Fassung.",
+                      "Postfächer → Status aktualisieren.")
+    aktuell = len(lagen.get(av.AKTUELL, []))
+    if lagen.get(av.ZUWEISUNG):
+        z = sorted(lagen[av.ZUWEISUNG])
+        return _punkt(name, OFFEN,
+                      f"{len(z)} Postfach/Postfächer ohne neue Fassung, 72 Stunden nachdem "
+                      f"sie andere erreicht hat (z. B. {z[0]}).", av.ZUWEISUNG_WEG)
+    if lagen.get(av.AKTUALISIEREN):
+        alt = sorted(lagen[av.AKTUALISIEREN])
+        return _punkt(name, OFFEN,
+                      f"Kein Postfach hat die neue Fassung {soll}; {len(alt)} mit älterer "
+                      f"(z. B. {alt[0]}).", av.AKTUALISIEREN_WEG)
+    if lagen.get(av.VERTEILUNG):
+        return _punkt(name, OK,
+                      f"Verteilung läuft: {aktuell} von {gesamt} Postfächern aktuell. Nichts "
+                      "zu tun; Exchange braucht bis zu 72 Stunden.")
+    if not aktuell:
+        return _punkt(name, ENTFAELLT, f"Bei keinem der {gesamt} geprüften Postfächer installiert.")
+    return _punkt(name, OK, f"{aktuell} von {gesamt} Postfächern aktuell "
+                            "(Stand der letzten Postfachprüfung).")
 
 
 def _waechter_code() -> dict:

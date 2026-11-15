@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.36 — 2026-11-15 — Neue Add-in-Fassung: „wird verteilt“ statt Aufforderung zum Aktualisieren
+
+Stand ein Postfach noch auf einer älteren Fassung des Verfassen-Add-ins,
+forderten Postfachprüfung und die Aufgabe „Verfassen-Add-in aktuell“ dazu auf,
+das Add-in im Admin Center zu aktualisieren — auch dann, wenn das längst
+geschehen war und Exchange die neue Fassung nur noch Postfach für Postfach
+verteilt. Zu tun war in diesem Fall nichts.
+
+Jetzt unterscheidet das Gateway drei Lagen, für Postfachprüfung und Aufgabe
+gleich:
+
+- **Noch kein Postfach hat die neue Fassung:** wie bisher eine Aufgabe mit dem
+  Weg ins Admin Center (Integrierte Apps → Aktualisieren).
+- **Mindestens ein Postfach hat sie:** Das Aktualisieren ist erledigt, Exchange
+  verteilt (laut Microsoft bis zu 72 Stunden). Keine Aufgabe; in der
+  Postfachliste steht neutral „wird verteilt“ (ℹ Hinweis statt ⚠ Warnung).
+- **72 Stunden nach dem ersten aktuellen Postfach noch nicht da:** Aufgabe mit
+  dem Hinweis, die Zuweisung zu prüfen (Add-in an alle zuweisen).
+
+Den Zeitpunkt der Aktualisierung im Admin Center sieht das Gateway nicht; die
+72 Stunden zählen ab der ersten Postfachprüfung, die ein Postfach auf der neuen
+Fassung sah. Liegt noch keine Postfachprüfung gegen die aktuelle Fassung vor,
+meldet die Abnahme „unbekannt“ statt „in Ordnung“.
+
+**Zu tun:** nichts.
+
 ## v1.12.35 — 2026-11-15 — S/MIME-Eingangsregeln: Stand wird nach dem Neu-Erstellen gemerkt
 
 Nach „Transport-Regeln neu erstellen“ (Einrichtung → S/MIME – Inbound
