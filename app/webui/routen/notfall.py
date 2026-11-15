@@ -104,7 +104,10 @@ async def notfall_anmelden(request: Request):
     # Antwort ohne Kennwort, wer einen Faktor hat). Das Kennwort ist hier
     # geprüft; der Vorgang trägt das Postfach für 5 Minuten.
     if notbetrieb_faktor.eingerichtet(postfach):
-        return JSONResponse({"ok": True, "faktor": True,
+        st = notbetrieb_faktor.stand(postfach)
+        rp = notbetrieb_faktor.passkey_rp(_seiten_host(request))
+        return JSONResponse({"ok": True, "faktor": True, "totp": st["totp"],
+                             "passkey": any(p["rp"] == rp for p in st["passkeys"]),
                              "vorgang": _vorgang_signierer().dumps({"b": postfach})})
     if notbetrieb_faktor.pflicht() and not (notbetrieb.ausgerufen() and notbetrieb_faktor.im_notfall_ohne()):
         log.info("Notbetrieb-Webmail: %s ohne zweiten Faktor abgewiesen (von %s)", postfach, quelle)
@@ -113,6 +116,26 @@ async def notfall_anmelden(request: Request):
                                       "einmalig ein — mit deiner Microsoft-Anmeldung, solange sie geht."},
                             status_code=403)
     return _anmeldung_fertig(postfach, erg.get("benutzer"), quelle, "ohne Faktor")
+
+
+def _seiten_host(request: Request) -> str:
+    """Hostname, unter dem die Seite im Browser offen ist (rp_id der Passkeys).
+    Aus dem Origin-Kopf, den der Browser bei jedem POST setzt; sonst Host.
+    Fälschen bringt nichts: Der Browser signiert nur für seine echte Seite,
+    und notbetrieb_faktor prüft die Herkunft aus clientDataJSON."""
+    from urllib.parse import urlsplit
+    herkunft = request.headers.get("origin") or ""
+    return (urlsplit(herkunft).hostname if herkunft else request.url.hostname) or ""
+
+
+def _vorgang_postfach(body: dict) -> str | None:
+    try:
+        return str(_vorgang_signierer().loads(str(body.get("vorgang") or ""), max_age=300).get("b") or "") or None
+    except (BadSignature, SignatureExpired):
+        return None
+
+
+_VORGANG_ABGELAUFEN = {"ok": False, "error": "Die Anmeldung ist abgelaufen — bitte erneut mit Kennwort.", "neu": True}
 
 
 def _vorgang_signierer() -> URLSafeTimedSerializer:
@@ -137,16 +160,53 @@ async def notfall_anmelden_faktor(request: Request):
         body = await request.json()
     except Exception:                                               # noqa: BLE001
         raise HTTPException(400, "Ungültige Anfrage")
-    try:
-        postfach = str(_vorgang_signierer().loads(str(body.get("vorgang") or ""), max_age=300).get("b") or "")
-    except (BadSignature, SignatureExpired):
-        return JSONResponse({"ok": False, "error": "Die Anmeldung ist abgelaufen — bitte erneut mit Kennwort.",
-                             "neu": True}, status_code=401)
+    postfach = _vorgang_postfach(body)
+    if not postfach:
+        return JSONResponse(_VORGANG_ABGELAUFEN, status_code=401)
     quelle = request.client.host if request.client else ""
     ok, meldung = await asyncio.to_thread(notbetrieb_faktor.pruefen, postfach, str(body.get("code") or ""), quelle)
     if not ok:
         return JSONResponse({"ok": False, "error": meldung}, status_code=401)
-    return _anmeldung_fertig(postfach, postfach, quelle, "mit Faktor")
+    return _anmeldung_fertig(postfach, postfach, quelle, "mit Code")
+
+
+@router.post("/notfall/anmelden/passkey/optionen")
+async def notfall_anmelden_passkey_optionen(request: Request):
+    """Zweiter Schritt mit Passkey, Teil 1: Herausforderung (gilt einmal)."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    postfach = _vorgang_postfach(body)
+    if not postfach:
+        return JSONResponse(_VORGANG_ABGELAUFEN, status_code=401)
+    optionen = await asyncio.to_thread(notbetrieb_faktor.passkey_anmelden_optionen, postfach, _seiten_host(request))
+    if not optionen:
+        return JSONResponse({"ok": False, "error": "Unter dieser Adresse ist kein Passkey eingerichtet — "
+                                                   "nimm den Code."}, status_code=404)
+    return JSONResponse({"ok": True, "optionen": optionen})
+
+
+@router.post("/notfall/anmelden/passkey")
+async def notfall_anmelden_passkey(request: Request):
+    """Zweiter Schritt mit Passkey, Teil 2: signierte Antwort des Browsers."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    postfach = _vorgang_postfach(body)
+    if not postfach:
+        return JSONResponse(_VORGANG_ABGELAUFEN, status_code=401)
+    quelle = request.client.host if request.client else ""
+    antwort = body.get("antwort") if isinstance(body.get("antwort"), dict) else {}
+    ok, meldung = await asyncio.to_thread(notbetrieb_faktor.passkey_pruefen, postfach, antwort, quelle)
+    if not ok:
+        return JSONResponse({"ok": False, "error": meldung}, status_code=401)
+    return _anmeldung_fertig(postfach, postfach, quelle, "mit Passkey")
 
 
 # ── Zweiten Faktor einrichten (nach frischer Entra-Anmeldung) ───────────────
@@ -222,6 +282,41 @@ async def notfall_faktor_bestaetigen(request: Request, postfach: str = Depends(_
     except notbetrieb_faktor.FaktorFehler as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     return JSONResponse({"ok": True, "codes": codes})
+
+
+@router.post("/notfall/api/faktor/passkey/beginnen")
+async def notfall_passkey_beginnen(request: Request, postfach: str = Depends(_entra_postfach)):
+    try:
+        optionen = await asyncio.to_thread(notbetrieb_faktor.passkey_beginnen, postfach, _seiten_host(request))
+    except notbetrieb_faktor.FaktorFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "optionen": optionen})
+
+
+@router.post("/notfall/api/faktor/passkey/bestaetigen")
+async def notfall_passkey_bestaetigen(request: Request, postfach: str = Depends(_entra_postfach)):
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    antwort = body.get("antwort") if isinstance(body.get("antwort"), dict) else {}
+    try:
+        codes = await asyncio.to_thread(notbetrieb_faktor.passkey_bestaetigen, postfach, antwort,
+                                        str(body.get("name") or ""))
+    except notbetrieb_faktor.FaktorFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "codes": codes})
+
+
+@router.post("/notfall/api/faktor/passkey/entfernen")
+async def notfall_passkey_entfernen(request: Request, postfach: str = Depends(_entra_postfach)):
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    if not await asyncio.to_thread(notbetrieb_faktor.passkey_entfernen, postfach, str(body.get("id") or "")):
+        return JSONResponse({"ok": False, "error": "Diesen Passkey gibt es nicht."}, status_code=404)
+    return JSONResponse({"ok": True})
 
 
 @router.post("/notfall/api/faktor/codes")

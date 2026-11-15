@@ -49,6 +49,10 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
 .qr svg { width: 200px; height: 200px; background: #fff; padding: 6px; border-radius: 6px; }
 .codes { font-size: 15px; line-height: 1.7; background: var(--bg); border: 1px solid var(--rand); border-radius: 6px;
          padding: 8px 12px; columns: 2; }
+.knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.tabellen-rollbereich { overflow-x: auto; }
+table.liste { border-collapse: collapse; margin: 6px 0; font-size: 13px; }
+table.liste th, table.liste td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--rand); }
 a.knopf { display: inline-block; text-decoration: none; border-radius: 6px; padding: 6px 14px; }
 a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 .meldung { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--fehler-bg); color: var(--fehler); }
@@ -132,8 +136,13 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 
 <section class="anmeldung" id="faktor" hidden>
   <h1>Zweiter Faktor</h1>
-  <p class="leise" style="margin:0">Gib den 6-stelligen Code aus deiner Authenticator-App ein — oder einen deiner
-    Wiederherstellungscodes.</p>
+  <div id="faktor-pk" hidden>
+    <p class="leise" style="margin:0 0 10px">Bestätige mit deinem Passkey — Fingerabdruck, Gesicht, Windows Hello
+      oder Sicherheitsschlüssel.</p>
+    <button class="haupt" id="faktor-pk-knopf" onclick="passkeyAnmelden()">Mit Passkey bestätigen</button>
+    <p class="leise" style="margin:14px 0 0">Oder mit Code:</p>
+  </div>
+  <p class="leise" style="margin:0" id="faktor-text"></p>
   <form onsubmit="faktorSenden(event)">
     <label for="faktor-code">Code</label>
     <input id="faktor-code" autocomplete="one-time-code" inputmode="numeric" required>
@@ -144,9 +153,9 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 
 <section class="anmeldung" id="einrichten" hidden>
   <h1>Zweiter Faktor für den Notfall-Zugang</h1>
-  <p class="leise" style="margin:0 0 10px">Im Notfall meldest du dich hier mit deinem Windows-Kennwort und einem
-    Code aus einer Authenticator-App an (z. B. Microsoft Authenticator). Eingerichtet wird jetzt, solange die
-    Microsoft-Anmeldung funktioniert.</p>
+  <p class="leise" style="margin:0 0 10px">Im Notfall meldest du dich hier mit deinem Windows-Kennwort an und
+    bestätigst mit einem Passkey (Fingerabdruck, Gesicht, Windows Hello) oder einem Code aus einer
+    Authenticator-App. Eingerichtet wird jetzt, solange die Microsoft-Anmeldung funktioniert.</p>
   <div id="ein-anmelden" hidden>
     <p style="margin:0 0 10px">Bestätige dafür zuerst mit deiner Microsoft-Anmeldung, dass du es bist
       (gilt {{ frisch_min }} Minuten).</p>
@@ -154,8 +163,14 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
   </div>
   <div id="ein-stand" hidden>
     <p style="margin:0 0 10px">Angemeldet als <strong id="ein-wer"></strong>. <span id="ein-zustand"></span></p>
-    <button class="haupt" id="ein-beginnen" onclick="faktorBeginnen()">Authenticator-App einrichten</button>
-    <button id="ein-codes" onclick="codesErneuern()" hidden>Neue Wiederherstellungscodes</button>
+    <div id="ein-passkeys"></div>
+    <div class="knoepfe">
+      <button class="haupt" id="ein-pk" onclick="passkeyEinrichten()" hidden>Passkey auf diesem Gerät einrichten</button>
+      <button id="ein-beginnen" onclick="faktorBeginnen()">Authenticator-App einrichten</button>
+      <button id="ein-codes" onclick="codesErneuern()" hidden>Neue Wiederherstellungscodes</button>
+    </div>
+    <p class="leise" id="ein-pk-hinweis" hidden></p>
+    <div class="ok" id="ein-ok" style="margin-top:10px" hidden></div>
   </div>
   <div id="ein-qr" hidden>
     <p style="margin:10px 0 6px">Scanne den Code mit der App — oder gib den Schlüssel von Hand ein:</p>
@@ -166,8 +181,7 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
     <div style="margin-top:10px"><button class="haupt" id="ein-bestaetigen" onclick="faktorBestaetigen()">Bestätigen</button></div>
   </div>
   <div id="ein-fertig" hidden>
-    <div class="ok" style="margin:10px 0">Eingerichtet. Bewahre diese Wiederherstellungscodes sicher auf — jeder
-      gilt einmal, falls das Telefon fehlt. Sie werden nur jetzt angezeigt.</div>
+    <div class="ok" style="margin:10px 0" id="ein-fertig-text"></div>
     <pre id="ein-liste" class="codes"></pre>
     <p class="leise">Testen kannst du die Anmeldung unter <a href="/notfall">/notfall</a>.</p>
   </div>
@@ -239,7 +253,13 @@ async function anmelden(ev) {
     nb.vorgang = d.vorgang;
     document.getElementById('anmeldung').hidden = true;
     document.getElementById('faktor').hidden = false;
-    document.getElementById('faktor-code').focus();
+    document.getElementById('faktor-text').textContent = d.totp
+      ? 'Gib den 6-stelligen Code aus deiner Authenticator-App ein — oder einen deiner Wiederherstellungscodes.'
+      : 'Gib einen deiner Wiederherstellungscodes ein.';
+    const mitPasskey = d.passkey && pkMoeglich();
+    document.getElementById('faktor-pk').hidden = !mitPasskey;
+    if (mitPasskey) passkeyAnmelden();     // ohne Umweg; scheitert es (Browser verlangt einen Klick), bleibt der Knopf
+    else document.getElementById('faktor-code').focus();
     return;
   }
   if (d.ok) { document.getElementById('anmeldung').hidden = true; start().then(kopfhoeheMerken); return; }
@@ -257,8 +277,61 @@ async function faktorSenden(ev) {
   feld.value = '';
   if (d.ok) { document.getElementById('faktor').hidden = true; start().then(kopfhoeheMerken); return; }
   if (d.neu) { location.reload(); return; }
+  faktorMeldung(errText(d));
+}
+
+function faktorMeldung(text) {
   const m = document.getElementById('faktor-meldung');
-  m.textContent = errText(d); m.hidden = false;
+  m.textContent = text; m.hidden = !text;
+}
+
+// ── Passkeys: WebAuthn-Optionen kommen als JSON (base64url), der Browser will Bytes ──
+function b64uBytes(t) {
+  const s = atob(t.replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(s, c => c.charCodeAt(0));
+}
+function bytesB64u(b) {
+  let s = '';
+  new Uint8Array(b).forEach(x => { s += String.fromCharCode(x); });
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function pkMoeglich() { return !!(window.PublicKeyCredential && navigator.credentials); }
+function pkOptionen(o) {
+  o.challenge = b64uBytes(o.challenge);
+  if (o.user) o.user.id = b64uBytes(o.user.id);
+  for (const k of ['allowCredentials', 'excludeCredentials']) (o[k] || []).forEach(c => { c.id = b64uBytes(c.id); });
+  return o;
+}
+function pkAntwort(c) {
+  const r = c.response, a = {clientDataJSON: bytesB64u(r.clientDataJSON)};
+  if (r.attestationObject) {
+    a.attestationObject = bytesB64u(r.attestationObject);
+    a.transports = r.getTransports ? r.getTransports() : [];
+  }
+  if (r.authenticatorData) {
+    a.authenticatorData = bytesB64u(r.authenticatorData);
+    a.signature = bytesB64u(r.signature);
+    a.userHandle = r.userHandle ? bytesB64u(r.userHandle) : null;
+  }
+  return {id: c.id, rawId: bytesB64u(c.rawId), type: c.type, response: a,
+          authenticatorAttachment: c.authenticatorAttachment || null,
+          clientExtensionResults: c.getClientExtensionResults ? c.getClientExtensionResults() : {}};
+}
+function pkAbgebrochen(e) { return e && (e.name === 'NotAllowedError' || e.name === 'AbortError'); }
+
+async function passkeyAnmelden() {
+  faktorMeldung('');
+  const d = await knopfAktion('faktor-pk-knopf', 'Warte auf Passkey…', async () => {
+    const o = await postJSON('/notfall/anmelden/passkey/optionen', {vorgang: nb.vorgang});
+    if (!o.ok) return o;
+    let c;
+    try { c = await navigator.credentials.get({publicKey: pkOptionen(o.optionen)}); }
+    catch (e) { return {ok: false, still: pkAbgebrochen(e), error: 'Passkey nicht verfügbar: ' + e.message}; }
+    return postJSON('/notfall/anmelden/passkey', {vorgang: nb.vorgang, antwort: pkAntwort(c)});
+  });
+  if (d.ok) { document.getElementById('faktor').hidden = true; start().then(kopfhoeheMerken); return; }
+  if (d.neu) { location.reload(); return; }
+  if (!d.still) faktorMeldung(errText(d));
 }
 
 // ── Einrichten (nach Microsoft-Anmeldung) ──
@@ -277,11 +350,57 @@ async function einrichtenStart() {
   document.getElementById('ein-wer').textContent = d.postfach;
   document.getElementById('ein-zustand').textContent = d.gesperrt
     ? 'Dein zweiter Faktor ist nach Fehlversuchen gesperrt — richte ihn neu ein.'
-    : d.totp ? 'Eingerichtet seit ' + new Date(d.seit).toLocaleDateString('de-DE') + ', noch '
-      + d.codes_uebrig + ' Wiederherstellungscodes.' : 'Noch kein zweiter Faktor eingerichtet.';
-  document.getElementById('ein-beginnen').textContent = d.totp ? 'Neues Telefon einrichten' : 'Authenticator-App einrichten';
-  document.getElementById('ein-codes').hidden = !d.totp || d.gesperrt;
+    : d.aktiv ? (d.totp ? 'Authenticator-App eingerichtet seit ' + new Date(d.seit).toLocaleDateString('de-DE') + '. '
+                        : 'Keine Authenticator-App. ')
+      + 'Noch ' + d.codes_uebrig + ' Wiederherstellungscodes.' : 'Noch kein zweiter Faktor eingerichtet.';
+  document.getElementById('ein-passkeys').innerHTML = d.passkeys.length
+    ? '<div class="tabellen-rollbereich"><table class="liste" style="width:100%;min-width:420px"><thead><tr><th>Passkey</th><th>Für</th><th>Zuletzt benutzt</th><th></th></tr></thead><tbody>'
+      + d.passkeys.map(p => '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.rp) + '</td><td>'
+        + esc(p.zuletzt ? new Date(p.zuletzt).toLocaleString('de-DE') : 'noch nie') + '</td><td>'
+        + '<button onclick="passkeyEntfernen(this, \'' + escJsAttr(p.id) + '\')">Entfernen</button></td></tr>').join('')
+      + '</tbody></table></div>' : '';
+  const pk = document.getElementById('ein-pk'), hinweis = document.getElementById('ein-pk-hinweis');
+  pk.hidden = !pkMoeglich();
+  hinweis.hidden = pkMoeglich();
+  hinweis.textContent = 'Dieser Browser kann keine Passkeys — nimm die Authenticator-App.';
+  document.getElementById('ein-beginnen').textContent = d.totp ? 'Neues Telefon für die App' : 'Authenticator-App einrichten';
+  document.getElementById('ein-codes').hidden = !d.aktiv || d.gesperrt;
   document.getElementById('ein-stand').hidden = false;
+}
+
+function geraeteName() {
+  const ua = navigator.userAgent;
+  const art = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
+    : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Gerät';
+  return art + ', ' + new Date().toLocaleDateString('de-DE');
+}
+
+async function passkeyEinrichten() {
+  einMeldung('');
+  const d = await knopfAktion('ein-pk', 'Warte auf Passkey…', async () => {
+    const o = await postJSON('/notfall/api/faktor/passkey/beginnen', {});
+    if (!o.ok) return o;
+    let c;
+    try { c = await navigator.credentials.create({publicKey: pkOptionen(o.optionen)}); }
+    catch (e) {
+      return {ok: false, still: pkAbgebrochen(e),
+              error: e.name === 'InvalidStateError' ? 'Auf diesem Gerät ist schon ein Passkey eingerichtet.'
+                                                    : 'Passkey nicht verfügbar: ' + e.message};
+    }
+    return postJSON('/notfall/api/faktor/passkey/bestaetigen', {antwort: pkAntwort(c), name: geraeteName()});
+  });
+  if (!d.ok) { if (!d.still) einMeldung(errText(d)); return; }
+  if (d.codes.length) { codesZeigen(d.codes, 'Passkey eingerichtet.'); return; }
+  await einrichtenStart();
+  const ok = document.getElementById('ein-ok');
+  ok.textContent = 'Passkey eingerichtet. Deine Wiederherstellungscodes gelten weiter.'; ok.hidden = false;
+}
+
+async function passkeyEntfernen(knopf, id) {
+  if (!confirm('Diesen Passkey entfernen?')) return;
+  const d = await knopfAktion(knopf, 'Entferne…', () => postJSON('/notfall/api/faktor/passkey/entfernen', {id: id}));
+  if (!d.ok) { einMeldung(errText(d)); return; }
+  await einrichtenStart();
 }
 
 async function faktorBeginnen() {
@@ -302,18 +421,20 @@ async function faktorBestaetigen() {
   const d = await knopfAktion('ein-bestaetigen', 'Prüfe…', () =>
     postJSON('/notfall/api/faktor/bestaetigen', {code: feldWert('ein-code')}));
   if (!d.ok) { einMeldung(errText(d)); return; }
-  codesZeigen(d.codes);
+  codesZeigen(d.codes, 'Authenticator-App eingerichtet.');
 }
 
 async function codesErneuern() {
   if (!confirm('Neue Wiederherstellungscodes erzeugen? Die bisherigen gelten dann nicht mehr.')) return;
   const d = await knopfAktion('ein-codes', 'Erzeuge…', () => postJSON('/notfall/api/faktor/codes', {}));
   if (!d.ok) { einMeldung(errText(d)); return; }
-  codesZeigen(d.codes);
+  codesZeigen(d.codes, 'Neue Wiederherstellungscodes.');
 }
 
-function codesZeigen(codes) {
+function codesZeigen(codes, was) {
   einMeldung('');
+  document.getElementById('ein-fertig-text').textContent = was + ' Bewahre diese Wiederherstellungscodes sicher '
+    + 'auf — jeder gilt einmal, falls Telefon oder Passkey fehlen. Sie werden nur jetzt angezeigt.';
   document.getElementById('ein-qr').hidden = true;
   document.getElementById('ein-stand').hidden = true;
   document.getElementById('ein-liste').textContent = codes.join('\n');

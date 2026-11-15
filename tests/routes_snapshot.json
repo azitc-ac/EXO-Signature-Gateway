@@ -2338,6 +2338,20 @@
     "name": "notfall_anmelden_faktor"
   },
   {
+    "pfad": "/notfall/anmelden/passkey",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_anmelden_passkey"
+  },
+  {
+    "pfad": "/notfall/anmelden/passkey/optionen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_anmelden_passkey_optionen"
+  },
+  {
     "pfad": "/notfall/api/adressen",
     "methoden": [
       "GET"
@@ -2371,6 +2385,27 @@
       "POST"
     ],
     "name": "notfall_faktor_codes"
+  },
+  {
+    "pfad": "/notfall/api/faktor/passkey/beginnen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_passkey_beginnen"
+  },
+  {
+    "pfad": "/notfall/api/faktor/passkey/bestaetigen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_passkey_bestaetigen"
+  },
+  {
+    "pfad": "/notfall/api/faktor/passkey/entfernen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_passkey_entfernen"
   },
   {
     "pfad": "/notfall/api/ich",

@@ -46,6 +46,12 @@ ldap3==2.9.1
 # Reines Python, BSD-Lizenz, ab Python 3.10 ohne weitere Abhängigkeiten.
 segno==1.6.6
 
+# ── Notbetrieb: Passkeys (WebAuthn) für den zweiten Faktor ───────────────────
+# Duo Labs py_webauthn, BSD-3-Clause. Zieht cbor2 (MIT), pyasn1-modules (BSD)
+# und pyOpenSSL (Apache-2.0) mit. ⚠️ pyOpenSSL 26.4 verlangt cryptography <51 —
+# ein Sprung auf cryptography 51 braucht vorher ein passendes pyOpenSSL.
+webauthn==3.0.1
+
 # ── Web-UI ───────────────────────────────────────────────────────────────────
 fastapi==0.139.0
 uvicorn==0.51.0

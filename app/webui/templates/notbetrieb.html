@@ -315,12 +315,18 @@
 
   <h3>Zweiter Faktor</h3>
   <p class="hint" style="margin-top:0">
-    Kennwort allein reicht nicht: Dazu kommt ein Code aus einer Authenticator-App (TOTP). Eingerichtet wird er im
+    Kennwort allein reicht nicht: Dazu kommt ein Passkey (Fingerabdruck, Gesicht, Windows Hello,
+    Sicherheitsschlüssel) oder ein Code aus einer Authenticator-App (TOTP). Eingerichtet wird er im
     Normalbetrieb nach einer Microsoft-Anmeldung, damit nur die Person selbst ihn einrichten kann — unter
     <code>https://{{ imap_host or 'Hostname dieses Gateways' }}/notfall/einrichten</code>. Auch das prüft das Gateway
     ohne Cloud. Microsoft verlangt dabei eine frische Anmeldung; wer dort noch keine MFA-Methode hat, wird
     zuerst durch deren Einrichtung geführt. Solange der zweite Faktor Pflicht ist, nehmen IMAP und SMTP kein
     reines Kennwort an.
+  </p>
+  <p class="hint">
+    Ein Passkey gilt nur für den Namen, unter dem er eingerichtet wurde. Ändert sich der Name des Gateways
+    (oder öffnet jemand das Webmail unter einem anderen Namen oder per IP-Adresse), bleibt dort nur der Code
+    aus der App oder ein Wiederherstellungscode. Verteile deshalb immer denselben Link.
   </p>
   <div class="settings-row">
     <label class="checkbox-label">
@@ -339,7 +345,7 @@
   <div class="msg" id="nb-zf-notfall-msg" hidden></div>
   <div class="tabellen-rollbereich">
     <table class="nb-tabelle" style="min-width:520px;width:100%;border-collapse:collapse;margin-top:8px">
-      <thead><tr><th>Postfach</th><th>Eingerichtet</th><th>Wiederherstellungscodes</th><th>Zustand</th><th></th></tr></thead>
+      <thead><tr><th>Postfach</th><th>Art</th><th>Eingerichtet</th><th>Wiederherstellungscodes</th><th>Zustand</th><th></th></tr></thead>
       <tbody id="nb-faktor-tbody"></tbody>
     </table>
   </div>
@@ -558,9 +564,11 @@ async function nbTabelleLaden(tb, url, spalten, leer) {
 
 async function nbFaktoren() {
   const tb = document.getElementById('nb-faktor-tbody');
-  const d = await nbTabelleLaden(tb, '/api/notbetrieb/faktoren', 5, 'Noch niemand hat einen zweiten Faktor eingerichtet.');
+  const d = await nbTabelleLaden(tb, '/api/notbetrieb/faktoren', 6, 'Noch niemand hat einen zweiten Faktor eingerichtet.');
   if (!d) return;
   tb.innerHTML = d.items.map(f => '<tr><td>' + esc(f.postfach) + '</td><td>'
+    + esc([f.passkeys ? (f.passkeys === 1 ? 'Passkey' : f.passkeys + ' Passkeys') : '', f.totp ? 'App' : '']
+          .filter(Boolean).join(' + ')) + '</td><td>'
     + esc(new Date(f.seit).toLocaleDateString('de-DE')) + '</td><td>' + esc(String(f.codes_uebrig)) + '</td><td>'
     + (f.gesperrt ? 'gesperrt (Fehlversuche)' : 'aktiv') + '</td><td><button class="btn danger btn-sm" '
     + 'onclick="nbFaktorZuruecksetzen(this, \'' + escJsAttr(f.postfach) + '\')">Zurücksetzen</button></td></tr>').join('');

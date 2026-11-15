@@ -652,7 +652,11 @@ def test_vor_dem_notfall_jede_inhaltsroute_gesperrt(client, schatten):
             # Zweiter Faktor: Anmeldeschritt und Einrichten — vor jeder Sitzung, eigene Wachen
             # (Vorgang bzw. Entra-Bescheinigung), geprüft in test_notbetrieb_faktor.py.
             "/notfall/anmelden/faktor", "/notfall/einrichten", "/notfall/api/faktor",
-            "/notfall/api/faktor/beginnen", "/notfall/api/faktor/bestaetigen", "/notfall/api/faktor/codes"}
+            "/notfall/api/faktor/beginnen", "/notfall/api/faktor/bestaetigen", "/notfall/api/faktor/codes",
+            # Passkeys: dieselben Wachen, geprüft in test_notbetrieb_passkey.py.
+            "/notfall/anmelden/passkey/optionen", "/notfall/anmelden/passkey",
+            "/notfall/api/faktor/passkey/beginnen", "/notfall/api/faktor/passkey/bestaetigen",
+            "/notfall/api/faktor/passkey/entfernen"}
     parameter = {"postfach": "a@firma.at", "id": "g-text", "art": "antwort", "von": "2026-01-01T00:00:00Z",
                  "bis": "2026-12-31T00:00:00Z", "nr": 0, "q": "ab", "ordner": "ord-in"}
     geprueft = 0
