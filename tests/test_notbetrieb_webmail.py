@@ -1000,3 +1000,47 @@ def test_hintergrund_traegt_altbestand_nach(schatten):
     with notbetrieb._conn() as conn:
         assert conn.execute("SELECT COUNT(*) FROM mails WHERE betreff IS NULL").fetchone()[0] == 0
     assert notbetrieb_lesen.kopf_auffuellen_offen() == 0
+
+
+# ── Adressbuch (Tipp auf An/Cc/Bcc) und Handy ──────────────────────────────
+
+def test_adressbuch_ohne_suchtext_alles_kontakte_zuerst_mit_grenze(client, schatten, monkeypatch):
+    g = _Graph({"/contacts": {"value": [{"id": "k1", "displayName": "Zora Kundin",
+                                          "emailAddresses": [{"address": "zora@kunde.example"}]}]}})
+    pim.kontakte_abgleichen(g, "tok", "a@firma.at", jetzt=1.0)
+    with notbetrieb._conn() as conn:
+        conn.executemany("INSERT INTO profile (adresse, daten) VALUES (?,?)",
+                         [(f"p{i}@firma.at", json.dumps({"displayName": f"Person {i:02d}", "mail": f"p{i}@firma.at"}))
+                          for i in range(5)])
+    _anmelden(client)
+    d = client.get("/notfall/api/adressbuch").json()
+    assert d["ok"] and d["treffer"][0]["adresse"] == "zora@kunde.example"        # Kontakt zuerst, trotz „Z“
+    assert {"p0@firma.at", "p4@firma.at"} <= {t["adresse"] for t in d["treffer"]} and d["mehr"] is False
+    assert [t["adresse"] for t in client.get("/notfall/api/adressbuch", params={"q": "p"}).json()["treffer"]
+            if t["adresse"].startswith("p")] == [f"p{i}@firma.at" for i in range(5)]   # schon ab 1 Zeichen
+    monkeypatch.setattr(pim, "ADRESSBUCH_MAX", 3)
+    d = client.get("/notfall/api/adressbuch").json()
+    assert len(d["treffer"]) == 3 and d["mehr"] is True
+    assert pim.adressen_suchen("a@firma.at", "") == []                           # Adresshilfe bleibt ab 2 Zeichen
+
+
+def test_name_mit_komma_nur_in_anfuehrungszeichen(schatten):
+    """Adressbuch und Vorschlag setzen den Namen in Anführungszeichen
+    (adressText) — ohne zerfällt „Mustermann, Max <…>“ beim Senden."""
+    import notbetrieb_senden
+    assert notbetrieb_senden._adressen('"Mustermann, Max" <max@firma.at>') == ["max@firma.at"]
+    with pytest.raises(notbetrieb_senden.SendeFehler):
+        notbetrieb_senden._adressen("Mustermann, Max <max@firma.at>")
+    html = (Path(notbetrieb_lesen.__file__).parent / "webui/templates/notfall.html").read_text("utf-8")
+    # Definition, Vorschlagsliste, Adressbuch (dort als .map(adressText)).
+    assert html.count("adressText") >= 3 and "t.name + ' <' + t.adresse" not in html
+
+
+def test_handy_eingabefelder_16px_gegen_zoom(schatten):
+    """Unter 16 px zoomt Safari (iOS) beim Fokussieren heran; „Neue Mail“
+    fokussiert sofort „An“ — die linke Spalte lag danach außerhalb des Bildes."""
+    import re
+    html = (Path(notbetrieb_lesen.__file__).parent / "webui/templates/notfall.html").read_text("utf-8")
+    block = html[html.index("@media (max-width: 800px)"):]
+    block = block[:block.index("\n}\n")]
+    assert re.search(r"input, select, textarea \{ font-size: 16px; \}", block), block[:400]

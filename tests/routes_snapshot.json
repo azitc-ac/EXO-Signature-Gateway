@@ -2373,6 +2373,13 @@
     "name": "notfall_anmelden_passkey_optionen"
   },
   {
+    "pfad": "/notfall/api/adressbuch",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_adressbuch"
+  },
+  {
     "pfad": "/notfall/api/adressen",
     "methoden": [
       "GET"

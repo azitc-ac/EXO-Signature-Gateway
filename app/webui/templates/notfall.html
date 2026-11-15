@@ -106,7 +106,27 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
   border: 1px solid var(--rand); border-radius: 6px; padding: 8px; }
 .ok { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--wahl); }
 .zurueck { display: none; }
+/* Adressbuch (Tipp auf An/Cc/Bcc) */
+#verfassen .feldknopf { background: none; border: 0; padding: 0; color: var(--akzent); text-align: left;
+                        text-decoration: underline; cursor: pointer; }
+#adressbuch { border: 1px solid var(--rand); border-radius: 10px; background: var(--flaeche); color: var(--text);
+              padding: 0; width: min(520px, calc(100vw - 32px)); }
+#adressbuch::backdrop { background: #0f172a; opacity: .4; }
+#adressbuch .kopf, #adressbuch .fuss { display: flex; gap: 8px; align-items: center; padding: 10px 12px; }
+#adressbuch .kopf { border-bottom: 1px solid var(--rand); }
+#adressbuch .kopf input { flex: 1; min-width: 0; }
+#adressbuch .fuss { border-top: 1px solid var(--rand); justify-content: flex-end; flex-wrap: wrap; }
+#adressbuch .fuss .leise { margin-right: auto; }
+#ab-liste { overflow: auto; max-height: 55dvh; padding: 4px 0; }
+#ab-liste label { display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; cursor: pointer; }
+#ab-liste label:hover { background: var(--wahl); }
+#ab-liste .adr { color: var(--leise); font-size: 12px; overflow-wrap: anywhere; }
+
 @media (max-width: 800px) {
+  /* 16 px in Eingabefeldern: Darunter zoomt Safari (iOS) beim Fokussieren
+     heran — „Neue Mail“ setzt den Fokus sofort ins Feld „An“, danach lag die
+     linke Spalte (An, Cc, Bcc) außerhalb des Bildes. */
+  input, select, textarea { font-size: 16px; }
   #app { grid-template-columns: 1fr; height: auto; }
   #app .spalte { border-right: 0; }
   #app[data-ansicht="liste"] #lesen, #app[data-ansicht="lesen"] #ordnerspalte,
@@ -238,6 +258,16 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
     <p class="leise" style="padding:18px">Wähle eine Nachricht.</p>
   </article>
 </main>
+
+<dialog id="adressbuch" aria-labelledby="ab-titel">
+  <div class="kopf"><strong id="ab-titel">Adressbuch</strong></div>
+  <div class="kopf"><input id="ab-suche" type="search" placeholder="Name oder Adresse" aria-label="Im Adressbuch suchen"
+                           autocomplete="off" oninput="adressbuchSuchen()"></div>
+  <div id="ab-liste" role="group" aria-label="Einträge" onchange="adressbuchWahl(event)"></div>
+  <div class="fuss"><span class="leise" id="ab-zahl" aria-live="polite"></span>
+    <button type="button" onclick="adressbuchZu()">Abbrechen</button>
+    <button type="button" class="haupt" onclick="adressbuchUebernehmen()">Übernehmen</button></div>
+</dialog>
 
 <script>
 let nb = {postfach: '', ordner: '', zugriff: [], absender: [], mail: null};
@@ -712,6 +742,63 @@ async function anSchreiben(adresse) {
 
 // ── Adresshilfe: Kontakte und globale Adressliste beim Tippen ────────────
 let nbAdressTakt = 0;
+// Name in Anführungszeichen: „Mustermann, Max <…>“ zerfiele beim Senden am
+// Komma (getaddresses) — „Ungültige Adresse: Mustermann“.
+function adressText(t) {
+  const name = (t.name || '').replace(/["\\\r\n]/g, '').trim();
+  return name ? '"' + name + '" <' + t.adresse + '>' : t.adresse;
+}
+
+// ── Adressbuch: Tipp auf An/Cc/Bcc ─────────────────────────────────────────
+const nbAb = {feld: '', gewaehlt: new Map(), takt: 0, treffer: []};
+function adressbuchOeffnen(feld) {
+  nbAb.feld = feld;
+  nbAb.gewaehlt = new Map();
+  document.getElementById('ab-suche').value = '';
+  document.getElementById('adressbuch').showModal();
+  adressbuchSuchen();
+  document.getElementById('ab-suche').focus();
+}
+async function adressbuchSuchen() {
+  const takt = ++nbAb.takt;
+  await new Promise(r => setTimeout(r, 150));
+  if (takt !== nbAb.takt) return;
+  const d = await getJSON('/notfall/api/adressbuch?' + q({q: feldWert('ab-suche')}));
+  if (takt !== nbAb.takt) return;
+  const el = document.getElementById('ab-liste');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  nbAb.treffer = d.treffer;
+  el.innerHTML = d.treffer.length ? d.treffer.map((t, i) =>
+    '<label><input type="checkbox" data-nr="' + i + '"' + (nbAb.gewaehlt.has(t.adresse.toLowerCase()) ? ' checked' : '')
+    + '><span><span>' + esc(t.name || t.adresse) + (t.quelle === 'kontakt' ? ' <span class="leise">· Kontakt</span>' : '')
+    + '</span><br><span class="adr">' + esc(t.adresse) + '</span></span></label>').join('')
+    : '<p class="leise" style="padding:8px 12px">Nichts gefunden.</p>';
+  adressbuchZahl(d.mehr);
+}
+function adressbuchZahl(mehr) {
+  const n = nbAb.gewaehlt.size;
+  document.getElementById('ab-zahl').textContent = (n ? n + ' gewählt' : '')
+    + (mehr ? (n ? ' · ' : '') + 'mehr Einträge — Suche eingrenzen' : '');
+}
+function adressbuchWahl(ev) {
+  const t = nbAb.treffer[Number(ev.target.dataset.nr)];
+  if (!t) return;
+  if (ev.target.checked) nbAb.gewaehlt.set(t.adresse.toLowerCase(), t);
+  else nbAb.gewaehlt.delete(t.adresse.toLowerCase());
+  adressbuchZahl(false);
+}
+function adressbuchUebernehmen() {
+  const feld = document.getElementById(nbAb.feld);
+  if (feld && nbAb.gewaehlt.size) {
+    const alt = feld.value.trim().replace(/,\s*$/, '');
+    feld.value = [alt, ...[...nbAb.gewaehlt.values()].map(adressText)].filter(Boolean).join(', ');
+    entwurfMerken();
+  }
+  adressbuchZu();
+  if (feld) feld.focus();
+}
+function adressbuchZu() { document.getElementById('adressbuch').close(); }
+
 async function adressVorschlag(feld) {
   const wert = feld.value, komma = wert.lastIndexOf(',');
   const vorne = komma >= 0 ? wert.slice(0, komma + 1) + ' ' : '', teil = wert.slice(komma + 1).trim();
@@ -722,7 +809,7 @@ async function adressVorschlag(feld) {
   const d = await getJSON('/notfall/api/adressen?' + q({q: teil}));
   if (!d.ok || takt !== nbAdressTakt) return;
   document.getElementById('vf-vorschlaege').innerHTML = d.treffer.map(t =>
-    '<option value="' + escAttr(vorne + (t.name ? t.name + ' <' + t.adresse + '>' : t.adresse)) + '">'
+    '<option value="' + escAttr(vorne + adressText(t)) + '">'
     + esc(t.quelle === 'kontakt' ? 'Kontakt' : 'Adressliste') + '</option>').join('');
 }
 
@@ -861,9 +948,9 @@ async function verfassen(art, entwurf) {
     + '<div class="zeile"><label for="vf-von">Von</label><select id="vf-von">' + nb.absender.map(a =>
         '<option value="' + escAttr(a.postfach) + '"' + (a.postfach === von ? ' selected' : '') + '>'
         + esc(a.postfach + recht[a.recht]) + '</option>').join('') + '</select></div>'
-    + '<div class="zeile"><label for="vf-an">An</label><input id="vf-an" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.an) + '"></div>'
-    + '<div class="zeile"><label for="vf-cc">Cc</label><input id="vf-cc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.cc) + '"></div>'
-    + '<div class="zeile"><label for="vf-bcc">Bcc</label><input id="vf-bcc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.bcc || '') + '"><datalist id="vf-vorschlaege"></datalist></div>'
+    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-an" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">An</button><input id="vf-an" aria-label="An" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.an) + '"></div>'
+    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-cc" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">Cc</button><input id="vf-cc" aria-label="Cc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.cc) + '"></div>'
+    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-bcc" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">Bcc</button><input id="vf-bcc" aria-label="Bcc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.bcc || '') + '"><datalist id="vf-vorschlaege"></datalist></div>'
     + '<div class="zeile"><label for="vf-betreff">Betreff</label><input id="vf-betreff" value="' + escAttr(v.betreff) + '"></div>'
     + '<textarea id="vf-text" aria-label="Text">' + esc(v.text) + '</textarea>'
     + (art === 'weiterleiten' ? '<div class="leise">Die Nachricht wird als Anhang weitergeleitet.</div>' : '')

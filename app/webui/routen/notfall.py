@@ -420,6 +420,17 @@ async def notfall_adressen(q: str = "", benutzer: str = Depends(_leser)):
         notbetrieb_pim.adressen_suchen, benutzer, q[:100])})
 
 
+@router.get("/notfall/api/adressbuch")
+async def notfall_adressbuch(q: str = "", benutzer: str = Depends(_leser)):
+    """Adressbuch beim Tipp auf An/Cc/Bcc: ohne Suchtext alles (eigene Kontakte
+    zuerst), sonst wie die Adresshilfe — mehr Treffer, ab dem ersten Zeichen."""
+    import notbetrieb_pim
+    treffer = await asyncio.to_thread(notbetrieb_pim.adressen_suchen, benutzer, q[:100], 0,
+                                      notbetrieb_pim.ADRESSBUCH_MAX + 1)
+    return JSONResponse({"ok": True, "treffer": treffer[:notbetrieb_pim.ADRESSBUCH_MAX],
+                         "mehr": len(treffer) > notbetrieb_pim.ADRESSBUCH_MAX})
+
+
 @router.get("/notfall/api/liste")
 async def notfall_liste(postfach: str, ordner: str = "", suche: str = "", seite: int = 0,
                         ungelesen: bool = False, anhang: bool = False, unterhaltungen: bool = False,

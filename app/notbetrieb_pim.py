@@ -35,6 +35,7 @@ log = logging.getLogger(__name__)
 GRAPH = "https://graph.microsoft.com/v1.0"
 KONTAKTE_ALLE_H = 6
 MAX_TREFFER = 10
+ADRESSBUCH_MAX = 300                   # Tipp auf An/Cc/Bcc — darüber hilft nur die Suche
 
 
 def _tabellen(conn) -> None:
@@ -181,12 +182,13 @@ def _wortanfang(t: str, text: str | None) -> bool:
     return any(w.startswith(t) for w in _WORTGRENZE.split((text or "").lower()) if w)
 
 
-def adressen_suchen(benutzer: str, text: str) -> list[dict]:
+def adressen_suchen(benutzer: str, text: str, mindestens: int = 2, hoechstens: int = MAX_TREFFER) -> list[dict]:
     """Adresshilfe beim Verfassen: eigene Kontakte zuerst, dann die globale
     Adressliste (gesicherte Profile) samt geteilter Postfächer. Höchstens
-    MAX_TREFFER, je Adresse einmal."""
+    `hoechstens`, je Adresse einmal. Das Adressbuch (Tipp auf An/Cc/Bcc) ruft
+    es mit `mindestens=0`: ohne Suchtext alles, eigene Kontakte zuerst."""
     t = (text or "").strip().lower()
-    if len(t) < 2 or not notbetrieb._db_pfad().exists():
+    if len(t) < mindestens or not notbetrieb._db_pfad().exists():
         return []
     treffer: dict[str, dict] = {}
 
@@ -209,4 +211,4 @@ def adressen_suchen(benutzer: str, text: str) -> list[dict]:
     # Treffer am Anfang von Name oder Adresse zuerst.
     return sorted(treffer.values(), key=lambda x: (not (x["adresse"].lower().startswith(t)
                                                         or x["name"].lower().startswith(t)),
-                                                   x["quelle"] != "kontakt", x["name"].lower()))[:MAX_TREFFER]
+                                                   x["quelle"] != "kontakt", x["name"].lower()))[:hoechstens]
