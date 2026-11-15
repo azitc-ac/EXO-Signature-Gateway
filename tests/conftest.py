@@ -73,10 +73,14 @@ def _meminfo_lesen() -> str:
 
 
 def pytest_configure(config):
-    """Nicht starten, wenn der Rechner schon ausgelastet ist (tests/speicher_sperre.py)."""
+    """Nicht starten, wenn der Rechner schon ausgelastet ist (tests/speicher_sperre.py).
+    Dazu die Grenze für übersprungene Tests (tests/skip_grenze.py, wirkt mit SKIP_GRENZE=1)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import skip_grenze
+    if not config.pluginmanager.has_plugin("skip_grenze"):
+        config.pluginmanager.register(skip_grenze, "skip_grenze")
     if os.environ.get("PYTEST_SPEICHER_EGAL") == "1":
         return
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
     import speicher_sperre
     grund = speicher_sperre.einwand(_meminfo_lesen())
     if grund:

@@ -13,6 +13,7 @@ Zwei Ausfallsicherungen, die das zusammen verhindern:
 2. Das Gate ist IMMER die DG, wird NIE geleert (update_mailbox_dg.ps1); bei null
    Postfächern zeigt es auf eine leere DG und die Regel wird deaktiviert.
 """
+import re
 from pathlib import Path
 
 WURZEL = Path(__file__).resolve().parent.parent
@@ -76,6 +77,27 @@ def test_connector_update_stellt_gate_wieder_her():
     setzen = _aufrufe(zweig, "Set-TransportRule")
     assert setzen, "kein Set-TransportRule im Aktualisieren-Zweig"
     assert any("-FromMemberOf @($dgName)" in a for a in setzen), setzen
+
+
+def test_connector_regel_hat_keine_empfaengerbedingung():
+    """KEINE empfängerbezogene Bedingung (SentToScope, SentToMemberOf, SentTo …):
+    sonst bifurkiert Exchange die interne Fork am Gateway vorbei (CLAUDE.md,
+    Bifurkations-Falle). Absender-Gate = FromScope InOrganization + FromMemberOf.
+
+    Bis v1.12.23 stand diese Prüfung (auch) in test_loop_header.py und verbot
+    nur das Literal `-SentToScope NotInOrganization` — `-SentToScope
+    InOrganization` oder `-SentToMemberOf` im Aktualisieren-Zweig kamen durch.
+    Erlaubt ist dort genau eine Form: `-SentToScope $null` heilt eine alt
+    installierte Regel."""
+    s = (SKRIPTE / "setup_exo_connector.ps1").read_text()
+    anlage = _aufrufe(_anweisungen(s), "New-TransportRule")
+    assert len(anlage) == 1 and "-FromScope InOrganization" in anlage[0], anlage
+    setzen = _aufrufe(_zweig(s, "if ($existingRule)", "} else {"), "Set-TransportRule")
+    assert setzen
+    for a in setzen:
+        empfaenger = re.findall(r"-SentTo\w*\s+\S+", a)
+        assert empfaenger == ["-SentToScope $null"], (
+            f"Empfängerbedingung im Aktualisieren-Zweig: {empfaenger}")
 
 
 def test_split_skript_haelt_dieselben_invarianten():

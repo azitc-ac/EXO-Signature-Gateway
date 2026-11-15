@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.26 — 2026-11-15 — CI: übersprungene Tests sind ein Fehler; Prüfungen am Verhalten statt am Text
+
+Mehrere Prüfungen der Testsuite liefen grün, ohne etwas zu prüfen:
+
+- **Übersprungene Tests:** Ein Test, der sich überspringt, sah im Ergebnis aus
+  wie ein bestandener. Jetzt scheitert der CI-Lauf an jedem übersprungenen Test,
+  der nicht mit Grund in `tests/skip_grenze.py` steht. Dabei fielen zwei auf,
+  die sich in jedem Lauf übersprangen: der Vergleich mit den gespiegelten
+  Dateien des SMTP-Relays (der Relay-Klon wurde erst nach den Tests
+  ausgecheckt) und die Prüfung der Sammelauswahl auf der S/MIME-Seite (in der
+  Testumgebung gab es keinen Bezugsweg). Beide laufen jetzt.
+- **Standardvorlage:** Zwei Tests der Vorlagenzerlegung lasen nur das
+  Betriebsverzeichnis `templates/`, das in einem frischen Auschecken leer ist,
+  und endeten dort ohne eine einzige Prüfung. Sie prüfen jetzt die
+  mitgelieferte Standardvorlage.
+- **Empfängerbedingung der Transportregel:** Verboten war nur eine bestimmte
+  Schreibweise. Jetzt ist im Aktualisieren-Zweig genau `-SentToScope $null`
+  zulässig, jede andere empfängerbezogene Bedingung lässt den Test scheitern.
+- **Gleichnamige Tests:** Zwei Tests gleichen Namens in einer Datei
+  überschreiben sich still, der erste läuft nie. Ein Test verbietet das jetzt.
+- Der Hinweis „Spiegelung übersprungen“ der Drift-Prüfung sagt jetzt
+  ausdrücklich, dass dieser Lauf die Spiegelung zum Betreiber-Gegenstück nicht
+  prüft und wer es stattdessen tut.
+
+**Zu tun:** nichts.
+
 ## v1.12.25 — 2026-11-15 — Oberfläche: Erweitert nach Zweck gegliedert, Texte ohne Entstehungsgeschichte
 
 **Einstellungen → Erweitert** ist in fünf Abschnitte gegliedert statt in der
