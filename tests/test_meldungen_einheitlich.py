@@ -12,17 +12,26 @@ import re
 from pathlib import Path
 
 VORLAGEN = Path(__file__).parent.parent / "app/webui/templates"
+STATISCH = Path(__file__).parent.parent / "app/webui/static"
 
 # Farben aus JavaScript: bis 2026-10-21 als Stand je Vorlage (59), seither null.
 # Erfasst werden Zuweisungen an style.color/background/…Color und style.cssText-
 # Anweisungen (samt Folgezeilen), die eine Farbe enthalten. Zurücksetzen auf ''
 # zählt nicht. Ausnahmen nur mit Grund.
 _JS_FARBE = re.compile(r"\.style\.(color|background|backgroundColor|border\w*Color)\s*=(?!\s*['\"]['\"])")
+# setProperty('color', …) umgeht die Zuweisungsform oben (bis v1.12.23 nicht erfasst).
+_SETPROPERTY = re.compile(r"\.style\.setProperty\(\s*['\"](color|background(-color)?|border(-\w+)?-color)['\"]")
 _CSSTEXT = re.compile(r"style\.cssText\s*=")
 _FARBANGABE = re.compile(r"(?<![-\w])(color|background(-color)?|border(-\w+)?-color)\s*:")
 AUSNAHMEN = {
     ("portal.html", "iframe.style.cssText"):
         "Mailinhalt im Portal: Mails sind auf Weiß gestaltet, auch im Dunkelmodus",
+    ("common.js", "overlay.style.cssText"):
+        "Abdunkelung hinter einem Dialog: halbtransparentes Schwarz (rgba) wirkt in "
+        "beiden Modi gleich, es gibt keinen hellen Wert umzuschalten",
+    ("sig_preview.js", "rahmen.style.cssText"):
+        "Signaturvorschau: Signaturen sind auf Weiß gestaltet und werden beim "
+        "Empfänger auf Weiß gezeigt — die Vorschau bleibt bewusst hell",
 }
 
 
@@ -39,6 +48,8 @@ def _anweisung(text: str, i: int) -> str:
 
 def js_farben(text: str):
     for m in _JS_FARBE.finditer(text):
+        yield m.start()
+    for m in _SETPROPERTY.finditer(text):
         yield m.start()
     for m in _CSSTEXT.finditer(text):
         if _FARBANGABE.search(_anweisung(text, m.start())):
@@ -67,7 +78,9 @@ def test_zustimmungs_dialoge_melden_ueber_showmsg():
 
 def test_keine_farben_aus_javascript():
     funde = []
-    for p in sorted(VORLAGEN.glob("*.html")):
+    # Seit v1.12.24 auch die statischen Skripte: bis dahin nur Vorlagen, obwohl
+    # dieselbe Regel für JEDES Skript gilt (CLAUDE.md, Dark-Mode-Regel 2).
+    for p in sorted(VORLAGEN.glob("*.html")) + sorted(STATISCH.glob("*.js")):
         text = p.read_text(encoding="utf-8")
         for i in js_farben(text):
             zeile = text[text.rfind("\n", 0, i) + 1:text.find("\n", i)].strip()
@@ -84,6 +97,7 @@ def test_pruefer_erkennt_farben():
     assert list(js_farben("b.style.borderBottomColor = '#4f46e5';"))
     assert list(js_farben("x.style.cssText = 'padding:4px;color:#94a3b8';"))       # Farbe hinter ;
     assert list(js_farben("x.style.cssText = 'padding:4px;' +\n  'background:#eff6ff';"))  # Folgezeile
+    assert list(js_farben("el.style.setProperty('background-color', '#fef2f2');"))
     assert not list(js_farben("el.style.color = '';"))
     assert not list(js_farben("el.style.color = '' ;"))
     assert not list(js_farben("x.style.cssText = 'display:flex;gap:4px';"))

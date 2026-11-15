@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.28 — 2026-11-15 — Farben aus JavaScript auch in den Skriptdateien geprüft; Kundendaten-Hook warnt deutlich
+
+- Die Prüfung „keine Farben per JavaScript“ (Dark-Mode-Regel 2) durchsuchte
+  nur die Vorlagen, nicht `app/webui/static/*.js`, und erkannte
+  `style.setProperty('color', …)` nicht. Beides ist ergänzt. Zwei bestehende
+  Stellen sind mit Grund ausgenommen: die halbtransparente Abdunkelung hinter
+  Dialogen und die bewusst helle Signaturvorschau.
+- Der Commit-Hook, der Kundendaten aus dem öffentlichen Repository fernhält,
+  liess einen Commit ohne Begriffsliste mit einer unauffälligen Zeile durch.
+  Er warnt jetzt unübersehbar. Dazu kommt ein Werkzeug
+  (`tools/vertraulich_sperrliste.py`), das eine Sperrliste für eine Prüfung in
+  der CI erzeugt: nur geschlüsselte Hashes plus Füllwerte, damit die Liste
+  weder Begriffe noch deren Anzahl verrät.
+
+**Zu tun:** nichts.
+
 ## v1.12.27 — 2026-11-15 — Kopien-Stand: steigt nur mit Begründung, sinkt nur festgeschrieben
 
 `tools/kopien_stand.json` hält fest, wie viel kopierter Code je Datei
