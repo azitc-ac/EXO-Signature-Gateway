@@ -840,8 +840,12 @@ async def cleanup_sent_items(
     subject: str = "", to_recipients: list[str] | None = None,
     replace_all: bool = False,
     nur_duplikate: bool = False,
+    rumpf_art: str = "html",
 ) -> bool | None:
     """Find all Sent Items with this Message-ID and clean up duplicates.
+
+    rumpf_art: "html" oder "text" — Graph-`contentType` des Patches. Eine
+    Nur-Text-Mail bleibt so Nur-Text (bis v1.12.16 als <pre>-HTML überschrieben).
 
     Exchange creates a Sent Item when the user sends mail AND another when our
     gateway calls sendMail.
@@ -895,7 +899,8 @@ async def cleanup_sent_items(
         # Patch helper — patches body (and optionally subject) of a Sent Item.
         # Returns True on success, None on permanent 4xx.
         async def _patch_item(item_id: str, patch_subject: str = "") -> bool | None:
-            patch_data: dict = {"body": {"contentType": "html", "content": html_body}}
+            patch_data: dict = {"body": {"contentType": "text" if rumpf_art == "text" else "html",
+                                         "content": html_body}}
             if patch_subject:
                 patch_data["subject"] = patch_subject
             url = (

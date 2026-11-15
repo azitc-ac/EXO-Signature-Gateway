@@ -63,9 +63,10 @@ def freigabe(monkeypatch):
 
     geplant = []
 
-    async def merken(sender, mid, html, subject="", to_recipients=None, replace_all=False):
+    async def merken(sender, mid, html, subject="", to_recipients=None, replace_all=False,
+                     rumpf_art="html"):
         geplant.append({"sender": sender, "mid": mid, "html": html,
-                        "replace_all": replace_all})
+                        "replace_all": replace_all, "rumpf_art": rumpf_art})
 
     monkeypatch.setattr(handler, "_cleanup_sent_item", merken)
     # Das Fenster von _is_first_for_mid ist modulweit — sonst faerbte ein Test
@@ -126,3 +127,18 @@ def test_ohne_die_einstellung_passiert_nichts(freigabe, monkeypatch):
     r = c.post("/api/maintenance/mails/m1/release")
     assert r.status_code == 200, r.text
     assert geplant == []
+
+
+def test_nur_text_mail_bleibt_nur_text(freigabe):
+    """Bis v1.12.16 nahm die Freigabe nur einen HTML-Teil — eine Nur-Text-Mail
+    bekam gar keine Nachbesserung in „Gesendete Elemente“."""
+    c, geplant, bereit = freigabe
+    roh = (b"From: erika@example.org\r\nTo: extern@example.com\r\nSubject: T\r\n"
+           b"Message-ID: <txt@example.org>\r\nMIME-Version: 1.0\r\n"
+           b"Content-Type: text/plain; charset=utf-8\r\n\r\nGuten Tag\r\n--\r\nSignatur\r\n")
+    bereit(roh)
+    r = c.post("/api/maintenance/mails/m1/release")
+    assert r.status_code == 200, r.text
+    assert len(geplant) == 1
+    assert geplant[0]["rumpf_art"] == "text"
+    assert geplant[0]["html"].startswith("Guten Tag") and "<pre>" not in geplant[0]["html"]

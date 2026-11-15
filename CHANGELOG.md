@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.17 — 2026-11-15 — Nur-Text-Mails: „Gesendete Elemente“ bleibt Nur-Text, Signatur im Protokoll
+
+**Gesendete Elemente.** Ist „Gesendete Elemente aktualisieren“ eingeschaltet,
+ersetzt das Gateway den Eintrag durch die versandte Fassung mit Signatur. Bei
+einer Nur-Text-Mail wurde der Rumpf dabei in HTML verpackt (`<pre>`), der Eintrag
+erschien danach als HTML-Mail. Jetzt bleibt er Nur-Text. Eine Nur-Text-Mail
+**mit Anhang** wurde bisher gar nicht nachgebessert, weil nur nach einem
+HTML-Teil gesucht wurde; sie wird jetzt ebenfalls aktualisiert. Dasselbe gilt
+für Mails, die aus der Warteschlange freigegeben werden.
+
+**Protokoll.** Jede eingefügte Signatur hinterlässt jetzt eine Zeile
+`SIGNATUR: Vorlage '…' für … (Format[, Bearbeiter …])`. Bisher schrieb nur der
+HTML-Weg etwas; bei einer signierten Nur-Text-Mail war im Protokoll nicht zu
+sehen, ob und mit welcher Vorlage signiert wurde. Hat die Vorlage keine
+Textfassung, meldet das Gateway das als Warnung.
+
+**Zu tun:** nichts.
+
 ## v1.12.16 — 2026-11-15 — Test: Wächter für die Nur-Text-Fassung führt die Bausteine aus
 
 Der Test, der prüft, dass jeder Bausteintyp in der Nur-Text-Signatur
