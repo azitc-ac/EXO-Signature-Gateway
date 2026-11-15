@@ -86,13 +86,6 @@ def im_notfall_ohne() -> bool:
     return settings_store.get("NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE") is True
 
 
-def nur_kennwort_erlaubt() -> bool:
-    """Darf ein Zugang OHNE zweiten Faktor (IMAP, SMTP 587) anmelden? Nur
-    ohne Pflicht oder im ausgerufenen Notfall mit erlaubtem Verzicht."""
-    import notbetrieb
-    return not pflicht() or (notbetrieb.ausgerufen() and im_notfall_ohne())
-
-
 # ── Ablage ──────────────────────────────────────────────────────────────────
 
 def _pfad() -> Path:

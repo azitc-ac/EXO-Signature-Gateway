@@ -761,12 +761,10 @@ def test_vor_dem_notfall_jede_inhaltsroute_gesperrt(client, schatten):
 
 def test_lesen_alle_heisst_nicht_senden(client, postfix, schatten):
     """Schalter „für alle lesbar“: Inhalte für jeden, Senden weiter nur für die
-    Probegruppe (es liefe am Exchange vorbei) — im Webmail wie über 587."""
+    Probegruppe (es liefe am Exchange vorbei)."""
     import notbetrieb
-    import notbetrieb_senden
     schatten["NOTBETRIEB_PROBEGRUPPE"] = []
     schatten["NOTBETRIEB_LESEN_ALLE"] = True
-    schatten["NOTBETRIEB_SMTP"] = True
     schatten[notbetrieb._LAST_KEY] = {"ts": "2026-11-15T10:00:00+00:00"}
     _anmelden(client)
     d = client.get("/notfall/api/ich").json()
@@ -775,11 +773,9 @@ def test_lesen_alle_heisst_nicht_senden(client, postfix, schatten):
     assert client.get("/notfall/api/ordner", params={"postfach": "a@firma.at"}).status_code == 200
     r = client.post("/notfall/api/senden", json={"postfach": "a@firma.at", "an": "kunde@extern.de", "betreff": "x"})
     assert r.status_code == 403 and postfix == []
-    assert notbetrieb_senden.smtp_erlaubt("a@firma.at") is False
     # Probegruppe darf senden; im ausgerufenen Notfall alle, ohne Vorschau-Hinweis.
     schatten["NOTBETRIEB_PROBEGRUPPE"] = ["a@firma.at"]
     assert client.get("/notfall/api/ich").json()["senden"] is True
-    assert notbetrieb_senden.smtp_erlaubt("a@firma.at") is True
     schatten["NOTBETRIEB_PROBEGRUPPE"] = []
     schatten["NOTBETRIEB_AUSGERUFEN"] = True
     d = client.get("/notfall/api/ich").json()

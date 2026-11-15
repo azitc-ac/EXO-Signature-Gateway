@@ -137,7 +137,7 @@ def lesen_alle() -> bool:
 
 
 def inhalte_erlaubt(benutzer: str) -> bool:
-    """LESEN der Kopie (Webmail, IMAP). Im Notfall alle; vorher die
+    """LESEN der Kopie (Webmail). Im Notfall alle; vorher die
     Probegruppe und — mit `lesen_alle` — alle. Sonst sieht man „bereit“."""
     return ausgerufen() or lesen_alle() or _in_probegruppe(benutzer)
 
@@ -146,7 +146,7 @@ WEG_NOTFALL, WEG_EXCHANGE = "notfall", "exchange"
 
 
 def sendeweg(benutzer: str) -> str | None:
-    """Wie geht Post aus Webmail und 587 hinaus — EINE Stelle.
+    """Wie geht Post aus dem Webmail hinaus — EINE Stelle.
 
     `notfall`  am Exchange vorbei: externe per Direktversand, interne in die
                Kopie. Im ausgerufenen Notfall für alle, sonst für die
@@ -163,7 +163,7 @@ def sendeweg(benutzer: str) -> str | None:
 
 
 def senden_erlaubt(benutzer: str) -> bool:
-    """SENDEN (Webmail, 587) — siehe `sendeweg`."""
+    """SENDEN (Webmail) — siehe `sendeweg`."""
     return sendeweg(benutzer) is not None
 
 
@@ -428,17 +428,6 @@ def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
     return imid
 
 
-def im_ordner(postfach: str, ordner: list[str], imid: str) -> bool:
-    """Liegt eine Mail mit dieser Message-ID schon in einem der Ordner
-    (Kennung oder bekannter Name) — gleich, ob lokal entstanden, schon nach
-    Exchange zurückgespielt oder per Abgleich gekommen?"""
-    imid = (imid or "").strip()
-    ordner = [o for o in ordner if o]
-    if not imid or not ordner or not _db_pfad().exists():
-        return False
-    with _lock, _conn() as conn:
-        return conn.execute(f"SELECT 1 FROM mails WHERE postfach=? AND imid=? AND ordner IN "
-                            f"({','.join('?' * len(ordner))})", (postfach.lower(), imid, *ordner)).fetchone() is not None
 
 
 # ── Abgleich von Exchange ───────────────────────────────────────────────────

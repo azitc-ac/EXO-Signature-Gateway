@@ -42,8 +42,6 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "lesen_alle": notbetrieb.lesen_alle(),
             "senden_alle": settings_store.get("NOTBETRIEB_SENDEN_ALLE") is True,
             "webmail_url": aussenadresse.basis() + "/notfall",
-            "imap": settings_store.get("NOTBETRIEB_IMAP") is True,
-            "smtp": settings_store.get("NOTBETRIEB_SMTP") is True,
             "zweitfaktor": {"pflicht": notbetrieb_faktor.pflicht(), "notfall_ohne": notbetrieb_faktor.im_notfall_ohne()},
             "imap_host": aussenadresse.ehlo_hostname() or "",
             "eingang": {"greylist": notbetrieb_eingang.greylisting_an(), "max_empf": notbetrieb_eingang.max_empfaenger(),

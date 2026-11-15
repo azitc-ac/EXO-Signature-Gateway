@@ -51,7 +51,7 @@
       <input type="checkbox" id="nb-lesen-alle" {% if lesen_alle %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
              onchange="nbSchalter(this, {NOTBETRIEB_LESEN_ALLE: this.checked}, 'nb-lesen-alle-msg')"> Kopie schon im Normalbetrieb für alle lesbar
     </label>
-    <span class="hint">Webmail und IMAP, nur lesen</span>
+    <span class="hint">im Webmail, nur lesen</span>
   </div>
   <div class="msg" id="nb-lesen-alle-msg" hidden></div>
   <div class="settings-row">
@@ -275,40 +275,6 @@
   </div>
 </div>
 
-<!-- Mailprogramme -->
-<div class="settings-card" style="margin-bottom:18px">
-  <h2 style="margin-top:0">Zugang für Mailprogramme (IMAP und SMTP)</h2>
-  <p class="hint" style="margin-top:0">
-    Outlook (als zusätzliches Konto) und Mail-Apps auf dem Handy lesen die Kopie per IMAP und senden per SMTP
-    über das Gateway, mit Signatur wie im Webmail. Gelesen, Verschieben und Löschen gehen denselben Weg wie im
-    Webmail zurück nach Exchange — wer nur lesen darf, ändert nichts. Vor dem Notfall zeigt das Konto einen
-    leeren Posteingang (außer für die Probegruppe oder wenn die Kopie für alle lesbar ist) und sendet nur, wenn
-    das Webmail es auch darf; es kann also vorab auf allen Geräten eingerichtet werden.
-  </p>
-  <div class="settings-row">
-    <label class="checkbox-label">
-      <input type="checkbox" id="nb-imap" {% if imap %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbSchalter(this, {NOTBETRIEB_IMAP: this.checked}, 'nb-imap-msg')"> Lesen per IMAP einschalten
-    </label>
-  </div>
-  <div class="msg" id="nb-imap-msg" hidden></div>
-  <div class="settings-row">
-    <label class="checkbox-label">
-      <input type="checkbox" id="nb-smtp" {% if smtp %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbSchalter(this, {NOTBETRIEB_SMTP: this.checked}, 'nb-smtp-msg')"> Senden per SMTP einschalten
-    </label>
-  </div>
-  <div class="msg" id="nb-smtp-msg" hidden></div>
-  <p class="hint" style="margin:6px 0 0">
-    Kontodaten: Server <code>{{ imap_host or 'Hostname dieses Gateways' }}</code>, eingehend IMAP Port
-    <code>993</code> (SSL/TLS), ausgehend SMTP Port <code>587</code> (STARTTLS, Anmeldung erforderlich),
-    Benutzername und Kennwort wie bei der Windows-Anmeldung. Die Firewall muss beide Ports zum Gateway
-    durchlassen. Als Server immer den Namen eintragen, nie die IP-Adresse: Er muss zum Zertifikat passen,
-    sonst lehnt das Programm die Verbindung ab — Outlook bricht das Senden dann womöglich ohne Rückfrage ab. Gesendet wird aus dem eigenen Postfach oder einem mit „Senden als“/„Senden im Auftrag“;
-    die Kopie unter „Gesendete Elemente“ legt das Gateway selbst ab.
-  </p>
-</div>
-
 <!-- Direktversand-Probe -->
 <p class="hint" style="margin:-6px 0 18px">Ob der Weg nach außen trägt, prüft die tägliche Probe unter
   <a href="/settings/routing#direktversand-probe">Einstellungen → Mail-Routing</a>; ihr Ergebnis zählt zur Bereitschaft.</p>
@@ -367,8 +333,7 @@
     Normalbetrieb nach einer Microsoft-Anmeldung, damit nur die Person selbst ihn einrichten kann — unter
     <code>https://{{ imap_host or 'Hostname dieses Gateways' }}/notfall/einrichten</code>. Auch das prüft das Gateway
     ohne Cloud. Microsoft verlangt dabei eine frische Anmeldung; wer dort noch keine MFA-Methode hat, wird
-    zuerst durch deren Einrichtung geführt. Solange der zweite Faktor Pflicht ist, nehmen IMAP und SMTP kein
-    reines Kennwort an.
+    zuerst durch deren Einrichtung geführt.
   </p>
   <p class="hint">
     Ein Passkey gilt nur für den Namen, unter dem er eingerichtet wurde. Ändert sich der Name des Gateways

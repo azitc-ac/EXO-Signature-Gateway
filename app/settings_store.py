@@ -48,8 +48,6 @@ DEFAULTS: dict = {
     "NOTBETRIEB_PROBEGRUPPE": [],     # sieht im Webmail schon vor dem Notfall Inhalte (Probealarm)
     "NOTBETRIEB_LESEN_ALLE": False,   # Webmail/IMAP: alle lesen die Kopie schon im Normalbetrieb
     "NOTBETRIEB_SENDEN_ALLE": False,  # … und senden im Normalbetrieb über Exchange (braucht LESEN_ALLE)
-    "NOTBETRIEB_IMAP": False,         # IMAP-Zugang zur Kopie (Port 993, lesend)
-    "NOTBETRIEB_SMTP": False,         # Senden aus Mailprogrammen (587, AD-Anmeldung, nur im Notfall)
     "NOTBETRIEB_ZWEITFAKTOR": True,   # Webmail: AD-Kennwort + zweiter Faktor (TOTP) Pflicht
     "NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE": False,  # im ausgerufenen Notfall auch ohne Faktor
     "NOTBETRIEB_EINGANG_GREYLIST": True,   # Notfall-Eingang von außen: Greylisting
@@ -522,6 +520,8 @@ INTERNAL_KEYS = frozenset({
 # Oberfläche, um sie zu löschen. Wer vorher Sectigo oder SwissSign konfiguriert
 # hatte, dessen Zugangsdaten lagen weiter in der Datei.
 OBSOLETE_KEYS = {
+    "NOTBETRIEB_IMAP":             "IMAP-Zugang des Ausfallschutzes — vorerst ausgebaut (Mailprogramme folgen gesondert)",
+    "NOTBETRIEB_SMTP":             "Senden aus Mailprogrammen (587) des Ausfallschutzes — vorerst ausgebaut",
     "NOTBETRIEB_PROBE_POSTFACH":   "Probe-Postfach des Direktversands — jetzt DIREKTVERSAND_PROBE_POSTFACH (Einstellungen → Mail-Routing)",
     "_NOTBETRIEB_PROBE":           "Stand der Direktversand-Probe — jetzt _DIREKTVERSAND_PROBE",
     "SMTP_CLIENTZERT_BEOBACHTEN":  "Messschalter der Untersuchung vom 11.11.2026 — durch EXO_ERKENNUNG ersetzt (v1.11.24), das das Client-Zertifikat nur anfordert, wo die Adresse nicht reicht",

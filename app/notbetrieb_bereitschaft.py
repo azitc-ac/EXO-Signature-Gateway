@@ -148,20 +148,6 @@ def _zweitfaktor() -> dict:
     return _p("Zweiter Faktor", abnahme.OK, befund + ".")
 
 
-def _mailprogramme() -> dict:
-    """IMAP (993) und SMTP (587) sind Zusatzwege — aus heißt „entfällt“, nicht
-    „nicht bereit“. Beide Listener binden nur mit TLS-Zertifikat — das prüft
-    die Zeile „TLS-Zertifikat“."""
-    import abnahme
-    import config
-    import settings_store
-    an = [n for n, k in (("IMAP lesen (Port %d)" % config.NOTBETRIEB_IMAP_PORT, "NOTBETRIEB_IMAP"),
-                         ("SMTP senden (Port %d)" % config.SUBMISSION_PORT, "NOTBETRIEB_SMTP"))
-          if settings_store.get(k) is True]
-    if not an:
-        return _p("Mailprogramme", abnahme.ENTFAELLT, "Aus — Outlook und Handy nur über das Webmail.")
-    return _p("Mailprogramme", abnahme.OK, ", ".join(an) + " — Firewall muss die Ports durchlassen.")
-
 
 def _rueckweg(st: dict) -> dict:
     """Dauerbetrieb: Läuft der Weg zurück nach Exchange? Derselbe Code wie
@@ -191,7 +177,7 @@ def pruefen(mit_netz: bool = True) -> dict:
     st = notbetrieb.status()
     punkte = []
     for f in (lambda: _kopie(st), _abbild, lambda: _profile(st), lambda: _anmeldung(mit_netz), _versand,
-              _kontakte, _zweitfaktor, _mailprogramme, lambda: _rueckweg(st), abnahme._tls):
+              _kontakte, _zweitfaktor, lambda: _rueckweg(st), abnahme._tls):
         try:
             punkte.append(f())
         except Exception as exc:                                    # noqa: BLE001

@@ -155,50 +155,6 @@ def test_entra_rueckkehr_gibt_nur_die_bescheinigung(client, faktor, monkeypatch)
     assert "nb_einrichten=" in kekse and sso.SESSION_COOKIE + "=" not in kekse
 
 
-# ── IMAP / 587: kein reines Kennwort, solange Pflicht ───────────────────────
-
-def test_nur_kennwort_erlaubt(faktor):
-    assert nf.nur_kennwort_erlaubt() is False
-    faktor["NOTBETRIEB_AUSGERUFEN"] = True
-    faktor["NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE"] = True
-    assert nf.nur_kennwort_erlaubt() is True
-    faktor["NOTBETRIEB_ZWEITFAKTOR"] = False
-    faktor["NOTBETRIEB_AUSGERUFEN"] = False
-    assert nf.nur_kennwort_erlaubt() is True
-
-
-def test_imap_mit_pflicht_ohne_bind_abgewiesen(faktor, monkeypatch):
-    import asyncio
-    import imaplib
-    import threading
-    import notbetrieb_anmeldung
-    import notbetrieb_imap as ni
-    faktor["NOTBETRIEB_IMAP"] = True
-    versuche = []
-    monkeypatch.setattr(notbetrieb_anmeldung, "anmelden", lambda *a: versuche.append(a) or {"ok": False})
-    schleife = asyncio.new_event_loop()
-    server = schleife.run_until_complete(ni.starten(None, 0, "127.0.0.1", ohne_tls_nur_test=True))
-    t = threading.Thread(target=schleife.run_forever, daemon=True)
-    t.start()
-    try:
-        c = imaplib.IMAP4("127.0.0.1", server.sockets[0].getsockname()[1], timeout=10)
-        with pytest.raises(imaplib.IMAP4.error, match="Zweiter Faktor"):
-            c.login("a.ad@firma.local", "richtig")
-        assert versuche == []                                       # kein Bind, kein Kennwort-Orakel
-    finally:
-        schleife.call_soon_threadsafe(server.close)
-        schleife.call_soon_threadsafe(schleife.stop)
-        t.join(timeout=5)
-
-
-def test_587_mit_pflicht_kein_ad_kennwort(faktor):
-    import main
-    faktor["NOTBETRIEB_SMTP"] = True
-    assert main._notbetrieb_smtp_an() is False
-    faktor["NOTBETRIEB_ZWEITFAKTOR"] = False
-    assert main._notbetrieb_smtp_an() is True
-
-
 def test_bereitschaft_zaehlt_mit_bezugsgroesse(faktor):
     import abnahme
     import notbetrieb_bereitschaft as nbb

@@ -1125,11 +1125,6 @@ def test_bereitschaft_meldet_luecken_und_wird_bereit(nb, graph, monkeypatch):
     monkeypatch.setattr(nba, "erreichbar", lambda: (True, "ok"))
     erg = nbb.pruefen(mit_netz=True)
     assert erg["bereit"] is True, erg["punkte"]
-    # Mailprogramme sind ein Zusatzweg: aus = entfällt, und trotzdem bereit.
-    mp = lambda: next(p for p in nbb.pruefen(True)["punkte"] if p["name"] == "Mailprogramme")  # noqa: E731
-    assert mp()["zustand"] == abnahme.ENTFAELLT
-    nb["NOTBETRIEB_SMTP"] = True
-    assert mp()["zustand"] == abnahme.OK and "587" in mp()["befund"] and "IMAP" not in mp()["befund"]
     # Ohne Netzprüfung ist die Anmeldung UNKLAR, nicht bereit.
     assert nbb.pruefen(mit_netz=False)["bereit"] is False
     # Ein alter Abgleich ist ein Befund.
