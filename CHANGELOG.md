@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.16 — 2026-11-15 — Test: Wächter für die Nur-Text-Fassung führt die Bausteine aus
+
+Der Test, der prüft, dass jeder Bausteintyp in der Nur-Text-Signatur
+erscheint, suchte bisher nur den Typnamen im Quelltext. Ein Name, der dort
+noch an anderer Stelle stand (etwa als Vorgabe-Feldname), täuschte eine
+Verzweigung vor, die es nicht gab. Jetzt rendert der Test für jeden Typ einen
+gefüllten Beispielbaustein und verlangt mindestens eine Textzeile. Ein neuer
+Bausteintyp braucht ein Beispiel im Test, sonst schlägt er fehl.
+
+**Zu tun:** nichts.
+
 ## v1.12.15 — 2026-11-15 — Test: Wächter für die Nur-Text-Fassung liest die richtige Funktion
 
 Seit v1.12.14 steht die Weiche der Bausteintypen für die Nur-Text-Signatur in
