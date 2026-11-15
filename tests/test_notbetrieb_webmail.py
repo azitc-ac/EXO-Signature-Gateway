@@ -105,6 +105,46 @@ def test_suche_findet_text_im_rumpf_und_maskiert_platzhalter(schatten):
     assert all(m["graph_id"] != "g-team" for m in notbetrieb_lesen.liste("a@firma.at", suche="Zeile")["mails"])
 
 
+def test_filter_ungelesen_und_anhang(schatten):
+    alle = {m["graph_id"] for m in notbetrieb_lesen.liste("a@firma.at", "ord-in")["mails"]}
+    assert {"g-html", "g-text"} <= alle
+    # g-html hat einen Anhang, g-text keinen.
+    assert {m["graph_id"] for m in notbetrieb_lesen.liste("a@firma.at", "ord-in", mit_anhang=True)["mails"]} == {"g-html"}
+    with notbetrieb._conn() as conn:
+        conn.execute("UPDATE mails SET gelesen=1 WHERE graph_id='g-html'")
+    ungelesen = {m["graph_id"] for m in notbetrieb_lesen.liste("a@firma.at", "ord-in", ungelesen=True)["mails"]}
+    assert "g-html" not in ungelesen and "g-text" in ungelesen
+    assert notbetrieb_lesen.liste("a@firma.at", "ord-in", ungelesen=True, mit_anhang=True)["gesamt"] == 0
+
+
+@pytest.mark.parametrize("betreff, schluessel", [
+    ("Angebot", "angebot"), ("AW: Angebot", "angebot"), ("Re: AW:  WG: angebot ", "angebot"),
+    ("AW[2]: Angebot", "angebot"), ("Fwd: Re: Angebot", "angebot"), ("Angebot: Re", "angebot: re"),
+    ("", ""), (None, ""),
+])
+def test_unterhaltung_schluessel(betreff, schluessel):
+    assert notbetrieb_lesen.unterhaltung(betreff) == schluessel
+
+
+def test_unterhaltungen_nur_als_option(schatten):
+    """Vorgabe: jede Mail einzeln. Mit Option: je Unterhaltung die neueste,
+    die übrigen als „weitere“."""
+    # Der Betreff kommt aus dem MIME (die Kopfspalten trägt das Gateway selbst nach).
+    for gid, betreff, zeit in (("u1", "Projekt X", "2026-11-13T06:00:00Z"), ("u2", "AW: Projekt X", "2026-11-13T06:30:00Z")):
+        mime = (f"From: b@firma.at\r\nTo: a@firma.at\r\nSubject: {betreff}\r\nMessage-ID: <{gid}@x>\r\n\r\nText\r\n").encode()
+        pfad = notbetrieb._schreiben("a@firma.at", gid, mime)
+        with notbetrieb._conn() as conn:
+            conn.execute("INSERT INTO mails (postfach, graph_id, ordner, imid, empfangen, gelesen, datei, herkunft)"
+                         " VALUES ('a@firma.at',?,'ord-in',?,?,0,?,'exo')", (gid, f"<{gid}@x>", zeit, str(pfad)))
+    einzeln = notbetrieb_lesen.liste("a@firma.at", "ord-in")
+    assert {"u1", "u2"} <= {m["graph_id"] for m in einzeln["mails"]} and "anzahl" not in einzeln["mails"][0]
+    gruppiert = notbetrieb_lesen.liste("a@firma.at", "ord-in", unterhaltungen=True)
+    projekt = [m for m in gruppiert["mails"] if m["graph_id"] in ("u1", "u2")]
+    assert len(projekt) == 1 and projekt[0]["graph_id"] == "u2" and projekt[0]["anzahl"] == 2
+    assert [w["graph_id"] for w in projekt[0]["weitere"]] == ["u1"]
+    assert gruppiert["gesamt"] == einzeln["gesamt"] - 1
+
+
 def test_mail_und_inhalt(schatten):
     m = notbetrieb_lesen.mail("a@firma.at", "g-html")
     assert m["betreff"] == "Angebot für Sie" and m["html"] and m["cc"][0]["adresse"] == "team@firma.at"
@@ -185,6 +225,47 @@ def test_inhalt_mit_durchgesetzter_csp(client):
     assert "default-src 'none'" in csp and "sandbox" in csp and "script-src" not in csp
     assert "img-src data:" in csp          # externe Bilder (Tracker) bleiben draußen
     assert r.headers["x-frame-options"] == "SAMEORIGIN"
+
+
+PNG_1x1 = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f"
+           b"\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82")
+
+
+@pytest.mark.parametrize("daten, typ", [
+    (PNG_1x1, "image/png"), (b"\xff\xd8\xff\xe0rest", "image/jpeg"), (b"GIF89a...", "image/gif"),
+    (b"RIFF\x00\x00\x00\x00WEBPVP8 ", "image/webp"), (b"%PDF-1.7\n", "application/pdf"),
+    (b"<svg xmlns='http://www.w3.org/2000/svg'><script>1</script></svg>", None),
+    (b"<html><script>alert(1)</script>", None), (b"", None),
+])
+def test_vorschau_typ_aus_den_bytes(daten, typ):
+    assert notbetrieb_lesen.vorschau_typ(daten) == typ
+
+
+def test_anhang_vorschau_nur_fuer_erkannte_typen(client, schatten):
+    """Der angegebene Typ zählt nicht: HTML, das sich als image/png ausgibt,
+    bekommt keine Vorschau. Ein echtes Bild schon — in eigener Sandbox."""
+    import base64
+    mime = (b"From: b@firma.at\r\nTo: a@firma.at\r\nSubject: Bild\r\nMessage-ID: <bild@x>\r\n"
+            b"Content-Type: multipart/mixed; boundary=B\r\n\r\n--B\r\nContent-Type: text/plain\r\n\r\nHier.\r\n"
+            b"--B\r\nContent-Type: image/png; name=\"echt.png\"\r\nContent-Disposition: attachment; filename=\"echt.png\"\r\n"
+            b"Content-Transfer-Encoding: base64\r\n\r\n" + base64.b64encode(PNG_1x1) + b"\r\n"
+            b"--B\r\nContent-Type: image/png; name=\"falsch.png\"\r\nContent-Disposition: attachment; filename=\"falsch.png\"\r\n\r\n"
+            b"<html><script>alert(1)</script></html>\r\n--B--\r\n")
+    pfad = notbetrieb._schreiben("a@firma.at", "g-bild", mime)
+    with notbetrieb._conn() as conn:
+        conn.execute("INSERT INTO mails (postfach, graph_id, ordner, imid, empfangen, gelesen, datei, herkunft)"
+                     " VALUES ('a@firma.at','g-bild','ord-in','<bild@x>','2026-11-13T10:00:00Z',0,?,'exo')", (str(pfad),))
+    _anmelden(client)
+    m = client.get("/notfall/api/mail", params={"postfach": "a@firma.at", "id": "g-bild"}).json()
+    assert [(a["name"], a["vorschau"]) for a in m["anhaenge"]] == [("echt.png", "image/png"), ("falsch.png", "")]
+    q = {"postfach": "a@firma.at", "id": "g-bild"}
+    r = client.get("/notfall/anhang/ansehen", params={**q, "nr": 0})
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png" and r.content == PNG_1x1
+    assert r.headers["content-security-policy"].startswith("sandbox") and r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["content-disposition"].startswith("inline;")
+    assert client.get("/notfall/anhang/ansehen", params={**q, "nr": 1}).status_code == 415
+    # Fremdes Postfach ohne Recht: wie beim Download.
+    assert client.get("/notfall/anhang/ansehen", params={"postfach": "b@firma.at", "id": "g-b", "nr": 0}).status_code == 403
 
 
 def test_anhang_nur_als_download(client):
@@ -859,8 +940,14 @@ def test_manifest_der_homescreen_app(client, schatten):
     assert r.status_code == 200 and r.headers["content-type"].startswith("application/manifest+json")
     m = r.json()
     assert m["start_url"] == "/notfall" and m["scope"] == "/notfall" and m["display"] == "standalone"
-    for symbol in m["icons"]:                                       # jedes Symbol wird auch ausgeliefert
-        assert client.get(symbol["src"]).status_code == 200, symbol["src"]
+    import struct
+    for symbol in m["icons"]:                                       # jedes Symbol wird auch ausgeliefert …
+        r = client.get(symbol["src"])
+        assert r.status_code == 200, symbol["src"]
+        if symbol["type"] == "image/png":                           # … in der angegebenen Größe
+            assert "%dx%d" % struct.unpack(">II", r.content[16:24]) == symbol["sizes"], symbol["src"]
+    # Android: ein maskable Symbol in 512 (sonst verkleinert auf weißer Scheibe).
+    assert any(s.get("purpose") == "maskable" and s["sizes"] == "512x512" for s in m["icons"])
     assert '<link rel="manifest" href="/notfall/app.webmanifest">' in client.get("/notfall").text
     schatten["NOTBETRIEB_AKTIV"] = False
     assert client.get("/notfall/app.webmanifest").status_code == 404

@@ -171,8 +171,21 @@ def ordner_kennung(postfach: str, ziel: str) -> str | None:
     return ziel if ziel == "deleteditems" else None
 
 
-def liste(postfach: str, ordner_id: str = "", suche: str = "", seite: int = 0) -> dict:
-    """Mails eines Ordners (oder bei `suche` aller Ordner), neueste zuerst."""
+_PRAEFIX = re.compile(r"^\s*(?:(?:re|aw|wg|fw|fwd|antw|sv|vs)\s*(?:\[\d+\])?\s*:\s*)+", re.I)
+
+
+def unterhaltung(betreff: str | None) -> str:
+    """Schlüssel einer Unterhaltung: Betreff ohne AW:/Re:/WG:/Fwd: … (auch
+    mehrfach, auch „AW[2]:“), klein, Leerraum zusammengezogen."""
+    return " ".join(_PRAEFIX.sub("", betreff or "").lower().split())
+
+
+def liste(postfach: str, ordner_id: str = "", suche: str = "", seite: int = 0,
+          ungelesen: bool = False, mit_anhang: bool = False, unterhaltungen: bool = False) -> dict:
+    """Mails eines Ordners (oder bei `suche` aller Ordner), neueste zuerst.
+    Filter „ungelesen“ und „mit Anhang“ gelten zusätzlich. `unterhaltungen`
+    (Option, Vorgabe aus): je Unterhaltung nur die neueste Mail, dazu die
+    Kennungen der übrigen."""
     pf = postfach.lower()
     with notbetrieb._lock, notbetrieb._conn() as conn:
         bed, werte = ["postfach=?"], [pf]
@@ -191,7 +204,28 @@ def liste(postfach: str, ordner_id: str = "", suche: str = "", seite: int = 0) -
                 bed.append("(betreff LIKE ? ESCAPE '\\' OR von LIKE ? ESCAPE '\\' OR an LIKE ? ESCAPE '\\' "
                            "OR text LIKE ? ESCAPE '\\')")
                 werte += [muster] * 4
+        if ungelesen:
+            bed.append("gelesen=0")
+        if mit_anhang:
+            bed.append("anhang>0")
         wo = " AND ".join(bed)
+        if unterhaltungen:
+            alle = conn.execute(
+                f"SELECT graph_id, ordner, betreff, von, an, empfangen, gelesen, anhang, herkunft, "
+                f"substr(text, 1, 160) AS vorschau FROM mails WHERE {wo} ORDER BY empfangen DESC", werte).fetchall()
+            gruppen: dict[str, list] = {}
+            for z in alle:
+                gruppen.setdefault(unterhaltung(z["betreff"]) or z["graph_id"], []).append(dict(z))
+            kopf = []
+            for mitglieder in gruppen.values():          # Reihenfolge = neueste Mail je Gruppe
+                k = dict(mitglieder[0])
+                k["anzahl"] = len(mitglieder)
+                k["weitere"] = [{"graph_id": m["graph_id"], "von": m["von"], "empfangen": m["empfangen"],
+                                 "gelesen": m["gelesen"]} for m in mitglieder[1:]]
+                k["gelesen"] = int(all(m["gelesen"] for m in mitglieder))
+                kopf.append(k)
+            von = max(0, int(seite)) * SEITE
+            return {"gesamt": len(kopf), "seite": seite, "je_seite": SEITE, "mails": kopf[von:von + SEITE]}
         gesamt = conn.execute(f"SELECT COUNT(*) FROM mails WHERE {wo}", werte).fetchone()[0]
         zeilen = conn.execute(
             f"SELECT graph_id, ordner, betreff, von, an, empfangen, gelesen, anhang, herkunft, "
@@ -250,8 +284,10 @@ def mail(postfach: str, graph_id: str) -> dict | None:
             "message_id": str(msg["Message-ID"] or ""), "references": " ".join(str(msg["References"] or "").split()),
             "html": hat_html, "text": text, **_smime(msg), "echtheit": _echtheit(msg),
             "anhaenge": [{"nr": i, "name": _dekodiert(t.get_filename()) or f"anhang-{i}",
-                          "typ": t.get_content_type(), "groesse": len(t.get_payload(decode=True) or b"")}
-                         for i, t in enumerate(_anhaenge(msg))]}
+                          "typ": t.get_content_type(), "groesse": len(daten),
+                          "vorschau": vorschau_typ(daten) or ""}
+                         for i, (t, daten) in enumerate((t, t.get_payload(decode=True) or b"")
+                                                        for t in _anhaenge(msg))]}
 
 
 def klartext(postfach: str, graph_id: str) -> str:
@@ -303,6 +339,23 @@ def anhang(postfach: str, graph_id: str, nr: int) -> tuple[bytes, str, str] | No
     t = teile[nr]
     return (t.get_payload(decode=True) or b"", _dekodiert(t.get_filename()) or f"anhang-{nr}",
             t.get_content_type())
+
+
+# Vorschau im Browser nur für diese Typen — erkannt an den ERSTEN BYTES, nicht
+# am angegebenen Content-Type (den setzt der Absender). SVG nie (Skript), HTML
+# nie. Alles andere bleibt Download.
+_VORSCHAU_MAGIE = ((b"\x89PNG\r\n\x1a\n", "image/png"), (b"\xff\xd8\xff", "image/jpeg"),
+                   (b"GIF87a", "image/gif"), (b"GIF89a", "image/gif"), (b"%PDF-", "application/pdf"))
+
+
+def vorschau_typ(daten: bytes) -> str | None:
+    """Sicherer Anzeigetyp aus den Bytes, sonst None."""
+    for magie, typ in _VORSCHAU_MAGIE:
+        if daten.startswith(magie):
+            return typ
+    if daten[:4] == b"RIFF" and daten[8:12] == b"WEBP":
+        return "image/webp"
+    return None
 
 
 def als_gelesen(benutzer: str, postfach: str, graph_id: str) -> None:

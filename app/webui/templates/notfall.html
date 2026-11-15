@@ -57,9 +57,9 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
 .codes { font-size: 15px; line-height: 1.7; background: var(--bg); border: 1px solid var(--rand); border-radius: 6px;
          padding: 8px 12px; columns: 2; }
 .knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.tabellen-rollbereich { overflow-x: auto; }
-table.liste { border-collapse: collapse; margin: 6px 0; font-size: 13px; }
-table.liste th, table.liste td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--rand); }
+.passkeys { margin: 6px 0; }
+.passkey { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0;
+           border-bottom: 1px solid var(--rand); font-size: 13px; }
 a.knopf { display: inline-block; text-decoration: none; border-radius: 6px; padding: 6px 14px; }
 a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 .meldung { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--fehler-bg); color: var(--fehler); }
@@ -69,6 +69,9 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 .spalte { border-right: 1px solid var(--rand); overflow: auto; background: var(--flaeche); }
 #ordner .eintrag, #liste .eintrag { padding: 7px 12px; cursor: pointer; border-bottom: 1px solid var(--rand); }
 #ordner .eintrag[aria-current="true"], #liste .eintrag[aria-current="true"] { background: var(--wahl); }
+/* Tastatur: sichtbarer Fokus auf allen bedienbaren Elementen. */
+[role="button"]:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible { outline: 2px solid var(--akzent); outline-offset: 1px; }
 #ordner .zahl { float: right; color: var(--leise); font-size: 12px; }
 /* Je Postfach eine Kopfzeile; das geöffnete zeigt darunter seine Ordner. Die
    Auswahlliste oben braucht es nur auf dem Handy (Spalte ausgeblendet). */
@@ -82,12 +85,19 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 #liste .vorschau { font-size: 12px; color: var(--leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .suche { padding: 8px; border-bottom: 1px solid var(--rand); display: flex; gap: 6px; }
 .suche input { flex: 1; min-width: 0; }
+.filter { padding: 4px 10px 6px; border-bottom: 1px solid var(--rand); display: flex; gap: 14px; font-size: 13px; }
+.eintrag .ort { color: var(--leise); font-size: 12px; }
+.unterhaltung { margin-top: 8px; font-size: 13px; }
+.unterhaltung .eintrag { padding: 4px 0; cursor: pointer; color: var(--akzent); }
 #lesen { padding: 0; overflow: auto; display: flex; flex-direction: column; background: var(--flaeche); }
 #lesen .kopfbereich { padding: 14px 18px; border-bottom: 1px solid var(--rand); }
 #lesen h2 { font-size: 18px; margin: 0 0 6px; }
 #lesen iframe { flex: 1; border: 0; width: 100%; min-height: 400px; background: #fff; }
 #lesen pre { white-space: pre-wrap; padding: 14px 18px; margin: 0; font: inherit; }
-.anhaenge a { display: inline-block; margin: 6px 8px 0 0; color: var(--akzent); }
+.anhaenge .anhang { display: inline-block; margin: 6px 12px 0 0; }
+.anhaenge a { color: var(--akzent); }
+.bilder { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.bilder img { max-width: min(240px, 100%); max-height: 180px; border: 1px solid var(--rand); border-radius: 6px; }
 .aktionen { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 #verfassen { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
 #verfassen .zeile { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; }
@@ -120,6 +130,8 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
   <span class="rechts" id="kopf-rechts" hidden>
     <select id="postfachwahl" aria-label="Postfach" onchange="postfachWaehlen(this.value)"></select>
     <span id="ich" class="wer"></span>
+    <button id="glocke" onclick="hinweiseErlauben()" title="Bei neuer Post benachrichtigen"
+            aria-label="Bei neuer Post benachrichtigen" hidden>🔔</button>
     <button onclick="abmelden()">Abmelden</button>
   </span>
   <span class="vorschau" id="vorschau" hidden></span>
@@ -214,6 +226,11 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
       <input id="suche" type="search" placeholder="Suchen in allen Ordnern" aria-label="Suchen">
       <button type="submit">Suchen</button>
     </form>
+    <div class="filter" role="group" aria-label="Filter">
+      <label><input type="checkbox" id="f-ungelesen" onchange="listeLaden(0)"> Ungelesen</label>
+      <label><input type="checkbox" id="f-anhang" onchange="listeLaden(0)"> Mit Anhang</label>
+      <label><input type="checkbox" id="f-unterhaltungen" onchange="unterhaltungenMerken(this.checked)"> Unterhaltungen</label>
+    </div>
     <div id="liste"></div>
   </section>
   <article id="lesen">
@@ -224,6 +241,27 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 
 <script>
 let nb = {postfach: '', ordner: '', zugriff: [], absender: [], mail: null};
+
+// ── Barrierefreiheit an EINER Stelle ───────────────────────────────────────
+// Einträge (Mails, Ordner, Postfächer, Termine, Kontakte, Entwürfe) werden an
+// vielen Stellen als <div onclick> gezeichnet und wären per Tastatur nicht
+// erreichbar. Statt jede Stelle einzeln: neu gezeichnete Einträge bekommen
+// tabindex/role, Enter und Leertaste lösen den Klick aus. Meldungen werden
+// vorgelesen (role="alert").
+function zugaenglichMachen(wurzel) {
+  wurzel.querySelectorAll('.eintrag[onclick], .postfach[onclick]').forEach(e => {
+    if (!e.hasAttribute('tabindex')) { e.tabIndex = 0; e.setAttribute('role', 'button'); }
+  });
+  wurzel.querySelectorAll('.meldung:not([role])').forEach(e => e.setAttribute('role', 'alert'));
+}
+new MutationObserver(liste => liste.forEach(m => m.target.nodeType === 1 && zugaenglichMachen(m.target)))
+  .observe(document.body, {childList: true, subtree: true});
+document.addEventListener('keydown', ev => {
+  const e = ev.target;
+  if ((ev.key === 'Enter' || ev.key === ' ') && e.matches && e.matches('[role="button"][tabindex]')) {
+    ev.preventDefault(); e.click();
+  }
+});
 
 function ansicht(a) { document.getElementById('app').dataset.ansicht = a; }
 function datumKurz(iso) {
@@ -252,6 +290,8 @@ async function start() {
   document.getElementById('postfachwahl').innerHTML = d.zugriff.map(p =>
     '<option value="' + escAttr(p.postfach) + '">' + esc(p.postfach) + (p.eigen ? '' : ' (geteilt)') + '</option>').join('');
   document.getElementById('kopf-rechts').hidden = false;
+  document.getElementById('glocke').hidden = !(window.Notification && Notification.permission === 'default');
+  if (!nb.takt) nb.takt = setInterval(neuePostPruefen, NEUE_POST_MS);
   document.getElementById('app').hidden = false;
   postfachWaehlen(d.zugriff[0].postfach);
 }
@@ -370,12 +410,16 @@ async function einrichtenStart() {
     : d.aktiv ? (d.totp ? 'Authenticator-App eingerichtet seit ' + new Date(d.seit).toLocaleDateString('de-DE') + '. '
                         : 'Keine Authenticator-App. ')
       + 'Noch ' + d.codes_uebrig + ' Wiederherstellungscodes.' : 'Noch kein zweiter Faktor eingerichtet.';
+  // Als Blöcke, nicht als Tabelle: Die Karte ist schmal (~380 px), eine
+  // Tabelle schnitt „Entfernen“ selbst am Desktop ab (Klicktest). Der Name
+  // des Gateways steht nur, wenn er von dieser Seite abweicht.
+  const kurz = iso => new Date(iso).toLocaleString('de-DE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
   document.getElementById('ein-passkeys').innerHTML = d.passkeys.length
-    ? '<div class="tabellen-rollbereich"><table class="liste" style="width:100%;min-width:420px"><thead><tr><th>Passkey</th><th>Für</th><th>Zuletzt benutzt</th><th></th></tr></thead><tbody>'
-      + d.passkeys.map(p => '<tr><td>' + esc(p.name) + '</td><td>' + esc(p.rp) + '</td><td>'
-        + esc(p.zuletzt ? new Date(p.zuletzt).toLocaleString('de-DE') : 'noch nie') + '</td><td>'
-        + '<button data-id="' + escAttr(p.id) + '" onclick="passkeyEntfernen(this, this.dataset.id)">Entfernen</button></td></tr>').join('')
-      + '</tbody></table></div>' : '';
+    ? '<div class="passkeys">' + d.passkeys.map(p => '<div class="passkey"><div><strong>' + esc(p.name) + '</strong>'
+        + '<div class="leise">zuletzt ' + esc(p.zuletzt ? kurz(p.zuletzt) : 'noch nie')
+        + (p.rp !== location.hostname ? ' · für ' + esc(p.rp) : '') + '</div></div>'
+        + '<button data-id="' + escAttr(p.id) + '" onclick="passkeyEntfernen(this, this.dataset.id)">Entfernen</button></div>')
+        .join('') + '</div>' : '';
   const pk = document.getElementById('ein-pk'), hinweis = document.getElementById('ein-pk-hinweis');
   pk.hidden = !pkMoeglich();
   hinweis.hidden = pkMoeglich();
@@ -458,6 +502,29 @@ function codesZeigen(codes, was) {
   document.getElementById('ein-fertig').hidden = false;
 }
 
+// ── Neue Post: Takt, Fenstertitel, Hinweis des Browsers ─────────────────
+// Ohne Service Worker nur, solange die Seite offen ist — im Notfall genügt das.
+const NEUE_POST_MS = 60000;
+const TITEL = document.title;
+function titelSetzen() {
+  document.title = (nb.ungelesen ? '(' + nb.ungelesen + ') ' : '') + TITEL;
+}
+async function neuePostPruefen() {
+  if (!nb.postfach) return;
+  const vorher = nb.ungelesen || 0;
+  await ordnerLaden();
+  if (nb.ungelesen <= vorher) return;
+  const imEingang = (nb.ordnerliste || []).some(o => o.id === nb.ordner && o.wk === 'inbox');
+  if (imEingang && document.getElementById('app').dataset.ansicht === 'liste') listeLaden(0);
+  if (document.hidden && window.Notification && Notification.permission === 'granted') {
+    new Notification('Neue Mail', {body: (nb.ungelesen - vorher) + ' neu in ' + nb.postfach, tag: 'notfall-mail'});
+  }
+}
+async function hinweiseErlauben() {
+  const antwort = await Notification.requestPermission();
+  document.getElementById('glocke').hidden = antwort !== 'default';
+}
+
 async function abmelden() {
   await postJSON('/notfall/abmelden', {});
   location.reload();
@@ -493,6 +560,9 @@ async function ordnerLaden() {
   const el = document.getElementById('ordner');
   if (!d.ok) { el.textContent = errText(d); return null; }
   nb.ordnerliste = d.ordner;
+  const eingang = d.ordner.find(o => o.wk === 'inbox');
+  nb.ungelesen = eingang ? eingang.ungelesen : 0;
+  titelSetzen();
   // Unterordner einrücken: Tiefe aus der Elternkette.
   const nachId = Object.fromEntries(d.ordner.map(o => [o.id, o]));
   const t = o => { let n = 0, e = o.eltern; while (nachId[e] && n < 8) { n++; e = nachId[e].eltern; } return n; };
@@ -657,14 +727,26 @@ async function adressVorschlag(feld) {
 async function listeLaden(seite) {
   const suche = feldWert('suche');
   const d = await getJSON('/notfall/api/liste?' + q({postfach: nb.postfach, ordner: suche ? '' : nb.ordner,
-                                                     suche: suche, seite: seite}));
+                                                     suche: suche, seite: seite,
+                                                     ungelesen: document.getElementById('f-ungelesen').checked,
+                                                     anhang: document.getElementById('f-anhang').checked,
+                                                     unterhaltungen: document.getElementById('f-unterhaltungen').checked}));
+  nb.weitere = Object.fromEntries(d.ok ? d.mails.map(m => [m.graph_id, m.weitere || []]) : []);
+  // Suche über alle Ordner: zu jedem Treffer den Ordner nennen.
+  const ordnerName = id => ((nb.ordnerliste || []).find(o => o.id === id || o.wk === id) || {}).name || '';
   const el = document.getElementById('liste');
   if (!d.ok) { el.textContent = errText(d); return; }
-  if (!d.mails.length) { el.innerHTML = '<p class="leise" style="padding:12px">Keine Nachrichten.</p>'; return; }
+  if (!d.mails.length) {
+    el.innerHTML = '<p class="leise" style="padding:12px">' + (suche ? 'Nichts gefunden — gesucht wird in Betreff, '
+      + 'Absender, Empfängern und Text der Post in der Kopie.' : 'Keine Nachrichten.') + '</p>';
+    return;
+  }
   el.innerHTML = d.mails.map(m => '<div class="eintrag" data-id="' + escAttr(m.graph_id) + '" data-ungelesen="'
     + (m.gelesen ? 0 : 1) + '" onclick="mailOeffnen(this.dataset.id)">'
     + '<div class="kopf"><span>' + esc(m.von || '') + '</span><span>' + datumKurz(m.empfangen) + '</span></div>'
-    + '<div class="betreff">' + (m.anhang ? '📎 ' : '') + esc(m.betreff || '(kein Betreff)') + '</div>'
+    + '<div class="betreff">' + (m.anhang ? '📎 ' : '') + esc(m.betreff || '(kein Betreff)')
+    + (m.anzahl > 1 ? ' <span class="zahl" title="Mails in dieser Unterhaltung">' + m.anzahl + '</span>' : '') + '</div>'
+    + (suche && ordnerName(m.ordner) ? '<div class="ort">in ' + esc(ordnerName(m.ordner)) + '</div>' : '')
     + '<div class="vorschau">' + esc(m.vorschau || '') + '</div></div>').join('')
     + (d.gesamt > (seite + 1) * d.je_seite
        ? '<div style="padding:10px"><button onclick="listeLaden(' + (seite + 1) + ')">Ältere</button></div>' : '')
@@ -683,7 +765,7 @@ async function mailOeffnen(id) {
   const p = q({postfach: nb.postfach, id: id});
   nb.mail = id;
   el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
-    + '<div class="kopfbereich"><h2>' + esc(d.betreff || '(kein Betreff)') + '</h2>'
+    + '<div class="kopfbereich"><h2 id="lesen-betreff" tabindex="-1">' + esc(d.betreff || '(kein Betreff)') + '</h2>'
     + '<div><b>Von:</b> ' + esc(adressen(d.von)) + '</div>'
     + '<div><b>An:</b> ' + esc(adressen(d.an)) + '</div>'
     + (d.cc.length ? '<div><b>Cc:</b> ' + esc(adressen(d.cc)) + '</div>' : '')
@@ -693,8 +775,15 @@ async function mailOeffnen(id) {
     + (d.verschluesselt ? ' · verschlüsselt — im Notbetrieb nicht lesbar' : '') + '</div>'
     + (d.echtheit === 'unbestaetigt' ? '<div class="meldung" style="margin:6px 0 0">Absender nicht bestätigt '
        + '(SPF/DKIM/DMARC) — Vorsicht bei Links, Anhängen und Zahlungsaufforderungen.</div>' : '')
-    + (d.anhaenge.length ? '<div class="anhaenge">' + d.anhaenge.map(a => '<a href="/notfall/anhang?' + escAttr(p)
-        + '&nr=' + a.nr + '">📎 ' + esc(a.name) + ' (' + Math.max(1, Math.round(a.groesse / 1024)) + ' KB)</a>').join('') + '</div>' : '')
+    + (d.anhaenge.length ? '<div class="anhaenge">' + d.anhaenge.map(a => '<span class="anhang"><a href="/notfall/anhang?' + escAttr(p)
+        + '&nr=' + a.nr + '" title="Herunterladen">📎 ' + esc(a.name) + ' (' + Math.max(1, Math.round(a.groesse / 1024)) + ' KB)</a>'
+        // Vorschau nur, wo das Gateway den Typ an den Bytes erkannt hat (Bild, PDF).
+        + (a.vorschau ? ' <a href="/notfall/anhang/ansehen?' + escAttr(p) + '&nr=' + a.nr
+           + '" target="_blank" rel="noopener noreferrer">Ansehen</a>' : '') + '</span>').join('') + '</div>'
+      + (d.anhaenge.some(a => a.vorschau.startsWith('image/')) ? '<div class="bilder">' + d.anhaenge
+          .filter(a => a.vorschau.startsWith('image/')).map(a => '<a href="/notfall/anhang/ansehen?' + escAttr(p)
+          + '&nr=' + a.nr + '" target="_blank" rel="noopener noreferrer"><img loading="lazy" alt="' + escAttr(a.name)
+          + '" src="/notfall/anhang/ansehen?' + escAttr(p) + '&nr=' + a.nr + '"></a>').join('') + '</div>' : '') : '')
     + (nb.senden ? '<div class="aktionen"><button onclick="verfassen(\'antwort\')">Antworten</button>'
       + '<button onclick="verfassen(\'allen\')">Allen antworten</button>'
       + '<button onclick="verfassen(\'weiterleiten\')">Weiterleiten</button>'
@@ -702,6 +791,11 @@ async function mailOeffnen(id) {
       + '<select aria-label="Verschieben nach" onchange="if (this.value) mailVerschieben(this.value, this)">'
       + '<option value="">Verschieben nach…</option>' + (nb.ordnerliste || []).filter(o => o.id !== nb.ordner)
         .map(o => '<option value="' + escAttr(o.id) + '">' + esc(o.name) + '</option>').join('') + '</select></div>' : '')
+    // Option „Unterhaltungen“: die übrigen Mails derselben Unterhaltung.
+    + ((nb.weitere || {})[id] && nb.weitere[id].length ? '<div class="unterhaltung"><b>In dieser Unterhaltung:</b>'
+       + nb.weitere[id].map(w => '<div class="eintrag" data-id="' + escAttr(w.graph_id) + '" data-ungelesen="'
+         + (w.gelesen ? 0 : 1) + '" onclick="mailOeffnen(this.dataset.id)">' + esc(w.von || '') + ' · '
+         + datumKurz(w.empfangen) + '</div>').join('') + '</div>' : '')
     + '</div>'
     + (d.html
        // sandbox ohne Rechte: kein Skript, kein Formular, kein Zugriff auf diese Seite.
@@ -709,6 +803,7 @@ async function mailOeffnen(id) {
        ? '<iframe sandbox="" referrerpolicy="no-referrer" src="/notfall/inhalt?' + escAttr(p) + '" title="Nachricht"></iframe>'
        : '<pre>' + esc(d.text) + '</pre>');
   ansicht('lesen');
+  document.getElementById('lesen-betreff').focus();   // Screenreader und Tastatur landen bei der Mail
 }
 
 // Kopfzeile ist mobil oft zweizeilig: ihre echte Höhe für den Lesebereich.
@@ -719,6 +814,14 @@ window.addEventListener('resize', kopfhoeheMerken);
 kopfhoeheMerken();
 
 // ── Verfassen ────────────────────────────────────────────────────────────
+// Unterhaltungen: Option, Vorgabe aus — gemerkt nur in diesem Browser.
+function unterhaltungenMerken(an) {
+  try { localStorage.setItem('nf-unterhaltungen', an ? '1' : ''); } catch (e) { /* privat: nur für jetzt */ }
+  listeLaden(0);
+}
+try { document.getElementById('f-unterhaltungen').checked = localStorage.getItem('nf-unterhaltungen') === '1'; }
+catch (e) { /* ohne Speicher: Vorgabe aus */ }
+
 // Löschen = nach „Gelöschte Elemente“. Wirkt sofort in der Kopie; nach
 // Exchange schreibt das Gateway es im Hintergrund zurück.
 async function mailVerschieben(ziel, el) {
@@ -834,6 +937,7 @@ async function verwerfen() {
   ansicht('liste');
 }
 
+zugaenglichMachen(document.body);
 {% if einrichten %}einrichtenStart();{% else %}start().then(kopfhoeheMerken);{% endif %}
 </script>
 </body>

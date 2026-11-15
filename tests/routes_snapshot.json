@@ -926,16 +926,16 @@
   {
     "pfad": "/api/notbetrieb/probe",
     "methoden": [
-      "POST"
+      "GET"
     ],
-    "name": "api_notbetrieb_probe"
+    "name": "api_notbetrieb_probe_stand"
   },
   {
     "pfad": "/api/notbetrieb/probe",
     "methoden": [
-      "GET"
+      "POST"
     ],
-    "name": "api_notbetrieb_probe_stand"
+    "name": "api_notbetrieb_probe"
   },
   {
     "pfad": "/api/notbetrieb/rechte",
@@ -2336,6 +2336,13 @@
       "GET"
     ],
     "name": "notfall_anhang"
+  },
+  {
+    "pfad": "/notfall/anhang/ansehen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_anhang_ansehen"
   },
   {
     "pfad": "/notfall/anmelden",

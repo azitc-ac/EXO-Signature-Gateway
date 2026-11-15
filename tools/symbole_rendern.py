@@ -2,13 +2,19 @@
 """Rendert das Zeichen des Gateways (app/webui/static/favicon.svg) in alle
 Rastergrößen, die ausserhalb des Browsers gebraucht werden.
 
-    .venv/bin/python tools/symbole_rendern.py
+    .venv/bin/python tools/symbole_rendern.py            # alles
+    .venv/bin/python tools/symbole_rendern.py --nur-pwa  # nur die zwei 512er
 
 Erzeugt:
   static/favicon.ico            16/32/48 (Browser, Fehlerseiten)
   static/apple-touch-icon.png   180, auf weissem Grund (iOS füllt Transparenz schwarz)
   static/symbol/<n>.png         16 32 64 80 128 192 — Add-in-Symbole (Menüband,
                                 Add-in-Liste) und Teams-App (color.png = 192)
+  static/symbol/512.png         Homescreen-App (Manifest des Webmails), „any“
+  static/symbol/maskable-512.png  dasselbe als „maskable“: weißer Grund, das Zeichen
+                                im sicheren Kreis (Radius 40 % der Breite, web.dev
+                                „maskable icon“) — Android schneidet sonst nicht
+                                zu, sondern setzt das Symbol verkleinert auf Weiß
   static/symbol/quelle.sha256   Prüfsumme des SVG, aus dem gerendert wurde —
                                 tests/test_favicon.py schlägt an, wenn das SVG
                                 geändert, aber nicht neu gerendert wurde.
@@ -56,14 +62,31 @@ def _ico(bilder: dict[int, bytes]) -> bytes:
     return kopf + eintraege + daten
 
 
+# Maskable: Das Zeichen (quadratisch) muss ganz im Kreis mit Radius 0,4·n
+# liegen — halbe Diagonale ≤ 0,4·n ⇒ Kantenlänge ≤ 0,566·n. Rand 22 % je
+# Seite lässt 56 %.
+MASKABLE_RAND = 0.22
+
+
+def _pwa(seite, b64: str) -> None:
+    (SYMBOL / "512.png").write_bytes(_png(seite, b64, 512))
+    (SYMBOL / "maskable-512.png").write_bytes(_png(seite, b64, 512, "#ffffff", rand=round(512 * MASKABLE_RAND)))
+
+
 def main() -> int:
     from playwright.sync_api import sync_playwright
     svg = QUELLE.read_bytes()
     b64 = base64.b64encode(svg).decode()
     SYMBOL.mkdir(exist_ok=True)
+    nur_pwa = "--nur-pwa" in sys.argv
     with sync_playwright() as p:
         browser = p.chromium.launch()
         seite = browser.new_page(device_scale_factor=1)
+        _pwa(seite, b64)
+        if nur_pwa:
+            browser.close()
+            print("gerendert: symbol/512.png, symbol/maskable-512.png")
+            return 0
         for n in ADDIN_GROESSEN:
             (SYMBOL / f"{n}.png").write_bytes(_png(seite, b64, n))
         (STATIC / "favicon.ico").write_bytes(_ico({n: _png(seite, b64, n) for n in ICO_GROESSEN}))

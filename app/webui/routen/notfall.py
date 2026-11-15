@@ -103,8 +103,13 @@ async def notfall_manifest():
         "name": f"Notfall-Mail {_gateway_name()}", "short_name": "Notfall-Mail",
         "start_url": "/notfall", "scope": "/notfall", "display": "standalone",
         "background_color": "#f1f5f9", "theme_color": "#0f172a", "lang": "de",
+        # „maskable“: Android schneidet rund/eckig zu; ohne setzt es das
+        # Symbol verkleinert auf eine weiße Scheibe (web.dev „maskable icon“).
         "icons": [{"src": "/static/favicon.svg", "sizes": "any", "type": "image/svg+xml"},
                   {"src": "/static/symbol/192.png", "sizes": "192x192", "type": "image/png"},
+                  {"src": "/static/symbol/512.png", "sizes": "512x512", "type": "image/png"},
+                  {"src": "/static/symbol/maskable-512.png", "sizes": "512x512", "type": "image/png",
+                   "purpose": "maskable"},
                   {"src": "/static/apple-touch-icon.png", "sizes": "180x180", "type": "image/png"}],
     }, media_type="application/manifest+json")
 
@@ -417,10 +422,11 @@ async def notfall_adressen(q: str = "", benutzer: str = Depends(_leser)):
 
 @router.get("/notfall/api/liste")
 async def notfall_liste(postfach: str, ordner: str = "", suche: str = "", seite: int = 0,
+                        ungelesen: bool = False, anhang: bool = False, unterhaltungen: bool = False,
                         benutzer: str = Depends(_leser)):
     pf = _postfach(benutzer, postfach)
-    return JSONResponse({"ok": True, **await asyncio.to_thread(notbetrieb_lesen.liste, pf, ordner,
-                                                               suche[:200], seite)})
+    return JSONResponse({"ok": True, **await asyncio.to_thread(notbetrieb_lesen.liste, pf, ordner, suche[:200],
+                                                               seite, ungelesen, anhang, unterhaltungen)})
 
 
 @router.get("/notfall/api/mail")
@@ -457,6 +463,26 @@ async def notfall_anhang(postfach: str, id: str, nr: int, benutzer: str = Depend
     return Response(daten, media_type="application/octet-stream",
                     headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}",
                              "Cache-Control": "no-store"})
+
+
+@router.get("/notfall/anhang/ansehen")
+async def notfall_anhang_ansehen(postfach: str, id: str, nr: int, benutzer: str = Depends(_leser)):
+    """Bild oder PDF im Browser ansehen. Typ aus den BYTES (vorschau_typ),
+    sonst 415 — die Oberfläche bietet dann nur den Download an. Inhalt in
+    eigener Sandbox (CSP sandbox, nosniff): Ein präpariertes PDF oder Bild
+    erreicht weder Cookies noch die Seite."""
+    pf = _postfach(benutzer, postfach)
+    a = await asyncio.to_thread(notbetrieb_lesen.anhang, pf, id, nr)
+    if not a:
+        raise HTTPException(404)
+    daten, name, _angegeben = a
+    typ = notbetrieb_lesen.vorschau_typ(daten)
+    if not typ:
+        raise HTTPException(415, "Für diesen Anhang gibt es keine Vorschau.")
+    return Response(daten, media_type=typ, headers={
+        "Content-Disposition": f"inline; filename*=UTF-8''{quote(name)}",
+        "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'",
+        "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
 
 
 @router.get("/notfall/api/vorlage")
