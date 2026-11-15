@@ -149,3 +149,27 @@ def test_fremde_markierung_verhindert_die_bearbeitung_nicht(anlage):
     teil = next(t for t in msg.walk() if t.get_content_type() == "text/html")
     assert "[Sig]" in teil.get_payload(decode=True).decode(), "fremd markierte Mail nicht bearbeitet"
     assert msg.get_all("X-Sig-Applied") == [_eigene()], "fremde Markierung nicht ersetzt"
+
+
+def test_durchgeleitete_fremdpost_ist_markiert(anlage):
+    """Absender NICHT in MAILBOX_CONFIG → „forwarding as-is“. Auch diese Post
+    geht zurück in den Exchange-Transport und braucht die eigene Markierung —
+    sonst routet eine Regel sie endlos zurück (live: eingehende Newsletter an
+    ein nicht konfiguriertes Postfach, 26 Hops, „hop count exceeded“).
+
+    Bis v1.12.19 prüfte das nur eine Textsuche nach der unmarkierten
+    Schreibweise `reinject.send(sender, recipients, raw)` — jede andere
+    Schreibweise (Zwischenvariable, list(recipients)) wäre durchgekommen."""
+    fremd = "newsletter@extern.de"
+    umschlag = _Umschlag((f"From: {fremd}\r\nTo: {ABS}\r\nSubject: Neu\r\n"
+                          "Message-ID: <n1@extern.de>\r\nMIME-Version: 1.0\r\n"
+                          "Content-Type: text/plain; charset=utf-8\r\n\r\nHallo\r\n").encode())
+    umschlag.mail_from = fremd
+    umschlag.rcpt_tos = [ABS]
+    asyncio.run(handler.SignatureHandler().handle_DATA(None, _Sitzung(), umschlag))
+    assert len(anlage["_zugestellt"]) == 1, anlage["_zugestellt"]
+    daten = next(a for a in anlage["_zugestellt"][0] if isinstance(a, (bytes, bytearray)))
+    msg = email.message_from_bytes(daten)
+    import loop_detector
+    assert msg.get(loop_detector.header_name()) == _eigene(), (
+        "durchgeleitete Fremdpost ohne eigene Schleifenmarkierung")

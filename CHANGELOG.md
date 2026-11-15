@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.21 — 2026-11-15 — Tests: Schleifen- und Gate-Schutz am Verhalten statt am Quelltext geprüft
+
+Drei Tests sicherten Schutzfunktionen ab, deren Ausfall den Mailfluss trifft,
+prüften aber nur Text im Quelltext. Ein Fehler wäre jeweils unbemerkt geblieben:
+
+- **Absender-Gate der Transportregel.** Der Test suchte `-FromMemberOf` im
+  Aktualisieren-Zweig der Einrichtung. Derselbe Text steht dort auch in einem
+  Kommentar; fehlte die echte Codezeile, blieb der Test grün. Jetzt prüfen alle
+  Gate-Tests die PowerShell-Aufrufe selbst, ohne Kommentare und mit
+  zusammengeführten Fortsetzungszeilen.
+- **Schleifenmarkierung beim Graph-Versand.** Geprüft war nur, dass die
+  Markierung zusammengebaut wird, nicht, dass sie im Aufruf an Exchange
+  ankommt. Jetzt läuft der Graph-Versand im Test echt durch, nur der
+  HTTP-Aufruf ist abgefangen.
+- **Durchgeleitete Post fremder Absender.** Geprüft war eine bestimmte
+  Schreibweise im Quelltext. Jetzt läuft eine Mail eines nicht eingerichteten
+  Absenders durch das Gateway, und die zugestellte Fassung muss die eigene
+  Markierung tragen.
+
+**Zu tun:** nichts.
+
 ## v1.12.20 — 2026-11-15 — Mail-Routing: Seite nach Zweck gegliedert, Port 25 wird vor „Selbst per MX“ geprüft
 
 Die Seite *Einstellungen → Mail-Routing* erklärt jetzt, was sie tut, statt ein
