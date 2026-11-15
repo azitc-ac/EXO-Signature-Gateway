@@ -1117,6 +1117,11 @@ def test_bereitschaft_meldet_luecken_und_wird_bereit(nb, graph, monkeypatch):
     notbetrieb.abgleich_alle()
     nb["NOTBETRIEB_LDAP_SERVER"], nb["NOTBETRIEB_LDAP_BASIS"] = "ldaps://dc01", "DC=x"
     monkeypatch.setattr(direktversand, "aktiv", lambda: True)
+    # Eingerichtet allein reicht nicht mehr — erst eine angekommene, bestandene Probe.
+    nb["NOTBETRIEB_PROBE_POSTFACH"] = "probe@firma.at"
+    nb["_NOTBETRIEB_PROBE"] = {"ts": datetime.now(timezone.utc).isoformat(), "zustand": "angekommen",
+                               "ordner": "inbox", "minuten": 1.0,
+                               "auth": {"spf": "pass", "dkim": "pass", "dmarc": "pass"}}
     monkeypatch.setattr(nba, "erreichbar", lambda: (True, "ok"))
     erg = nbb.pruefen(mit_netz=True)
     assert erg["bereit"] is True, erg["punkte"]

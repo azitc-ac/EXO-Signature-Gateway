@@ -104,7 +104,14 @@ def _versand() -> dict:
     import abnahme
     import direktversand
     if direktversand.aktiv():
-        return _p("Versand nach außen", abnahme.OK, "Direktversand eingerichtet.")
+        # Nicht „eingerichtet“ heißt ok, sondern „die letzte Probe kam an“
+        # (notbetrieb_probe) — ein unbenutzter Weg fällt sonst unbemerkt aus.
+        import notbetrieb_probe
+        ampel, text = notbetrieb_probe.bewertung()
+        zustand = {"ok": abnahme.OK, "fehler": abnahme.OFFEN}.get(ampel, abnahme.UNBEKANNT)
+        return _p("Versand nach außen", zustand, "Direktversand eingerichtet; Probe: " + text + ".",
+                  "" if zustand == abnahme.OK else "Notbetrieb → Direktversand-Probe: Postfach eintragen, "
+                                                     "„Probe jetzt“ und das Ergebnis ansehen.")
     return _p("Versand nach außen", abnahme.OFFEN,
               "Kein Direktversand — im Notfall bleibt Post an externe Empfänger in der Warteschlange.",
               "Einrichtung → Direktversand einrichten.")

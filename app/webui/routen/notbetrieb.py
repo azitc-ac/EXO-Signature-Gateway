@@ -41,6 +41,7 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "probegruppe": settings_store.get("NOTBETRIEB_PROBEGRUPPE") or [],
             "lesen_alle": notbetrieb.lesen_alle(),
             "senden_alle": settings_store.get("NOTBETRIEB_SENDEN_ALLE") is True,
+            "probe_postfach": settings_store.get("NOTBETRIEB_PROBE_POSTFACH") or "",
             "webmail_url": aussenadresse.basis() + "/notfall",
             "imap": settings_store.get("NOTBETRIEB_IMAP") is True,
             "smtp": settings_store.get("NOTBETRIEB_SMTP") is True,
@@ -90,6 +91,31 @@ async def api_notbetrieb_abgleich(user: str = Depends(_require_admin)):
     ergebnis = await asyncio.to_thread(notbetrieb.abgleich_alle)
     log.info("Notbetrieb: Abgleich angestoßen durch %s: %s", user, ergebnis)
     return JSONResponse({"ok": True, **ergebnis})
+
+
+@router.post("/api/notbetrieb/probe")
+async def api_notbetrieb_probe(user: str = Depends(_require_admin)):
+    """Direktversand-Probe sofort senden (sonst täglich). Das Ergebnis
+    erscheint nach der Ankunft — „Prüfen“ fragt nach."""
+    import direktversand
+    import notbetrieb_probe
+    if not direktversand.aktiv():
+        return JSONResponse({"ok": False, "error": "Der Direktversand ist nicht eingerichtet."}, status_code=409)
+    if not notbetrieb_probe.postfach():
+        return JSONResponse({"ok": False, "error": "Zuerst ein Probe-Postfach eintragen und speichern."},
+                            status_code=400)
+    st = await asyncio.to_thread(notbetrieb_probe.senden)
+    log.info("Notbetrieb: Direktversand-Probe angestoßen durch %s: %s", user, st.get("zustand"))
+    return JSONResponse({"ok": st.get("zustand") == "gesendet", "stand": st,
+                         "error": st.get("meldung") or ""})
+
+
+@router.get("/api/notbetrieb/probe")
+async def api_notbetrieb_probe_stand(_user: str = Depends(_require_admin)):
+    import notbetrieb_probe
+    st = await asyncio.to_thread(notbetrieb_probe.pruefen)
+    ampel, text = notbetrieb_probe.bewertung(st)
+    return JSONResponse({"ok": True, "ampel": ampel, "text": text, "stand": st})
 
 
 @router.post("/api/notbetrieb/zurueckspielen")

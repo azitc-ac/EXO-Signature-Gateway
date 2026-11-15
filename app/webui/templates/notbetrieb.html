@@ -308,6 +308,29 @@
   </p>
 </div>
 
+<!-- Direktversand-Probe -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Direktversand-Probe</h2>
+  <p class="hint" style="margin-top:0">
+    Im Normalbetrieb geht alles über Exchange — den Direktversand benutzt nur der Notfall. Damit dieser Weg
+    nicht unbemerkt ausfällt, schickt das Gateway einmal am Tag eine Mail genau darüber an ein internes
+    Postfach, prüft Ankunft, Ordner und SPF/DKIM/DMARC und löscht sie danach wieder. Das Ergebnis steht im
+    Tagesbericht und in der Bereitschaft.
+  </p>
+  <div class="settings-row">
+    <label for="nb-probe-pf">Probe-Postfach</label>
+    <div class="settings-control"><input type="email" id="nb-probe-pf" value="{{ probe_postfach }}"
+      placeholder="notbetrieb-probe@firma.at" style="min-width:260px"></div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <button class="btn secondary" id="nb-probe-pf-btn" data-wache="nb-probe-pf"
+            data-wache-hinweis="nb-probe-pf-result" onclick="nbProbePostfach()">Speichern</button>
+    <span id="nb-probe-pf-result"></span>
+    <button class="btn secondary btn-sm" id="nb-probe-jetzt" onclick="nbProbeJetzt()" {% if not aktiv %}disabled{% endif %}>Probe jetzt</button>
+  </div>
+  <div class="msg" id="nb-probe-msg" style="margin-top:6px" hidden></div>
+</div>
+
 <!-- Auf die Geräte -->
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Webmail auf die Geräte bringen</h2>
@@ -662,6 +685,20 @@ async function nbEingangSpeichern() {
   }, 'nb-eingang-result'));
 }
 
+async function nbProbePostfach() {
+  wacheFertig('nb-probe-pf-btn', await savePartial({NOTBETRIEB_PROBE_POSTFACH: feldWert('nb-probe-pf')},
+                                                    'nb-probe-pf-result'));
+}
+async function nbProbeStand() {
+  const d = await getJSON('/api/notbetrieb/probe');
+  if (d.ok) showMsg('nb-probe-msg', 'Letzte Probe: ' + d.text, d.ampel === 'ok');
+}
+async function nbProbeJetzt() {
+  const d = await knopfAktion('nb-probe-jetzt', 'Sende…', () => postJSON('/api/notbetrieb/probe', {}));
+  showMsg('nb-probe-msg', d.ok ? 'Probe gesendet — das Ergebnis steht hier, sobald sie angekommen ist '
+                                 + '(meist nach wenigen Minuten, Seite neu laden).' : errText(d), d.ok);
+}
+
 async function nbLdapSpeichern() {
   wacheFertig('nb-ldap-btn', await savePartial({
     NOTBETRIEB_LDAP_SERVER: feldWert('nb-ldap-server'),
@@ -756,6 +793,7 @@ nbRegelnZeichnen();
 nbStand();
 nbRechte();
 nbFaktoren();
+nbProbeStand();
 nbRechnen();
 </script>
 {% endblock %}

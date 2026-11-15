@@ -309,6 +309,12 @@ def _notbetrieb_zeilen(dval) -> list[str]:
     if st.get("ausgerufen") and st.get("lokal_offen"):
         zeilen.append(_row("Im Notbetrieb angenommen, nicht zurückgespielt", st["lokal_offen"], "#e74c3c"))
     zeilen.extend(_rueckweg_zeilen(dval, st))
+    import direktversand
+    if direktversand.aktiv():
+        import notbetrieb_probe
+        ampel, text = notbetrieb_probe.bewertung()
+        zeilen.append(_row("Direktversand-Probe (Notfallweg nach außen)", text,
+                           {"fehler": "#e74c3c", "warnung": "#e67e22"}.get(ampel, "")))
     angenommen = dval("notfall_angenommen")
     abgewiesen = dval("notfall_unbekannt") + dval("notfall_unecht") + dval("notfall_gedrosselt")
     if st.get("ausgerufen") or angenommen or abgewiesen or dval("notfall_greylist"):

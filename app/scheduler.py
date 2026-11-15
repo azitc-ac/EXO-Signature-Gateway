@@ -619,6 +619,12 @@ def _sync_notbetrieb() -> None:
             if alt is None or alt > _NOTBETRIEB_RECHTE_INTERVAL:
                 notbetrieb.profile_sichern()
             notbetrieb.abgleich_alle()
+            # Tägliche Probe des Notfallwegs nach außen (Direktversand):
+            # erst die gestrige auswerten, dann ggf. die nächste schicken.
+            import notbetrieb_probe
+            notbetrieb_probe.pruefen()
+            if notbetrieb_probe.faellig():
+                notbetrieb_probe.senden()
     except Exception as exc:                                        # noqa: BLE001
         log.warning("scheduler: Notbetrieb-Abgleich fehlgeschlagen: %s", exc)
     finally:

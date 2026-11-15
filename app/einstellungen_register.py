@@ -190,6 +190,7 @@ REGISTER: dict[str, E] = {
     "NOTBETRIEB_IMAP": E(art=OPTION, ort="notbetrieb.html"),  # IMAP-Zugang (993)
     "NOTBETRIEB_LESEN_ALLE": E(art=OPTION, ort="notbetrieb.html"),  # Kopie im Normalbetrieb für alle lesbar
     "NOTBETRIEB_SENDEN_ALLE": E(art=OPTION, ort="notbetrieb.html"),  # … und senden über Exchange
+    "NOTBETRIEB_PROBE_POSTFACH": E(art=OPTION, ort="notbetrieb.html"),  # Direktversand-Probe: Zielpostfach
     "NOTBETRIEB_SMTP": E(art=OPTION, ort="notbetrieb.html"),  # Senden aus Mailprogrammen (587)
     "NOTBETRIEB_ZWEITFAKTOR": E(art=OPTION, ort="notbetrieb.html"),  # zweiter Faktor Pflicht
     "NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE": E(art=OPTION, ort="notbetrieb.html"),

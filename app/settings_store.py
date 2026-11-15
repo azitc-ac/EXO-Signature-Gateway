@@ -48,6 +48,7 @@ DEFAULTS: dict = {
     "NOTBETRIEB_PROBEGRUPPE": [],     # sieht im Webmail schon vor dem Notfall Inhalte (Probealarm)
     "NOTBETRIEB_LESEN_ALLE": False,   # Webmail/IMAP: alle lesen die Kopie schon im Normalbetrieb
     "NOTBETRIEB_SENDEN_ALLE": False,  # … und senden im Normalbetrieb über Exchange (braucht LESEN_ALLE)
+    "NOTBETRIEB_PROBE_POSTFACH": "",  # internes Postfach für die tägliche Direktversand-Probe
     "NOTBETRIEB_IMAP": False,         # IMAP-Zugang zur Kopie (Port 993, lesend)
     "NOTBETRIEB_SMTP": False,         # Senden aus Mailprogrammen (587, AD-Anmeldung, nur im Notfall)
     "NOTBETRIEB_ZWEITFAKTOR": True,   # Webmail: AD-Kennwort + zweiter Faktor (TOTP) Pflicht
@@ -499,6 +500,7 @@ INTERNAL_KEYS = frozenset({
     "_OOO_STATE",                 # abwesenheit.py — zuletzt gesetzter OOF-Text je Postfach
     "_OOO_LAST",                  # abwesenheit.py — Zählung des letzten Poll-Laufs
     "_NOTBETRIEB_LAST",           # notbetrieb.py — Zählung des letzten Schatten-Abgleichs
+    "_NOTBETRIEB_PROBE",          # notbetrieb_probe.py — Stand der täglichen Direktversand-Probe
     "_NOTBETRIEB_MESSUNG",        # notbetrieb.py — Platzmessung aus Exchange (Was-wäre-wenn)
     "_OOO_UEBERSICHT",            # abwesenheit.py — gecachter Status-Scan (Admin-Dashboard)
     "_ADDIN_MANIFEST_STAND",      # webui/routen/addin.py — {hash, version} des zuletzt
