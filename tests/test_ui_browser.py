@@ -1524,3 +1524,63 @@ def test_waechterzeile_quetscht_den_namen_nicht(browser, server, monkeypatch, br
     assert masse["knopf"], "Testaufbau: der Knopf „Code aktualisieren“ fehlt"
     assert masse["block"] >= 0.8 * masse["liste"], (
         f"Textblock nur {masse['block']:.0f} px von {masse['liste']:.0f} px — die Knöpfe quetschen den Namen")
+
+
+# ── Mail-Routing: Port 25 wird vor „Selbst per MX“ gemessen ──────────────────
+
+@pytest.mark.parametrize("modus,port25_offen,antwort,gespeichert,getestet", [
+    ("mx", False, "ablehnen", False, True),    # gesperrt + Nein → nichts gespeichert
+    ("mx", False, "annehmen", True, True),     # gesperrt + Ja   → bewusst gespeichert
+    ("mx", True, None, True, True),            # offen           → ohne Rückfrage
+    ("smarthost", False, None, True, False),   # Smarthost braucht Port 25 nicht
+])
+def test_selbst_zustellen_prueft_port25_vor_dem_speichern(browser, server, monkeypatch, modus,
+                                                          port25_offen, antwort, gespeichert,
+                                                          getestet):
+    """In Azure, AWS und vielen Netzen ist Port 25 ausgehend gesperrt. Wer
+    „Selbst per MX zustellen“ speichert, bekommt vorher den echten Test; ist der
+    Port zu, fragt die Seite nach, und ein Nein speichert nichts."""
+    import json
+    import sso
+    monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-oberflaeche")
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
+    keks = sso.create_session_cookie("chefin@example.org", role=sso.ROLE_ADMIN)
+    aufrufe = {"port25": 0, "speichern": 0}
+    dialoge = []
+
+    def _port25(route):
+        aufrufe["port25"] += 1
+        body = ({"ok": True, "host": "mx.example.net", "antwort": "220 bereit"} if port25_offen
+                else {"ok": False, "error": "Zeitüberschreitung"})
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    def _speichern(route):
+        aufrufe["speichern"] += 1
+        route.fulfill(status=200, content_type="application/json", body=json.dumps({"ok": True}))
+
+    ctx = browser.new_context(viewport={"width": 1280, "height": 900})
+    ctx.add_cookies([{"name": sso.SESSION_COOKIE, "value": keks, "domain": "127.0.0.1", "path": "/"}])
+    ctx.route("**/api/direkt/port25-test*", _port25)
+    ctx.route("**/api/direkt/einstellungen*", _speichern)
+    pg = ctx.new_page()
+
+    def _dialog(d):
+        dialoge.append(d.message)
+        d.accept() if antwort == "annehmen" else d.dismiss()
+    pg.on("dialog", _dialog)
+    try:
+        pg.goto(f"{server}/settings/routing", wait_until="domcontentloaded")
+        pg.wait_for_timeout(600)
+        pg.evaluate("""m => { document.getElementById('direkt-aktiv').checked = true;
+                              document.getElementById('direkt-modus').value = m;
+                              direktModusZeigen(); }""", modus)
+        pg.evaluate("() => direktSpeichern(document.querySelector('[onclick^=\"direktSpeichern\"]'))")
+        pg.wait_for_timeout(800)
+    finally:
+        ctx.close()
+    assert aufrufe["port25"] == (1 if getestet else 0), aufrufe
+    assert aufrufe["speichern"] == (1 if gespeichert else 0), (aufrufe, dialoge)
+    if getestet and not port25_offen:
+        assert dialoge and "Port 25 ausgehend ist von hier gesperrt" in dialoge[0], dialoge
+    else:
+        assert not dialoge, dialoge

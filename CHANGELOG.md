@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.20 — 2026-11-15 — Mail-Routing: Seite nach Zweck gegliedert, Port 25 wird vor „Selbst per MX“ geprüft
+
+Die Seite *Einstellungen → Mail-Routing* erklärt jetzt, was sie tut, statt ein
+einzelnes Einsatzszenario zu beschreiben. Sie ist nach der Frage „Wohin geht
+eine Mail?“ gegliedert:
+
+- **Zielserver** (bisher „Weiterleitungsziele“): Server, an die das Gateway Post
+  übergeben kann. Ein Ziel allein bewirkt nichts.
+- **Regeln**: nach Absender-Tenant, nach Empfängerdomäne und für externe
+  Empfänger, in dieser Reihenfolge geprüft. Der Hinweis, dass Domänen- und
+  Externen-Regeln nur mit dem Rückweg „SMTP Port 25“ wirken, steht einmal oben
+  statt versteckt in einer Karte. „Per-Empfänger-Routing“ heißt jetzt „Nur
+  Postfächer weiterleiten, die nicht in Exchange Online liegen“ und ist
+  eingeklappt.
+- **Selbst zustellen** (bisher „Direktversand (eigener Postfix)“).
+- **Wenn das Ziel ein lokaler Exchange ist** (bisher „Hybrid-Koexistenz“),
+  eingeklappt, mit einem kurzen Sicherheitsabsatz.
+- **Verlauf** (bisher „Durch das Gateway geroutet“).
+
+Felder, gespeicherte Einstellungen und Schnittstellen sind unverändert.
+
+**Port 25 vor „Selbst per MX zustellen“.** Läuft das Gateway in Azure, AWS oder
+einer ähnlichen Cloud, ist Port 25 ausgehend dort in aller Regel gesperrt;
+Zustellen geht dann nur über einen Smarthost. Wer „Selbst zustellen“ mit der
+Betriebsart „Selbst per MX zustellen“ speichert, bekommt jetzt vorher
+automatisch denselben Test wie mit „Port 25 prüfen“. Ist der Port gesperrt,
+fragt die Seite nach; ohne Bestätigung wird nicht gespeichert. Gemessen wird die
+tatsächliche Verbindung, nicht die Umgebung erraten — so greift es auch bei
+Providern und Firmenfirewalls.
+
+**Zu tun:** nichts.
+
 ## v1.12.19 — 2026-11-15 — Bypass-Wächter: Zeile auf dem Handy lesbar
 
 In der Liste der Bypass-Wächter (Erweitert → Failover) standen die Knöpfe

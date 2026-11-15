@@ -5,12 +5,16 @@
 {% set nav_aktiv = "routing" %}
 {% include "_nav_einstellungen.html" %}
 
+<p class="hint" style="max-width:720px;margin:0 0 8px">
+  Nach der Bearbeitung gibt das Gateway jede Mail an <strong>Exchange Online</strong>
+  zurück. Hier legst du Ausnahmen fest: Post für bestimmte Empfänger geht an einen
+  anderen Server, oder das Gateway stellt sie selbst zu.
+</p>
 <p class="hint" style="max-width:720px;margin:0 0 16px">
-  Wohin das Gateway bearbeitete Post zustellt, wenn nicht an Exchange Online:
-  Weiterleitungsziele je Empfängerdomäne oder Tenant, der eigene Direktversand
-  (Postfix mit DKIM) und die Koexistenz mit einem lokalen Exchange.
-  Den laufenden Betrieb des SMTP-Relays — Geräte, Lernmodus, Protokoll — findest
-  du im Hauptmenü unter <em>SMTP-Relay</em>.
+  Die Regeln werden in dieser Reihenfolge geprüft: <strong>Absender-Tenant</strong>
+  → <strong>Empfängerdomäne</strong> → <strong>externe Empfänger</strong>. Die erste
+  passende Regel gilt, alles andere geht an Exchange Online. Den laufenden Betrieb
+  des SMTP-Relays findest du unter <em>SMTP-Relay</em>.
 </p>
 
 <style>
@@ -27,20 +31,14 @@
   [data-theme="dark"] .zahl-knopf[data-fehler="1"] { color: #fca5a5; }
 </style>
 
-<!-- ── Domänen-Routing ──────────────────────────────────────────────────────── -->
+<!-- ── Zielserver ──────────────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:20px">
-  <h2 style="margin:0">Domänen-Routing</h2>
+  <h2 id="weiterleitungsziele" style="margin:0">Zielserver</h2>
   <p style="font-size:13px;color:#555;margin:10px 0 14px">
-    Bearbeitete Post geht standardmäßig an <strong>Exchange Online</strong>. Hier
-    lassen sich einzelne <strong>Empfängerdomänen</strong> stattdessen an einen
-    anderen Server zustellen — etwa an einen lokalen Exchange im Hybrid-Betrieb.
-    Post an eine geroutete Domäne wird <strong>unverändert</strong> weitergereicht
-    (keine Signatur-Nachbearbeitung, kein DKIM-Eingriff).
-    <br>⚠️ Die Empfängerdomänen-Routen wirken nur im Rückweg-Modus <strong>„SMTP Port 25"</strong>; in den
-    Graph-Modi geht diese Post an Exchange Online.
+    Server, an die das Gateway Post übergeben kann, etwa ein lokaler Mailserver, ein
+    zweites Gateway oder der Dienst eines Anbieters. Ein Zielserver allein bewirkt
+    nichts; erst eine Regel unten schickt Post dorthin.
   </p>
-
-  <h3 id="weiterleitungsziele" style="font-size:14px;margin:0 0 8px">Weiterleitungsziele</h3>
   <div class="tabellen-rollbereich">
     <table class="config-table" style="min-width:620px">
       <thead>
@@ -59,11 +57,11 @@
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 12px;align-items:start">
       <div>
         <label for="neu-ziel-id" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Kürzel <span class="hint" style="font-weight:400">(intern)</span></label>
-        <input type="text" id="neu-ziel-id" placeholder="onprem" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+        <input type="text" id="neu-ziel-id" placeholder="mailserver" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
       </div>
       <div>
         <label for="neu-ziel-host" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Host</label>
-        <input type="text" id="neu-ziel-host" placeholder="mail.contoso.local" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+        <input type="text" id="neu-ziel-host" placeholder="mail.example.com" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
       </div>
       <div>
         <label for="neu-ziel-port" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Port</label>
@@ -84,75 +82,31 @@
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button type="button" class="btn secondary" onclick="zielHinzufuegen(this)">Ziel speichern</button>
-      <span class="hint">Vorhandenes Kürzel = ändern. Ein leeres Passwortfeld lässt ein gesetztes unverändert.
+      <span class="hint">Gleiches Kürzel = ändern. Ein leeres Passwortfeld lässt ein gesetztes unverändert.
         „Zertifikat prüfen“ verlangt einen Hostnamen, auf den das Zertifikat des Ziels lautet;
         bei einer IP-Adresse oder einem selbst ausgestellten Zertifikat ausschalten.</span>
     </div>
     <div id="neu-ziel-result" style="display:none;margin-top:10px"></div>
   </div>
+</div>
 
-  <h3 style="font-size:14px;margin:20px 0 8px">Domäne&nbsp;→&nbsp;Ziel</h3>
-  <p class="hint" style="margin:0 0 8px">
-    Welche Domänen für den Hybrid-Betrieb relevant sind, zeigt on-prem in der
-    Exchange Management Shell:
-    <code>(Get-HybridConfiguration).Domains</code>.
-  </p>
-  <div class="tabellen-rollbereich">
-    <table class="config-table" style="min-width:420px">
-      <thead>
-        <tr><th>Empfängerdomäne</th><th>Ziel</th><th></th></tr>
-      </thead>
-      <tbody id="routen-body">
-        <tr><td colspan="3" style="color:#888">Wird geladen …</td></tr>
-      </tbody>
-    </table>
+<!-- ── Regeln ──────────────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 style="margin:0">Regeln</h2>
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#92400e;margin:12px 0 14px">
+    ⚠️ Die Regeln für <strong>Empfängerdomänen</strong> und <strong>externe Empfänger</strong>
+    wirken nur mit dem Rückweg <strong>„SMTP Port 25“</strong>. In den Graph-Modi geht
+    diese Post an Exchange Online. Die Regel für den Absender-Tenant wirkt immer.
   </div>
 
-  <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
-      <div>
-        <label for="neu-route-domain" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Empfängerdomäne</label>
-        <input type="text" id="neu-route-domain" placeholder="contoso.de" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
-      </div>
-      <div>
-        <label for="neu-route-ziel" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Ziel</label>
-        <select id="neu-route-ziel" style="width:100%;margin:0;box-sizing:border-box"></select>
-      </div>
-      <div style="padding-bottom:1px">
-        <button type="button" class="btn secondary" onclick="routeHinzufuegen(this)">Route speichern</button>
-      </div>
-    </div>
-    <div id="neu-route-result" style="display:none;margin-top:10px"></div>
-  </div>
-
-  <h3 style="font-size:14px;margin:20px 0 8px">Externe Empfänger&nbsp;→&nbsp;Ziel</h3>
+  <h3 style="font-size:14px;margin:0 0 6px">Nach Absender-Tenant</h3>
   <p class="hint" style="margin:0 0 8px">
-    Empfänger <strong>außerhalb</strong> der eigenen Domänen, für die oben keine
-    Route steht, gehen standardmäßig an Exchange Online. Mit dem Ziel
-    <code>direkt</code> stellt das Gateway sie selbst zu (siehe Karte
-    <em>Direktversand</em>); interne Empfänger bleiben bei Exchange Online.
-  </p>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
-    <div>
-      <label for="extern-ziel" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Ziel</label>
-      <select id="extern-ziel" style="width:100%;margin:0;box-sizing:border-box"></select>
-    </div>
-    <div style="padding-bottom:1px">
-      <button type="button" class="btn secondary" onclick="externRouteSpeichern(this)">Route speichern</button>
-    </div>
-  </div>
-  <div id="extern-result" style="display:none;margin-top:10px"></div>
-
-  <h3 style="font-size:14px;margin:20px 0 8px">Fremder Tenant&nbsp;→&nbsp;Ziel</h3>
-  <p class="hint" style="margin:0 0 8px">
-    Post eines <strong>anderen</strong> Microsoft-365-Tenants weist das Gateway
-    sonst ab. Ist der Tenant hier eingetragen, geht seine Post vor jeder
-    Verarbeitung <strong>unverändert</strong> an das Ziel — etwa an ein zweites
-    Gateway, wenn sich beide eine öffentliche Adresse teilen. Erkannt wird der
-    Tenant an der Kennung, die Exchange Online selbst in den Kopf schreibt
-    (<code>X-MS-Exchange-CrossTenant-Id</code>), nicht an der Absenderdomäne.
-    Wirkt in jedem Rückweg-Modus. Ist das Ziel nicht erreichbar, stellt
-    Exchange Online später erneut zu.
+    Post aus einem <strong>anderen</strong> Microsoft-365-Tenant weist das Gateway
+    sonst ab. Steht der Tenant hier, geht seine Post vor jeder Bearbeitung
+    <strong>unverändert</strong> an das Ziel. Erkannt wird der Tenant an seiner
+    Kennung, die Exchange Online in den Kopf schreibt
+    (<code>X-MS-Exchange-CrossTenant-Id</code>), nicht an der Absenderdomäne. Ist das
+    Ziel nicht erreichbar, stellt Exchange Online später erneut zu.
   </p>
   <div class="tabellen-rollbereich">
     <table class="config-table" style="min-width:420px">
@@ -164,8 +118,7 @@
       </tbody>
     </table>
   </div>
-
-  <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
+  <div style="margin-top:12px">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
       <div>
         <label for="neu-tenant-id" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Tenant-ID</label>
@@ -176,46 +129,94 @@
         <select id="neu-tenant-ziel" style="width:100%;margin:0;box-sizing:border-box"></select>
       </div>
       <div style="padding-bottom:1px">
-        <button type="button" class="btn secondary" onclick="tenantRouteHinzufuegen(this)">Route speichern</button>
+        <button type="button" class="btn secondary" onclick="tenantRouteHinzufuegen(this)">Regel speichern</button>
       </div>
     </div>
     <div id="neu-tenant-result" style="display:none;margin-top:10px"></div>
   </div>
 
-  <div style="border-top:1px solid #e2e8f0;margin-top:20px;padding-top:14px">
-    <h3 style="font-size:14px;margin:0 0 8px">Per-Empfänger-Routing</h3>
-    <p class="hint" style="margin:0 0 10px">
-      Ohne diese Option geht an eine geroutete Domäne die <strong>ganze Domäne</strong>
-      aufs Ziel — auch Cloud-Postfächer, die dort einen unnötigen Umweg nehmen. Mit
-      der Option gehen nur die Postfächer aufs Ziel, die <strong>wirklich dort
-      liegen</strong> (in Exchange&nbsp;Online als <em>MailUser</em> sichtbar); alle
-      übrigen Empfänger der Domäne stellt Exchange&nbsp;Online direkt zu.
+  <h3 style="font-size:14px;margin:22px 0 6px;border-top:1px solid #e2e8f0;padding-top:16px">Nach Empfängerdomäne</h3>
+  <p class="hint" style="margin:0 0 8px">
+    Post an diese Domänen geht an das gewählte Ziel statt an Exchange Online, so wie
+    das Gateway sie bearbeitet hat, ohne weiteren Eingriff.
+  </p>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:420px">
+      <thead>
+        <tr><th>Empfängerdomäne</th><th>Ziel</th><th></th></tr>
+      </thead>
+      <tbody id="routen-body">
+        <tr><td colspan="3" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top:12px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
+      <div>
+        <label for="neu-route-domain" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Empfängerdomäne</label>
+        <input type="text" id="neu-route-domain" placeholder="example.com" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="neu-route-ziel" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Ziel</label>
+        <select id="neu-route-ziel" style="width:100%;margin:0;box-sizing:border-box"></select>
+      </div>
+      <div style="padding-bottom:1px">
+        <button type="button" class="btn secondary" onclick="routeHinzufuegen(this)">Regel speichern</button>
+      </div>
+    </div>
+    <div id="neu-route-result" style="display:none;margin-top:10px"></div>
+  </div>
+  <details style="margin-top:12px">
+    <summary style="cursor:pointer;font-size:13px;font-weight:600;padding:4px 0">Nur Postfächer weiterleiten, die nicht in Exchange Online liegen</summary>
+    <p class="hint" style="margin:8px 0 10px">
+      Ohne diese Option geht die <strong>ganze Domäne</strong> an das Ziel, auch
+      Postfächer, die in Exchange Online liegen und dort einen unnötigen Umweg nehmen.
+      Mit der Option geht nur an das Ziel, wer dort wirklich ein Postfach hat (in
+      Exchange&nbsp;Online als <em>MailUser</em> geführt); alle übrigen Empfänger der
+      Domäne stellt Exchange&nbsp;Online selbst zu.
     </p>
     <label class="checkbox-label" style="margin:0">
       <input type="checkbox" id="per-recipient" onchange="perRecipientUmschalten(this)">
-      Nur echte onprem-Postfächer (MailUser) aufs Ziel routen
+      Nur Postfächer außerhalb von Exchange Online (MailUser) an das Ziel
     </label>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
-      <button type="button" class="btn secondary" onclick="mailuserAbgleichen(this)">Onprem-Postfächer abgleichen</button>
+      <button type="button" class="btn secondary" onclick="mailuserAbgleichen(this)">Postfachliste abgleichen</button>
       <span class="hint" id="mailuser-stand">—</span>
     </div>
     <div id="mailuser-result" style="display:none;margin-top:10px"></div>
+  </details>
+
+  <h3 style="font-size:14px;margin:22px 0 6px;border-top:1px solid #e2e8f0;padding-top:16px">Externe Empfänger</h3>
+  <p class="hint" style="margin:0 0 8px">
+    Post an Adressen <strong>außerhalb</strong> deiner Domänen, für die keine
+    Domänenregel greift, geht an das gewählte Ziel, zum Beispiel an <code>direkt</code>
+    (siehe <em>Selbst zustellen</em>). Interne Empfänger bleiben bei Exchange Online.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
+    <div>
+      <label for="extern-ziel" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Ziel</label>
+      <select id="extern-ziel" style="width:100%;margin:0;box-sizing:border-box"></select>
+    </div>
+    <div style="padding-bottom:1px">
+      <button type="button" class="btn secondary" onclick="externRouteSpeichern(this)">Regel speichern</button>
+    </div>
   </div>
+  <div id="extern-result" style="display:none;margin-top:10px"></div>
 </div>
 
-<!-- ── Direktversand (eigener Postfix) ─────────────────────────────────────── -->
+<!-- ── Selbst zustellen ────────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:20px">
-  <h2 style="margin:0">Direktversand <span class="hint" style="font-weight:400">(eigener Postfix)</span></h2>
+  <h2 style="margin:0">Selbst zustellen</h2>
   <p style="font-size:13px;color:#555;margin:10px 0 12px">
-    Das Gateway stellt Post an externe Empfänger <strong>selbst</strong> zu —
-    per MX oder über einen Smarthost —, statt sie an Exchange Online
-    zurückzugeben. Wofür: Tenants, die Exchange Online nicht ins Internet
-    zustellen lässt, und Massenversand ohne Microsofts Sendegrenzen. Welche Post
-    diesen Weg nimmt, legen die Routen auf das Ziel <code>direkt</code> fest.
+    Das Gateway kann Post auch <strong>selbst</strong> zustellen, direkt an den
+    Mailserver des Empfängers oder über einen Smarthost. Welche Post diesen Weg nimmt,
+    bestimmen die Regeln mit dem Ziel <code>direkt</code>.
   </p>
   <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#92400e;margin-bottom:14px">
-    ⚠️ <strong>Per MX nur mit offenem Port 25 ausgehend</strong> — in Azure ist er
-    gesperrt; dort bleibt die Betriebsart Smarthost.<br>
+    ⚠️ <strong>Läuft das Gateway in Azure, AWS oder einer ähnlichen Cloud, ist Port 25
+    ausgehend dort in aller Regel gesperrt.</strong> Zustellen geht dann nur über einen
+    Smarthost. Beim Speichern mit „Selbst per MX zustellen“ prüft das Gateway den
+    Port und fragt nach, wenn er gesperrt ist.<br>
     ⚠️ Damit Empfänger die Post annehmen, braucht jede Absenderdomäne einen
     <strong>DKIM-Schlüssel</strong> (unten), die Ausgangsadresse im
     <strong>SPF-Eintrag</strong> und möglichst einen <strong>PTR</strong>, der zum
@@ -225,7 +226,7 @@
   <div id="direkt-status" class="hint" style="margin:0 0 12px">Wird geladen …</div>
 
   <div style="margin:0 0 10px">
-    <label class="checkbox-label" style="margin:0"><input type="checkbox" id="direkt-aktiv"> Direktversand einschalten</label>
+    <label class="checkbox-label" style="margin:0"><input type="checkbox" id="direkt-aktiv"> Selbst zustellen einschalten</label>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
     <div>
@@ -299,107 +300,103 @@
   </div>
 </div>
 
-<!-- ── Hybrid-Koexistenz (on-prem-Connector) ──────────────────────────────── -->
+<!-- ── Lokaler Exchange (Empfangsconnector) ────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:20px">
-  <h2 style="margin:0">Hybrid-Koexistenz <span class="hint" style="font-weight:400">(on-prem-Connector)</span></h2>
-  <p style="font-size:13px;color:#555;margin:10px 0 12px">
-    Gegenstück zum Domänen-Routing: Damit ein <strong>on-prem-Exchange</strong> die
-    vom Gateway zugestellte Post als <strong>intern</strong> annimmt
-    (<code>AuthAs: Internal</code>), braucht er dort einen eigenen
-    Empfangsconnector, der der <strong>Quell-IP</strong> des Gateways vertraut.
-    Das Gateway richtet on-prem nichts selbst ein — es erzeugt hier das
-    <strong>PowerShell-Skript zum Kopieren</strong> (Aufbau und Abriss), das in der
-    Exchange&nbsp;Management&nbsp;Shell läuft. Der Connector heißt
-    <code>Inbound from &lt;Gateway&gt; (Coexistence)</code>.
-  </p>
-  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#92400e;margin-bottom:14px">
-    ⚠️ <strong>ExternalAuthoritative</strong> vertraut <strong>jedem</strong> Host
-    hinter dieser Quell-IP — nur vertretbar, wenn der davor liegende
-    Load-Balancer eingehende Post <strong>ausschließlich vom Gateway</strong> erhält
-    (eine einzige Route).<br>
-    ⚠️ Sieht der on-prem-Exchange das Gateway hinter einem Load-Balancer mit SNAT
-    (z.&nbsp;B. Kemp), ist die Quell-IP die <strong>des Load-Balancers</strong>,
-    nicht die des Gateways.
-  </div>
-
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:start">
-    <div>
-      <label for="coex-gw" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Gateway-Name <span class="hint" style="font-weight:400">(im Connector-Namen)</span></label>
-      <input type="text" id="coex-gw" placeholder="EXO-Gateway" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
-    </div>
-    <div>
-      <label for="coex-ip" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Quell-IP <span class="hint" style="font-weight:400">(wie on-prem sie sieht)</span></label>
-      <input type="text" id="coex-ip" placeholder="203.0.113.5 oder /24" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
-    </div>
-    <div>
-      <label for="coex-server" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Server <span class="hint" style="font-weight:400">(optional, mehrere per Komma)</span></label>
-      <input type="text" id="coex-server" placeholder="EX10, EX11 — leer = lokaler Server" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
-    </div>
-  </div>
-  <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <button type="button" class="btn secondary" onclick="coexSpeichern(this)">Speichern &amp; Skript erzeugen</button>
-    <span class="hint">Die Parameter werden gemerkt — Abriss und Wiederaufbau jederzeit über dasselbe Skript.</span>
-  </div>
-  <div id="coex-result" style="display:none;margin-top:10px"></div>
-
-  <div id="coex-skripte" style="display:none;margin-top:16px">
-    <details>
-      <summary style="cursor:pointer;font-weight:600;font-size:14px;padding:4px 0">Aufbau-Skript</summary>
-      <div style="margin-top:8px">
-        <button type="button" class="btn secondary btn-sm" onclick="coexKopieren('coex-build', this)">Kopieren</button>
-        <pre id="coex-build" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;color:#1e293b;overflow:auto;white-space:pre;margin:8px 0 0"></pre>
-      </div>
-    </details>
-    <details style="margin-top:10px">
-      <summary style="cursor:pointer;font-weight:600;font-size:14px;padding:4px 0">Abriss-Skript</summary>
-      <div style="margin-top:8px">
-        <button type="button" class="btn secondary btn-sm" onclick="coexKopieren('coex-teardown', this)">Kopieren</button>
-        <pre id="coex-teardown" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;color:#1e293b;overflow:auto;white-space:pre;margin:8px 0 0"></pre>
-      </div>
-    </details>
-  </div>
-
-  <!-- Sichtbarkeit der durchfließenden Hybrid-Post -->
-  <div style="margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
-      <h3 style="font-size:14px;margin:0">Durch das Gateway geroutet <span class="hint" style="font-weight:400">(letzte 30 Tage)</span></h3>
-      <span id="coex-fluss-summe" class="hint"></span>
-    </div>
-    <p class="hint" style="margin:6px 0 10px">
-      Das Gateway reicht Hybrid-Post byte-genau durch — Betreff und Inhalt werden
-      nicht gelesen. Ein Klick auf eine Zahl zeigt die einzelnen Vorgänge mit
-      Absender und Empfänger aus dem SMTP-Umschlag und, bei Fehlern, der Meldung
-      des Zielservers (30 Tage).
+  <details>
+    <summary style="cursor:pointer"><h2 style="margin:0;display:inline">Wenn das Ziel ein lokaler Exchange ist</h2></summary>
+    <p style="font-size:13px;color:#555;margin:12px 0 12px">
+      Ein lokaler Exchange nimmt Post vom Gateway nur dann als <strong>intern</strong>
+      an, wenn er dem Gateway vertraut. Das Skript unten richtet dafür einen
+      Empfangsconnector ein (<code>Inbound from &lt;Gateway&gt; (Coexistence)</code>)
+      und baut ihn bei Bedarf wieder ab. Das Gateway führt es nicht selbst aus; du
+      startest es in der Exchange Management Shell.
     </p>
-    <div class="tabellen-rollbereich">
-      <table class="config-table" style="min-width:460px">
-        <thead>
-          <tr><th>Ziel</th><th>Mails</th><th>Volumen</th><th>Fehler</th><th>Zuletzt</th></tr>
-        </thead>
-        <tbody id="coex-fluss-body">
-          <tr><td colspan="5" style="color:#888">Wird geladen …</td></tr>
-        </tbody>
-      </table>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#92400e;margin-bottom:14px">
+      ⚠️ <strong>Sicherheit:</strong> Der Connector vertraut <strong>jedem</strong>
+      Absender hinter der angegebenen Quell-IP. Das ist nur vertretbar, wenn über diese
+      Adresse ausschließlich das Gateway einliefert. Steht ein Load-Balancer mit
+      Adressumsetzung (SNAT) davor, ist die Quell-IP die des Load-Balancers, nicht die
+      des Gateways.
     </div>
-    <!-- Einzelvorgänge hinter einer angeklickten Zahl (Mails/Fehler) -->
-    <div id="coex-vorgaenge" hidden style="margin-top:12px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
-        <strong id="coex-vorgaenge-titel" style="font-size:13px"></strong>
-        <button type="button" class="btn secondary btn-sm" onclick="coexVorgaengeZu()">Schließen</button>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:start">
+      <div>
+        <label for="coex-gw" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Gateway-Name <span class="hint" style="font-weight:400">(im Connector-Namen)</span></label>
+        <input type="text" id="coex-gw" placeholder="EXO-Gateway" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
       </div>
-      <p id="coex-vorgaenge-hinweis" class="hint" style="margin:4px 0 8px"></p>
-      <div class="tabellen-rollbereich">
-        <table class="config-table" style="min-width:640px">
-          <thead>
-            <tr><th>Zeit</th><th>Absender</th><th>Empfänger</th><th>Größe</th><th>Ergebnis</th></tr>
-          </thead>
-          <tbody id="coex-vorgaenge-body"></tbody>
-        </table>
+      <div>
+        <label for="coex-ip" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Quell-IP <span class="hint" style="font-weight:400">(wie Exchange sie sieht)</span></label>
+        <input type="text" id="coex-ip" placeholder="203.0.113.5 oder /24" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
       </div>
+      <div>
+        <label for="coex-server" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Server <span class="hint" style="font-weight:400">(optional, mehrere per Komma)</span></label>
+        <input type="text" id="coex-server" placeholder="leer = lokaler Server" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn secondary" onclick="coexSpeichern(this)">Speichern &amp; Skript erzeugen</button>
+      <span class="hint">Die Angaben bleiben gespeichert; Aufbau und Abriss jederzeit über dasselbe Skript.</span>
+    </div>
+    <div id="coex-result" style="display:none;margin-top:10px"></div>
+
+    <div id="coex-skripte" style="display:none;margin-top:16px">
+      <details>
+        <summary style="cursor:pointer;font-weight:600;font-size:14px;padding:4px 0">Aufbau-Skript</summary>
+        <div style="margin-top:8px">
+          <button type="button" class="btn secondary btn-sm" onclick="coexKopieren('coex-build', this)">Kopieren</button>
+          <pre id="coex-build" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;color:#1e293b;overflow:auto;white-space:pre;margin:8px 0 0"></pre>
+        </div>
+      </details>
+      <details style="margin-top:10px">
+        <summary style="cursor:pointer;font-weight:600;font-size:14px;padding:4px 0">Abriss-Skript</summary>
+        <div style="margin-top:8px">
+          <button type="button" class="btn secondary btn-sm" onclick="coexKopieren('coex-teardown', this)">Kopieren</button>
+          <pre id="coex-teardown" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;color:#1e293b;overflow:auto;white-space:pre;margin:8px 0 0"></pre>
+        </div>
+      </details>
+    </div>
+  </details>
+</div>
+
+<!-- ── Verlauf ─────────────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+    <h2 style="margin:0">Verlauf <span class="hint" style="font-weight:400">(letzte 30 Tage)</span></h2>
+    <span id="coex-fluss-summe" class="hint"></span>
+  </div>
+  <p class="hint" style="margin:6px 0 10px">
+    Post, die eine Regel an ein Ziel geschickt hat, je Ziel. Das Gateway reicht sie
+    unverändert durch und liest dabei weder Betreff noch Inhalt. Ein Klick auf eine
+    Zahl zeigt die einzelnen Vorgänge mit Absender und Empfänger und bei Fehlern die
+    Meldung des Zielservers.
+  </p>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:460px">
+      <thead>
+        <tr><th>Ziel</th><th>Mails</th><th>Volumen</th><th>Fehler</th><th>Zuletzt</th></tr>
+      </thead>
+      <tbody id="coex-fluss-body">
+        <tr><td colspan="5" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <!-- Einzelvorgänge hinter einer angeklickten Zahl (Mails/Fehler) -->
+  <div id="coex-vorgaenge" hidden style="margin-top:12px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <strong id="coex-vorgaenge-titel" style="font-size:13px"></strong>
+      <button type="button" class="btn secondary btn-sm" onclick="coexVorgaengeZu()">Schließen</button>
+    </div>
+    <p id="coex-vorgaenge-hinweis" class="hint" style="margin:4px 0 8px"></p>
+    <div class="tabellen-rollbereich">
+      <table class="config-table" style="min-width:640px">
+        <thead>
+          <tr><th>Zeit</th><th>Absender</th><th>Empfänger</th><th>Größe</th><th>Ergebnis</th></tr>
+        </thead>
+        <tbody id="coex-vorgaenge-body"></tbody>
+      </table>
     </div>
   </div>
 </div>
-
 
 <script>
 let _stand = null;   // letzter Stand aus laden() — Rückfall für den Postfach-Abgleich
@@ -409,7 +406,7 @@ function zeichneMailuserStand(mu) {
   if (!el) return;
   const n = (mu && typeof mu.count === 'number') ? mu.count : 0;
   const ts = (mu && mu.ts) ? mu.ts : '';
-  el.textContent = n + ' onprem-Postfach' + (n === 1 ? '' : 'er')
+  el.textContent = n + (n === 1 ? ' Postfach' : ' Postfächer') + ' außerhalb von Exchange Online'
     + (ts ? ' · Stand ' + ts.replace('T', ' ').replace('Z', ' UTC')
           : ' · noch kein Abgleich');
 }
@@ -429,7 +426,7 @@ async function mailuserAbgleichen(btn) {
   if (r.ok) {
     zeichneMailuserStand({ count: r.count, ts: r.ts });
     showMsg(document.getElementById('mailuser-result'),
-            r.count + ' onprem-Postfächer abgeglichen.', true);
+            r.count + ' Postfächer außerhalb von Exchange Online abgeglichen.', true);
   } else {
     zeichneMailuserStand(_stand ? _stand.mailuser : null);
     showMsg(document.getElementById('mailuser-result'),
@@ -658,20 +655,33 @@ async function direktSpeichern(btn) {
     smarthost_user: feldWert('direkt-sh-user'),
     smarthost_passwort: document.getElementById('direkt-sh-pw').value || ''
   };
+  // Selbst per MX geht nur mit offenem Port 25. Vor dem Speichern echt
+  // messen (derselbe Test wie „Port 25 prüfen“), nicht aus der Umgebung raten:
+  // die Sperre steckt bei Clouds, Providern und Firmenfirewalls gleichermassen.
+  if (daten.aktiv && daten.modus === 'mx' && !(await _port25Test(btn, box))
+      && !confirm('Port 25 ausgehend ist von hier gesperrt. Ohne Smarthost wird keine '
+                  + 'Post zugestellt. Trotzdem speichern?')) {
+    return;
+  }
   if ((await _sendenUndLaden(btn, box, '/api/direkt/einstellungen', daten,
       'Gespeichert. Postfix übernimmt die Einstellung in wenigen Sekunden.')).ok) {
     document.getElementById('direkt-sh-pw').value = '';
   }
 }
 
-async function port25Pruefen(btn) {
-  const box = document.getElementById('direkt-result');
+// Port 25 ausgehend testen, Ergebnis am Ort zeigen; true = offen.
+async function _port25Test(btn, box) {
   const r = await knopfAktion(btn, null, () => postJSON('/api/direkt/port25-test', {}));
   if (r && r.ok) {
     showAlert(box, 'success', 'Port 25 ausgehend offen — ' + esc(r.host) + ' antwortet: <code>' + esc(r.antwort) + '</code>');
-  } else {
-    showAlert(box, 'error', 'Port 25 ausgehend gesperrt oder keine Gegenstelle erreichbar: ' + esc((r && r.error) || errText(r)));
+    return true;
   }
+  showAlert(box, 'error', 'Port 25 ausgehend gesperrt oder keine Gegenstelle erreichbar: ' + esc((r && r.error) || errText(r)));
+  return false;
+}
+
+function port25Pruefen(btn) {
+  return _port25Test(btn, document.getElementById('direkt-result'));
 }
 
 function zeichneDkim(liste) {
@@ -836,7 +846,7 @@ function routeLoeschen(domain, btn) {
   return _entfernenUndLaden(btn, '', '/api/relay/route', { domain: domain, ziel: '' });
 }
 
-// ── Hybrid-Koexistenz (on-prem-Connector) ────────────────────────────────────
+// ── Lokaler Exchange (Empfangsconnector) ─────────────────────────────────────
 function zeichneCoex(coex) {
   coex = coex || {};
   const gw = document.getElementById('coex-gw');
@@ -869,7 +879,7 @@ async function coexSpeichern(btn) {
   const r = await knopfAktion(btn, null, () => postJSON('/api/relay/coex',
       { gateway_name: gw, source_ip: ip, servers: srv }));
   if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
-  showAlert(box, 'success', 'Gespeichert. Skript unten kopieren und on-prem ausführen.');
+  showAlert(box, 'success', 'Gespeichert. Skript unten kopieren und in der Exchange Management Shell ausführen.');
   _coexSkripteZeigen(r.coex);
 }
 

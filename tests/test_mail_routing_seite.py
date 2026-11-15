@@ -27,7 +27,7 @@ def test_routing_karten_sind_nie_ausgeblendet():
     text = (VORLAGEN / "settings_routing.html").read_text("utf-8")
     koepfe = _karten_koepfe(text)
     assert [k.split(" (")[0].strip() for k, _ in koepfe] == [
-        "Domänen-Routing", "Direktversand", "Hybrid-Koexistenz"]
+        "Zielserver", "Regeln", "Selbst zustellen", "Lokaler Exchange", "Verlauf"]
     for name, div in koepfe:
         assert "display:none" not in div and "{%" not in div, (name, div)
     assert "DOMAIN_ROUTING_ENABLED" not in text and "COEX_ENABLED" not in text

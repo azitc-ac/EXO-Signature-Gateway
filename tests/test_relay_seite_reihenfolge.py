@@ -27,5 +27,5 @@ def test_erweiterungen_stehen_hinter_den_kernkarten():
 
 def test_routing_karten_stehen_unter_einstellungen():
     """Die Einrichtung des Routings ist eine Einstellung, keine Relay-Funktion."""
-    assert _karten("settings_routing.html") == ["Domänen-Routing", "Direktversand",
-                                                "Hybrid-Koexistenz"]
+    assert _karten("settings_routing.html") == ["Zielserver", "Regeln", "Selbst zustellen",
+                                                "Lokaler Exchange", "Verlauf"]
