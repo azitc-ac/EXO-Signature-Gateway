@@ -869,7 +869,7 @@ async function verfassen(art, entwurf) {
     + (art === 'weiterleiten' ? '<div class="leise">Die Nachricht wird als Anhang weitergeleitet.</div>' : '')
     + '<div class="zeile"><label for="vf-dateien">Anhänge</label><input id="vf-dateien" type="file" multiple></div>'
     + '<div class="aktionen"><button class="haupt" id="vf-senden" type="submit">Senden</button>'
-    + '<button type="button" onclick="verwerfen()">Verwerfen</button>'
+    + '<button type="button" onclick="verwerfen(this)">Verwerfen</button>'
     + '<span class="leise" id="vf-entwurf">' + (entwurf ? 'Entwurf vom ' + esc(datumKurz(entwurf.ts)) : '') + '</span></div>'
     + '<div class="leise">Entwürfe sichern sich von selbst (ohne Anhänge).</div>'
     + '<div class="meldung" id="vf-meldung" hidden></div></form>';
@@ -894,12 +894,16 @@ async function absenden(ev) {
   const art = document.getElementById('lesen').dataset.art || '';
   const dateien = [...document.getElementById('vf-dateien').files];
   const meldung = document.getElementById('vf-meldung');
-  await entwurfFertig();
-  const d = await knopfAktion('vf-senden', 'Sende…', async () => postJSON('/notfall/api/senden', {
+  // Das Abwarten eines laufenden Sicherns gehört in den Knopf: gesperrt, „Sende…“
+  // (Klicktest: sonst sah man Sekunden lang nichts und klickte womöglich nochmal).
+  const d = await knopfAktion('vf-senden', 'Sende…', async () => {
+    await entwurfFertig();                    // erst danach steht die Kennung des Entwurfs fest
+    return postJSON('/notfall/api/senden', {
     postfach: document.getElementById('vf-von').value, an: feldWert('vf-an'), cc: feldWert('vf-cc'),
     bcc: feldWert('vf-bcc'), betreff: feldWert('vf-betreff'), text: document.getElementById('vf-text').value,
     anhaenge: await Promise.all(dateien.map(dateiLesen)), bezug: art ? nb.entwurf.bezug : '', art: art || 'neu',
-    entwurf: nb.entwurf.id}));
+    entwurf: nb.entwurf.id});
+  });
   if (!d.ok) { meldung.textContent = errText(d); meldung.hidden = false; return; }
   clearTimeout(nb.entwurf.takt);
   nb.entwurf = {id: '', takt: null};
@@ -944,10 +948,13 @@ async function entwurfSichernJetzt() {
                                 : 'Entwurf nicht gesichert: ' + errText(d);
 }
 
-async function verwerfen() {
+async function verwerfen(knopf) {
   if (!confirm('Entwurf verwerfen?')) return;
-  await entwurfFertig();
-  if (nb.entwurf.id) await postJSON('/notfall/api/entwurf/loeschen', {id: nb.entwurf.id});
+  await knopfAktion(knopf, 'Verwerfe…', async () => {
+    await entwurfFertig();
+    if (nb.entwurf.id) await postJSON('/notfall/api/entwurf/loeschen', {id: nb.entwurf.id});
+    return {ok: true};
+  });
   nb.entwurf = {id: '', takt: null};
   document.getElementById('lesen').innerHTML = '<p class="leise" style="padding:18px">Verworfen.</p>';
   ansicht('liste');
