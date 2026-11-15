@@ -291,6 +291,9 @@ async function faktorBeginnen() {
   // Das SVG erzeugt das Gateway selbst (segno) aus dem eigenen otpauth-Text.
   document.getElementById('ein-qr-bild').innerHTML = d.qr_svg;
   document.getElementById('ein-geheimnis').textContent = d.geheimnis.replace(/(.{4})/g, '$1 ').trim();
+  // Stand samt Knopf ausblenden: ein zweiter Klick erzeugte still einen neuen
+  // Schlüssel, und der schon gescannte passte nicht mehr (Klicktest).
+  document.getElementById('ein-stand').hidden = true;
   document.getElementById('ein-qr').hidden = false;
   document.getElementById('ein-code').focus();
 }
