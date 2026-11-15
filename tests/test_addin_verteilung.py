@@ -24,7 +24,8 @@ import settings_store
 VERF = "ac34fa25-4495-575e-ba00-cfd17ccaceb7"
 KNOPF = "11111111-2222-3333-4444-555555555555"
 SOLL = "1.11.57"
-T0 = datetime(2026, 11, 15, 12, 0, tzinfo=timezone.utc)
+# Relativ zu jetzt (test_keine_zeitbomben); Sekundengenau wie der gespeicherte ISO-Wert.
+T0 = datetime.now(timezone.utc).replace(microsecond=0)
 
 
 @pytest.fixture

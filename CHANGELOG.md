@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.37 — 2026-11-15 — Test der Add-in-Verteilung ohne festen Zeitpunkt
+
+Der Test zur Verteilung neuer Add-in-Fassungen (v1.12.36) rechnete mit einem
+fest eingetragenen Datum. Er rechnet jetzt relativ zur aktuellen Zeit, wie es
+die Prüfung auf fest verdrahtete Zeitpunkte verlangt.
+
+**Zu tun:** nichts.
+
 ## v1.12.36 — 2026-11-15 — Neue Add-in-Fassung: „wird verteilt“ statt Aufforderung zum Aktualisieren
 
 Stand ein Postfach noch auf einer älteren Fassung des Verfassen-Add-ins,
