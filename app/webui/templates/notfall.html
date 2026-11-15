@@ -71,7 +71,7 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 #ordner .eintrag[aria-current="true"], #liste .eintrag[aria-current="true"] { background: var(--wahl); }
 /* Tastatur: sichtbarer Fokus auf allen bedienbaren Elementen. */
 [role="button"]:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
-textarea:focus-visible { outline: 2px solid var(--akzent); outline-offset: 1px; }
+textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); outline-offset: 1px; }
 #ordner .zahl { float: right; color: var(--leise); font-size: 12px; }
 /* Je Postfach eine Kopfzeile; das geöffnete zeigt darunter seine Ordner. Die
    Auswahlliste oben braucht es nur auf dem Handy (Spalte ausgeblendet). */
@@ -462,6 +462,8 @@ async function passkeyEntfernen(knopf, id) {
   const d = await knopfAktion(knopf, 'Entferne…', () => postJSON('/notfall/api/faktor/passkey/entfernen', {id: id}));
   if (!d.ok) { einMeldung(errText(d)); return; }
   await einrichtenStart();
+  const ok = document.getElementById('ein-ok');
+  ok.textContent = 'Passkey entfernt.'; ok.hidden = false;
 }
 
 async function faktorBeginnen() {
@@ -892,6 +894,7 @@ async function absenden(ev) {
   const art = document.getElementById('lesen').dataset.art || '';
   const dateien = [...document.getElementById('vf-dateien').files];
   const meldung = document.getElementById('vf-meldung');
+  await entwurfFertig();
   const d = await knopfAktion('vf-senden', 'Sende…', async () => postJSON('/notfall/api/senden', {
     postfach: document.getElementById('vf-von').value, an: feldWert('vf-an'), cc: feldWert('vf-cc'),
     bcc: feldWert('vf-bcc'), betreff: feldWert('vf-betreff'), text: document.getElementById('vf-text').value,
@@ -914,7 +917,20 @@ function entwurfMerken() {
   nb.entwurf.takt = setTimeout(entwurfSichern, 1500);
 }
 
-async function entwurfSichern() {
+// Ein laufendes Sichern merken: Senden und Verwerfen warten es ab. Sonst kannte
+// das Senden die Kennung eines gerade erst angelegten Entwurfs noch nicht, und
+// das Sichern legte ihn danach trotzdem an (Klicktest: Entwurf blieb stehen).
+function entwurfSichern() {
+  nb.entwurf.laeuft = entwurfSichernJetzt().finally(() => { nb.entwurf.laeuft = null; });
+  return nb.entwurf.laeuft;
+}
+
+async function entwurfFertig() {
+  clearTimeout(nb.entwurf.takt);
+  if (nb.entwurf.laeuft) await nb.entwurf.laeuft;
+}
+
+async function entwurfSichernJetzt() {
   if (!document.getElementById('verfassen')) return;
   const art = document.getElementById('lesen').dataset.art || '';
   const d = await postJSON('/notfall/api/entwurf', {
@@ -930,7 +946,7 @@ async function entwurfSichern() {
 
 async function verwerfen() {
   if (!confirm('Entwurf verwerfen?')) return;
-  clearTimeout(nb.entwurf.takt);
+  await entwurfFertig();
   if (nb.entwurf.id) await postJSON('/notfall/api/entwurf/loeschen', {id: nb.entwurf.id});
   nb.entwurf = {id: '', takt: null};
   document.getElementById('lesen').innerHTML = '<p class="leise" style="padding:18px">Verworfen.</p>';

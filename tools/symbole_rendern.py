@@ -62,10 +62,13 @@ def _ico(bilder: dict[int, bytes]) -> bytes:
     return kopf + eintraege + daten
 
 
-# Maskable: Das Zeichen (quadratisch) muss ganz im Kreis mit Radius 0,4·n
-# liegen — halbe Diagonale ≤ 0,4·n ⇒ Kantenlänge ≤ 0,566·n. Rand 22 % je
-# Seite lässt 56 %.
-MASKABLE_RAND = 0.22
+# Maskable: Das Motiv muss ganz im Kreis mit Radius 0,4·n liegen. Gemessen am
+# gerenderten Bild (15.11.): Das Zeichen füllt seinen Kasten nur zu ~93 % in
+# der Breite und ist breiter als hoch (~265 × 225 bei 286er Kasten) — die
+# halbe Diagonale des Motivs ist damit ~0,6 der Kastenbreite, nicht 0,707.
+# Rand 17 % (Kasten 338 px) hält sie bei ~204 ≤ 205 px. Mit 22 % war das
+# Motiv sichtbar klein (Klicktest: „etwa 50 % Durchmesser“).
+MASKABLE_RAND = 0.17
 
 
 def _pwa(seite, b64: str) -> None:

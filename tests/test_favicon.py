@@ -120,3 +120,58 @@ def test_login_logo_ist_entwurf_d():
     assert len(ids) == len(set(ids))
     for ref in re.findall(r"url\(#([^)]+)\)", login):
         assert ref in ids, ref
+
+
+# ── Homescreen-App: maskable Symbol (Android) ───────────────────────────────
+
+def _png_pixel(daten: bytes) -> tuple[int, int, int, list[bytes]]:
+    """Minimaler PNG-Dekoder (8 Bit, RGB/RGBA, ohne Interlace) — genug für die
+    Bilder, die tools/symbole_rendern.py mit Chromium erzeugt."""
+    import zlib
+    assert daten[:8] == b"\x89PNG\r\n\x1a\n"
+    pos, idat, breite = 8, b"", 0
+    while pos < len(daten):
+        laenge = struct.unpack(">I", daten[pos:pos + 4])[0]
+        art, inhalt = daten[pos + 4:pos + 8], daten[pos + 8:pos + 8 + laenge]
+        if art == b"IHDR":
+            breite, hoehe, tiefe, farbe, _, _, interlace = struct.unpack(">IIBBBBB", inhalt)
+            assert tiefe == 8 and farbe in (2, 6) and interlace == 0
+            bpp = 3 if farbe == 2 else 4
+        elif art == b"IDAT":
+            idat += inhalt
+        pos += 12 + laenge
+    roh, zeilen, vorher = zlib.decompress(idat), [], bytearray(breite * bpp)
+    for y in range(hoehe):
+        f, z = roh[y * (breite * bpp + 1)], bytearray(roh[y * (breite * bpp + 1) + 1:(y + 1) * (breite * bpp + 1)])
+        for i in range(len(z)):
+            a = z[i - bpp] if i >= bpp else 0
+            b, c = vorher[i], (vorher[i - bpp] if i >= bpp else 0)
+            if f == 1:
+                z[i] = (z[i] + a) & 255
+            elif f == 2:
+                z[i] = (z[i] + b) & 255
+            elif f == 3:
+                z[i] = (z[i] + (a + b) // 2) & 255
+            elif f == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                z[i] = (z[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        zeilen.append(bytes(z))
+        vorher = z
+    return breite, hoehe, bpp, zeilen
+
+
+def test_maskable_symbol_bleibt_in_der_sicheren_zone_und_fuellt_sie():
+    """web.dev „maskable icon“: Alles Wichtige im Kreis mit Radius 40 % der
+    Breite. Gemessen am Bild: kein nicht-weißes Pixel außerhalb — und das
+    Motiv nutzt den Kreis auch (Klicktest 15.11.: bei 22 % Rand wirkte es klein)."""
+    breite, hoehe, bpp, zeilen = _png_pixel((STATIC / "symbol" / "maskable-512.png").read_bytes())
+    assert (breite, hoehe) == (512, 512)
+    mitte, radius, weitester = 255.5, 0.4 * 512, 0.0
+    for y, z in enumerate(zeilen):
+        for x in range(breite):
+            px = z[x * bpp:x * bpp + 3]
+            if min(px) < 235:                                       # nicht (fast) weiß
+                weitester = max(weitester, ((x - mitte) ** 2 + (y - mitte) ** 2) ** 0.5)
+    assert weitester <= radius + 1, f"Motiv reicht bis {weitester:.0f} px, erlaubt {radius:.0f}"
+    assert weitester >= 0.85 * radius, f"Motiv nur bis {weitester:.0f} px — füllt den sicheren Kreis kaum"
