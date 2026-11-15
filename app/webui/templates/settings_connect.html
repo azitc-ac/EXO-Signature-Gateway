@@ -1962,8 +1962,10 @@ async function legalLoadStatus() {
       const hint = (pending && doc.wann)
         ? '<div class="hint" style="font-size:11px;margin-top:1px">wird ' + esc(doc.wann) + ' akzeptiert</div>'
         : '';
-      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0">'
-        + '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">' + esc(st.title || doc.label) + ' <span class="muted" style="font-weight:400">v' + (st.version||'1.0') + '</span></div>' + hint + '</div>'
+      // flex-wrap + Mindestbreite wie die Wächterzeile: auf dem Telefon rutschen
+      // Kennzeichen und Knöpfe unter den Titel (bis v1.12.19 drei Zeilen à 90 px).
+      return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0">'
+        + '<div style="flex:1 1 200px;min-width:0"><div style="font-size:13px;font-weight:500">' + esc(st.title || doc.label) + ' <span class="muted" style="font-weight:400">v' + (st.version||'1.0') + '</span></div>' + hint + '</div>'
         + badge
         + '<button class="btn secondary btn-sm" onclick="legalViewDoc(\'' + escJsAttr(doc.id) + '\')">Lesen</button>'
         + '<button class="btn secondary btn-sm" onclick="legalPrintDoc(\'' + escJsAttr(doc.id) + '\')">PDF</button>'

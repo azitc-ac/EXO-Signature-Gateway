@@ -53,7 +53,7 @@
     <input type="text" id="liveFilter" placeholder="Live-Filter…"
         style="flex:1;min-width:140px;padding:5px 10px;font-size:13px;border:1px solid #ccc;border-radius:6px"
         oninput="applyFilter()">
-    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap">
+    <div style="display:flex;gap:6px;align-items:center;min-width:0;flex-wrap:wrap">
         <button id="btnKopieren" class="btn secondary btn-sm" onclick="kopiereProtokoll(this, pre)">Kopieren</button>
         <button class="btn secondary btn-sm" onclick="clearLog()">Leeren</button>
         <button id="btnScroll"   class="btn-toggle active" onclick="toggleScroll()">autoscroll ✓</button>

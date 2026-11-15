@@ -5,6 +5,40 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.23 — 2026-11-15 — Telefonbreite: alle Seiten werden gemessen statt fotografiert
+
+Ein neuer Browsertest (`tests/test_mobil_alle_seiten.py`, im CI-Browserjob)
+ruft jede Seite der Oberfläche bei 320 und 393 px auf. Die Seitenliste kommt
+aus der Routenübersicht, eine neue Seite wird also automatisch mitgeprüft.
+Listen, die per JavaScript entstehen (Bypass-Wächter, Relay-Geräte,
+Mail-Routing, Postfächer, Warteschlange), werden dafür mit Beispieldaten
+gefüllt. Leer konnten sie nie umbrechen. Geprüft wird je Seite:
+
+- **Nichts ragt rechts aus dem Fenster**, außer in einem eigenen Rollbereich.
+  Weil der Hauptbereich zu Breites abschneidet, statt die Seite rollen zu
+  lassen, misst der Test jedes Element einzeln. Ein abgeschnittener Knopf
+  wäre auf dem Telefon sonst unerreichbar, ohne dass es auffällt.
+- **Kein Text wird von Knöpfen daneben zusammengequetscht** (schmaler als
+  120 px und auf drei oder mehr Zeilen umgebrochen).
+
+`tools/mobilecheck.py` entfällt. Es fotografierte die Seiten nur, beurteilte
+nichts und lief nirgends automatisch.
+
+Behoben, was der Test im Bestand fand:
+
+- **Live-Protokoll:** Die Knöpfe „verbose“, „logging“ und die Verbindungsanzeige
+  ragten bei 320 px aus dem Bild.
+- **Postfächer** (Links zu Datenschutz und Nutzungsbedingungen) und **Relay**
+  (Kommentarfeld beim Hinzufügen eines Geräts): Eingabefelder mit fester
+  Mindestbreite von 320 px.
+- **Vorschau:** Die Umschalter HTML / Plaintext / Quelltext brachen nicht um.
+- **Anbindung & Lizenzen:** In der Liste der Rechtsdokumente stand der Titel
+  in drei Zeilen à 90 px neben „Lesen“ und „PDF“.
+- **Erweitert** (Kopf der Warteschlange) und **Debug** (Schritt D): Titel und
+  Knöpfe brechen jetzt um.
+
+**Zu tun:** nichts.
+
 ## v1.12.22 — 2026-11-15 — Band „Transportregel ohne Absender-Gate“
 
 Die Signatur-Transportregel greift nur für Absender aus der Verteilerliste

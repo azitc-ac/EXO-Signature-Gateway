@@ -205,7 +205,7 @@ jobs:
       - name: Browser-Tests
         env:
           BROWSER_PFLICHT: "1"
-        run: pytest tests/test_ui_browser.py -v -rs
+        run: pytest tests/test_ui_browser.py tests/test_mobil_alle_seiten.py -v -rs
 
   build:
     name: Container baut
