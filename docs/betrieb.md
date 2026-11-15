@@ -121,8 +121,8 @@ Graph als Hauptweg, ergänzt um zwei Lückenfüller:
 
 Standardmäßig geht alle bearbeitete Post an den einen EXO-Smarthost. Im
 `smtp`-Modus lässt sich je **Empfängerdomäne** ein abweichender Zielserver
-wählen — etwa ein lokaler Exchange im Hybrid-Betrieb. Auf der Relay-Seite unter
-*Domänen-Routing*: **Weiterleitungsziele** (Host, Port, STARTTLS, optionaler
+wählen — etwa ein lokaler Exchange im Hybrid-Betrieb. Unter *Einstellungen →
+Mail-Routing*, Karte *Domänen-Routing*: **Weiterleitungsziele** (Host, Port, STARTTLS, optionaler
 Login samt Passwort) anlegen und einzelnen Domänen zuordnen. Ohne Zuordnung
 bleibt Exchange Online das Ziel.
 
@@ -159,7 +159,7 @@ bleibt Exchange Online das Ziel.
 >   AD-Eingriffe; siehe Forschungsnotiz. Der IP-Weg ist die stabile Basis.
 >
 > Das ist eine on-prem-Anpassung, keine Gateway-Einstellung — das dafür nötige
-> PowerShell (Aufbau **und** Abriss) erzeugt die Relay-Seite unter
+> PowerShell (Aufbau **und** Abriss) erzeugt *Einstellungen → Mail-Routing* unter
 > *Hybrid-Koexistenz*: Gateway-Name, Quell-IP und optional die Server eintragen,
 > das Skript kopieren und in der Exchange Management Shell ausführen. Der
 > Connector heißt `Inbound from <Gateway> (Coexistence)`; die Parameter werden
@@ -175,19 +175,18 @@ Netz mit der eigenen IP, und Exchange Online ist nicht beteiligt.
 
 Einrichten:
 
-1. *Einstellungen → Erweitert*: Domänen-Routing einschalten.
-2. *Relay → Direktversand*: *Port 25 prüfen*. Der Test verbindet sich mit dem
+1. *Einstellungen → Mail-Routing → Direktversand*: *Port 25 prüfen*. Der Test verbindet sich mit dem
    MX großer Anbieter, ohne eine Mail zu senden. Per MX lässt sich der
    Direktversand nur nach bestandenem Test einschalten. In Azure bleibt nur
    die Betriebsart Smarthost.
-3. Je Absenderdomäne unter *DKIM-Schlüssel* einen Schlüssel erzeugen und den
+2. Je Absenderdomäne unter *DKIM-Schlüssel* einen Schlüssel erzeugen und den
    angezeigten TXT-Eintrag ins DNS setzen.
-4. *DNS prüfen*: Die Prüfung wertet SPF wie ein Empfänger aus (pyspf,
+3. *DNS prüfen*: Die Prüfung wertet SPF wie ein Empfänger aus (pyspf,
    RFC 7208) und zeigt den DKIM-Eintrag, PTR und HELO-Namen sowie die
    DMARC-Richtlinie. Fehlt etwas, nennt sie den passenden Eintrag. Ein eigener
    PTR für die Ausgangsadresse, der zum HELO-Namen passt, verbessert die
    Zustellbarkeit deutlich.
-5. *Domänen-Routing*: die Route *Externe Empfänger* (oder einzelne Domänen)
+4. *Domänen-Routing* (dieselbe Seite): die Route *Externe Empfänger* (oder einzelne Domänen)
    auf `direkt` stellen.
 
 - Solange der Direktversand aus ist, weist Postfix alles ab. Der Container

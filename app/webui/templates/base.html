@@ -50,7 +50,7 @@
                 {% if smtp_relay_aktiv() %}
                 <li><a href="/relay" class="{% if active == 'relay' %}active{% endif %}">SMTP-Relay</a></li>
                 {% endif %}
-                <li><a href="/settings" class="{% if active in ('settings', 'settings-signature', 'settings-smime', 'settings-connect', 'setup', 'advanced', 'debug', 'backup') %}active{% endif %}">Einstellungen</a></li>
+                <li><a href="/settings" class="{% if active in ('settings', 'settings-signature', 'settings-smime', 'settings-connect', 'settings-routing', 'setup', 'advanced', 'debug', 'backup') %}active{% endif %}">Einstellungen</a></li>
                 <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Protokolle</a></li>
                 {% endif %}
             </ul>
@@ -440,6 +440,15 @@
       // für alle Abfrageschleifen (bis v1.10.85 drei verschiedene).
       function warten(ms) {
         return new Promise(function (fertig) { setTimeout(fertig, ms); });
+      }
+      // Datenmenge lesbar: „512 B“, „1,5 KB“, „3,2 MB“, „1,25 GB“ (Komma, Dezimal-
+      // stellen wie im Relay-Protokoll). Relay- und Mail-Routing-Seite teilen ihn.
+      function volumenText(bytes) {
+        var b = bytes || 0;
+        if (b < 1024) return b + ' B';
+        if (b < 1048576) return (b / 1024).toFixed(1).replace('.', ',') + ' KB';
+        if (b < 1073741824) return (b / 1048576).toFixed(1).replace('.', ',') + ' MB';
+        return (b / 1073741824).toFixed(2).replace('.', ',') + ' GB';
       }
       function copyBtnHtml(value) {
         var v = escAttr(value);

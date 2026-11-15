@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.18 — 2026-11-15 — Neuer Einstellungsreiter „Mail-Routing“
+
+Domänen-Routing, Direktversand und Hybrid-Koexistenz richtest du jetzt unter
+**Einstellungen → Mail-Routing** ein. Bisher standen sie als Karten auf der Seite
+*SMTP-Relay*. Die erscheint nur bei eingeschaltetem Relay, und die Karten nur mit
+dem Anzeige-Schalter „Domänen-Routing“ bzw. „Hybrid-Koexistenz“ unter
+*Einstellungen → Erweitert*. Wer den Direktversand ohne Relay nutzen wollte,
+kam an die Einrichtung nicht heran.
+
+- **Funktion und Einrichtung getrennt:** Das Hauptmenü *SMTP-Relay* zeigt den
+  Betrieb (Statistik, Lernmodus, Geräte, Abgewiesene, Protokoll,
+  Sende-Identitäten) und eine Zeile zum Stand des Routings mit dem Knopf
+  *Einrichten*. Die Einrichtung liegt im neuen Reiter, unabhängig davon, ob das
+  Relay aktiv ist.
+- **Anzeige-Schalter entfallen:** Die beiden Schalter unter *Erweitert* haben
+  nur Karten ein- und ausgeblendet, am Mailfluss änderten sie nichts. Mit dem
+  eigenen Reiter sind sie überflüssig. Die gespeicherten Werte
+  (`DOMAIN_ROUTING_ENABLED`, `COEX_ENABLED`) werden beim Start entfernt.
+- Die Aufgabe „TLS am Rückweg“ verweist auf die Weiterleitungsziele im neuen
+  Reiter.
+- Schnittstellen und gespeicherte Routing-Daten sind unverändert.
+
+**Zu tun:** nichts. Deine Ziele, Routen, DKIM-Schlüssel und die
+Koexistenz-Parameter findest du unter *Einstellungen → Mail-Routing*.
+
 ## v1.12.17 — 2026-11-15 — Nur-Text-Mails: „Gesendete Elemente“ bleibt Nur-Text, Signatur im Protokoll
 
 **Gesendete Elemente.** Ist „Gesendete Elemente aktualisieren“ eingeschaltet,

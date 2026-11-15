@@ -30,6 +30,7 @@ SEITEN = {
     "settings_signature.html": "signatur",
     "settings_smime.html": "smime",
     "settings_connect.html": "anbindung",
+    "settings_routing.html": "routing",
     "backup.html": "backup",
     "advanced.html": "erweitert",
     "setup.html": "einrichtung",

@@ -262,12 +262,6 @@ DEFAULTS: dict = {
     # Erzeugen des Auf-/Abbau-Skripts (coexistence.py) — das Gateway führt on-prem
     # nichts aus. {"gateway_name","source_ip","servers":[...]}
     "COEX_CONFIG": {},
-    # Reine ANZEIGE-Schalter (Einstellungen → Erweitert): blenden die jeweilige
-    # Karte auf der SMTP-Relay-Seite ein/aus, damit die Seite für Nicht-Nutzer
-    # nicht überladen wirkt. Das Routing selbst wirkt ohnehin nur mit
-    # konfigurierten Zielen; Koexistenz hängt am Routing (aus, wenn Routing aus).
-    "DOMAIN_ROUTING_ENABLED": False,
-    "COEX_ENABLED": False,
     # ── SMTP-Übermittlung (Port 587) ─────────────────────────────────────────
     # ⚠️ Diese Werte tragen ZWEI verschiedene Wege (siehe smtp_submit.py):
     #   1. ausgehende Post, die Exchange in Teilnachrichten aufgeteilt hat —
@@ -483,6 +477,8 @@ OBSOLETE_KEYS = {
     "SMTP_CLIENTZERT_BEOBACHTEN":  "Messschalter der Untersuchung vom 11.11.2026 — durch EXO_ERKENNUNG ersetzt (v1.11.24), das das Client-Zertifikat nur anfordert, wo die Adresse nicht reicht",
     "WEBUI_USERNAME":              "örtliche Anmeldung nur mit Kennwort (v1.10.77) — es gibt genau ein örtliches Konto",
     "STRIP_CLIENT_SIGS":           "in STRIP_CLIENT_SIGS_MOBILE (sicher, an) und _DESKTOP (experimentell, aus) aufgeteilt (v1.8.56); Migration v2→v3 übernimmt den Wert nach _DESKTOP",
+    "DOMAIN_ROUTING_ENABLED":      "blendete nur die Routing-Karten auf der Relay-Seite ein — seit v1.12.18 eigener Reiter Einstellungen → Mail-Routing, immer sichtbar",
+    "COEX_ENABLED":                "blendete nur die Karte Hybrid-Koexistenz ein — seit v1.12.18 immer sichtbar unter Einstellungen → Mail-Routing",
     "SMTP_ACL_EXTRA_CIDRS":        "Zusatzliste erlaubter Quellnetze — durch das SMTP-Relay ersetzt (v1.8.15), das Absender und Ziel mitprüft",
     "SMTP_RELAY_NETWORKS":         "Netz ist keine Freigabe mehr — die Geräteliste ist es (v1.8.4); Lernbereich: SMTP_RELAY_LERN_NETZE",
     "SMTP_RELAY_EXTERNAL":         "je Gerät statt global (v1.8.4); Vorgabe für neue Geräte: SMTP_RELAY_EXTERN_VORGABE",
