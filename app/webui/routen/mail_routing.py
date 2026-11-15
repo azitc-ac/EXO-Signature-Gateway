@@ -97,7 +97,9 @@ def _probe_antwort(st: dict) -> dict:
     import direktversand_probe
     ampel, text = direktversand_probe.bewertung(st)
     return {"ok": True, "ampel": ampel, "text": text, "stand": st,
-            "postfach": direktversand_probe.postfach(), "aktiv": direktversand.aktiv()}
+            "postfach": direktversand_probe.postfach(), "aktiv": direktversand.aktiv(),
+            # Externe Probe daneben, ohne Einfluss auf die Ampel oben.
+            "extern": direktversand_probe.extern_bewertung(st)}
 
 
 @router.get("/api/direkt/probe")

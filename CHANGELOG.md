@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.38 — 2026-11-15 — Direktversand-Probe auch an externe Empfänger (Empfehlung)
+
+Die tägliche Probe des Direktversands misst bisher nur, ob Post im eigenen
+Tenant ankommt. Große Anbieter beurteilen eine eigene Versand-IP aber auch nach
+ihrer Vorgeschichte und weisen bei zu viel Post vorübergehend ab (Gmail nennt
+dafür ausdrücklich 4.7.28 und rät neuen Absendern, mit wenig Post zu beginnen).
+
+Unter Einstellungen → Mail-Routing → Selbst zustellen → Tägliche Probe kannst du
+jetzt bis zu fünf externe Testpostfächer eintragen, etwa je eines bei Gmail und
+Outlook.com. Das Gateway schickt ihnen die tägliche Probe über denselben Weg und
+liest aus dem Zustellprotokoll seines Postfix-Containers, was der fremde Server
+geantwortet hat: zugestellt, verzögert oder abgelehnt, mit Antworttext. Das
+Ergebnis steht je Adresse auf der Karte und im Tagesbericht und ändert die
+Ampel der internen Probe nicht. „Zugestellt“ heißt nur, dass der Server des
+Anbieters die Post angenommen hat; ob sie im Posteingang oder im Junk liegt,
+sieht das Gateway nicht.
+
+Der Postfix-Container legt dafür das Ende seines Zustellprotokolls in
+`data/mta/postfix.tail` ab (Rechte 600, gehört dem Gateway). Er wird beim
+Update mit neu gebaut.
+
+**Zu tun:** nichts. Die externen Testpostfächer sind eine Empfehlung, keine Pflicht.
+
 ## v1.12.37 — 2026-11-15 — Test der Add-in-Verteilung ohne festen Zeitpunkt
 
 Der Test zur Verteilung neuer Add-in-Fassungen (v1.12.36) rechnete mit einem

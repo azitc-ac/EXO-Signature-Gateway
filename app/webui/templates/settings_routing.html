@@ -305,6 +305,28 @@
   </div>
   <div id="probe-stand" class="probe-ampel" data-ampel="" style="margin:6px 0 0">Wird geladen …</div>
 
+  <div class="settings-row" style="margin-top:12px">
+    <label for="probe-extern">Externe Probe-Empfänger</label>
+    <div class="settings-control">
+      <input type="text" id="probe-extern" value="{{ s.DIREKTVERSAND_PROBE_EXTERN or '' }}"
+             placeholder="test@gmail.com, test@outlook.com" autocomplete="off" style="width:min(420px,100%)">
+      <div style="margin-top:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn secondary" id="probe-extern-btn"
+                data-wache="probe-extern" data-wache-hinweis="probe-extern-result"
+                onclick="probeExternSpeichern()">Speichern</button>
+        <span id="probe-extern-result" style="font-size:12px"></span>
+      </div>
+      <span class="hint"><strong>Empfehlung, keine Pflicht:</strong> Lege je ein Testpostfach bei Gmail und
+        Outlook.com an und trage es hier ein (höchstens 5, durch Komma getrennt). Die interne Probe zeigt
+        nur, ob Post bei dir ankommt. Große Anbieter beurteilen eine Versand-IP auch nach ihrer Vorgeschichte;
+        Gmail etwa rät neuen Absendern, mit wenig Post zu beginnen, und weist bei zu viel vorübergehend ab.
+        Eine Probe dorthin zeigt, ob deine Post angenommen, verzögert oder abgelehnt wird.
+        „Zugestellt“ heißt nur, dass der Server des Anbieters sie angenommen hat — ob sie im Posteingang
+        oder im Junk liegt, sieht das Gateway nicht.</span>
+    </div>
+  </div>
+  <div id="probe-extern-stand"></div>
+
   <h3 style="font-size:14px;margin:20px 0 8px">DKIM-Schlüssel</h3>
   <p class="hint" style="margin:0 0 8px">
     Signiert wird mit der Domäne des <code>From:</code>-Kopfs. Den angezeigten
@@ -1048,6 +1070,26 @@ function probeZeigen(r) {
   const zeichen = { ok: '✓ ', warnung: '⚠ ', fehler: '✗ ' }[r.ampel] || '';
   const st = r.stand || {};
   el.textContent = zeichen + r.text + (st.ts ? ' · zuletzt gesendet ' + st.ts.replace('T', ' ').slice(0, 16) + ' UTC' : '');
+  // Externe Probe: je Adresse eine eigene Zeile, ohne Einfluss auf die Ampel oben.
+  document.getElementById('probe-extern-stand').innerHTML = (r.extern || []).map(e =>
+    '<div class="probe-ampel" data-ampel="' + escAttr(PROBE_AMPELN.includes(e.ampel) ? e.ampel : '') + '"'
+    + ' style="margin:4px 0 0">'
+    + ({ ok: '✓ ', warnung: '⚠ ', fehler: '✗ ' }[e.ampel] || '· ')
+    + esc(e.adresse) + ': ' + esc(e.text) + '</div>').join('');
+}
+
+const PROBE_ADRESSE = /^[^@\s,;<>]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+async function probeExternSpeichern() {
+  const teile = feldWert('probe-extern').split(/[\s,;]+/).map(a => a.trim().toLowerCase()).filter(Boolean);
+  const falsch = teile.filter(a => !PROBE_ADRESSE.test(a));
+  const box = 'probe-extern-result';
+  if (falsch.length) { showMsg(box, 'Keine gültige Adresse: ' + falsch.join(', '), false); return; }
+  if (teile.length > 5) { showMsg(box, 'Höchstens 5 Adressen.', false); return; }
+  wacheFertig('probe-extern-btn',
+              await savePartial({ DIREKTVERSAND_PROBE_EXTERN: [...new Set(teile)].join(', ') },
+                                box, 'routing:probe-extern'));
+  probeLaden();
 }
 
 async function probeLaden() {

@@ -62,6 +62,14 @@ status_schreiben() {
             warteschlange:$warteschlange, aufgeschoben:$aufgeschoben,
             letzte_fehler:$letzte_fehler}' > "$tmp" \
       && chown "$UID_GW:$UID_GW" "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$GW/status.json"
+    # Ende des Zustellprotokolls für die Direktversand-Probe: Das Gateway sucht
+    # darin per Message-ID, was die fremden Server zu seinen Probe-Mails sagten
+    # (direktversand_probe.zustellstatus). Mit dem jüngsten rotierten Protokoll,
+    # damit eine Probe kurz vor Mitternacht nicht verloren geht.
+    ttmp="$GW/.postfix.tail.tmp"
+    { ls -1t /var/log/postfix.log.* 2>/dev/null | head -n 1 | xargs -r tail -n 1000
+      tail -n 3000 "$LOG" 2>/dev/null; } > "$ttmp" \
+      && chown "$UID_GW:$UID_GW" "$ttmp" && chmod 600 "$ttmp" && mv "$ttmp" "$GW/postfix.tail"
 }
 
 anwenden
