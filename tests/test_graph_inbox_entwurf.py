@@ -92,3 +92,68 @@ def test_kein_wirkungsloser_patch(mitgeschnitten, weg):
     assert getattr(graph_reinject, weg)(
         "partner@example.org", ["empfaenger@firma.de"], MIME)
     assert not [a for a in mitgeschnitten if a[0] == "patch"]
+
+
+# ── Herkunft der Originalmail (Messmatrix 15.11.2026, Fall 5) ─────────────────
+# Ohne diese Felder vergab Exchange eine neue Message-ID, das Datum wurde die
+# Einlieferzeit und eine Antwort bekam eine eigene Unterhaltung.
+
+ANTWORT = (b"From: partner@example.org\r\n"
+           b"To: empfaenger@firma.de\r\n"
+           b"Subject: Re: Test\r\n"
+           b"Message-ID: <antwort-1@example.org>\r\n"
+           b"Date: Sun, 15 Nov 2026 18:00:00 +0100\r\n"
+           b"In-Reply-To: <start-1@firma.de>\r\n"
+           b"References: <start-0@firma.de>\r\n <start-1@firma.de>\r\n"
+           b"Content-Type: text/plain; charset=utf-8\r\n\r\n"
+           b"Inhalt\r\n")
+
+
+def _anlage(aufrufe):
+    posts = [a for a in aufrufe if a[0] == "post"]
+    assert len(posts) == 1
+    return posts[0][2]
+
+
+def _props(nutzlast):
+    return {p["id"]: p["value"] for p in nutzlast["singleValueExtendedProperties"]}
+
+
+def test_herkunft_geht_beim_anlegen_mit(mitgeschnitten):
+    assert graph_reinject.deliver_to_mailbox(
+        "partner@example.org", ["empfaenger@firma.de"], ANTWORT)
+    n = _anlage(mitgeschnitten)
+    assert n["internetMessageId"] == "<antwort-1@example.org>"
+    p = _props(n)
+    assert p["Integer 0x0E07"] == "0"                       # bleibt: kein Entwurf
+    assert p["SystemTime 0x0039"] == "2026-11-15T17:00:00Z"  # Date-Kopf in UTC
+    assert p["SystemTime 0x0E06"].endswith("Z")
+    assert p["String 0x1042"] == "<start-1@firma.de>"
+    assert p["String 0x1039"] == "<start-0@firma.de> <start-1@firma.de>"
+    # Nichts davon in einem späteren PATCH — der wirkt auf empfangene Post nicht.
+    assert not [a for a in mitgeschnitten if a[0] == "patch"]
+
+
+def test_ohne_bezug_keine_leeren_felder(mitgeschnitten):
+    graph_reinject.deliver_to_mailbox("partner@example.org", ["empfaenger@firma.de"], MIME)
+    n = _anlage(mitgeschnitten)
+    assert "internetMessageId" not in n            # MIME hat keine Message-ID
+    p = _props(n)
+    assert "String 0x1042" not in p and "String 0x1039" not in p
+    assert p["SystemTime 0x0039"] == p["SystemTime 0x0E06"]   # Rückfall: jetzt
+
+
+@pytest.mark.parametrize("datum", ["kein Datum", "Mon, 99 Foo 2026 25:61:00 +0100", ""])
+def test_kaputter_date_kopf_faellt_auf_jetzt_zurueck(mitgeschnitten, datum):
+    roh = ANTWORT.replace(b"Sun, 15 Nov 2026 18:00:00 +0100", datum.encode())
+    assert graph_reinject.deliver_to_mailbox(
+        "partner@example.org", ["empfaenger@firma.de"], roh)
+    p = _props(_anlage(mitgeschnitten))
+    assert p["SystemTime 0x0039"] == p["SystemTime 0x0E06"]
+
+
+@pytest.mark.parametrize("mid", ["ohne-klammern@example.org", "<kein-at>", "<a@b> <c@d>"])
+def test_ungueltige_message_id_geht_nicht_mit(mitgeschnitten, mid):
+    roh = ANTWORT.replace(b"<antwort-1@example.org>", mid.encode())
+    graph_reinject.deliver_to_mailbox("partner@example.org", ["empfaenger@firma.de"], roh)
+    assert "internetMessageId" not in _anlage(mitgeschnitten)

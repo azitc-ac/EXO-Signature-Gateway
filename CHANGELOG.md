@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.32 — 2026-11-15 — Graph-Rückfall in den Posteingang behält Message-ID, Sendezeit und Unterhaltung
+
+Scheitern die anderen Zustellwege, legt das Gateway eingehende Post per Graph
+als nachgebaute Nachricht direkt in den Posteingang. Dabei vergab Exchange
+bisher eine neue Message-ID, als Sendezeit erschien die Einlieferzeit, und eine
+Antwort landete in einer eigenen Unterhaltung statt beim Vorgänger. Jetzt
+übergibt das Gateway beim Anlegen die Message-ID, die Sendezeit aus dem
+Date-Kopf sowie In-Reply-To und References der Originalmail. Fehlt ein Wert oder
+ist er ungültig, wird er weggelassen; ein unlesbarer Date-Kopf fällt auf die
+Einlieferzeit zurück.
+
+**Zu tun:** nichts.
+
 ## v1.12.31 — 2026-11-15 — Tägliche Probe des Direktversands
 
 „Selbst zustellen eingerichtet“ hiess bisher nicht „kommt an“. Ob Postfix, DKIM,
