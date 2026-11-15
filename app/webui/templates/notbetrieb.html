@@ -263,14 +263,14 @@
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="nb-imap" {% if imap %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbImap(this)"> Lesen per IMAP einschalten
+             onchange="nbSchalter(this, {NOTBETRIEB_IMAP: this.checked}, 'nb-imap-msg')"> Lesen per IMAP einschalten
     </label>
   </div>
   <div class="msg" id="nb-imap-msg" hidden></div>
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="nb-smtp" {% if smtp %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbSmtp(this)"> Senden per SMTP einschalten
+             onchange="nbSchalter(this, {NOTBETRIEB_SMTP: this.checked}, 'nb-smtp-msg')"> Senden per SMTP einschalten
     </label>
   </div>
   <div class="msg" id="nb-smtp-msg" hidden></div>
@@ -323,14 +323,14 @@
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="nb-zweitfaktor" {% if zweitfaktor.pflicht %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbZweitfaktor(this)"> Zweiter Faktor Pflicht
+             onchange="nbSchalter(this, {NOTBETRIEB_ZWEITFAKTOR: this.checked}, 'nb-zweitfaktor-msg')"> Zweiter Faktor Pflicht
     </label>
   </div>
   <div class="msg" id="nb-zweitfaktor-msg" hidden></div>
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="nb-zf-notfall" {% if zweitfaktor.notfall_ohne %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbZfNotfallOhne(this)"> Im ausgerufenen Notfall auch ohne eingerichteten Faktor
+             onchange="nbSchalter(this, {NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE: this.checked}, 'nb-zf-notfall-msg')"> Im ausgerufenen Notfall auch ohne eingerichteten Faktor
     </label>
     <span class="hint">Mehr erreichen dann, aber nur mit Kennwort</span>
   </div>
@@ -546,18 +546,18 @@ async function nbRechte() {
 }
 
 // ── Zweiter Faktor ──────────────────────────────────────────────────────────
-// Reine Schalter → speichern sofort (Speichern-Linie Regel 4).
-async function nbZweitfaktor(el) {
-  if (!await savePartial({NOTBETRIEB_ZWEITFAKTOR: el.checked}, 'nb-zweitfaktor-msg')) el.checked = !el.checked;
+// Tabelle laden: Fehler- bzw. Leerzeile über tabelleHinweis; sonst die Antwort.
+async function nbTabelleLaden(tb, url, spalten, leer) {
+  const d = await getJSON(url);
+  if (!d.ok) { tabelleHinweis(tb, spalten, 'Nicht lesbar: ' + esc(errText(d)), true); return null; }
+  if (!d.items.length) { tabelleHinweis(tb, spalten, leer); return null; }
+  return d;
 }
-async function nbZfNotfallOhne(el) {
-  if (!await savePartial({NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE: el.checked}, 'nb-zf-notfall-msg')) el.checked = !el.checked;
-}
+
 async function nbFaktoren() {
   const tb = document.getElementById('nb-faktor-tbody');
-  const d = await getJSON('/api/notbetrieb/faktoren');
-  if (!d.ok) { tabelleHinweis(tb, 5, 'Nicht lesbar: ' + esc(errText(d)), true); return; }
-  if (!d.items.length) { tabelleHinweis(tb, 5, 'Noch niemand hat einen zweiten Faktor eingerichtet.'); return; }
+  const d = await nbTabelleLaden(tb, '/api/notbetrieb/faktoren', 5, 'Noch niemand hat einen zweiten Faktor eingerichtet.');
+  if (!d) return;
   tb.innerHTML = d.items.map(f => '<tr><td>' + esc(f.postfach) + '</td><td>'
     + esc(new Date(f.seit).toLocaleDateString('de-DE')) + '</td><td>' + esc(String(f.codes_uebrig)) + '</td><td>'
     + (f.gesperrt ? 'gesperrt (Fehlversuche)' : 'aktiv') + '</td><td><button class="btn danger btn-sm" '
@@ -595,12 +595,10 @@ async function nbProbeSpeichern() {
   wacheFertig('nb-probe-btn', await savePartial({NOTBETRIEB_PROBEGRUPPE: liste}, 'nb-probe-result'));
 }
 
-// Reiner Schalter → speichert sofort (Speichern-Linie Regel 4).
-async function nbImap(el) {
-  if (!await savePartial({NOTBETRIEB_IMAP: el.checked}, 'nb-imap-msg')) el.checked = !el.checked;
-}
-async function nbSmtp(el) {
-  if (!await savePartial({NOTBETRIEB_SMTP: el.checked}, 'nb-smtp-msg')) el.checked = !el.checked;
+// Reine Schalter → speichern sofort (Speichern-Linie Regel 4). Der Schlüssel
+// steht wörtlich im onchange (test_einstellungen_register sucht „KEY:“).
+async function nbSchalter(el, werte, meldung) {
+  if (!await savePartial(werte, meldung)) el.checked = !el.checked;
 }
 
 async function nbEingangSpeichern() {
@@ -633,9 +631,8 @@ async function nbAnmeldungTesten() {
 // ── Postfächer ───────────────────────────────────────────────────────────
 async function nbPostfaecher() {
   const tb = document.getElementById('nb-pf-tbody');
-  const d = await getJSON('/api/notbetrieb/postfaecher');
-  if (!d.ok) { tabelleHinweis(tb, 7, 'Nicht lesbar: ' + esc(errText(d)), true); return; }
-  if (!d.items.length) { tabelleHinweis(tb, 7, 'Keine aktivierten Postfächer.'); return; }
+  const d = await nbTabelleLaden(tb, '/api/notbetrieb/postfaecher', 7, 'Keine aktivierten Postfächer.');
+  if (!d) return;
   const bedarf = {};
   ((nbPlatz && nbPlatz.postfaecher) || []).forEach(z => { bedarf[z.postfach] = z; });
   tb.innerHTML = d.items.map(p => {
