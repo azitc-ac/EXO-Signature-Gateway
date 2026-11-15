@@ -879,21 +879,24 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
           if (codeAlt) fakten.push('<span style="color:#b45309">älterer Wächter-Code</span>');
           var knoepfe = '';
           if (codeAlt){
-            knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdCodeAktualisieren(this, \'' + escJsAttr(w.id) + '\')">Code aktualisieren</button>';
+            knoepfe += '<button class="btn secondary btn-sm" onclick="wdCodeAktualisieren(this, \'' + escJsAttr(w.id) + '\')">Code aktualisieren</button>';
           }
           if (w.kind === 'azure' && az.principal_id && !az.grants_done){
-            knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdGrant(\'' + escJsAttr(w.id) + '\')">Berechtigungen erteilen</button>';
+            knoepfe += '<button class="btn secondary btn-sm" onclick="wdGrant(\'' + escJsAttr(w.id) + '\')">Berechtigungen erteilen</button>';
           }
-          knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdRename(\'' + escJsAttr(w.id) + '\')">Umbenennen</button>';
+          knoepfe += '<button class="btn secondary btn-sm" onclick="wdRename(\'' + escJsAttr(w.id) + '\')">Umbenennen</button>';
           knoepfe += '<button class="btn secondary btn-sm" onclick="wdRemove(\'' + escJsAttr(w.id) + '\',\'' + escJsAttr(w.kind) + '\')">Entfernen</button>';
-          return '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;'
+          // flex-wrap + Mindestbreite: auf dem Handy rutschen die Knöpfe unter
+          // den Text. Bis v1.12.18 hielt nowrap sie daneben, und der Name
+          // stand Wort für Wort untereinander.
+          return '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:8px;'
             + 'padding:9px 0;border-bottom:1px solid #f0f0f0">'
-            + '<div style="min-width:0"><strong>' + esc(w.name || w.id) + '</strong>'
+            + '<div style="flex:1 1 240px;min-width:0;overflow-wrap:anywhere"><strong>' + esc(w.name || w.id) + '</strong>'
             + ' <span style="color:#94a3b8">· ' + esc(art[w.kind] || w.kind || '') + '</span><br>'
             + status
             + (fakten.length ? '<br><span style="font-size:12px;color:#78716c">' + fakten.join(' · ') + '</span>' : '')
             + '</div>'
-            + '<div style="white-space:nowrap">' + knoepfe + '</div>'
+            + '<div style="display:flex;flex-wrap:wrap;gap:6px">' + knoepfe + '</div>'
             + '</div>';
         }).join('');
       }

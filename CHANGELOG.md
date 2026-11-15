@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.19 — 2026-11-15 — Bypass-Wächter: Zeile auf dem Handy lesbar
+
+In der Liste der Bypass-Wächter (Erweitert → Failover) standen die Knöpfe
+„Code aktualisieren“, „Umbenennen“ und „Entfernen“ ohne Umbruch neben dem
+Text. Auf dem Handy blieben für Name und Zustand nur wenige Zeichen, der Name
+stand Wort für Wort untereinander. Jetzt rutschen die Knöpfe auf schmalen
+Bildschirmen unter den Text.
+
+**Zu tun:** nichts.
+
 ## v1.12.18 — 2026-11-15 — Neuer Einstellungsreiter „Mail-Routing“
 
 Domänen-Routing, Direktversand und Hybrid-Koexistenz richtest du jetzt unter

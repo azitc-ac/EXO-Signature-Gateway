@@ -1486,3 +1486,41 @@ def test_assistent_relay_auch_ausserhalb_von_smtp_waehlbar(seite, modus):
     pg.wait_for_timeout(500)
     assert gesendet and gesendet[-1]["SMTP_RELAY_ENABLED"] is True, gesendet
     pg.context.close()
+
+
+@pytest.mark.parametrize("breite", [393, 320])
+def test_waechterzeile_quetscht_den_namen_nicht(browser, server, monkeypatch, breite):
+    """Bypass-Wächter auf dem Handy: Drei Knöpfe standen per nowrap neben dem
+    Text und liessen dem Namen wenige Zeichen — er stand Wort für Wort
+    untereinander (Bildschirmfoto 15.11.2026). Jetzt rutschen die Knöpfe
+    darunter; der Textblock behält eine brauchbare Breite."""
+    import json
+    import sso
+    monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-oberflaeche")
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
+    keks = sso.create_session_cookie("chefin@example.org", role=sso.ROLE_ADMIN)
+    daten = {"ok": True, "enabled": True, "code_stand": "neu", "rule_state": "an",
+             "watchers": [{"id": "w1", "kind": "azure", "name": "Azure – rg-waechter/waechter-funktion2",
+                           "last_seen": None, "azure": {"app_name": "waechter-funktion2",
+                                                        "code_stand": "alt", "resource_group": "rg-waechter",
+                                                        "location": "westeurope", "grants_done": True}}]}
+    ctx = browser.new_context(viewport={"width": breite, "height": 850})
+    ctx.add_cookies([{"name": sso.SESSION_COOKIE, "value": keks, "domain": "127.0.0.1", "path": "/"}])
+    ctx.route("**/api/watchdog/status*",
+              lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(daten)))
+    pg = ctx.new_page()
+    pg.goto(f"{server}/advanced", wait_until="domcontentloaded")
+    pg.evaluate("() => window.loadWatchdogStatus && window.loadWatchdogStatus()")
+    pg.wait_for_function("() => document.querySelector('#wd-liste strong')")
+    masse = pg.evaluate("""() => {
+        const s = document.querySelector('#wd-liste strong');
+        const block = s.parentElement;
+        const knopf = [...document.querySelectorAll('#wd-liste button')].find(b => b.textContent.includes('Code aktualisieren'));
+        return {block: block.getBoundingClientRect().width,
+                liste: document.getElementById('wd-liste').getBoundingClientRect().width,
+                knopf: !!knopf};
+    }""")
+    ctx.close()
+    assert masse["knopf"], "Testaufbau: der Knopf „Code aktualisieren“ fehlt"
+    assert masse["block"] >= 0.8 * masse["liste"], (
+        f"Textblock nur {masse['block']:.0f} px von {masse['liste']:.0f} px — die Knöpfe quetschen den Namen")
