@@ -42,8 +42,13 @@ class _Graph:
 
     def get(self, url, headers=None, params=None):
         self.aufrufe.append(("GET", url))
+        # Wie Graph v1.0: kein wellKnownName am Ordner; „junkemail“ als Adresse.
+        if "$select" in (params or {}) and "wellKnownName" in params["$select"]:
+            return _Resp(400, {"error": "Could not find a property named 'wellKnownName'"})
+        if url.endswith("/mailFolders/junkemail"):
+            return _Resp(200, {"id": "f1" if self.ordner == "junkemail" else "f-junk"})
         if "/mailFolders/" in url:
-            return _Resp(200, {"wellKnownName": self.ordner, "displayName": self.ordner})
+            return _Resp(200, {"displayName": "Posteingang"})
         if not self.da:
             return _Resp(200, {"value": []})
         return _Resp(200, {"value": [{"id": "p1", "receivedDateTime": datetime.now(timezone.utc).isoformat(),

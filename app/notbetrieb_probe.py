@@ -142,11 +142,20 @@ def pruefen() -> dict:
                 settings_store.force_update({KEY: st})
             return st
         m = treffer[0]
+        # Junk? Graph v1.0 kennt an mailFolder kein wellKnownName (nur beta) —
+        # verglichen wird mit der Kennung des bekannten Ordners „junkemail“.
+        # Live 15.11.: Mit $select=wellKnownName scheiterte die Abfrage still,
+        # der Ordner blieb leer und „im Junk“ wäre nie erkannt worden.
         ordner = ""
-        f = client.get(f"https://graph.microsoft.com/v1.0/users/{pf}/mailFolders/{m.get('parentFolderId')}",
-                       headers=hdr, params={"$select": "displayName,wellKnownName"})
-        if f.status_code == 200:
-            ordner = f.json().get("wellKnownName") or f.json().get("displayName") or ""
+        j = client.get(f"https://graph.microsoft.com/v1.0/users/{pf}/mailFolders/junkemail",
+                       headers=hdr, params={"$select": "id"})
+        if j.status_code == 200 and j.json().get("id") == m.get("parentFolderId"):
+            ordner = "junkemail"
+        else:
+            f = client.get(f"https://graph.microsoft.com/v1.0/users/{pf}/mailFolders/{m.get('parentFolderId')}",
+                           headers=hdr, params={"$select": "displayName"})
+            if f.status_code == 200:
+                ordner = f.json().get("displayName") or ""
         angekommen = _zeit(m.get("receivedDateTime") or "")
         st.update(zustand="angekommen", ordner=ordner, auth=_auswerten(m.get("internetMessageHeaders")),
                   minuten=round(((angekommen or _jetzt()) - (_zeit(st["ts"]) or _jetzt())).total_seconds() / 60, 1))
