@@ -23,6 +23,7 @@ Profilen (`notbetrieb.profile_sichern`) — `adressen_suchen` führt beides zusa
 from __future__ import annotations
 
 import json
+import re
 import logging
 import time
 from datetime import datetime, timedelta, timezone
@@ -171,6 +172,15 @@ def kontakte(postfach: str) -> list[dict]:
     return [json.loads(z["daten"]) for z in zeilen]
 
 
+_WORTGRENZE = re.compile(r"[\s.,;:()<>@_\-]+")
+
+
+def _wortanfang(t: str, text: str | None) -> bool:
+    """Wie Outlook: Treffer am Anfang eines Wortes in Name oder Adresse
+    („er“ → Erika, erika@…, nicht Wilber oder Foster)."""
+    return any(w.startswith(t) for w in _WORTGRENZE.split((text or "").lower()) if w)
+
+
 def adressen_suchen(benutzer: str, text: str) -> list[dict]:
     """Adresshilfe beim Verfassen: eigene Kontakte zuerst, dann die globale
     Adressliste (gesicherte Profile) samt geteilter Postfächer. Höchstens
@@ -182,7 +192,7 @@ def adressen_suchen(benutzer: str, text: str) -> list[dict]:
 
     def nehmen(name, adresse, quelle):
         a = (adresse or "").strip()
-        if a and "@" in a and a.lower() not in treffer and (t in a.lower() or t in (name or "").lower()):
+        if a and "@" in a and a.lower() not in treffer and (_wortanfang(t, a) or _wortanfang(t, name)):
             treffer[a.lower()] = {"name": name or "", "adresse": a, "quelle": quelle}
 
     for k in kontakte(benutzer):

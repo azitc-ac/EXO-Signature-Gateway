@@ -615,6 +615,13 @@ def test_adresshilfe_kontakte_zuerst_dann_adressliste(schatten):
     treffer = pim.adressen_suchen("a@firma.at", "bern")
     assert [(t["adresse"], t["quelle"]) for t in treffer] == [("bernd@kunde.example", "kontakt"), ("b@firma.at", "gal")]
     assert pim.adressen_suchen("a@firma.at", "b") == []                      # zu kurz
+    # Wortanfang, nicht mitten im Wort (wie Outlook): „er“ findet Erika, nicht Wilber.
+    with notbetrieb._conn() as conn:
+        conn.executemany("INSERT INTO profile (adresse, daten) VALUES (?,?)",
+                         [(m, json.dumps({"displayName": n, "mail": m})) for n, m in
+                          (("Erika Muster", "erika.muster@firma.at"), ("Wilber Foster", "w.foster@firma.at"))])
+    assert [t["adresse"] for t in pim.adressen_suchen("a@firma.at", "er")] == ["erika.muster@firma.at"]
+    assert [t["adresse"] for t in pim.adressen_suchen("a@firma.at", "fos")] == ["w.foster@firma.at"]   # zweites Wort
     # Kontakte eines ANDEREN Postfachs erscheinen nicht.
     assert all(t["quelle"] != "kontakt" for t in pim.adressen_suchen("b@firma.at", "bern"))
 
