@@ -27,6 +27,9 @@ def _freier_port() -> int:
         return s.getsockname()[1]
 
 
+listener_port: dict = {}
+
+
 @pytest.fixture
 def listener(postfix, schatten, monkeypatch):  # noqa: F811
     import notbetrieb_anmeldung
@@ -50,6 +53,7 @@ def listener(postfix, schatten, monkeypatch):  # noqa: F811
         with smtplib.SMTP("127.0.0.1", port, timeout=10) as c:
             c.login("a.ad@firma.local", kennwort)
             return c.send_message(msg, von, an)
+    listener_port["port"] = port
     yield senden, versuche, schatten, postfix
     ctrl.stop()
 
@@ -76,6 +80,30 @@ def test_senden_mit_signatur_bcc_und_gesendet_kopie(listener):
     gesendet, = _lokal("a@firma.at", "sentitems")
     assert _mime(gesendet)["Bcc"] == "geheim@extern.de"
     assert gesendet["imid"] == "<outlook-1@firma.at>"
+
+
+def test_auth_login_fragt_wie_ueblich(listener):
+    """Outlook Classic antwortet nur auf die üblichen Rückfragen „Username:“ /
+    „Password:“ — auf aiosmtpds „User Name\\0“ hing es still."""
+    import base64
+    senden, versuche, _, _ = listener
+    port = listener_port["port"]
+    with socket.create_connection(("127.0.0.1", port), timeout=10) as roh:
+        f = roh.makefile("rwb")
+
+        def befehl(x):
+            f.write(x + b"\r\n")
+            f.flush()
+            antwort = f.readline()
+            while antwort[3:4] == b"-":
+                antwort = f.readline()
+            return antwort.strip()
+        f.readline()
+        befehl(b"EHLO outlook")
+        assert befehl(b"AUTH LOGIN") == b"334 " + base64.b64encode(b"Username:")
+        assert befehl(base64.b64encode(b"a.ad@firma.local")) == b"334 " + base64.b64encode(b"Password:")
+        assert befehl(base64.b64encode(b"richtig")).startswith(b"235")
+    assert versuche == [("a.ad@firma.local", "127.0.0.1")]
 
 
 def test_falsches_kennwort(listener):

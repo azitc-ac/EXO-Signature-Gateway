@@ -35,6 +35,13 @@ class _LenientSMTP(_BaseSMTP):
     parameters instead of returning 555.  EXO may send AUTH=, REQUIRETLS
     etc. when forwarding messages; we don't need them but must not reject."""
 
+    # AUTH LOGIN: die üblichen Rückfragen (base64 „Username:“/„Password:“).
+    # aiosmtpd fragt sonst „User Name\0“/„Password\0“ — Outlook Classic
+    # antwortet darauf nicht und läuft nach 60 s in eine Zeitüberschreitung
+    # (Mitschnitt: letzte Serverantwort genau 22 Byte = 334 VXNlciBOYW1lAA==).
+    AuthLoginUsernameChallenge = "Username:"
+    AuthLoginPasswordChallenge = "Password:"
+
     # Notbetrieb: Die AD-Prüfung (LDAP-Bind) kann Sekunden dauern. aiosmtpd
     # ruft den Authenticator synchron — er reicht sie deshalb nur als
     # `_NotbetriebOffen` durch, geprüft wird hier im Hintergrund-Thread.
