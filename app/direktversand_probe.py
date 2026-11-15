@@ -1,26 +1,26 @@
-"""Tägliche Probe des Direktversands — der Notfallweg nach außen, im Alltag geprüft.
+"""Tägliche Probe des Direktversands — kommt Post über den eigenen Weg nach außen an?
 
 WARUM
 -----
-Im Dauerbetrieb geht alles über Exchange; den Direktversand (Postfix, DKIM,
-DNS, Port 25 ausgehend) benutzt nur der Notfall — und die Probegruppe, falls
-es eine gibt. Ein Weg, den niemand benutzt, fällt unbemerkt aus. Bisher hieß
-„Versand nach außen: ok“ nur „eingerichtet“.
+Ob der Direktversand (Postfix, DKIM, DNS, Port 25 ausgehend) trägt, zeigt sich
+sonst erst, wenn ein Empfänger meldet, dass Post fehlt oder im Junk landet.
+„Eingerichtet“ heißt nicht „kommt an“; ein selten benutzter Weg fällt
+unbemerkt aus.
 
 WIE
 ---
-Einmal am Tag geht eine Mail über GENAU den Weg, den der Notfall nimmt
-(domain_routing DIREKT → reinject._an_postfix), an ein internes Postfach
-(NOTBETRIEB_PROBE_POSTFACH). Sie läuft damit über den eigenen MX (Exchange
+Einmal am Tag geht eine Mail über GENAU den Direktversand-Weg
+(domain_routing DIREKT → reinject._an_postfix) an ein internes Postfach
+(DIREKTVERSAND_PROBE_POSTFACH). Sie läuft damit über den eigenen MX (Exchange
 Online Protection) zurück — wie eine Mail von außen. Im nächsten Takt sucht
 das Gateway sie per Graph über die Message-ID, liest Ankunftszeit, Ordner
 (Junk?) und Authentication-Results (spf/dkim/dmarc) und löscht sie wieder.
 
 Schleifen: X-Sig-Applied (loop_detector) — die Transportregel des Gateways
-nimmt sie sonst wieder auf, weil der Absender in der Verteilerliste steht.
+nimmt sie sonst wieder auf, weil der Absender in der Verteilerliste stehen kann.
 Auto-Submitted gegen Abwesenheitsantworten.
 
-Ergebnis in _NOTBETRIEB_PROBE: {ts, mid, zustand, minuten, ordner, auth}.
+Ergebnis in _DIREKTVERSAND_PROBE: {ts, mid, zustand, sekunden, minuten, ordner, auth}.
 zustand: gesendet | angekommen | fehlt (nach PRUEF_FRIST_MIN) | fehler.
 """
 from __future__ import annotations
@@ -39,14 +39,14 @@ import settings_store
 
 log = logging.getLogger(__name__)
 
-KEY = "_NOTBETRIEB_PROBE"
+KEY = "_DIREKTVERSAND_PROBE"
 TAKT_H = 23                   # höchstens einmal je Tag (Scheduler-Takt 15 min)
 PRUEF_FRIST_MIN = 60          # danach gilt eine nicht angekommene Probe als „fehlt“
-BETREFF = "Notbetrieb: tägliche Probe des Direktversands"
+BETREFF = "Gateway: tägliche Probe des Direktversands"
 
 
 def postfach() -> str:
-    return str(settings_store.get("NOTBETRIEB_PROBE_POSTFACH") or "").strip().lower()
+    return str(settings_store.get("DIREKTVERSAND_PROBE_POSTFACH") or "").strip().lower()
 
 
 def stand() -> dict:
@@ -66,8 +66,7 @@ def _zeit(text: str) -> datetime | None:
 
 def faellig() -> bool:
     import direktversand
-    import notbetrieb
-    if not (notbetrieb.funktion_aktiv() and direktversand.aktiv() and postfach()) or notbetrieb.ausgerufen():
+    if not (direktversand.aktiv() and postfach()):
         return False
     letzte = _zeit(stand().get("ts") or "")
     return letzte is None or _jetzt() - letzte > timedelta(hours=TAKT_H)
@@ -89,19 +88,19 @@ def senden() -> dict:
     mid = email.utils.make_msgid(domain=pf.split("@", 1)[-1])
     msg["Message-ID"] = mid
     msg["Auto-Submitted"] = "auto-generated"
-    msg["X-Notbetrieb-Probe"] = "1"
-    msg.set_content("Diese Mail prüft täglich den Weg, den das Gateway im Notfall für Post nach außen nimmt "
-                    "(Direktversand). Das Gateway löscht sie nach der Prüfung wieder.\n")
+    msg["X-Direktversand-Probe"] = "1"
+    msg.set_content("Diese Mail prüft täglich den Direktversand des Gateways (Post nach außen am "
+                    "Exchange vorbei). Das Gateway löscht sie nach der Prüfung wieder.\n")
     roh = loop_detector.mark_as_signed_bytes(msg.as_bytes(policy=email.policy.SMTP))
     neu = {"ts": _jetzt().isoformat(timespec="seconds"), "mid": mid, "postfach": pf}
     try:
         ziel = domain_routing.aufloesen(domain_routing.DIREKT)
         reinject._an_postfix(pf, [pf], roh, ziel["host"], ziel["port"])
         neu["zustand"] = "gesendet"
-        log.info("Notbetrieb-Probe: über den Direktversand an %s gesendet (%s)", pf, mid)
+        log.info("Direktversand-Probe: über den Direktversand an %s gesendet (%s)", pf, mid)
     except Exception as exc:                                        # noqa: BLE001
         neu.update(zustand="fehler", meldung=f"Übergabe an Postfix: {exc}"[:200])
-        log.warning("Notbetrieb-Probe: Übergabe an den Direktversand fehlgeschlagen: %s", exc)
+        log.warning("Direktversand-Probe: Übergabe an den Direktversand fehlgeschlagen: %s", exc)
     settings_store.force_update({KEY: neu})
     return neu
 
@@ -137,8 +136,11 @@ def pruefen() -> dict:
         if not treffer:
             alter = _jetzt() - (_zeit(st["ts"]) or _jetzt())
             if alter > timedelta(minutes=PRUEF_FRIST_MIN):
-                st.update(zustand="fehlt", meldung=f"nach {PRUEF_FRIST_MIN} min nicht im Postfach {pf}")
-                log.warning("Notbetrieb-Probe: nach %s min nicht angekommen (%s)", PRUEF_FRIST_MIN, st["mid"])
+                # Scheitert schon die Suche (z. B. 403: Postfach ausserhalb des
+                # RBAC-Bereichs der App), heisst „fehlt“ nicht „nicht angekommen“.
+                grund = "" if r.status_code == 200 else f" — Suche per Graph scheiterte mit HTTP {r.status_code}"
+                st.update(zustand="fehlt", meldung=f"nach {PRUEF_FRIST_MIN} min nicht im Postfach {pf}{grund}")
+                log.warning("Direktversand-Probe: nach %s min nicht angekommen (%s)", PRUEF_FRIST_MIN, st["mid"])
                 settings_store.force_update({KEY: st})
             return st
         m = treffer[0]
@@ -164,7 +166,7 @@ def pruefen() -> dict:
                   sekunden=sekunden, minuten=round(sekunden / 60, 1))
         d = client.delete(f"https://graph.microsoft.com/v1.0/users/{pf}/messages/{m['id']}", headers=hdr)
         st["geloescht"] = d.status_code in (200, 204)
-    log.info("Notbetrieb-Probe: angekommen nach %s s in %s, %s", st["sekunden"], st["ordner"] or "?", st["auth"])
+    log.info("Direktversand-Probe: angekommen nach %s s in %s, %s", st["sekunden"], st["ordner"] or "?", st["auth"])
     settings_store.force_update({KEY: st})
     return st
 
@@ -173,7 +175,7 @@ def bewertung(st: dict | None = None) -> tuple[str, str]:
     """(ampel, text) für Tagesbericht und Bereitschaft. ampel: ok|warnung|fehler|keine."""
     st = stand() if st is None else st
     if not postfach():
-        return "warnung", "kein Probe-Postfach eingerichtet — ob der Notfallweg nach außen trägt, prüft niemand"
+        return "warnung", "kein Probe-Postfach eingerichtet — ob der Direktversand ankommt, prüft niemand"
     if not st:
         return "warnung", "noch keine Probe gelaufen"
     zust = st.get("zustand")

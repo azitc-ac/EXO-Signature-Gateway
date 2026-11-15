@@ -48,7 +48,6 @@ DEFAULTS: dict = {
     "NOTBETRIEB_PROBEGRUPPE": [],     # sieht im Webmail schon vor dem Notfall Inhalte (Probealarm)
     "NOTBETRIEB_LESEN_ALLE": False,   # Webmail/IMAP: alle lesen die Kopie schon im Normalbetrieb
     "NOTBETRIEB_SENDEN_ALLE": False,  # … und senden im Normalbetrieb über Exchange (braucht LESEN_ALLE)
-    "NOTBETRIEB_PROBE_POSTFACH": "",  # internes Postfach für die tägliche Direktversand-Probe
     "NOTBETRIEB_IMAP": False,         # IMAP-Zugang zur Kopie (Port 993, lesend)
     "NOTBETRIEB_SMTP": False,         # Senden aus Mailprogrammen (587, AD-Anmeldung, nur im Notfall)
     "NOTBETRIEB_ZWEITFAKTOR": True,   # Webmail: AD-Kennwort + zweiter Faktor (TOTP) Pflicht
@@ -289,6 +288,7 @@ DEFAULTS: dict = {
     "DIREKT_SMARTHOST_USER": "",
     "DIREKT_SMARTHOST_PW": "",
     "DIREKT_AUSSEN_IP": "",   # öffentliche Ausgangsadresse — nur für die DNS-Prüfung (SPF/PTR)
+    "DIREKTVERSAND_PROBE_POSTFACH": "",  # internes Postfach für die tägliche Probe (direktversand_probe.py)
     "DKIM_DOMAINS": {},       # {"example.com": "gw202610"} — Schlüssel in data/dkim/<domain>.<selektor>.pem
     "ONPREM_MAILUSERS": [],   # ["max.mustermann@zarenko.net", …] — via EXO Get-MailUser
     "ONPREM_MAILUSERS_TS": "", # ISO8601 des letzten erfolgreichen Abgleichs
@@ -494,7 +494,6 @@ INTERNAL_KEYS = frozenset({
     "_OOO_STATE",                 # abwesenheit.py — zuletzt gesetzter OOF-Text je Postfach
     "_OOO_LAST",                  # abwesenheit.py — Zählung des letzten Poll-Laufs
     "_NOTBETRIEB_LAST",           # notbetrieb.py — Zählung des letzten Schatten-Abgleichs
-    "_NOTBETRIEB_PROBE",          # notbetrieb_probe.py — Stand der täglichen Direktversand-Probe
     "_NOTBETRIEB_MESSUNG",        # notbetrieb.py — Platzmessung aus Exchange (Was-wäre-wenn)
     "_OOO_UEBERSICHT",            # abwesenheit.py — gecachter Status-Scan (Admin-Dashboard)
     "_ADDIN_MANIFEST_STAND",      # webui/routen/addin.py — {hash, version} des zuletzt
@@ -502,6 +501,7 @@ INTERNAL_KEYS = frozenset({
     "_TEAMS_APP_STAND",           # webui/routen/addin.py — dasselbe für das Teams-App-Paket (Tab)
     "_ADDIN_VERFASSEN_STAND",     # webui/routen/addin_verfassen.py — dasselbe für das Verfassen-Add-in
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
+    "_DIREKTVERSAND_PROBE",       # direktversand_probe.py — Stand der letzten Probe
 })
 
 # Schlüssel aus entfernten Funktionen. Sie blieben in settings.json stehen, weil
@@ -511,6 +511,8 @@ INTERNAL_KEYS = frozenset({
 # Oberfläche, um sie zu löschen. Wer vorher Sectigo oder SwissSign konfiguriert
 # hatte, dessen Zugangsdaten lagen weiter in der Datei.
 OBSOLETE_KEYS = {
+    "NOTBETRIEB_PROBE_POSTFACH":   "Probe-Postfach des Direktversands — jetzt DIREKTVERSAND_PROBE_POSTFACH (Einstellungen → Mail-Routing)",
+    "_NOTBETRIEB_PROBE":           "Stand der Direktversand-Probe — jetzt _DIREKTVERSAND_PROBE",
     "SMTP_CLIENTZERT_BEOBACHTEN":  "Messschalter der Untersuchung vom 11.11.2026 — durch EXO_ERKENNUNG ersetzt (v1.11.24), das das Client-Zertifikat nur anfordert, wo die Adresse nicht reicht",
     "WEBUI_USERNAME":              "örtliche Anmeldung nur mit Kennwort (v1.10.77) — es gibt genau ein örtliches Konto",
     "STRIP_CLIENT_SIGS":           "in STRIP_CLIENT_SIGS_MOBILE (sicher, an) und _DESKTOP (experimentell, aus) aufgeteilt (v1.8.56); Migration v2→v3 übernimmt den Wert nach _DESKTOP",

@@ -263,19 +263,37 @@ def test_die_leiste_liegt_im_blick_nicht_am_seitenende(seite):
 
 # ── Auswahlfelder ────────────────────────────────────────────────────────────
 
-def test_sammelauswahl_bietet_nur_taugliche_bezugswege(seite):
+def test_sammelauswahl_bietet_nur_taugliche_bezugswege(seite, monkeypatch):
     """⚠️ Das Feld war mit „assistiert manuell" vorbelegt — ein Weg, über den
     sich nicht sammelbestellen lässt. Der erste Klick quittierte mit einer
-    Meldung über den Katalog."""
+    Meldung über den Katalog.
+
+    Die Bezugswege werden vorgegeben: In der Testumgebung ist keiner
+    einsatzbereit, der Sammelbereich fehlte, und der Test übersprang sich in
+    JEDEM CI-Lauf (bis v1.12.23) — er prüfte also nie etwas."""
+    import ca_backends
+
+    async def _wege():
+        return [
+            {"name": "castle", "label": "CASTLE", "auto": True, "ready": True,
+             "not_ready_reason": "", "hub": False},
+            {"name": "assisted_manual", "label": "Assistiert manuell", "auto": False,
+             "ready": True, "not_ready_reason": "", "hub": False},
+            {"name": "hub:test", "label": "Katalog-CA", "auto": True, "ready": False,
+             "not_ready_reason": "nicht eingerichtet", "hub": True},
+        ]
+    monkeypatch.setattr(ca_backends, "list_backends_aktuell", _wege)
+    # Der Bereich erscheint nur, wenn es S/MIME-Postfächer gibt.
+    import smime_store
+    monkeypatch.setattr(smime_store, "list_certs", lambda: [{"email": "max@firma.at"}])
     pg = seite("/smime", breite=1280)
     pg.wait_for_timeout(500)
     optionen = pg.evaluate("""() => {
       const sel = document.getElementById('sammel-anbieter');
       return sel ? [...sel.options].map(o => o.value) : null;
     }""")
-    if optionen is None:
-        pytest.skip("Sammelbereich nicht vorhanden (kein tauglicher Bezugsweg eingerichtet)")
-    assert optionen, "Auswahl ist leer"
+    assert optionen is not None, "Sammelbereich fehlt trotz einsatzbereitem Bezugsweg"
+    assert optionen == ["castle"], optionen
     assert "assisted_manual" not in optionen, (
         "Handbetrieb steht zur Wahl, obwohl er je Postfach einen Schritt von "
         "Hand verlangt")

@@ -5,6 +5,125 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.31 — 2026-11-15 — Tägliche Probe des Direktversands
+
+„Selbst zustellen eingerichtet“ hiess bisher nicht „kommt an“. Ob Postfix, DKIM,
+DNS und Port 25 tragen und ob die Post im Junk-Ordner landet, merkte erst ein
+Empfänger.
+
+Jetzt schickt das Gateway einmal am Tag eine Mail über genau diesen Weg an ein
+internes Postfach. Sie kommt über den eigenen MX zurück wie Post von aussen. Alle
+15 Minuten prüft das Gateway per Graph, ob sie angekommen ist, in welchem Ordner
+sie liegt und wie SPF, DKIM und DMARC ausgefallen sind; danach löscht es sie.
+Grün ist die Probe nur, wenn die Mail angekommen ist und alle drei bestanden hat.
+„Gesendet“ allein ist eine Warnung, der Junk-Ordner ebenfalls; fehlt die Mail nach
+60 Minuten oder ist die letzte Probe älter als 26 Stunden, ist es ein Fehler.
+
+Zu sehen ist das Ergebnis unter Einstellungen → Mail-Routing → Selbst zustellen
+(dort auch „Probe jetzt“), im Tagesbericht als Zeile „Direktversand-Probe“
+(immer, solange Selbst zustellen an ist) und in der Abnahme.
+
+**Zu tun:** Nutzt du „Selbst zustellen“, trag unter Einstellungen → Mail-Routing
+→ Selbst zustellen ein internes Postfach als Probe-Postfach ein (z. B. ein
+geteiltes Postfach). Die App liest und löscht dort per Graph; ist ihr Zugriff
+per RBAC for Applications auf bestimmte Postfächer eingegrenzt, nimm das
+Probe-Postfach in den Bereich auf. Ohne Selbst zustellen ist nichts zu tun.
+
+## v1.12.30 — 2026-11-15 — Kundendaten-Prüfung läuft jetzt auch in der CI
+
+Die Prüfung auf vertrauliche Begriffe (Kundennamen, Domänen) lief bisher nur
+lokal im Commit-Hook und liess sich umgehen. Jetzt prüft die CI alle
+versionierten Dateien und die letzte Commit-Nachricht gegen eine Sperrliste aus
+geschlüsselten Hashes. Im Repository steht kein Begriff im Klartext, und ein
+Treffer wird nur mit Datei und Zeile gemeldet.
+
+**Zu tun:** nichts.
+
+## v1.12.29 — 2026-11-15 — Testsuite: Skip-Grenze verträgt den direkten Aufruf der Startprüfung
+
+Die in v1.12.26 eingeführte Grenze für übersprungene Tests meldet sich beim
+Start der Testsuite an. Ein Test ruft diese Startfunktion zur Prüfung der
+Speichersperre ohne pytest-Umgebung auf; dort scheiterte die Anmeldung. Sie
+wird in diesem Fall jetzt übersprungen.
+
+**Zu tun:** nichts.
+
+## v1.12.28 — 2026-11-15 — Farben aus JavaScript auch in den Skriptdateien geprüft; Kundendaten-Hook warnt deutlich
+
+- Die Prüfung „keine Farben per JavaScript“ (Dark-Mode-Regel 2) durchsuchte
+  nur die Vorlagen, nicht `app/webui/static/*.js`, und erkannte
+  `style.setProperty('color', …)` nicht. Beides ist ergänzt. Zwei bestehende
+  Stellen sind mit Grund ausgenommen: die halbtransparente Abdunkelung hinter
+  Dialogen und die bewusst helle Signaturvorschau.
+- Der Commit-Hook, der Kundendaten aus dem öffentlichen Repository fernhält,
+  liess einen Commit ohne Begriffsliste mit einer unauffälligen Zeile durch.
+  Er warnt jetzt unübersehbar. Dazu kommt ein Werkzeug
+  (`tools/vertraulich_sperrliste.py`), das eine Sperrliste für eine Prüfung in
+  der CI erzeugt: nur geschlüsselte Hashes plus Füllwerte, damit die Liste
+  weder Begriffe noch deren Anzahl verrät.
+
+**Zu tun:** nichts.
+
+## v1.12.27 — 2026-11-15 — Kopien-Stand: steigt nur mit Begründung, sinkt nur festgeschrieben
+
+`tools/kopien_stand.json` hält fest, wie viel kopierter Code je Datei
+hingenommen wird. Bisher liess sich der Stand mit `--schreiben` beliebig
+anheben; die Begründung stand nur in der Commit-Nachricht. Jetzt verlangt
+`tests/test_kopien_stand.py` für jeden Anstieg einen Eintrag in
+`begruendungen` (Datei, von, auf, Grund) und vergleicht dazu die Fassungen in
+der Git-Historie. In der Gegenrichtung scheitert `kopiencheck` jetzt, wenn
+weniger kopiert ist als im Stand: Der Gewinn muss festgeschrieben werden, sonst
+bliebe der Spielraum für die nächste Kopie stehen.
+
+**Zu tun:** nichts.
+
+## v1.12.26 — 2026-11-15 — CI: übersprungene Tests sind ein Fehler; Prüfungen am Verhalten statt am Text
+
+Mehrere Prüfungen der Testsuite liefen grün, ohne etwas zu prüfen:
+
+- **Übersprungene Tests:** Ein Test, der sich überspringt, sah im Ergebnis aus
+  wie ein bestandener. Jetzt scheitert der CI-Lauf an jedem übersprungenen Test,
+  der nicht mit Grund in `tests/skip_grenze.py` steht. Dabei fielen zwei auf,
+  die sich in jedem Lauf übersprangen: der Vergleich mit den gespiegelten
+  Dateien des SMTP-Relays (der Relay-Klon wurde erst nach den Tests
+  ausgecheckt) und die Prüfung der Sammelauswahl auf der S/MIME-Seite (in der
+  Testumgebung gab es keinen Bezugsweg). Beide laufen jetzt.
+- **Standardvorlage:** Zwei Tests der Vorlagenzerlegung lasen nur das
+  Betriebsverzeichnis `templates/`, das in einem frischen Auschecken leer ist,
+  und endeten dort ohne eine einzige Prüfung. Sie prüfen jetzt die
+  mitgelieferte Standardvorlage.
+- **Empfängerbedingung der Transportregel:** Verboten war nur eine bestimmte
+  Schreibweise. Jetzt ist im Aktualisieren-Zweig genau `-SentToScope $null`
+  zulässig, jede andere empfängerbezogene Bedingung lässt den Test scheitern.
+- **Gleichnamige Tests:** Zwei Tests gleichen Namens in einer Datei
+  überschreiben sich still, der erste läuft nie. Ein Test verbietet das jetzt.
+- Der Hinweis „Spiegelung übersprungen“ der Drift-Prüfung sagt jetzt
+  ausdrücklich, dass dieser Lauf die Spiegelung zum Betreiber-Gegenstück nicht
+  prüft und wer es stattdessen tut.
+
+**Zu tun:** nichts.
+
+## v1.12.25 — 2026-11-15 — Oberfläche: Erweitert nach Zweck gegliedert, Texte ohne Entstehungsgeschichte
+
+**Einstellungen → Erweitert** ist in fünf Abschnitte gegliedert statt in der
+Reihenfolge, in der die Karten entstanden sind: *Betrieb & Ausfallsicherheit*,
+*Zustellwege (Feinheiten)*, *Sicherheit am Eingang*, *Kompatibilität mit
+Absender-Programmen* und *Diagnose & Support*. Alle Schalter, Felder und Sprungziele
+(etwa `/advanced#maintenance`, `#watchdog`, `#quell-ip`) bleiben gleich. Die
+Lexware-Korrektur heißt jetzt „Rechnungsmails aus Lexware lesbar machen“ und steht
+unter Kompatibilität.
+
+Mehrere Erklärtexte beschreiben jetzt, was eine Einstellung tut, statt wie sie
+entstanden ist: keine Versionshinweise („Verhalten vor v…“, „wie bisher“), keine
+Testnotizen beim Add-in, keine Fallbeispiele einzelner Zertifizierungsstellen.
+Betroffen sind Erweitert, Einrichtung (Add-in), Debug, S/MIME, Übersicht und Backup.
+Die Überschrift der Aufrufzählung auf der Übersicht heißt „Cloud-Aufrufe (Microsoft
+Graph, Azure Key Vault)“, weil sie beides zählt. Der Proxy auf der Debug-Seite heißt
+„Proxy für die Zertifizierungsstelle (ACME)“; er gilt für alle ACME-Aufrufe. Das
+Exchange-Kopfzeilen-Labor auf der Debug-Seite ist eingeklappt.
+
+**Zu tun:** nichts.
+
 ## v1.12.24 — 2026-11-15 — Port 587 mit Outlook Classic: kein Hängen nach STARTTLS, übliche Anmelde-Rückfragen, Meldungen ohne Zeichensalat
 
 Drei Korrekturen am Submission-Listener (Port 587), alle mit Outlook Classic

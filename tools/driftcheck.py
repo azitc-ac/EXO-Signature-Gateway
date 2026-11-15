@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import sys
 from pathlib import Path
@@ -35,7 +36,9 @@ HUB = GATEWAY.parent / "sig-provider"
 # Das EXO SMTP Relay — die Auskopplung des Relays als eigener Dienst. Welche
 # Dateien gespiegelt sind, weiss das Relay selbst (tools/driftcheck.py dort);
 # die Liste wird von dort geladen, damit es nur EINE Quelle gibt.
-RELAY = GATEWAY.parent / "exo-smtp-relay"
+# In der CI liegt der Klon nicht neben dem Gateway (actions/checkout schreibt
+# nur in den Arbeitsbereich) — dort zeigt EXO_RELAY_PFAD auf ihn.
+RELAY = Path(os.environ.get("EXO_RELAY_PFAD") or GATEWAY.parent / "exo-smtp-relay")
 
 # Bewusst akzeptierte Ausnahmen: Datei → Grund. Wer hier etwas einträgt, muss
 # den Grund hinschreiben; "später" ist kein Grund.
@@ -264,9 +267,12 @@ def check_guthaben_gate(rep: Report) -> None:
 def check_mirrored(rep: Report, hub_verfuegbar: bool = True) -> None:
     if not hub_verfuegbar:
         # In der CI des Gateways liegt das (private) Hub-Repository nicht vor.
-        # Die Spiegelung wird beim Hub-Lauf geprueft, wo beide Baeume da sind.
+        # Die Spiegelung prüft der Hub-Lauf, der beide Bäume auscheckt — seit
+        # 2026-11-15 auch TÄGLICH ohne Push. Der Hinweis sagt das ausdrücklich:
+        # „übersprungen“ allein las sich wie „erledigt“.
         rep.note(f"Spiegelung uebersprungen ({len(MIRRORED)} Dateien) — "
-                 f"Hub-Baum nicht vorhanden")
+                 f"Hub-Baum nicht vorhanden. NICHT geprueft in diesem Lauf; "
+                 f"das uebernimmt die taegliche CI des Hubs")
         return
     for rel, why in MIRRORED:
         a, b = GATEWAY / rel, HUB / rel

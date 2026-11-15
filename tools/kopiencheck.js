@@ -205,7 +205,11 @@ function jeDatei() {
 if (STAND) {
   const ist = jeDatei();
   if (SCHREIBEN) {
-    fs.writeFileSync(STAND, JSON.stringify({ min: MIN, tokens_in_kopien: ist }, null, 1) + '\n');
+    // Begründungen für Anstiege bleiben erhalten (tests/test_kopien_stand.py).
+    let alt = {};
+    try { alt = JSON.parse(fs.readFileSync(STAND, 'utf8')); } catch (e) { /* neu */ }
+    const neu = { min: MIN, tokens_in_kopien: ist, begruendungen: alt.begruendungen || [] };
+    fs.writeFileSync(STAND, JSON.stringify(neu, null, 1) + '\n');
     console.log(`Stand geschrieben: ${STAND} (${Object.keys(ist).length} Dateien, `
                 + `${Object.values(ist).reduce((a, b) => a + b, 0)} Tokens in Kopien)`);
     process.exit(0);
@@ -226,8 +230,16 @@ if (STAND) {
                 + 'den Stand mit --schreiben neu festhalten und das im Commit begründen.');
     process.exit(1);
   }
-  console.log(`Keine neuen Kopien (${Object.keys(ist).length} Dateien mit Altbestand).`
-              + (weniger.length ? ` Weniger als im Stand: ${weniger.join(', ')} — Stand neu schreiben (--schreiben).` : ''));
+  // Weniger als im Stand ist ein Gewinn — aber nur, wenn er festgehalten wird.
+  // Bis v1.12.23 nur ein Hinweis mit Exit 0: Der Spielraum blieb stehen, und
+  // eine spätere Kopie passte wieder hinein, ohne dass etwas anschlug.
+  if (weniger.length) {
+    console.log(`Weniger Kopien als im Stand: ${weniger.join(', ')}.\n`
+                + 'Stand neu schreiben, damit der Gewinn gesichert ist: '
+                + 'node tools/kopiencheck.js --stand=' + STAND + ' --schreiben ' + wurzeln.join(' '));
+    process.exit(1);
+  }
+  console.log(`Keine neuen Kopien (${Object.keys(ist).length} Dateien mit Altbestand).`);
   process.exit(0);
 }
 

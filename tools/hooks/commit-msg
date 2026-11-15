@@ -13,11 +13,21 @@
 #
 # Geprüft werden die HINZUGEFÜGTEN Zeilen des Commits und die Commit-Nachricht
 # (darum commit-msg und nicht pre-commit: erst hier liegt die Nachricht vor).
-# Fehlt die Liste, warnt der Hook nur — ein frischer Klon soll committen können.
+# Fehlt die Liste, warnt der Hook DEUTLICH, lässt den Commit aber durch: Ein
+# frischer Klon (Fremdbeitrag) soll committen können. Dafür prüft die CI
+# dasselbe (tests/test_keine_kundendaten.py, geschlüsselte Sperrliste) — bis
+# v1.12.23 war die stille Warnung hier die einzige Linie.
 
 liste="${EXO_VERTRAULICH:-$HOME/.config/exo-gateway/vertraulich.txt}"
 if [ ! -r "$liste" ]; then
-    echo "⚠ Keine Liste vertraulicher Begriffe ($liste) — Prüfung auf Kundendaten übersprungen."
+    {
+        echo "════════════════════════════════════════════════════════════════════"
+        echo "⚠  KEINE PRÜFUNG AUF KUNDENDATEN — Liste fehlt: $liste"
+        echo "   Dieser Commit wurde NICHT auf vertrauliche Begriffe geprüft."
+        echo "   Die CI prüft nach dem Push (tests/test_keine_kundendaten.py) —"
+        echo "   dann ist der Begriff aber schon öffentlich in der Historie."
+        echo "════════════════════════════════════════════════════════════════════"
+    } >&2
     exit 0
 fi
 

@@ -66,19 +66,9 @@ def test_durchleit_zweig_markiert_loop_header():
     assert "mark_as_signed_bytes(raw)" in block
 
 
-def test_connector_regel_hat_keine_empfaengerbedingung():
-    """Die Gateway-Transportregel darf KEINE empfängerbezogene Bedingung tragen
-    (SentToScope o.ä.). Sonst bifurkiert Exchange die interne Fork am Gateway
-    vorbei (Karen-Bug). Absender-Gate = FromScope InOrganization + FromMemberOf
-    (Letzteres setzt update_mailbox_dg.ps1). Siehe CLAUDE.md, Bifurkations-Falle.
-    """
-    script = (WURZEL / "app" / "scripts" / "setup_exo_connector.ps1").read_text()
-    # New-TransportRule (Anlegen) darf die Empfänger-Bedingung nicht setzen.
-    assert "-SentToScope NotInOrganization" not in script
-    # Das Absender-Gate bleibt.
-    assert "-FromScope InOrganization" in script
-    # Der Aktualisieren-Zweig heilt eine alt-installierte Regel aktiv.
-    assert "-SentToScope $null" in script
+# Die Empfängerbedingung der Connector-Regel prüft test_transportregel_gate.py
+# (test_connector_regel_hat_keine_empfaengerbedingung) — am Cmdlet-Aufruf,
+# ohne Kommentare. Die Textsuche, die hier stand, verbot nur EIN Literal.
 
 
 def test_setting_aenderung_setzt_connector_offen(monkeypatch):

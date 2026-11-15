@@ -1,10 +1,10 @@
-"""Tägliche Direktversand-Probe: der Notfallweg nach außen, im Alltag geprüft.
+"""Tägliche Direktversand-Probe.
 
-Zusagen: einmal je Tag, nur außerhalb des Notfalls und nur mit Probe-Postfach;
-genau der Notfallweg (domain_routing DIREKT → _an_postfix) mit Schleifenmarke
-und Auto-Submitted; Ankunft, Ordner und spf/dkim/dmarc werden ausgewertet und
-die Probe danach gelöscht; „ok“ in der Bereitschaft nur nach angekommener,
-bestandener Probe — nicht mehr bloß „eingerichtet“.
+Zusagen: einmal je Tag, nur mit eingerichtetem Direktversand und Probe-Postfach;
+genau der Direktversand-Weg (domain_routing DIREKT → _an_postfix) mit
+Schleifenmarke und Auto-Submitted; Ankunft, Ordner und spf/dkim/dmarc werden
+ausgewertet und die Probe danach gelöscht; „ok“ nur nach angekommener,
+bestandener Probe — „gesendet“ beweist nichts.
 """
 from __future__ import annotations
 
@@ -13,8 +13,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-import notbetrieb_probe as np_
-from test_notbetrieb import nb  # noqa: F401
+import config
+import direktversand_probe as np_
+import graph_client
+import settings_store
 
 PF = "probe@firma.at"
 
@@ -61,11 +63,15 @@ class _Graph:
 
 
 @pytest.fixture
-def probe(nb, monkeypatch):  # noqa: F811
+def probe(monkeypatch, tmp_path):
     import direktversand
     import domain_routing
     import reinject
-    nb["NOTBETRIEB_PROBE_POSTFACH"] = PF
+    nb = {"DIREKTVERSAND_PROBE_POSTFACH": PF}
+    monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: nb.get(k, d))
+    monkeypatch.setattr(settings_store, "force_update", lambda patch: nb.update(patch))
+    monkeypatch.setattr(graph_client, "_acquire_token", lambda: "tok")
     monkeypatch.setattr(direktversand, "aktiv", lambda: True)
     monkeypatch.setattr(domain_routing, "aufloesen", lambda z: {"host": "postfix", "port": 25, "z": z})
     raus = []
@@ -75,21 +81,22 @@ def probe(nb, monkeypatch):  # noqa: F811
     return raus, g, nb
 
 
-def test_faellig_nur_einmal_am_tag_und_nicht_im_notfall(probe):
+def test_faellig_nur_einmal_am_tag(probe, monkeypatch):
+    import direktversand
     raus, _, nb = probe
     assert np_.faellig()
     np_.senden()
     assert not np_.faellig()
     nb[np_.KEY]["ts"] = (datetime.now(timezone.utc) - timedelta(hours=np_.TAKT_H + 1)).isoformat()
     assert np_.faellig()
-    nb["NOTBETRIEB_AUSGERUFEN"] = True
+    monkeypatch.setattr(direktversand, "aktiv", lambda: False)
     assert not np_.faellig()
-    nb["NOTBETRIEB_AUSGERUFEN"] = False
-    nb["NOTBETRIEB_PROBE_POSTFACH"] = ""
+    monkeypatch.setattr(direktversand, "aktiv", lambda: True)
+    nb["DIREKTVERSAND_PROBE_POSTFACH"] = ""
     assert not np_.faellig()
 
 
-def test_senden_ueber_den_notfallweg_mit_schleifenmarke(probe):
+def test_senden_ueber_den_direktversand_mit_schleifenmarke(probe):
     import domain_routing
     import loop_detector
     raus, _, _ = probe
@@ -149,24 +156,3 @@ def test_alte_probe_ist_kein_ok(probe):
     np_.pruefen()
     nb[np_.KEY]["ts"] = (datetime.now(timezone.utc) - timedelta(hours=np_.TAKT_H + 4)).isoformat()
     assert np_.bewertung()[0] == "fehler"
-
-
-def test_bereitschaft_ok_nur_nach_bestandener_probe(probe):
-    import abnahme
-    import notbetrieb_bereitschaft as nbb
-    _, g, nb = probe
-    assert nbb._versand()["zustand"] == abnahme.UNBEKANNT           # eingerichtet, aber noch nie geprüft
-    np_.senden()
-    g.da, g.auth = True, "spf=pass; dkim=pass; dmarc=pass"
-    np_.pruefen()
-    assert nbb._versand()["zustand"] == abnahme.OK
-    nb[np_.KEY]["zustand"] = "fehlt"
-    assert nbb._versand()["zustand"] == abnahme.OFFEN
-    nb["NOTBETRIEB_PROBE_POSTFACH"] = ""
-    assert nbb._versand()["zustand"] == abnahme.UNBEKANNT
-
-
-def test_tagesbericht_zeile(probe):
-    import notification
-    zeilen = "".join(notification._notbetrieb_zeilen(lambda k: 0))
-    assert "Direktversand-Probe" in zeilen and "noch keine Probe" in zeilen and "#e67e22" in zeilen

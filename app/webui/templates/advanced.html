@@ -6,6 +6,8 @@
 {% set nav_aktiv = "erweitert" %}
 {% include "_nav_einstellungen.html" %}
 
+<h2 style="margin:0 0 14px;font-size:17px">Betrieb &amp; Ausfallsicherheit</h2>
+
 <!-- ── Wartungsmodus ─────────────────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="maintenance">
   <div class="step-header">
@@ -19,7 +21,8 @@
     Im Wartungsmodus werden eingehende Mails vollständig verarbeitet (Signatur, S/MIME),
     aber <strong>nicht an Exchange zugestellt</strong>. Die verarbeiteten Mails landen in der
     Warteschlange unten und können dort als Preview angesehen und einzeln gelöscht werden.
-    Ideal zum geräuschlosen Testen am lebenden Objekt.
+    Nützlich, um Änderungen an Vorlagen oder Regeln mit echter Post zu prüfen, ohne dass
+    etwas hinausgeht.
   </p>
   <label class="checkbox-label" style="font-weight:600 !important">
     <input type="checkbox" id="maintenance-toggle" onchange="setMaintenanceMode(this.checked)">
@@ -49,40 +52,223 @@
   </div>
 </div>
 
-<!-- ── Lexware-Formatkorrektur ───────────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="lexware-fix">
+<!-- ── Bypass-Wächter ─────────────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="watchdog">
   <div class="step-header">
-    <span class="step-badge" style="background:#0369a1;font-size:10px">Fix</span>
-    <span class="step-title">Format von Lexware Nachrichten korrigieren
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur für Rechnungsmails aus Lexware</span>
+    <span class="step-badge" style="background:#57534e;font-size:10px">Failover</span>
+    <span class="step-title">Bypass-Wächter
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — schaltet die Signatur-Regel ab, wenn das Gateway ausfällt</span>
     </span>
   </div>
   <div class="step-body">
   <p style="font-size:13px;color:#57534e;margin:0 0 14px">
-    Lexware-Rechnungsmails wickeln den Nachrichtentext in verschachtelte zentrierte
-    Blöcke (erkennbar am internen <code>templateBody</code>-Marker), setzen dort
-    horizontales Zell-Padding (sichtbarer Einzug), eine überflüssige Leerzeile
-    davor und verwenden teils Web-Fonts (z.B. "Merriweather Sans"), die auf den
-    meisten Windows-Systemen fehlen — Outlook zeigt dann oft Times New Roman als
-    Fallback. Bei Aktivierung werden diese Blöcke auf linksbündig ohne Einzug
-    und Leerzeile sowie Schrift auf Calibri 11pt umgestellt; die Gateway-Signatur
-    ist davon nicht betroffen.
+    Ein <strong>externer</strong> Wächter überwacht die Gateway-<code>/health</code> und schaltet bei
+    Ausfall die Signatur-Transportregel ab (ausgehende Post fließt dann unsigniert weiter, statt sich in
+    Exchange zu stauen); bei Erholung schaltet er sie wieder ein. Die <strong>S/MIME-Regel bleibt immer an</strong>
+    — verschlüsselungsfähige Post wartet bewusst. Mehrere Wächter (Azure und/oder cron) sind möglich und
+    erhöhen die Ausfallsicherheit.
   </p>
+
+  <!-- ── Aktuelle Wächter ──────────────────────────────────────────────────── -->
+  <div style="margin-bottom:14px">
+    <div style="font-size:13px;font-weight:600;color:#44403c;margin-bottom:6px">
+      Aktuelle Wächter: <span id="wd-count">0</span>
+    </div>
+    <div id="wd-liste" style="font-size:13px;color:#78716c">— wird geladen … —</div>
+    <div id="wd-einfuegen" hidden style="margin-top:8px"></div>
+    <div id="watchdog-status" style="font-size:12px;color:#78716c;margin-top:8px"></div>
+    <p class="hint" style="margin:8px 0 0"><strong>Berechtigungen erteilen</strong>: gibt dem Azure-Wächter per Azure-Login die nötigen Exchange-Rechte (bis „✓ berechtigt" steht — vorher meldet er „EXO: UnAuthorized"). <strong>Entfernen</strong>: baut den Wächter samt seiner Azure-Ressourcen ab. Öffnet ein Popup — falls nichts passiert, Popups für diese Seite erlauben.</p>
+  </div>
+
   <label class="checkbox-label" style="font-weight:600 !important">
-    <input type="checkbox" id="lexware-fix-toggle"
-           {% if s.LEXWARE_FIX_FORMAT %}checked{% endif %}
-           onchange="saveLexwareFix(this.checked)">
-    Format korrigieren
-    <span id="lexware-fix-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
+    <input type="checkbox" id="watchdog-enabled" onchange="setWatchdogEnabled(this.checked)">
+    Bypass-Wächter aktiv
+    <span id="watchdog-enabled-text" class="zustand-text">Deaktiviert</span>
   </label>
+
+  <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <button class="btn secondary" onclick="loadWatchdogStatus()">Aktualisieren</button>
+    <button class="btn secondary" id="wd-add-btn" onclick="wdToggleAdd()">Wächter hinzufügen</button>
+  </div>
+
+  <!-- ── Wächter hinzufügen ────────────────────────────────────────────────── -->
+  <div id="wd-add-panel" style="display:none;margin-top:14px;padding:14px;border:1px solid #e2e8f0;border-radius:8px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#44403c">Neuen Wächter hinzufügen</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
+      <label class="checkbox-label" style="align-items:flex-start">
+        <input type="radio" name="watchdog-kind" value="azure" onchange="watchdogKindGewaehlt()">
+        <span><strong>Azure Function</strong> (empfohlen) — serverlos, Anmeldung per Managed Identity.
+          Das Gateway legt sie selbst an.</span>
+      </label>
+      <label class="checkbox-label" style="align-items:flex-start">
+        <input type="radio" name="watchdog-kind" value="cron" onchange="watchdogKindGewaehlt()">
+        <span><strong>cron auf eigenem Zweithost</strong> — ohne Azure, Anmeldung per Zertifikat der
+          Wächter-App. Das Gateway erzeugt ein Skript-Bundle zum Copy-Paste (auf einem <em>anderen</em>
+          Rechner ausführen).</span>
+      </label>
+    </div>
+
+    <!-- ── Automatischer Installer (Azure) ──────────────────────────────────── -->
+    <div id="wd-installer" style="display:none;margin-bottom:16px;padding:14px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff">
+      <div style="font-size:13px;font-weight:600;color:#1e40af;margin-bottom:6px">Function automatisch anlegen (empfohlen)</div>
+      <p style="font-size:12px;color:#334155;margin:0 0 10px;line-height:1.6">
+        Das Gateway legt Storage + Function-App (Managed Identity, PowerShell) in deinem Azure-Abo an,
+        lädt den Wächter-Code hoch und trägt die Einstellungen ein — mit deinem Admin-Login, ohne
+        <code>az</code>/<code>func</code>. Danach nur noch die Berechtigungen erteilen (unten).
+      </p>
+
+      <div id="wd-arm-box" class="arm-box" style="margin-bottom:12px">
+        <span id="wd-arm-status-icon" style="font-weight:700">•</span>
+        <span id="wd-arm-status-text" class="arm-text" style="font-size:12px">Kein Azure-Zugriff — bitte verbinden.</span>
+        <button class="btn secondary" id="wd-arm-btn" style="margin-left:8px" onclick="wdArmLogin()">Azure-Zugriff holen</button>
+      </div>
+
+      <div id="wd-deploy-rows" style="display:none">
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;max-width:560px">
+          <label style="font-size:12px;color:#334155">Abo (Subscription)
+            <select id="wd-sub-sel" onchange="wdSubGewaehlt()" style="width:100%;font-size:12px;padding:5px 8px;margin-top:3px"></select>
+          </label>
+          <label style="font-size:12px;color:#334155">Ressourcengruppe
+            <select id="wd-rg-sel" onchange="wdRgGewaehlt()" style="width:100%;font-size:12px;padding:5px 8px;margin-top:3px"></select>
+          </label>
+          <div id="wd-rg-new" style="display:none;padding:8px;border:1px dashed #bfdbfe;border-radius:6px;background:#f0f9ff">
+            <input id="wd-rg-name" placeholder="Name der neuen Ressourcengruppe" style="width:100%;font-size:12px;padding:5px 8px;box-sizing:border-box">
+          </div>
+          <label style="font-size:12px;color:#334155">Region
+            <select id="wd-region-sel" style="width:100%;font-size:12px;padding:5px 8px;margin-top:3px">
+              <option value="westeurope">West Europe</option>
+              <option value="northeurope">North Europe</option>
+              <option value="germanywestcentral">Germany West Central</option>
+              <option value="switzerlandnorth">Switzerland North</option>
+              <option value="eastus">East US</option>
+              <option value="westus2">West US 2</option>
+            </select>
+          </label>
+          <label style="font-size:12px;color:#334155">Name der Function-App
+            <input id="wd-app-name" placeholder="z. B. exo-sig-watchdog" style="width:100%;font-size:12px;padding:5px 8px;margin-top:3px;box-sizing:border-box">
+          </label>
+        </div>
+        <button class="btn secondary" id="wd-deploy-btn" onclick="wdDeployStart()">Function anlegen</button>
+        <div id="wd-deploy-progress" hidden style="margin-top:10px"></div>
+        <span id="wd-deploy-result" class="field-msg" style="font-size:12px;display:block;margin-top:8px"></span>
+      </div>
+    </div>
+
+    <!-- ── cron-Bundle erzeugen (cron-Variante) ─────────────────────────────── -->
+    <div id="wd-cron" style="display:none;margin-bottom:16px;padding:14px;border:1px solid #bfdbfe;border-radius:8px">
+      <div style="font-size:13px;font-weight:600;color:#1e40af;margin-bottom:6px">cron-Bundle erzeugen</div>
+      <p style="font-size:12px;color:#334155;margin:0 0 10px;line-height:1.6">
+        Das Gateway registriert den Wächter mit eigenem Token und füllt eine <code>watchdog.env</code>
+        vor. AppId und Zertifikat deiner Wächter-App trägst du dort selbst nach (Anmeldung per
+        Zertifikat). Vollständige Anleitung: <code>contrib/watchdog/README.md</code>.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <input id="wd-cron-name" placeholder="Name (z. B. cron auf host2)" style="font-size:12px;padding:5px 8px;width:260px;max-width:100%">
+        <button class="btn secondary" onclick="wdCronGenerate()">Bundle erzeugen</button>
+      </div>
+      <span id="wd-cron-result" class="field-msg" style="font-size:12px;display:block;margin-bottom:6px"></span>
+      <div id="wd-cron-box" style="display:none">
+        <div style="font-size:12px;color:#92400e;margin-bottom:4px">Einmalig sichtbar — jetzt kopieren (enthält das Token):</div>
+        <textarea id="wd-cron-env" readonly style="width:100%;box-sizing:border-box;font-size:11px;font-family:monospace;min-height:170px;border:1px solid #e2e8f0;border-radius:5px;padding:8px"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Berechtigungen manuell (cron-Zertifikats-App oder Sonderfall) — Azure-Wächter
+       nutzen den Knopf „Berechtigungen" direkt am Wächter in der Liste oben. -->
+  <details id="watchdog-perms" style="margin-top:14px">
+    <summary style="cursor:pointer;font-size:13px;color:#0369a1;font-weight:600">Berechtigungen manuell zuweisen (cron / Sonderfall)</summary>
+      <div style="font-size:13px;color:#334155;line-height:1.6;margin-top:8px">
+        <p style="margin:0 0 8px">Für <strong>Azure-Wächter</strong> geht das per Knopf <strong>„Berechtigungen"</strong> direkt am Wächter (IDs kommen aus dem Register). Hier der manuelle Weg (z. B. cron mit eigener Zertifikats-App): drei Zuweisungen — <strong>kein</strong> „Exchange Administrator". IDs der Identität eintragen:</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
+          <input id="wd-mi-appid" placeholder="MI AppId (Client-ID)" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
+          <input id="wd-mi-objid" placeholder="MI Objekt-ID (principalId)" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
+        </div>
+
+        <p style="margin:8px 0 4px"><strong>1+2 — App-Rolle <code>Exchange.ManageAsApp</code> + Entra „Global Reader"</strong> (Anmelden/Lesen):</p>
+        <button class="btn secondary" onclick="grantWatchdogGraph()">Berechtigungen erteilen (Azure-Login)</button>
+        <span id="wd-graph-result" class="field-msg" style="font-size:12px;display:block;margin-top:6px"></span>
+        <p class="hint" style="margin:6px 0 0">Öffnet einen Azure-Login; die Zuweisung läuft mit deinem Admin-Token — das Gateway bekommt kein neues stehendes Recht.</p>
+        <details style="margin-top:6px">
+          <summary style="cursor:pointer;font-size:12px;color:#64748b">… oder manuell per az-Befehl</summary>
+          <pre style="font-size:11px;border:1px solid #e2e8f0;border-radius:5px;padding:8px;overflow-x:auto;white-space:pre;line-height:1.5"># 1) App-Rolle Exchange.ManageAsApp (Anmelden)
+EXO_SP=$(az ad sp show --id 00000002-0000-0ff1-ce00-000000000000 --query id -o tsv)
+az rest --method POST --url "https://graph.microsoft.com/v1.0/servicePrincipals/&lt;MI-ObjektID&gt;/appRoleAssignments" \
+  --headers "Content-Type=application/json" \
+  --body "{\"principalId\":\"&lt;MI-ObjektID&gt;\",\"resourceId\":\"$EXO_SP\",\"appRoleId\":\"dc50a0fb-09a3-484d-be87-e023b12c6440\"}"
+
+# 2) Entra Global Reader (nur Lesen)
+az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments" \
+  --headers "Content-Type=application/json" \
+  --body "{\"principalId\":\"&lt;MI-ObjektID&gt;\",\"roleDefinitionId\":\"f2ef992c-3afb-46b9-b7cf-a126ee74c451\",\"directoryScopeId\":\"/\"}"</pre>
+        </details>
+
+        <p style="margin:14px 0 4px"><strong>3 — EXO-Schreibrolle „Transport Rules"</strong> (das Gateway erledigt es):</p>
+        <button class="btn secondary" onclick="grantWatchdogRole()">Rolle zuweisen</button>
+        <span id="wd-grant-result" class="field-msg" style="font-size:12px;display:block;margin-top:6px"></span>
+        <p class="hint" style="margin-top:8px">Alle Zuweisungen propagieren ~15–30 Min. Danach unten aktivieren und den Status prüfen.</p>
+      </div>
+    </details>
+  </div>
   </div>
 </div>
-<script>
-// Sofort-Schalter: speichert über savePartial (Speicher-Linie Regel 4/5)
-async function saveLexwareFix(enabled) {
-  await savePartial({LEXWARE_FIX_FORMAT: enabled}, 'lexware-fix-result', 'advanced:lexware');
-}
-</script>
+
+<!-- ── Gateway-Name ─────────────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#57534e;font-size:10px">Name</span>
+    <span class="step-title">Gateway-Name
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — Präfix für die in Exchange angelegten Objekte</span>
+    </span>
+  </div>
+  <div class="step-body">
+  <div class="settings-row">
+    <label for="gateway-name">Gateway-Name</label>
+    <div class="settings-control">
+      <input type="text" id="gateway-name" value="{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}" style="width:320px">
+      <span class="hint">Prefix für EXO-Objekte (Connectors, Rules, Distribution Groups). Änderung gilt erst nach erneutem Ausführen des Setup-Assistenten.</span>
+      <div style="margin-top:6px">
+        <button class="btn secondary" id="gateway-name-btn" data-wache-hinweis="gateway-name-result" data-wache="gateway-name" onclick="saveGatewayName()">Speichern</button>
+        <span id="gateway-name-result" style="font-size:12px;margin-left:8px"></span>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- ── Neustart ─────────────────────────────────────────────────────────────── -->
+<!-- id=neustart: Ziel des Deep-Links aus der LE-Erneuerungs-Mail (Navigation zum Knopf) -->
+<div class="wizard-step" id="neustart" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#78716c;font-size:10px">System</span>
+    <strong>Neustart</strong>
+  </div>
+  <div class="step-body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:4px">
+      <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">Prozess neu starten</div>
+        <p style="font-size:12px;color:#64748b;margin:0 0 12px">
+          Startet nur den Python-Prozess im Container neu (~2 s). Gut nach Einstellungsänderungen.
+        </p>
+        <button class="btn secondary" onclick="restartService(this)">Prozess neu starten</button>
+      </div>
+      <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">Container neu starten</div>
+        <p style="font-size:12px;color:#64748b;margin:0 0 12px">
+          Führt <code>docker compose restart</code> auf dem Host aus (~15 s). Nötig nach Umgebungsvariablen-Änderungen.
+          Erfordert den Update-Dienst.
+        </p>
+        <button class="btn secondary" id="restart-container-btn" onclick="restartContainer()">Container neu starten</button>
+      </div>
+    </div>
+    <div id="restart-service-status" style="display:none;margin-top:10px"></div>
+    <div id="restart-container-status" hidden style="margin-top:10px"></div>
+  </div>
+</div>
+
+
+<h2 style="margin:32px 0 6px;font-size:17px">Zustellwege (Feinheiten)</h2>
+<p class="hint" style="margin:0 0 14px">Den Rückweg-Modus wählst du im Einrichtungsassistenten. Hier stehen Feinheiten, die nur in einzelnen Modi wirken.</p>
 
 <!-- Domänen-Routing und Hybrid-Koexistenz: Einstellungen → Mail-Routing (seit v1.12.18;
      der frühere Anzeige-Schalter hier entfällt). -->
@@ -90,6 +276,340 @@ async function saveLexwareFix(enabled) {
   Domänen-Routing, Direktversand und Hybrid-Koexistenz richtest du unter
   <a href="/settings/routing">Einstellungen → Mail-Routing</a> ein.
 </p>
+
+<!-- ── Gemischte Mails: interne + externe Empfänger (Antworten-an-Alle) ────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
+    <span class="step-title">Gemischte Mails — Antworten-an-Alle
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur in den Modi Graph-only und Graph++ relevant</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Schickt jemand eine Mail gleichzeitig an interne <em>und</em> externe Empfänger, teilt
+      Exchange sie in getrennte Teilnachrichten auf. Jede trägt die vollständige An/Cc-Liste,
+      aber nur ihre eigenen Zustellempfänger.
+    </p>
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Im Modus <strong>Graph++</strong> versucht das Gateway solche Teilnachrichten zuerst über
+      <strong>authentifizierte SMTP-Übermittlung (Port 587)</strong> zuzustellen — als der
+      ursprüngliche Absender. Nur SMTP trennt Zustellempfänger und angezeigte Empfänger
+      voneinander (derselbe Mechanismus wie bei Blindkopien); Graph kann das nicht. Gelingt das,
+      ist Antworten-an-Alle vollständig und <em>diese Einstellung bleibt ohne Wirkung</em>. Im
+      Modus <strong>Graph-only</strong> gibt es keinen 587-Weg — dort bestimmt immer diese
+      Einstellung, wie aufgeteilte Nachrichten zugestellt werden.
+      <br>
+      Voraussetzung dafür ist die Anwendungsberechtigung <code>SMTP.SendAsApp</code>. Fehlt sie,
+      entscheidet die Einstellung unten, wie stattdessen verfahren wird.
+      <span style="color:#57534e">Im Modus <strong>SMTP Port 25</strong> stellt sich die Frage
+      nicht: Dort läuft die Zustellung ohnehin über SMTP, Antworten-an-Alle bleibt vollständig,
+      und die Einstellung hat keine Wirkung.</span>
+    </p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <select id="mixed-fork-select" style="width:360px;max-width:100%">
+        <option value="send_to_all" {% if (s.GRAPH_MIXED_FORK_MODE or 'send_to_all') == 'send_to_all' %}selected{% endif %}>Vollständige Empfängerliste (Standard, empfohlen)</option>
+        <option value="scoped" {% if s.GRAPH_MIXED_FORK_MODE == 'scoped' %}selected{% endif %}>Getrennte Zustellung</option>
+      </select>
+      <button class="btn secondary" id="mixed-fork-btn" data-wache-hinweis="mixed-fork-result" data-wache="mixed-fork-select" onclick="saveMixedFork()">Speichern</button>
+      <span id="mixed-fork-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+    <p class="hint" style="margin-bottom:0">
+      <strong>Vollständige Empfängerliste</strong>: Der interne Empfänger bekommt genau
+      <strong>eine</strong> signierte Kopie, in deren Kopfzeile <em>alle</em> Empfänger (auch die
+      externen) stehen — Antworten-an-Alle erreicht damit den ganzen Verteiler. Weil das Gateway
+      dafür kurz abwartet, ob die zusammengehörige externe Teilnachricht eintrifft, kann diese
+      Kopie <strong>wenige Sekunden später</strong> ankommen. Kein Duplikat, kein Verlust.<br>
+      <strong>Getrennte Zustellung</strong>: Jede Teilnachricht geht sofort nur an ihre eigenen
+      Empfänger. Am schnellsten, aber in der Kopfzeile der internen Kopie fehlen die externen
+      Empfänger — Antworten-an-Alle ist dort <strong>unvollständig</strong>.
+    </p>
+  </div>
+</div>
+
+<!-- ── Ausweichweg, wenn die Graph-Zustellung scheitert ───────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
+    <span class="step-title">Ausweichweg bei gescheiterter Graph-Zustellung</span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Betrifft nur die Modi <strong>Graph-only</strong> und <strong>Graph++</strong>.
+      Lehnt Graph eine bearbeitete Nachricht ab, kann das Gateway sie stattdessen über den
+      <strong>SMTP-Smarthost (Port 25)</strong> zustellen.
+      <br>
+      <strong>Ohne Ausweichweg</strong> meldet das Gateway Exchange einen vorübergehenden
+      Fehler. Exchange behält die Nachricht und versucht es später erneut; bleibt Graph
+      dauerhaft gestört, geht sie irgendwann als unzustellbar an den Absender zurück.
+      Verloren geht nichts.
+    </p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px">
+        <input type="checkbox" id="graph-smtp-fallback"
+               {% if s.GRAPH_SMTP_FALLBACK %}checked{% endif %}>
+        Bei Graph-Fehlern über den SMTP-Smarthost zustellen
+      </label>
+      <button class="btn secondary" id="graph-fallback-btn" data-wache-hinweis="graph-fallback-result" data-wache="graph-smtp-fallback"
+              onclick="saveGraphFallback()">Speichern</button>
+      <span id="graph-fallback-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+    <p class="hint" style="margin-bottom:0">
+      Standardmäßig <strong>aus</strong>. Ist Port 25 ausgehend gesperrt, scheitert auch der
+      Ausweichweg und verzögert die Nachricht nur. Einschalten, wenn der Smarthost erreichbar
+      ist und Graph gelegentlich ausfällt (Drosselung, Störung).
+    </p>
+  </div>
+</div>
+
+<!-- ── Sende-Identitäten: Zustellweg ──────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
+    <span class="step-title">Sende-Identitäten über Graph zustellen</span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Post einer <strong>Sende-Identität</strong> (Port 587) wird über die Graph-API als
+      deren Shared Mailbox zugestellt — <strong>unabhängig vom gewählten Rückweg</strong>.
+      Vorteil: Exchange erzeugt die Nachricht aus dem eigenen Haus, sodass
+      <strong>SPF, DKIM und DMARC</strong> greifen, ohne dass die öffentliche IP des
+      Gateways im SPF-Eintrag der Absenderdomäne stehen muss. Voraussetzung ist, dass die
+      Shared Mailbox im Sende-Umfang der Anwendung liegt (wird beim Anlegen mit eingerichtet).
+    </p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px">
+        <input type="checkbox" id="ident-graph"
+               {% if s.IDENT_DELIVER_VIA_GRAPH %}checked{% endif %}>
+        Sende-Identitäten über Graph zustellen
+      </label>
+      <button class="btn secondary" id="ident-graph-btn" data-wache-hinweis="ident-graph-result" data-wache="ident-graph"
+              onclick="saveIdentGraph()">Speichern</button>
+      <span id="ident-graph-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+    <p class="hint" style="margin-bottom:0">
+      Standardmäßig <strong>an</strong>. Ausschalten nur, wenn Graph für Sende-Identitäten
+      dauerhaft nicht geht: Dann folgt auch
+      Identitätspost dem allgemeinen Rückweg (im SMTP-Modus über den Smarthost) — und die
+      Absenderdomäne braucht die Gateway-IP im SPF-Eintrag, sonst droht SPF-Fail. Scheitert
+      Graph im Einzelfall (etwa bevor die Sende-Umfang-Änderung propagiert ist), fällt die
+      Zustellung ohnehin automatisch auf den allgemeinen Rückweg zurück.
+    </p>
+  </div>
+</div>
+
+<!-- ── SMTP-Smarthost (Port 25) ───────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#57534e;font-size:10px">SMTP</span>
+    <span class="step-title">SMTP-Smarthost</span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Der Rückweg im Modus <strong>SMTP Port 25</strong> — der Vorgabe. Das Ziel selbst
+      (<code>{{ s.EXO_SMARTHOST or 'noch nicht eingerichtet' }}</code>) legt der
+      Einrichtungsassistent zusammen mit dem Exchange-Connector fest; hier steht nur der Port.
+    </p>
+    <div class="settings-row">
+      <label for="exo-port">Port</label>
+      <div class="settings-control">
+        <input type="number" id="exo-port" style="width:100px" min="1" max="65535"
+               value="{{ s.EXO_PORT or 25 }}">
+        <span class="hint">
+          Vorgabe <code>25</code>. Ein abweichender Port ist nur nötig, wenn nicht Exchange
+          selbst, sondern ein eigener Relay dazwischen steht.
+        </span>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <button class="btn secondary" id="exo-port-btn" data-wache-hinweis="exo-port-result" data-wache="exo-port"
+              onclick="saveExoPort()">Speichern</button>
+      <span id="exo-port-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+    <p class="hint" style="margin-bottom:0;margin-top:12px">
+      <strong>Anmeldung am Smarthost.</strong> Der Regelfall braucht keine: Exchange erkennt das
+      Gateway am TLS-Zertifikat des eingehenden Connectors. Verlangt ein vorgeschalteter Relay
+      Benutzername und Kennwort, werden <code>RELAY_USER</code> und <code>RELAY_PASSWORD</code>
+      in <code>data/settings.json</code> gesetzt, nicht in der Oberfläche.
+    </p>
+  </div>
+</div>
+
+<!-- ── SMTP-Übermittlung (Port 587) ───────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#57534e;font-size:10px">587</span>
+    <span class="step-title">SMTP-Übermittlung (Port 587)</span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Der Weg, über den aufgeteilte Nachrichten zugestellt werden (siehe oben). Er wird
+      <strong>nur</strong> im Modus <strong>Graph++</strong>
+      benutzt — in den Modi <strong>Graph-only</strong> und <strong>SMTP Port 25</strong> nie. Die Vorgaben passen für Exchange
+      Online; sie zu ändern ist nur nötig, wenn ein anderer Übermittlungsserver dazwischen steht.
+    </p>
+    <div class="settings-row">
+      <label for="smtp-submit-host">Server</label>
+      <div class="settings-control">
+        <input type="text" id="smtp-submit-host" style="width:260px"
+               placeholder="smtp.office365.com" value="{{ s.SMTP_SUBMIT_HOST or '' }}">
+        <span class="hint">Vorgabe <code>smtp.office365.com</code>.</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="smtp-submit-port">Port</label>
+      <div class="settings-control">
+        <input type="number" id="smtp-submit-port" style="width:100px" min="1" max="65535"
+               value="{{ s.SMTP_SUBMIT_PORT or 587 }}">
+        <span class="hint">Vorgabe <code>587</code> (Übermittlung mit Anmeldung).</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="smtp-submit-clientid">Eigene Anwendungskennung</label>
+      <div class="settings-control">
+        <input type="text" id="smtp-submit-clientid" style="width:340px;max-width:100%"
+               placeholder="leer = Hauptanwendung verwenden"
+               value="{{ s.SMTP_SUBMIT_CLIENT_ID or '' }}">
+        <span class="hint">
+          Normalerweise leer lassen — dann meldet sich das Gateway mit seiner Hauptanwendung an.
+          Nur nötig, wenn diese die Berechtigung <code>SMTP.SendAsApp</code> nicht führt und
+          dafür eine zweite Registrierung angelegt wurde. Ist beides vorhanden, wird zuerst die
+          Hauptanwendung versucht und die hier eingetragene als Ausweichweg.
+        </span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="smtp-submit-user">Ersatz-Absenderpostfach</label>
+      <div class="settings-control">
+        <input type="text" id="smtp-submit-user" style="width:300px;max-width:100%"
+               placeholder="leer = dieser Weg entfällt" value="{{ s.SMTP_SUBMIT_USER or '' }}">
+        <span class="hint">
+          Betrifft <strong>eingehende</strong> Nachrichten von Absendern ausserhalb des Tenants,
+          die Graph nicht zustellen kann. Weil eine Anmeldung einen passenden Absenderkopf
+          verlangt, wird die Nachricht dann <strong>umgeschrieben</strong>: Als Absender erscheint
+          dieses Postfach, die echte Adresse bleibt nur in der Antwortadresse erhalten.
+          <br>
+          Bleibt das Feld leer, entfällt der Weg ersatzlos — die betroffene Nachricht wird nicht
+          zugestellt. Im Modus <strong>Graph++</strong> ist das der Regelfall und
+          unbedenklich, weil dort intern per IMAP zugestellt wird.
+        </span>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <button class="btn secondary" id="smtp-submit-btn" data-wache-hinweis="smtp-submit-result"
+              data-wache="smtp-submit-host,smtp-submit-port,smtp-submit-clientid,smtp-submit-user"
+              onclick="saveSmtpSubmit()">Speichern</button>
+      <span id="smtp-submit-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+  </div>
+</div>
+
+
+<h2 style="margin:32px 0 14px;font-size:17px">Sicherheit am Eingang</h2>
+
+<!-- ── SMTP-Quell-IP-Allowlist ────────────────────────────────────────────── -->
+<div class="wizard-step" id="quell-ip" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Security</span>
+    <span class="step-title">SMTP-Quell-IP-Allowlist (:25)
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur Exchange Online darf einliefern</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.6">
+      {% if s.SMTP_RELAY_ENABLED %}Abgesehen von den Geräten, die unter
+      <a href="/relay">SMTP-Relay</a> eingetragen sind, nimmt der SMTP-Listener{% else %}
+      Der SMTP-Listener nimmt{% endif %} Verbindungen nur von Microsofts
+      offiziellen Exchange-Online-IP-Bereichen an (2×/Tag automatisch
+      aktualisiert); andere Quellen werden mit <code>554</code> abgewiesen.
+      <span style="color:#57534e">Fail-safe: sind keine Bereiche geladen (0),
+      wird nichts blockiert — dann gilt wieder „alle erlaubt".</span>
+    </p>
+
+    <label style="display:flex;gap:10px;align-items:center;margin-bottom:12px;cursor:pointer">
+      <input type="checkbox" id="acl-enabled" {% if s.SMTP_SOURCE_ACL_ENABLED != false %}checked{% endif %} onchange="aclToggle()">
+      <span style="font-size:13px">Allowlist aktiv</span>
+      <span id="acl-enabled-result" style="font-size:12px;margin-left:6px"></span>
+    </label>
+
+    <label style="display:flex;gap:10px;align-items:center;margin-bottom:6px;cursor:pointer">
+      <input type="checkbox" id="tenant-streng" {% if s.RELAY_TENANT_STRENG %}checked{% endif %} onchange="tenantStrengToggle()">
+      <span style="font-size:13px">Post ohne Tenant-Kennung abweisen</span>
+      <span id="tenant-streng-result" style="font-size:12px;margin-left:6px"></span>
+    </label>
+    <p class="hint" style="margin:0 0 12px 30px">
+      Exchange Online versieht Post des eigenen Tenants mit dessen Kennung; eine fremde
+      Kennung weist das Gateway immer ab. Fehlt sie, nimmt das Gateway die Post an, solange
+      dieser Schalter aus ist.
+      Einschalten, wenn die Zahl unten über eine Weile bei 0 bleibt:
+      <span id="tenant-zahlen">…</span>
+    </p>
+
+    <div class="settings-row">
+      <label for="exo-erkennung">Exchange Online erkennen an</label>
+      <div class="settings-control">
+        <select id="exo-erkennung" onchange="exoErkennungSpeichern()">
+          <option value="eins"{% if (s.EXO_ERKENNUNG or 'eins') == 'eins' %} selected{% endif %}>Adresse oder Zertifikat (empfohlen)</option>
+          <option value="beide"{% if s.EXO_ERKENNUNG == 'beide' %} selected{% endif %}>Adresse und Zertifikat (streng)</option>
+          <option value="adresse"{% if s.EXO_ERKENNUNG == 'adresse' %} selected{% endif %}>nur Adresse</option>
+        </select>
+        <span id="exo-erkennung-result" style="font-size:12px;margin-left:6px"></span>
+      </div>
+    </div>
+    <p class="hint" style="margin:0 0 12px 0">
+      Exchange Online legt beim Einliefern ein Zertifikat auf
+      <code>mail.protection.outlook.com</code> vor — dasselbe, an dem ein Exchange vor Ort
+      im Hybrid-Betrieb Exchange Online erkennt. <em>Adresse oder Zertifikat</em> nimmt
+      Post an, wenn eines davon passt; damit läuft das Gateway auch hinter einer Firewall,
+      die die Absenderadresse umschreibt. Das Zertifikat wird dabei nur angefordert, wenn die
+      Adresse nicht reicht. <em>Adresse und Zertifikat</em> verlangt beides. Die
+      Tenant-Kennung wird in jeder Stufe geprüft.
+      <span id="exo-zahlen"></span>
+    </p>
+
+    <div class="settings-row">
+      <label for="proxy-quellen">Vorgeschaltete Firewall (PROXY-Protokoll)</label>
+      <div class="settings-control">
+        <input type="text" id="proxy-quellen" placeholder="z.B. 10.99.0.1"
+               value="{{ (s.SMTP_PROXY_QUELLEN or []) | join(', ') }}">
+        <button class="btn secondary btn-sm" id="proxy-quellen-btn" data-wache="proxy-quellen" data-wache-hinweis="proxy-quellen-result"
+                onclick="proxyQuellenSpeichern()">Speichern</button>
+        <span id="proxy-quellen-result" class="speicher-hinweis"></span>
+      </div>
+    </div>
+    <p class="hint" style="margin:0 0 12px 0">
+      Läuft das Gateway hinter einer Firewall, die bei Port 25 die Absenderadresse
+      auf ihre eigene umschreibt (Source-NAT), sieht es Exchange Online nur als
+      diese Adresse und weist ab. Unterstützt die Firewall das PROXY-Protokoll
+      (v1 oder v2), trage hier ihre interne Adresse ein und schalte es dort für
+      die Weiterleitung an Port 25 ein. Das Gateway prüft dann die mitgelieferte
+      Ursprungsadresse. Von hier eingetragenen Adressen muss der Vorspann
+      kommen, sonst wird die Verbindung geschlossen. Andere Geräte sind nicht
+      betroffen. Leer lassen, wenn die Firewall die Absenderadresse nicht ändert.
+      Kann die Firewall kein PROXY-Protokoll: ihre Adresse unter
+      <a href="/relay">SMTP-Relay</a> mit der Rolle „vorgelagertes Gateway“
+      eintragen, nicht als gewöhnliches Gerät.
+    </p>
+
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px;margin-bottom:14px">
+      <div>Geladene Bereiche: <strong id="acl-count">…</strong></div>
+      <div>Letzte Aktualisierung: <strong id="acl-refresh">…</strong></div>
+      <button class="btn secondary btn-sm" onclick="aclRefresh(this)">Jetzt aktualisieren</button>
+      <span id="acl-refresh-result" class="fortschritt" hidden></span>
+    </div>
+
+
+    <details>
+      <summary style="cursor:pointer;font-size:13px;color:#57534e">Zuletzt abgewiesene Quellen</summary>
+      <div id="acl-rejects" style="font-size:12px;font-family:monospace;margin-top:8px;color:#555">…</div>
+    </details>
+
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:13px;color:#57534e">Abgewiesene Anmeldungen (Web-UI · 587 · Port 25) <span id="anm-summe" style="color:#92400e"></span></summary>
+      <div id="anm-ereignisse" style="font-size:12px;font-family:monospace;margin-top:8px;color:#555">…</div>
+    </details>
+  </div>
+</div>
 
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="smtp-cert">
   <div class="step-header">
@@ -130,6 +650,259 @@ async function saveLexwareFix(enabled) {
     </div>
   </div>
 </div>
+
+
+<h2 style="margin:32px 0 14px;font-size:17px">Kompatibilität mit Absender-Programmen</h2>
+
+<!-- ── Lexware-Formatkorrektur ───────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="lexware-fix">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Fix</span>
+    <span class="step-title">Rechnungsmails aus Lexware lesbar machen
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — wirkt nur auf Mails aus Lexware</span>
+    </span>
+  </div>
+  <div class="step-body">
+  <p style="font-size:13px;color:#57534e;margin:0 0 14px">
+    Lexware zentriert den Nachrichtentext, rückt ihn ein und nutzt teils Schriften, die unter
+    Windows meist fehlen; Outlook zeigt dann Times New Roman. Eingeschaltet stellt das Gateway
+    solche Mails linksbündig in Calibri 11&nbsp;pt um. Erkannt werden sie an der Lexware-Kennung
+    <code>templateBody</code>; andere Mails und die Signatur bleiben unberührt.
+  </p>
+  <label class="checkbox-label" style="font-weight:600 !important">
+    <input type="checkbox" id="lexware-fix-toggle"
+           {% if s.LEXWARE_FIX_FORMAT %}checked{% endif %}
+           onchange="saveLexwareFix(this.checked)">
+    Format korrigieren
+    <span id="lexware-fix-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
+  </label>
+  </div>
+</div>
+
+
+<h2 style="margin:32px 0 14px;font-size:17px">Diagnose &amp; Support</h2>
+
+<!-- ── Logging ─────────────────────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#64748b33;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#64748b;font-size:10px">Logging</span>
+    <strong>Logging</strong>
+  </div>
+  <div class="step-body">
+    <div class="settings-row">
+      <label for="log-level">Log-Level</label>
+      <div class="settings-control">
+        <select id="log-level">
+          {% for lvl in ["DEBUG","INFO","WARNING","ERROR"] %}
+          <option value="{{ lvl }}"{% if s.LOG_LEVEL == lvl %} selected{% endif %}>{{ lvl }}</option>
+          {% endfor %}
+        </select>
+        <span class="hint">Wirkt erst nach Neustart</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="log-retention">Log-Aufbewahrung (Tage)</label>
+      <div class="settings-control">
+        <input type="number" class="eng" id="log-retention" value="{{ s.LOG_RETENTION_DAYS }}" min="1" max="365" style="width:80px">
+        <span class="hint">Tägliche Rotation, ältere Dateien werden automatisch gelöscht</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="krypto-retention">Krypto/Fehler-Aufbewahrung (Tage)</label>
+      <div class="settings-control">
+        <input type="number" class="eng" id="krypto-retention" value="{{ s.KRYPTO_LOG_RETENTION_DAYS }}" min="1" max="3650" style="width:80px">
+        <span class="hint">Detailzeilen hinter den Übersichtszahlen für S/MIME, Fehler/Abweisungen und die Warteschlange — bleiben so lange nachschlagbar (verdichtet, wenige Zeilen)</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="log-timezone">Log-Zeitzone</label>
+      <div class="settings-control">
+        <select id="log-timezone">
+          {% for tz in ["UTC","Europe/Berlin","Europe/Vienna","Europe/Zurich","Europe/London","Europe/Paris","Europe/Amsterdam","America/New_York","America/Chicago","America/Denver","America/Los_Angeles","Asia/Tokyo","Asia/Shanghai","Australia/Sydney"] %}
+          <option value="{{ tz }}"{% if s.LOG_TIMEZONE == tz %} selected{% endif %}>{{ tz }}</option>
+          {% endfor %}
+        </select>
+        <span class="hint">Zeitzone für Log-Zeitstempel (IANA-Name). Wirkt sofort nach Speichern.</span>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn secondary" id="logging-btn" data-wache-hinweis="logging-result" data-wache="log-level,log-retention,krypto-retention,log-timezone" onclick="saveLogging()">Speichern</button>
+      <span id="logging-result" style="font-size:12px;margin-left:8px"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Support-Bundle ──────────────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#7c3aed33;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#7c3aed;font-size:10px">Support</span>
+    <strong>Diagnose-Bundle</strong>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Erstellt ein ZIP-Paket mit Logs, Konfiguration (Secrets maskiert), Audit-Events
+      und ACME-Status. Lokal speichern und per E-Mail weitergeben — oder direkt an den
+      Provider-Hub übertragen (Registrierung erforderlich).
+    </p>
+
+    <div style="display:flex;flex-direction:column;gap:4px;max-width:240px;margin-bottom:16px">
+      <button class="btn secondary" id="sup-dl-btn" onclick="supportDownload()">Bundle herunterladen</button>
+      <span id="sup-dl-spinner" hidden style="text-align:center"></span>
+      <span style="font-size:11px;color:#94a3b8;text-align:center">lokal speichern · per E-Mail senden</span>
+    </div>
+    <div id="sup-dl-result" style="display:none;margin-bottom:14px"></div>
+
+    <!-- An Hub senden (Registrierung/Key unter Einstellungen → Anbindung &amp; Lizenzen) -->
+    <div style="border-top:1px solid #e2e8f0;padding-top:14px">
+      {% if hub_registered %}
+      <label for="sup-note" style="display:block;font-size:12px;color:#555;margin-bottom:4px">
+        Problem kurz beschreiben (optional)</label>
+      <textarea id="sup-note" rows="3" maxlength="2000" placeholder="z.B. seit heute Morgen kommen Signaturen doppelt an…"
+                style="width:100%;max-width:520px;box-sizing:border-box;font-size:13px;font-family:inherit;
+                       padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;margin-bottom:10px"></textarea>
+      <div>
+        <button class="btn secondary" id="sup-upload-btn" onclick="supportUpload()">Bundle an Hub senden</button>
+        <span id="sup-upload-spinner" hidden style="margin-left:8px"></span>
+      </div>
+      {% else %}
+      <p class="hint" style="margin:0">
+        Zum direkten Übertragen an den Support-Hub muss dieses Gateway erst registriert und
+        freigegeben sein — einzurichten unter
+        <a href="/settings/connect#anbindung">Einstellungen → Anbindung &amp; Lizenzen → Support-Hub</a>.
+      </p>
+      <button class="btn secondary" id="sup-upload-btn" onclick="supportUpload()" disabled
+              title="Erst unter Einstellungen → Anbindung &amp; Lizenzen registrieren" style="margin-top:8px">
+        Bundle an Hub senden
+      </button>
+      <span id="sup-upload-spinner" hidden style="margin-left:8px"></span>
+      {% endif %}
+      <div id="sup-upload-result" style="display:none;margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Test-Mail ────────────────────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#0ea5e933;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0ea5e9;font-size:10px">Test</span>
+    <strong>Test-Mail senden</strong>
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">Sendet eine Mail durch den lokalen SMTP-Handler inkl. Signatur-Injektion an EXO.</p>
+    <div class="settings-row">
+      <label for="test-from">Absender</label>
+      <input type="email" id="test-from" placeholder="user@contoso.com">
+    </div>
+    <div class="settings-row">
+      <label for="test-to">Empfänger</label>
+      <input type="email" id="test-to" placeholder="empfaenger@domain.com">
+    </div>
+    <div class="settings-row">
+      <label for="test-type">Format</label>
+      <select id="test-type">
+        <option value="plain">Nur Text (plain text)</option>
+        <option value="html">HTML</option>
+      </select>
+    </div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn secondary" onclick="sendTestMail()">Test-Mail senden</button>
+    </div>
+    <div id="test-result" style="margin-top:10px;display:none"></div>
+  </div>
+</div>
+
+<!-- ── EXO PowerShell Zertifikat ──────────────────────────────────────────── -->
+<div class="wizard-step" id="exo-ps-cert" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Cert</span>
+    <span class="step-title">EXO PowerShell Zertifikat
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — auth.pfx Public Key für Entra App-Registrierung exportieren</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Exportiert den <strong>öffentlichen Schlüssel</strong> aus <code>auth.pfx</code> als DER-kodierte
+      <code>.cer</code>-Datei (kein Private Key). Diese muss in der Entra App-Registrierung
+      unter <em>Zertifikate &amp; Geheimnisse → Zertifikate</em> hochgeladen werden,
+      damit <code>Connect-ExchangeOnline</code> funktioniert.<br>
+      {% set ps_app_id = s.CLIENT_ID or "" %}
+      {% if ps_app_id %}
+      App-ID (aus Einstellungen): <code>{{ ps_app_id }}</code><button class="copy-btn" data-copy="{{ ps_app_id }}" title="Kopieren" type="button"></button>
+      {% else %}
+      <span style="color:#b45309">App-ID noch nicht konfiguriert (Schritt 3 im Einrichtungs-Assistenten).</span>
+      {% endif %}
+    </p>
+
+    <div id="cert-info-box" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:12px;margin-bottom:14px;font-size:12px;font-family:monospace;line-height:1.8"></div>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn secondary" id="cert-info-btn" onclick="certLoadInfo()">Zertifikat-Info anzeigen</button>
+      <a id="cert-download-link" href="/api/cert/exo-ps-export.cer" class="btn secondary">
+        ⬇ EXO-PS-Auth.cer herunterladen
+      </a>
+    </div>
+    <div id="cert-info-result" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ── ACME Challenge Reply Methode ───────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#7c3aed;font-size:10px">ACME</span>
+    <span class="step-title">ACME Challenge Reply — Versandmethode
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — Standard: folgt dem allgemeinen Gateway-Modus (REINJECT_MODE)</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <select id="acme-method-select" style="width:320px;max-width:100%">
+        <option value="auto">Automatisch (Standard) — folgt Gateway-Modus über Exchange</option>
+        <option value="graph">Graph API erzwingen — über Exchange</option>
+        <option value="direct_smtp">Debug: Direktversand zum CA-MX — an Exchange vorbei</option>
+      </select>
+      <button id="acme-method-btn" data-wache="acme-method-select" class="btn secondary" onclick="acmeSetMethod()">Speichern</button>
+    </div>
+    <p class="hint" style="margin-bottom:0">
+      <strong>Automatisch</strong>: sendet über denselben Weg wie jede andere ausgehende Mail
+      (REINJECT_MODE-Einstellung) — bei SMTP-Modus über den EXO-Smarthost (Port {{ s.EXO_PORT or 25 }}),
+      bei Graph-Modus per Graph sendMail. In beiden Fällen läuft die Mail durch Exchange und ist damit
+      SPF/DKIM-authentifiziert.<br>
+      <strong>Graph API erzwingen</strong>: sendMail → Exchange → Transport-Connector → Gateway → CA-MX,
+      unabhängig vom REINJECT_MODE.<br>
+      <strong style="color:#b45309">Debug: Direktversand</strong> — DNS-MX-Auflösung → direkt zur CA-MX
+      auf Port 25, komplett an Exchange vorbei. <u>Nur zu Diagnosezwecken.</u> Wird von der CA in der
+      Regel als nicht authentifiziert abgelehnt, da die Mail nicht über den SPF/DKIM-autorisierten Exchange-Absender läuft.
+    </p>
+
+    <div id="acme-method-result" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ── Preview-Modal ─────────────────────────────────────────────────────── -->
+<div id="held-preview-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;width:90%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e7e5e4">
+      <div>
+        <strong id="preview-modal-subject" style="font-size:15px"></strong>
+        <div id="preview-modal-meta" style="font-size:11px;color:#78716c;margin-top:2px"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn secondary btn-sm" id="preview-release-btn" onclick="releaseHeld()">Zustellen</button>
+        <button class="btn danger btn-sm" id="preview-delete-btn" onclick="deleteHeld()">Löschen</button>
+        <button class="btn secondary btn-sm" onclick="closePreview()">Schließen</button>
+      </div>
+    </div>
+    <iframe id="preview-iframe" style="flex:1;border:none;width:100%;min-height:500px" sandbox="allow-same-origin"></iframe>
+  </div>
+</div>
+
+<script>
+// Sofort-Schalter: speichert über savePartial (Speicher-Linie Regel 4/5)
+async function saveLexwareFix(enabled) {
+  await savePartial({LEXWARE_FIX_FORMAT: enabled}, 'lexware-fix-result', 'advanced:lexware');
+}
+</script>
+
 <script>
 async function smtpCertLaden() {
   const box = document.getElementById('smtp-cert-status');
@@ -181,24 +954,6 @@ async function smtpCertNeustart(btn) {
 }
 smtpCertLaden();
 </script>
-
-<!-- ── Preview-Modal ─────────────────────────────────────────────────────── -->
-<div id="held-preview-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:10px;width:90%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25)">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e7e5e4">
-      <div>
-        <strong id="preview-modal-subject" style="font-size:15px"></strong>
-        <div id="preview-modal-meta" style="font-size:11px;color:#78716c;margin-top:2px"></div>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn secondary btn-sm" id="preview-release-btn" onclick="releaseHeld()">Zustellen</button>
-        <button class="btn danger btn-sm" id="preview-delete-btn" onclick="deleteHeld()">Löschen</button>
-        <button class="btn secondary btn-sm" onclick="closePreview()">Schließen</button>
-      </div>
-    </div>
-    <iframe id="preview-iframe" style="flex:1;border:none;width:100%;min-height:500px" sandbox="allow-same-origin"></iframe>
-  </div>
-</div>
 
 <script>
 (function() {
@@ -372,167 +1127,6 @@ smtpCertLaden();
   }
 })();
 </script>
-
-<!-- ── Bypass-Wächter ─────────────────────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="watchdog">
-  <div class="step-header">
-    <span class="step-badge" style="background:#57534e;font-size:10px">Failover</span>
-    <span class="step-title">Bypass-Wächter
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — schaltet die Signatur-Regel ab, wenn das Gateway ausfällt</span>
-    </span>
-  </div>
-  <div class="step-body">
-  <p style="font-size:13px;color:#57534e;margin:0 0 14px">
-    Ein <strong>externer</strong> Wächter überwacht die Gateway-<code>/health</code> und schaltet bei
-    Ausfall die Signatur-Transportregel ab (ausgehende Post fließt dann unsigniert weiter, statt sich in
-    Exchange zu stauen); bei Erholung schaltet er sie wieder ein. Die <strong>S/MIME-Regel bleibt immer an</strong>
-    — verschlüsselungsfähige Post wartet bewusst. Mehrere Wächter (Azure und/oder cron) sind möglich und
-    erhöhen die Ausfallsicherheit.
-  </p>
-
-  <!-- ── Aktuelle Wächter ──────────────────────────────────────────────────── -->
-  <div style="margin-bottom:14px">
-    <div style="font-size:13px;font-weight:600;color:#44403c;margin-bottom:6px">
-      Aktuelle Wächter: <span id="wd-count">0</span>
-    </div>
-    <div id="wd-liste" style="font-size:13px;color:#78716c">— wird geladen … —</div>
-    <div id="wd-einfuegen" hidden style="margin-top:8px"></div>
-    <div id="watchdog-status" style="font-size:12px;color:#78716c;margin-top:8px"></div>
-    <p class="hint" style="margin:8px 0 0"><strong>Berechtigungen erteilen</strong>: gibt dem Azure-Wächter per Azure-Login die nötigen Exchange-Rechte (bis „✓ berechtigt" steht — vorher meldet er „EXO: UnAuthorized"). <strong>Entfernen</strong>: baut den Wächter samt seiner Azure-Ressourcen ab. Öffnet ein Popup — falls nichts passiert, Popups für diese Seite erlauben.</p>
-  </div>
-
-  <label class="checkbox-label" style="font-weight:600 !important">
-    <input type="checkbox" id="watchdog-enabled" onchange="setWatchdogEnabled(this.checked)">
-    Bypass-Wächter aktiv
-    <span id="watchdog-enabled-text" class="zustand-text">Deaktiviert</span>
-  </label>
-
-  <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-    <button class="btn secondary" onclick="loadWatchdogStatus()">Aktualisieren</button>
-    <button class="btn secondary" id="wd-add-btn" onclick="wdToggleAdd()">Wächter hinzufügen</button>
-  </div>
-
-  <!-- ── Wächter hinzufügen ────────────────────────────────────────────────── -->
-  <div id="wd-add-panel" style="display:none;margin-top:14px;padding:14px;border:1px solid #e2e8f0;border-radius:8px">
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#44403c">Neuen Wächter hinzufügen</div>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
-      <label class="checkbox-label" style="align-items:flex-start">
-        <input type="radio" name="watchdog-kind" value="azure" onchange="watchdogKindGewaehlt()">
-        <span><strong>Azure Function</strong> (empfohlen) — serverlos, Anmeldung per Managed Identity.
-          Das Gateway legt sie selbst an.</span>
-      </label>
-      <label class="checkbox-label" style="align-items:flex-start">
-        <input type="radio" name="watchdog-kind" value="cron" onchange="watchdogKindGewaehlt()">
-        <span><strong>cron auf eigenem Zweithost</strong> — ohne Azure, Anmeldung per Zertifikat der
-          Wächter-App. Das Gateway erzeugt ein Skript-Bundle zum Copy-Paste (auf einem <em>anderen</em>
-          Rechner ausführen).</span>
-      </label>
-    </div>
-
-    <!-- ── Automatischer Installer (Azure) ──────────────────────────────────── -->
-    <div id="wd-installer" style="display:none;margin-bottom:16px;padding:14px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff">
-      <div style="font-size:13px;font-weight:600;color:#1e40af;margin-bottom:6px">Function automatisch anlegen (empfohlen)</div>
-      <p style="font-size:12px;color:#334155;margin:0 0 10px;line-height:1.6">
-        Das Gateway legt Storage + Function-App (Managed Identity, PowerShell) in deinem Azure-Abo an,
-        lädt den Wächter-Code hoch und trägt die Einstellungen ein — mit deinem Admin-Login, ohne
-        <code>az</code>/<code>func</code>. Danach nur noch die Berechtigungen erteilen (unten).
-      </p>
-
-      <div id="wd-arm-box" class="arm-box" style="margin-bottom:12px">
-        <span id="wd-arm-status-icon" style="font-weight:700">•</span>
-        <span id="wd-arm-status-text" class="arm-text" style="font-size:12px">Kein Azure-Zugriff — bitte verbinden.</span>
-        <button class="btn secondary" id="wd-arm-btn" style="margin-left:8px" onclick="wdArmLogin()">Azure-Zugriff holen</button>
-      </div>
-
-      <div id="wd-deploy-rows" style="display:none">
-        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;max-width:560px">
-          <label style="font-size:12px;color:#334155">Abo (Subscription)
-            <select id="wd-sub-sel" onchange="wdSubGewaehlt()" style="width:100%;font-size:12px;padding:5px 8px;margin-top:3px"></select>
-          </label>
-          <label style="font-size:12px;color:#334155">Ressourcengruppe
-            <select id="wd-rg-sel" onchange="wdRgGewaehlt()" style="width:100%;font-size:12px;padding:5px 8px;margin-top:3px"></select>
-          </label>
-          <div id="wd-rg-new" style="display:none;padding:8px;border:1px dashed #bfdbfe;border-radius:6px;background:#f0f9ff">
-            <input id="wd-rg-name" placeholder="Name der neuen Ressourcengruppe" style="width:100%;font-size:12px;padding:5px 8px;box-sizing:border-box">
-          </div>
-          <label style="font-size:12px;color:#334155">Region
-            <select id="wd-region-sel" style="width:100%;font-size:12px;padding:5px 8px;margin-top:3px">
-              <option value="westeurope">West Europe</option>
-              <option value="northeurope">North Europe</option>
-              <option value="germanywestcentral">Germany West Central</option>
-              <option value="switzerlandnorth">Switzerland North</option>
-              <option value="eastus">East US</option>
-              <option value="westus2">West US 2</option>
-            </select>
-          </label>
-          <label style="font-size:12px;color:#334155">Name der Function-App
-            <input id="wd-app-name" placeholder="z. B. exo-sig-watchdog" style="width:100%;font-size:12px;padding:5px 8px;margin-top:3px;box-sizing:border-box">
-          </label>
-        </div>
-        <button class="btn secondary" id="wd-deploy-btn" onclick="wdDeployStart()">Function anlegen</button>
-        <div id="wd-deploy-progress" hidden style="margin-top:10px"></div>
-        <span id="wd-deploy-result" class="field-msg" style="font-size:12px;display:block;margin-top:8px"></span>
-      </div>
-    </div>
-
-    <!-- ── cron-Bundle erzeugen (cron-Variante) ─────────────────────────────── -->
-    <div id="wd-cron" style="display:none;margin-bottom:16px;padding:14px;border:1px solid #bfdbfe;border-radius:8px">
-      <div style="font-size:13px;font-weight:600;color:#1e40af;margin-bottom:6px">cron-Bundle erzeugen</div>
-      <p style="font-size:12px;color:#334155;margin:0 0 10px;line-height:1.6">
-        Das Gateway registriert den Wächter mit eigenem Token und füllt eine <code>watchdog.env</code>
-        vor. AppId und Zertifikat deiner Wächter-App trägst du dort selbst nach (Anmeldung per
-        Zertifikat). Vollständige Anleitung: <code>contrib/watchdog/README.md</code>.
-      </p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-        <input id="wd-cron-name" placeholder="Name (z. B. cron auf host2)" style="font-size:12px;padding:5px 8px;width:260px;max-width:100%">
-        <button class="btn secondary" onclick="wdCronGenerate()">Bundle erzeugen</button>
-      </div>
-      <span id="wd-cron-result" class="field-msg" style="font-size:12px;display:block;margin-bottom:6px"></span>
-      <div id="wd-cron-box" style="display:none">
-        <div style="font-size:12px;color:#92400e;margin-bottom:4px">Einmalig sichtbar — jetzt kopieren (enthält das Token):</div>
-        <textarea id="wd-cron-env" readonly style="width:100%;box-sizing:border-box;font-size:11px;font-family:monospace;min-height:170px;border:1px solid #e2e8f0;border-radius:5px;padding:8px"></textarea>
-      </div>
-    </div>
-  </div>
-
-  <!-- Berechtigungen manuell (cron-Zertifikats-App oder Sonderfall) — Azure-Wächter
-       nutzen den Knopf „Berechtigungen" direkt am Wächter in der Liste oben. -->
-  <details id="watchdog-perms" style="margin-top:14px">
-    <summary style="cursor:pointer;font-size:13px;color:#0369a1;font-weight:600">Berechtigungen manuell zuweisen (cron / Sonderfall)</summary>
-      <div style="font-size:13px;color:#334155;line-height:1.6;margin-top:8px">
-        <p style="margin:0 0 8px">Für <strong>Azure-Wächter</strong> geht das per Knopf <strong>„Berechtigungen"</strong> direkt am Wächter (IDs kommen aus dem Register). Hier der manuelle Weg (z. B. cron mit eigener Zertifikats-App): drei Zuweisungen — <strong>kein</strong> „Exchange Administrator". IDs der Identität eintragen:</p>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
-          <input id="wd-mi-appid" placeholder="MI AppId (Client-ID)" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
-          <input id="wd-mi-objid" placeholder="MI Objekt-ID (principalId)" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
-        </div>
-
-        <p style="margin:8px 0 4px"><strong>1+2 — App-Rolle <code>Exchange.ManageAsApp</code> + Entra „Global Reader"</strong> (Anmelden/Lesen):</p>
-        <button class="btn secondary" onclick="grantWatchdogGraph()">Berechtigungen erteilen (Azure-Login)</button>
-        <span id="wd-graph-result" class="field-msg" style="font-size:12px;display:block;margin-top:6px"></span>
-        <p class="hint" style="margin:6px 0 0">Öffnet einen Azure-Login; die Zuweisung läuft mit deinem Admin-Token — das Gateway bekommt kein neues stehendes Recht.</p>
-        <details style="margin-top:6px">
-          <summary style="cursor:pointer;font-size:12px;color:#64748b">… oder manuell per az-Befehl</summary>
-          <pre style="font-size:11px;border:1px solid #e2e8f0;border-radius:5px;padding:8px;overflow-x:auto;white-space:pre;line-height:1.5"># 1) App-Rolle Exchange.ManageAsApp (Anmelden)
-EXO_SP=$(az ad sp show --id 00000002-0000-0ff1-ce00-000000000000 --query id -o tsv)
-az rest --method POST --url "https://graph.microsoft.com/v1.0/servicePrincipals/&lt;MI-ObjektID&gt;/appRoleAssignments" \
-  --headers "Content-Type=application/json" \
-  --body "{\"principalId\":\"&lt;MI-ObjektID&gt;\",\"resourceId\":\"$EXO_SP\",\"appRoleId\":\"dc50a0fb-09a3-484d-be87-e023b12c6440\"}"
-
-# 2) Entra Global Reader (nur Lesen)
-az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments" \
-  --headers "Content-Type=application/json" \
-  --body "{\"principalId\":\"&lt;MI-ObjektID&gt;\",\"roleDefinitionId\":\"f2ef992c-3afb-46b9-b7cf-a126ee74c451\",\"directoryScopeId\":\"/\"}"</pre>
-        </details>
-
-        <p style="margin:14px 0 4px"><strong>3 — EXO-Schreibrolle „Transport Rules"</strong> (das Gateway erledigt es):</p>
-        <button class="btn secondary" onclick="grantWatchdogRole()">Rolle zuweisen</button>
-        <span id="wd-grant-result" class="field-msg" style="font-size:12px;display:block;margin-top:6px"></span>
-        <p class="hint" style="margin-top:8px">Alle Zuweisungen propagieren ~15–30 Min. Danach unten aktivieren und den Status prüfen.</p>
-      </div>
-    </details>
-  </div>
-  </div>
-</div>
 
 <script>
 (function(){
@@ -926,28 +1520,6 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
 })();
 </script>
 
-<!-- ── Gateway-Name ─────────────────────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#57534e;font-size:10px">Name</span>
-    <span class="step-title">Gateway-Name
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — Präfix für die in Exchange angelegten Objekte</span>
-    </span>
-  </div>
-  <div class="step-body">
-  <div class="settings-row">
-    <label for="gateway-name">Gateway-Name</label>
-    <div class="settings-control">
-      <input type="text" id="gateway-name" value="{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}" style="width:320px">
-      <span class="hint">Prefix für EXO-Objekte (Connectors, Rules, Distribution Groups). Änderung gilt erst nach erneutem Ausführen des Setup-Assistenten.</span>
-      <div style="margin-top:6px">
-        <button class="btn secondary" id="gateway-name-btn" data-wache-hinweis="gateway-name-result" data-wache="gateway-name" onclick="saveGatewayName()">Speichern</button>
-        <span id="gateway-name-result" style="font-size:12px;margin-left:8px"></span>
-      </div>
-    </div>
-  </div>
-  </div>
-</div>
 <script>
 async function saveGatewayName() {
   const val = feldWert('gateway-name') || 'EXO Signature Gateway';
@@ -956,55 +1528,6 @@ async function saveGatewayName() {
 }
 </script>
 
-<!-- ── Gemischte Mails: interne + externe Empfänger (Antworten-an-Alle) ────── -->
-<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
-    <span class="step-title">Gemischte Mails — Antworten-an-Alle
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur in den Modi Graph-only und Graph++ relevant</span>
-    </span>
-  </div>
-  <div class="step-body">
-    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-      Schickt jemand eine Mail gleichzeitig an interne <em>und</em> externe Empfänger, teilt
-      Exchange sie in getrennte Teilnachrichten auf. Jede trägt die vollständige An/Cc-Liste,
-      aber nur ihre eigenen Zustellempfänger.
-    </p>
-    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-      Im Modus <strong>Graph++</strong> versucht das Gateway solche Teilnachrichten zuerst über
-      <strong>authentifizierte SMTP-Übermittlung (Port 587)</strong> zuzustellen — als der
-      ursprüngliche Absender. Nur SMTP trennt Zustellempfänger und angezeigte Empfänger
-      voneinander (derselbe Mechanismus wie bei Blindkopien); Graph kann das nicht. Gelingt das,
-      ist Antworten-an-Alle vollständig und <em>diese Einstellung bleibt ohne Wirkung</em>. Im
-      Modus <strong>Graph-only</strong> gibt es keinen 587-Weg — dort bestimmt immer diese
-      Einstellung, wie aufgeteilte Nachrichten zugestellt werden.
-      <br>
-      Voraussetzung dafür ist die Anwendungsberechtigung <code>SMTP.SendAsApp</code>. Fehlt sie,
-      entscheidet die Einstellung unten, wie stattdessen verfahren wird.
-      <span style="color:#57534e">Im Modus <strong>SMTP Port 25</strong> stellt sich die Frage
-      nicht: Dort läuft die Zustellung ohnehin über SMTP, Antworten-an-Alle bleibt vollständig,
-      und die Einstellung hat keine Wirkung.</span>
-    </p>
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      <select id="mixed-fork-select" style="width:360px;max-width:100%">
-        <option value="send_to_all" {% if (s.GRAPH_MIXED_FORK_MODE or 'send_to_all') == 'send_to_all' %}selected{% endif %}>Vollständige Empfängerliste (Standard, empfohlen)</option>
-        <option value="scoped" {% if s.GRAPH_MIXED_FORK_MODE == 'scoped' %}selected{% endif %}>Getrennte Zustellung</option>
-      </select>
-      <button class="btn secondary" id="mixed-fork-btn" data-wache-hinweis="mixed-fork-result" data-wache="mixed-fork-select" onclick="saveMixedFork()">Speichern</button>
-      <span id="mixed-fork-result" style="font-size:12px;margin-left:4px"></span>
-    </div>
-    <p class="hint" style="margin-bottom:0">
-      <strong>Vollständige Empfängerliste</strong>: Der interne Empfänger bekommt genau
-      <strong>eine</strong> signierte Kopie, in deren Kopfzeile <em>alle</em> Empfänger (auch die
-      externen) stehen — Antworten-an-Alle erreicht damit den ganzen Verteiler. Weil das Gateway
-      dafür kurz abwartet, ob die zusammengehörige externe Teilnachricht eintrifft, kann diese
-      Kopie <strong>wenige Sekunden später</strong> ankommen. Kein Duplikat, kein Verlust.<br>
-      <strong>Getrennte Zustellung</strong>: Jede Teilnachricht geht sofort nur an ihre eigenen
-      Empfänger. Am schnellsten, aber in der Kopfzeile der internen Kopie fehlen die externen
-      Empfänger — Antworten-an-Alle ist dort <strong>unvollständig</strong>.
-    </p>
-  </div>
-</div>
 <script>
 async function saveMixedFork() {
   const val = document.getElementById('mixed-fork-select').value;
@@ -1013,41 +1536,6 @@ async function saveMixedFork() {
 }
 </script>
 
-<!-- ── Ausweichweg, wenn die Graph-Zustellung scheitert ───────────────────── -->
-<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
-    <span class="step-title">Ausweichweg bei gescheiterter Graph-Zustellung</span>
-  </div>
-  <div class="step-body">
-    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-      Betrifft nur die Modi <strong>Graph-only</strong> und <strong>Graph++</strong>.
-      Lehnt Graph eine bearbeitete Nachricht ab, kann das Gateway sie stattdessen über den
-      <strong>SMTP-Smarthost (Port 25)</strong> zustellen.
-      <br>
-      <strong>Ohne Ausweichweg</strong> meldet das Gateway Exchange einen vorübergehenden
-      Fehler. Exchange behält die Nachricht und versucht es später erneut; bleibt Graph
-      dauerhaft gestört, geht sie irgendwann als unzustellbar an den Absender zurück.
-      Verloren geht nichts.
-    </p>
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      <label style="display:flex;align-items:center;gap:8px;font-size:14px">
-        <input type="checkbox" id="graph-smtp-fallback"
-               {% if s.GRAPH_SMTP_FALLBACK %}checked{% endif %}>
-        Bei Graph-Fehlern über den SMTP-Smarthost zustellen
-      </label>
-      <button class="btn secondary" id="graph-fallback-btn" data-wache-hinweis="graph-fallback-result" data-wache="graph-smtp-fallback"
-              onclick="saveGraphFallback()">Speichern</button>
-      <span id="graph-fallback-result" style="font-size:12px;margin-left:4px"></span>
-    </div>
-    <p class="hint" style="margin-bottom:0">
-      Standardmäßig <strong>aus</strong>, und das aus einem Grund: Wer Graph gewählt hat, tut
-      das meist, weil ausgehender Port 25 gesperrt ist — dann scheitert der Ausweichweg
-      ebenfalls und verzögert die Nachricht nur zusätzlich. Einschalten lohnt, wenn der
-      Smarthost erreichbar ist und Graph nur gelegentlich ausfällt (Drosselung, Störung).
-    </p>
-  </div>
-</div>
 <script>
 async function saveGraphFallback() {
   wacheFertig('graph-fallback-btn', await savePartial(
@@ -1056,40 +1544,6 @@ async function saveGraphFallback() {
 }
 </script>
 
-<!-- ── Sende-Identitäten: Zustellweg ──────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
-    <span class="step-title">Sende-Identitäten über Graph zustellen</span>
-  </div>
-  <div class="step-body">
-    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-      Post einer <strong>Sende-Identität</strong> (Port 587) wird über die Graph-API als
-      deren Shared Mailbox zugestellt — <strong>unabhängig vom gewählten Rückweg</strong>.
-      Vorteil: Exchange erzeugt die Nachricht aus dem eigenen Haus, sodass
-      <strong>SPF, DKIM und DMARC</strong> greifen, ohne dass die öffentliche IP des
-      Gateways im SPF-Eintrag der Absenderdomäne stehen muss. Voraussetzung ist, dass die
-      Shared Mailbox im Sende-Umfang der Anwendung liegt (wird beim Anlegen mit eingerichtet).
-    </p>
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      <label style="display:flex;align-items:center;gap:8px;font-size:14px">
-        <input type="checkbox" id="ident-graph"
-               {% if s.IDENT_DELIVER_VIA_GRAPH %}checked{% endif %}>
-        Sende-Identitäten über Graph zustellen
-      </label>
-      <button class="btn secondary" id="ident-graph-btn" data-wache-hinweis="ident-graph-result" data-wache="ident-graph"
-              onclick="saveIdentGraph()">Speichern</button>
-      <span id="ident-graph-result" style="font-size:12px;margin-left:4px"></span>
-    </div>
-    <p class="hint" style="margin-bottom:0">
-      Standardmäßig <strong>an</strong>. Ausschalten nur als Notnagel: Dann folgt auch
-      Identitätspost dem allgemeinen Rückweg (im SMTP-Modus über den Smarthost) — und die
-      Absenderdomäne braucht die Gateway-IP im SPF-Eintrag, sonst droht SPF-Fail. Scheitert
-      Graph im Einzelfall (etwa bevor die Sende-Umfang-Änderung propagiert ist), fällt die
-      Zustellung ohnehin automatisch auf den allgemeinen Rückweg zurück.
-    </p>
-  </div>
-</div>
 <script>
 async function saveIdentGraph() {
   wacheFertig('ident-graph-btn', await savePartial(
@@ -1098,44 +1552,6 @@ async function saveIdentGraph() {
 }
 </script>
 
-<!-- ── SMTP-Smarthost (Port 25) ───────────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#57534e;font-size:10px">SMTP</span>
-    <span class="step-title">SMTP-Smarthost</span>
-  </div>
-  <div class="step-body">
-    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-      Der Rückweg im Modus <strong>SMTP Port 25</strong> — der Vorgabe. Das Ziel selbst
-      (<code>{{ s.EXO_SMARTHOST or 'noch nicht eingerichtet' }}</code>) legt der
-      Einrichtungsassistent zusammen mit dem Exchange-Connector fest; hier steht nur der Port.
-    </p>
-    <div class="settings-row">
-      <label for="exo-port">Port</label>
-      <div class="settings-control">
-        <input type="number" id="exo-port" style="width:100px" min="1" max="65535"
-               value="{{ s.EXO_PORT or 25 }}">
-        <span class="hint">
-          Vorgabe <code>25</code>. Ein abweichender Port ist nur nötig, wenn nicht Exchange
-          selbst, sondern ein eigener Relay dazwischen steht.
-        </span>
-      </div>
-    </div>
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px">
-      <button class="btn secondary" id="exo-port-btn" data-wache-hinweis="exo-port-result" data-wache="exo-port"
-              onclick="saveExoPort()">Speichern</button>
-      <span id="exo-port-result" style="font-size:12px;margin-left:4px"></span>
-    </div>
-    <p class="hint" style="margin-bottom:0;margin-top:12px">
-      <strong>Anmeldung am Smarthost.</strong> Der Regelfall braucht keine: Exchange erkennt das
-      Gateway am TLS-Zertifikat des eingehenden Connectors. Verlangt ein vorgeschalteter Relay
-      Benutzername und Kennwort, lassen sich <code>RELAY_USER</code> und
-      <code>RELAY_PASSWORD</code> in <code>data/settings.json</code> eintragen — bewusst nicht
-      hier, weil der Fall selten ist und ein weiteres Kennwortfeld in der Oberfläche mehr
-      Angriffsfläche schafft als Nutzen.
-    </p>
-  </div>
-</div>
 <script>
 async function saveExoPort() {
   wacheFertig('exo-port-btn', await savePartial(
@@ -1144,74 +1560,6 @@ async function saveExoPort() {
 }
 </script>
 
-<!-- ── SMTP-Übermittlung (Port 587) ───────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#57534e;font-size:10px">587</span>
-    <span class="step-title">SMTP-Übermittlung (Port 587)</span>
-  </div>
-  <div class="step-body">
-    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-      Der Weg, über den aufgeteilte Nachrichten zugestellt werden (siehe oben). Er wird
-      <strong>nur</strong> im Modus <strong>Graph++</strong>
-      benutzt — in den Modi <strong>Graph-only</strong> und <strong>SMTP Port 25</strong> nie. Die Vorgaben passen für Exchange
-      Online; sie zu ändern ist nur nötig, wenn ein anderer Übermittlungsserver dazwischen steht.
-    </p>
-    <div class="settings-row">
-      <label for="smtp-submit-host">Server</label>
-      <div class="settings-control">
-        <input type="text" id="smtp-submit-host" style="width:260px"
-               placeholder="smtp.office365.com" value="{{ s.SMTP_SUBMIT_HOST or '' }}">
-        <span class="hint">Vorgabe <code>smtp.office365.com</code>.</span>
-      </div>
-    </div>
-    <div class="settings-row">
-      <label for="smtp-submit-port">Port</label>
-      <div class="settings-control">
-        <input type="number" id="smtp-submit-port" style="width:100px" min="1" max="65535"
-               value="{{ s.SMTP_SUBMIT_PORT or 587 }}">
-        <span class="hint">Vorgabe <code>587</code> (Übermittlung mit Anmeldung).</span>
-      </div>
-    </div>
-    <div class="settings-row">
-      <label for="smtp-submit-clientid">Eigene Anwendungskennung</label>
-      <div class="settings-control">
-        <input type="text" id="smtp-submit-clientid" style="width:340px;max-width:100%"
-               placeholder="leer = Hauptanwendung verwenden"
-               value="{{ s.SMTP_SUBMIT_CLIENT_ID or '' }}">
-        <span class="hint">
-          Normalerweise leer lassen — dann meldet sich das Gateway mit seiner Hauptanwendung an.
-          Nur nötig, wenn diese die Berechtigung <code>SMTP.SendAsApp</code> nicht führt und
-          dafür eine zweite Registrierung angelegt wurde. Ist beides vorhanden, wird zuerst die
-          Hauptanwendung versucht und die hier eingetragene als Ausweichweg.
-        </span>
-      </div>
-    </div>
-    <div class="settings-row">
-      <label for="smtp-submit-user">Ersatz-Absenderpostfach</label>
-      <div class="settings-control">
-        <input type="text" id="smtp-submit-user" style="width:300px;max-width:100%"
-               placeholder="leer = dieser Weg entfällt" value="{{ s.SMTP_SUBMIT_USER or '' }}">
-        <span class="hint">
-          Betrifft <strong>eingehende</strong> Nachrichten von Absendern ausserhalb des Tenants,
-          die Graph nicht zustellen kann. Weil eine Anmeldung einen passenden Absenderkopf
-          verlangt, wird die Nachricht dann <strong>umgeschrieben</strong>: Als Absender erscheint
-          dieses Postfach, die echte Adresse bleibt nur in der Antwortadresse erhalten.
-          <br>
-          Bleibt das Feld leer, entfällt der Weg ersatzlos — die betroffene Nachricht wird nicht
-          zugestellt. Im Modus <strong>Graph++</strong> ist das der Regelfall und
-          unbedenklich, weil dort intern per IMAP zugestellt wird.
-        </span>
-      </div>
-    </div>
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px">
-      <button class="btn secondary" id="smtp-submit-btn" data-wache-hinweis="smtp-submit-result"
-              data-wache="smtp-submit-host,smtp-submit-port,smtp-submit-clientid,smtp-submit-user"
-              onclick="saveSmtpSubmit()">Speichern</button>
-      <span id="smtp-submit-result" style="font-size:12px;margin-left:4px"></span>
-    </div>
-  </div>
-</div>
 <script>
 async function saveSmtpSubmit() {
   wacheFertig('smtp-submit-btn', await savePartial({
@@ -1224,108 +1572,6 @@ async function saveSmtpSubmit() {
 }
 </script>
 
-<!-- ── SMTP-Quell-IP-Allowlist ────────────────────────────────────────────── -->
-<div class="wizard-step" id="quell-ip" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#0369a1;font-size:10px">Security</span>
-    <span class="step-title">SMTP-Quell-IP-Allowlist (:25)
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur Exchange Online darf einliefern</span>
-    </span>
-  </div>
-  <div class="step-body">
-    <p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.6">
-      {% if s.SMTP_RELAY_ENABLED %}Abgesehen von den Geräten, die unter
-      <a href="/relay">SMTP-Relay</a> eingetragen sind, nimmt der SMTP-Listener{% else %}
-      Der SMTP-Listener nimmt{% endif %} Verbindungen nur von Microsofts
-      offiziellen Exchange-Online-IP-Bereichen an (2×/Tag automatisch
-      aktualisiert); andere Quellen werden mit <code>554</code> abgewiesen.
-      <span style="color:#57534e">Fail-safe: sind keine Bereiche geladen (0),
-      wird nichts blockiert — dann gilt wieder „alle erlaubt".</span>
-    </p>
-
-    <label style="display:flex;gap:10px;align-items:center;margin-bottom:12px;cursor:pointer">
-      <input type="checkbox" id="acl-enabled" {% if s.SMTP_SOURCE_ACL_ENABLED != false %}checked{% endif %} onchange="aclToggle()">
-      <span style="font-size:13px">Allowlist aktiv</span>
-      <span id="acl-enabled-result" style="font-size:12px;margin-left:6px"></span>
-    </label>
-
-    <label style="display:flex;gap:10px;align-items:center;margin-bottom:6px;cursor:pointer">
-      <input type="checkbox" id="tenant-streng" {% if s.RELAY_TENANT_STRENG %}checked{% endif %} onchange="tenantStrengToggle()">
-      <span style="font-size:13px">Post ohne Tenant-Kennung abweisen</span>
-      <span id="tenant-streng-result" style="font-size:12px;margin-left:6px"></span>
-    </label>
-    <p class="hint" style="margin:0 0 12px 30px">
-      Exchange Online versieht Post des eigenen Tenants mit dessen Kennung; eine fremde
-      Kennung weist das Gateway immer ab. Fehlt sie, wird die Post bisher angenommen.
-      Einschalten, wenn die Zahl unten über eine Weile bei 0 bleibt:
-      <span id="tenant-zahlen">…</span>
-    </p>
-
-    <div class="settings-row">
-      <label for="exo-erkennung">Exchange Online erkennen an</label>
-      <div class="settings-control">
-        <select id="exo-erkennung" onchange="exoErkennungSpeichern()">
-          <option value="eins"{% if (s.EXO_ERKENNUNG or 'eins') == 'eins' %} selected{% endif %}>Adresse oder Zertifikat (empfohlen)</option>
-          <option value="beide"{% if s.EXO_ERKENNUNG == 'beide' %} selected{% endif %}>Adresse und Zertifikat (streng)</option>
-          <option value="adresse"{% if s.EXO_ERKENNUNG == 'adresse' %} selected{% endif %}>nur Adresse (bisheriges Verhalten)</option>
-        </select>
-        <span id="exo-erkennung-result" style="font-size:12px;margin-left:6px"></span>
-      </div>
-    </div>
-    <p class="hint" style="margin:0 0 12px 0">
-      Exchange Online legt beim Einliefern ein Zertifikat auf
-      <code>mail.protection.outlook.com</code> vor — dasselbe, an dem ein Exchange vor Ort
-      im Hybrid-Betrieb Exchange Online erkennt. <em>Adresse oder Zertifikat</em> nimmt
-      Post an, wenn eines davon passt; damit läuft das Gateway auch hinter einer Firewall,
-      die die Absenderadresse umschreibt. Das Zertifikat wird dabei nur angefordert, wenn die
-      Adresse nicht reicht. <em>Adresse und Zertifikat</em> verlangt beides. Die
-      Tenant-Kennung wird in jeder Stufe geprüft.
-      <span id="exo-zahlen"></span>
-    </p>
-
-    <div class="settings-row">
-      <label for="proxy-quellen">Vorgeschaltete Firewall (PROXY-Protokoll)</label>
-      <div class="settings-control">
-        <input type="text" id="proxy-quellen" placeholder="z.B. 10.99.0.1"
-               value="{{ (s.SMTP_PROXY_QUELLEN or []) | join(', ') }}">
-        <button class="btn secondary btn-sm" id="proxy-quellen-btn" data-wache="proxy-quellen" data-wache-hinweis="proxy-quellen-result"
-                onclick="proxyQuellenSpeichern()">Speichern</button>
-        <span id="proxy-quellen-result" class="speicher-hinweis"></span>
-      </div>
-    </div>
-    <p class="hint" style="margin:0 0 12px 0">
-      Läuft das Gateway hinter einer Firewall, die bei Port 25 die Absenderadresse
-      auf ihre eigene umschreibt (Source-NAT), sieht es Exchange Online nur als
-      diese Adresse und weist ab. Unterstützt die Firewall das PROXY-Protokoll
-      (v1 oder v2), trage hier ihre interne Adresse ein und schalte es dort für
-      die Weiterleitung an Port 25 ein. Das Gateway prüft dann die mitgelieferte
-      Ursprungsadresse. Von hier eingetragenen Adressen muss der Vorspann
-      kommen, sonst wird die Verbindung geschlossen. Andere Geräte sind nicht
-      betroffen. Leer lassen, wenn die Firewall die Absenderadresse nicht ändert.
-      Kann die Firewall kein PROXY-Protokoll: ihre Adresse unter
-      <a href="/relay">SMTP-Relay</a> mit der Rolle „vorgelagertes Gateway“
-      eintragen, nicht als gewöhnliches Gerät.
-    </p>
-
-    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px;margin-bottom:14px">
-      <div>Geladene Bereiche: <strong id="acl-count">…</strong></div>
-      <div>Letzte Aktualisierung: <strong id="acl-refresh">…</strong></div>
-      <button class="btn secondary btn-sm" onclick="aclRefresh(this)">Jetzt aktualisieren</button>
-      <span id="acl-refresh-result" class="fortschritt" hidden></span>
-    </div>
-
-
-    <details>
-      <summary style="cursor:pointer;font-size:13px;color:#57534e">Zuletzt abgewiesene Quellen</summary>
-      <div id="acl-rejects" style="font-size:12px;font-family:monospace;margin-top:8px;color:#555">…</div>
-    </details>
-
-    <details style="margin-top:10px">
-      <summary style="cursor:pointer;font-size:13px;color:#57534e">Abgewiesene Anmeldungen (Web-UI · 587 · Port 25) <span id="anm-summe" style="color:#92400e"></span></summary>
-      <div id="anm-ereignisse" style="font-size:12px;font-family:monospace;margin-top:8px;color:#555">…</div>
-    </details>
-  </div>
-</div>
 <script>
 async function aclLoadStatus() {
   try {
@@ -1395,40 +1641,6 @@ aclLoadStatus();
 anmLoad();
 </script>
 
-<!-- ── EXO PowerShell Zertifikat ──────────────────────────────────────────── -->
-<div class="wizard-step" id="exo-ps-cert" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#0369a1;font-size:10px">Cert</span>
-    <span class="step-title">EXO PowerShell Zertifikat
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — auth.pfx Public Key für Entra App-Registrierung exportieren</span>
-    </span>
-  </div>
-  <div class="step-body">
-    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-      Exportiert den <strong>öffentlichen Schlüssel</strong> aus <code>auth.pfx</code> als DER-kodierte
-      <code>.cer</code>-Datei (kein Private Key). Diese muss in der Entra App-Registrierung
-      unter <em>Zertifikate &amp; Geheimnisse → Zertifikate</em> hochgeladen werden,
-      damit <code>Connect-ExchangeOnline</code> funktioniert.<br>
-      {% set ps_app_id = s.CLIENT_ID or "" %}
-      {% if ps_app_id %}
-      App-ID (aus Einstellungen): <code>{{ ps_app_id }}</code><button class="copy-btn" data-copy="{{ ps_app_id }}" title="Kopieren" type="button"></button>
-      {% else %}
-      <span style="color:#b45309">App-ID noch nicht konfiguriert (Schritt 3 im Einrichtungs-Assistenten).</span>
-      {% endif %}
-    </p>
-
-    <div id="cert-info-box" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:12px;margin-bottom:14px;font-size:12px;font-family:monospace;line-height:1.8"></div>
-
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn secondary" id="cert-info-btn" onclick="certLoadInfo()">Zertifikat-Info anzeigen</button>
-      <a id="cert-download-link" href="/api/cert/exo-ps-export.cer" class="btn secondary">
-        ⬇ EXO-PS-Auth.cer herunterladen
-      </a>
-    </div>
-    <div id="cert-info-result" style="display:none;margin-top:10px"></div>
-  </div>
-</div>
-
 <script>
 async function certLoadInfo() {
   const box = document.getElementById('cert-info-box');
@@ -1450,41 +1662,6 @@ async function certLoadInfo() {
   }
 }
 </script>
-
-<!-- ── ACME Challenge Reply Methode ───────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#7c3aed;font-size:10px">ACME</span>
-    <span class="step-title">ACME Challenge Reply — Versandmethode
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — Standard: folgt dem allgemeinen Gateway-Modus (REINJECT_MODE)</span>
-    </span>
-  </div>
-  <div class="step-body">
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      <select id="acme-method-select" style="width:320px;max-width:100%">
-        <option value="auto">Automatisch (Standard) — folgt Gateway-Modus über Exchange</option>
-        <option value="graph">Graph API erzwingen — über Exchange</option>
-        <option value="direct_smtp">Debug: Direktversand zum CA-MX — an Exchange vorbei</option>
-      </select>
-      <button id="acme-method-btn" data-wache="acme-method-select" class="btn secondary" onclick="acmeSetMethod()">Speichern</button>
-    </div>
-    <p class="hint" style="margin-bottom:0">
-      <strong>Automatisch</strong>: sendet über denselben Weg wie jede andere ausgehende Mail
-      (REINJECT_MODE-Einstellung) — bei SMTP-Modus über den EXO-Smarthost (Port {{ s.EXO_PORT or 25 }}),
-      bei Graph-Modus per Graph sendMail. In beiden Fällen läuft die Mail durch Exchange und ist damit
-      SPF/DKIM-authentifiziert.<br>
-      <strong>Graph API erzwingen</strong>: sendMail → Exchange → Transport-Connector → Gateway → CA-MX,
-      unabhängig vom REINJECT_MODE.<br>
-      <strong style="color:#b45309">Debug: Direktversand</strong> — DNS-MX-Auflösung → direkt zur CA-MX
-      auf Port 25, komplett an Exchange vorbei. <u>Nur zu Diagnosezwecken.</u> Wird von der CA in der
-      Regel als unauthentifiziert abgelehnt (z. B. CASTLE/Cloudflare: 550 5.7.26 "not authenticated"),
-      da die Mail nicht über den SPF/DKIM-autorisierten Exchange-Absender läuft.
-    </p>
-
-    <div id="acme-method-result" style="display:none;margin-top:10px"></div>
-  </div>
-</div>
-
 
 <script>
 async function acmeMethodLoad() {
@@ -1511,104 +1688,6 @@ async function acmeSetMethod() {
 document.addEventListener('DOMContentLoaded', acmeMethodLoad);
 </script>
 
-<!-- ── Logging ─────────────────────────────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#64748b33;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#64748b;font-size:10px">Logging</span>
-    <strong>Logging</strong>
-  </div>
-  <div class="step-body">
-    <div class="settings-row">
-      <label for="log-level">Log-Level</label>
-      <div class="settings-control">
-        <select id="log-level">
-          {% for lvl in ["DEBUG","INFO","WARNING","ERROR"] %}
-          <option value="{{ lvl }}"{% if s.LOG_LEVEL == lvl %} selected{% endif %}>{{ lvl }}</option>
-          {% endfor %}
-        </select>
-        <span class="hint">Wirkt erst nach Neustart</span>
-      </div>
-    </div>
-    <div class="settings-row">
-      <label for="log-retention">Log-Aufbewahrung (Tage)</label>
-      <div class="settings-control">
-        <input type="number" class="eng" id="log-retention" value="{{ s.LOG_RETENTION_DAYS }}" min="1" max="365" style="width:80px">
-        <span class="hint">Tägliche Rotation, ältere Dateien werden automatisch gelöscht</span>
-      </div>
-    </div>
-    <div class="settings-row">
-      <label for="krypto-retention">Krypto/Fehler-Aufbewahrung (Tage)</label>
-      <div class="settings-control">
-        <input type="number" class="eng" id="krypto-retention" value="{{ s.KRYPTO_LOG_RETENTION_DAYS }}" min="1" max="3650" style="width:80px">
-        <span class="hint">Detailzeilen hinter den Übersichtszahlen für S/MIME, Fehler/Abweisungen und die Warteschlange — bleiben so lange nachschlagbar (verdichtet, wenige Zeilen)</span>
-      </div>
-    </div>
-    <div class="settings-row">
-      <label for="log-timezone">Log-Zeitzone</label>
-      <div class="settings-control">
-        <select id="log-timezone">
-          {% for tz in ["UTC","Europe/Berlin","Europe/Vienna","Europe/Zurich","Europe/London","Europe/Paris","Europe/Amsterdam","America/New_York","America/Chicago","America/Denver","America/Los_Angeles","Asia/Tokyo","Asia/Shanghai","Australia/Sydney"] %}
-          <option value="{{ tz }}"{% if s.LOG_TIMEZONE == tz %} selected{% endif %}>{{ tz }}</option>
-          {% endfor %}
-        </select>
-        <span class="hint">Zeitzone für Log-Zeitstempel (IANA-Name). Wirkt sofort nach Speichern.</span>
-      </div>
-    </div>
-    <div class="actions" style="margin-top:8px">
-      <button class="btn secondary" id="logging-btn" data-wache-hinweis="logging-result" data-wache="log-level,log-retention,krypto-retention,log-timezone" onclick="saveLogging()">Speichern</button>
-      <span id="logging-result" style="font-size:12px;margin-left:8px"></span>
-    </div>
-  </div>
-</div>
-
-<!-- ── Support-Bundle ──────────────────────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#7c3aed33;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#7c3aed;font-size:10px">Support</span>
-    <strong>Diagnose-Bundle</strong>
-  </div>
-  <div class="step-body">
-    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-      Erstellt ein ZIP-Paket mit Logs, Konfiguration (Secrets maskiert), Audit-Events
-      und ACME-Status. Lokal speichern und per E-Mail weitergeben — oder direkt an den
-      Provider-Hub übertragen (Registrierung erforderlich).
-    </p>
-
-    <div style="display:flex;flex-direction:column;gap:4px;max-width:240px;margin-bottom:16px">
-      <button class="btn secondary" id="sup-dl-btn" onclick="supportDownload()">Bundle herunterladen</button>
-      <span id="sup-dl-spinner" hidden style="text-align:center"></span>
-      <span style="font-size:11px;color:#94a3b8;text-align:center">lokal speichern · per E-Mail senden</span>
-    </div>
-    <div id="sup-dl-result" style="display:none;margin-bottom:14px"></div>
-
-    <!-- An Hub senden (Registrierung/Key unter Einstellungen → Anbindung &amp; Lizenzen) -->
-    <div style="border-top:1px solid #e2e8f0;padding-top:14px">
-      {% if hub_registered %}
-      <label for="sup-note" style="display:block;font-size:12px;color:#555;margin-bottom:4px">
-        Problem kurz beschreiben (optional)</label>
-      <textarea id="sup-note" rows="3" maxlength="2000" placeholder="z.B. seit heute Morgen kommen Signaturen doppelt an…"
-                style="width:100%;max-width:520px;box-sizing:border-box;font-size:13px;font-family:inherit;
-                       padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;margin-bottom:10px"></textarea>
-      <div>
-        <button class="btn secondary" id="sup-upload-btn" onclick="supportUpload()">Bundle an Hub senden</button>
-        <span id="sup-upload-spinner" hidden style="margin-left:8px"></span>
-      </div>
-      {% else %}
-      <p class="hint" style="margin:0">
-        Zum direkten Übertragen an den Support-Hub muss dieses Gateway erst registriert und
-        freigegeben sein — einzurichten unter
-        <a href="/settings/connect#anbindung">Einstellungen → Anbindung &amp; Lizenzen → Support-Hub</a>.
-      </p>
-      <button class="btn secondary" id="sup-upload-btn" onclick="supportUpload()" disabled
-              title="Erst unter Einstellungen → Anbindung &amp; Lizenzen registrieren" style="margin-top:8px">
-        Bundle an Hub senden
-      </button>
-      <span id="sup-upload-spinner" hidden style="margin-left:8px"></span>
-      {% endif %}
-      <div id="sup-upload-result" style="display:none;margin-top:8px"></div>
-    </div>
-  </div>
-</div>
 <script>
 async function supportDownload() {
   const result = document.getElementById('sup-dl-result');
@@ -1667,65 +1746,6 @@ async function saveLogging() {
 
 </script>
 
-<!-- ── Test-Mail ────────────────────────────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#0ea5e933;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#0ea5e9;font-size:10px">Test</span>
-    <strong>Test-Mail senden</strong>
-  </div>
-  <div class="step-body">
-    <p class="hint" style="margin-bottom:12px">Sendet eine Mail durch den lokalen SMTP-Handler inkl. Signatur-Injektion an EXO.</p>
-    <div class="settings-row">
-      <label for="test-from">Absender</label>
-      <input type="email" id="test-from" placeholder="user@contoso.com">
-    </div>
-    <div class="settings-row">
-      <label for="test-to">Empfänger</label>
-      <input type="email" id="test-to" placeholder="empfaenger@domain.com">
-    </div>
-    <div class="settings-row">
-      <label for="test-type">Format</label>
-      <select id="test-type">
-        <option value="plain">Nur Text (plain text)</option>
-        <option value="html">HTML</option>
-      </select>
-    </div>
-    <div class="actions" style="margin-top:12px">
-      <button class="btn secondary" onclick="sendTestMail()">Test-Mail senden</button>
-    </div>
-    <div id="test-result" style="margin-top:10px;display:none"></div>
-  </div>
-</div>
-
-<!-- ── Neustart ─────────────────────────────────────────────────────────────── -->
-<!-- id=neustart: Ziel des Deep-Links aus der LE-Erneuerungs-Mail (Navigation zum Knopf) -->
-<div class="wizard-step" id="neustart" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#78716c;font-size:10px">System</span>
-    <strong>Neustart</strong>
-  </div>
-  <div class="step-body">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:4px">
-      <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px">
-        <div style="font-weight:600;font-size:13px;margin-bottom:4px">Prozess neu starten</div>
-        <p style="font-size:12px;color:#64748b;margin:0 0 12px">
-          Startet nur den Python-Prozess im Container neu (~2 s). Gut nach Einstellungsänderungen.
-        </p>
-        <button class="btn secondary" onclick="restartService(this)">Prozess neu starten</button>
-      </div>
-      <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px">
-        <div style="font-weight:600;font-size:13px;margin-bottom:4px">Container neu starten</div>
-        <p style="font-size:12px;color:#64748b;margin:0 0 12px">
-          Führt <code>docker compose restart</code> auf dem Host aus (~15 s). Nötig nach Umgebungsvariablen-Änderungen.
-          Erfordert den Update-Dienst.
-        </p>
-        <button class="btn secondary" id="restart-container-btn" onclick="restartContainer()">Container neu starten</button>
-      </div>
-    </div>
-    <div id="restart-service-status" style="display:none;margin-top:10px"></div>
-    <div id="restart-container-status" hidden style="margin-top:10px"></div>
-  </div>
-</div>
 <script>
 async function sendTestMail() {
   const from_email = feldWert('test-from');

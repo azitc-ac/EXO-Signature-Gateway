@@ -178,6 +178,7 @@ REGISTER: dict[str, E] = {
     "DIREKT_SMARTHOST_USER": E(art=OPTION, ort="/api/direkt/einstellungen"),
     "DIREKT_SMARTHOST_PW": E(art=GEHEIMNIS),
     "DIREKT_AUSSEN_IP": E(art=OPTION, ort="/api/direkt/einstellungen"),
+    "DIREKTVERSAND_PROBE_POSTFACH": E(art=OPTION, ort="settings_routing.html"),
     "DKIM_DOMAINS": E(art=STRUKTUR, ort="/api/direkt/dkim"),
     "OOO_ENABLED": E(art=OPTION, ort="abwesenheit.html"),  # zentrale Abwesenheitsnotiz
     "UPDATE_CHANNEL": E(art=OPTION, ort="backup.html"),  # Update-Kanal release|nightly|main
@@ -188,7 +189,6 @@ REGISTER: dict[str, E] = {
     "NOTBETRIEB_IMAP": E(art=OPTION, ort="notbetrieb.html"),  # IMAP-Zugang (993)
     "NOTBETRIEB_LESEN_ALLE": E(art=OPTION, ort="notbetrieb.html"),  # Kopie im Normalbetrieb für alle lesbar
     "NOTBETRIEB_SENDEN_ALLE": E(art=OPTION, ort="notbetrieb.html"),  # … und senden über Exchange
-    "NOTBETRIEB_PROBE_POSTFACH": E(art=OPTION, ort="notbetrieb.html"),  # Direktversand-Probe: Zielpostfach
     "NOTBETRIEB_SMTP": E(art=OPTION, ort="notbetrieb.html"),  # Senden aus Mailprogrammen (587)
     "NOTBETRIEB_ZWEITFAKTOR": E(art=OPTION, ort="notbetrieb.html"),  # zweiter Faktor Pflicht
     "NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE": E(art=OPTION, ort="notbetrieb.html"),

@@ -89,3 +89,43 @@ async def api_direkt_dns_pruefung(domain: str = "", user: str = Depends(_require
     """SPF, DKIM-Eintrag und PTR so, wie ein Empfänger sie sieht."""
     import asyncio
     return JSONResponse({"ok": True, **await asyncio.to_thread(direktversand.dns_pruefen, domain)})
+
+
+# ── Tägliche Probe des Direktversands ────────────────────────────────────────
+
+def _probe_antwort(st: dict) -> dict:
+    import direktversand_probe
+    ampel, text = direktversand_probe.bewertung(st)
+    return {"ok": True, "ampel": ampel, "text": text, "stand": st,
+            "postfach": direktversand_probe.postfach(), "aktiv": direktversand.aktiv()}
+
+
+@router.get("/api/direkt/probe")
+async def api_direkt_probe_stand(user: str = Depends(_require_admin)):
+    """Stand der letzten Probe. Prüft dabei die Ankunft einer gesendeten Probe
+    (Graph, blockierend — im Thread), damit die Seite nicht auf den Takt wartet."""
+    import asyncio
+    import direktversand_probe
+    st = direktversand_probe.stand()
+    if direktversand.aktiv() and direktversand_probe.postfach():
+        try:
+            st = await asyncio.to_thread(direktversand_probe.pruefen)
+        except Exception as exc:                                    # noqa: BLE001
+            log.warning("Direktversand-Probe: Prüfung fehlgeschlagen: %s", exc)
+    return JSONResponse(_probe_antwort(st))
+
+
+@router.post("/api/direkt/probe")
+async def api_direkt_probe_senden(user: str = Depends(_require_admin)):
+    """Probe sofort senden. 409 ohne eingeschalteten Direktversand, 400 ohne Postfach."""
+    import asyncio
+    import direktversand_probe
+    if not direktversand.aktiv():
+        return JSONResponse({"ok": False, "error": "Selbst zustellen ist nicht eingeschaltet."},
+                            status_code=409)
+    if not direktversand_probe.postfach():
+        return JSONResponse({"ok": False, "error": "Kein Probe-Postfach eingetragen."},
+                            status_code=400)
+    st = await asyncio.to_thread(direktversand_probe.senden)
+    log.info("Direktversand-Probe durch %s gestartet: %s", user, st.get("zustand"))
+    return JSONResponse(_probe_antwort(st))

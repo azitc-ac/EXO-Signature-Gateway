@@ -30,6 +30,8 @@ _RETRY_INTERVAL = 60                   # jede Minute — feinste Exchange-Retry-
                                        # held_mails.next_retry
 _last_mailuser_run: float = 0.0        # monotonic; 0 = never (triggers run on first tick)
 _MAILUSER_INTERVAL = 24 * 60 * 60      # onprem-MailUser-Liste täglich abgleichen (Per-Empfänger-Routing)
+_last_probe_run: float = 0.0           # monotonic; 0 = never (triggers run on first tick)
+_PROBE_INTERVAL = 15 * 60              # Direktversand-Probe: Ankunft prüfen (jeder Takt), Senden täglich
 _last_ooo_run: float = 0.0             # monotonic; 0 = never (triggers run on first tick)
 _OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisieren; dank
                                        # Idempotenz (nur PATCH bei echter Abweichung) ist
@@ -580,6 +582,33 @@ def _refresh_onprem_mailusers() -> None:
         _last_mailuser_run = time.monotonic()
 
 
+def _notfall_ausgerufen() -> bool:
+    import notbetrieb
+    return notbetrieb.ausgerufen()
+
+
+def _direktversand_probe() -> None:
+    """Tägliche Probe des Direktversands (direktversand_probe.py).
+
+    ⚠️ `pruefen()` läuft in JEDEM Takt, nicht nur einmal am Tag: Sonst würde die
+    Ankunft einer Probe erst am nächsten Tag erkannt, und der Stand hinge fast
+    24 Stunden auf „gesendet“. Gesendet wird höchstens einmal je TAKT_H."""
+    global _last_probe_run
+    try:
+        import direktversand
+        import direktversand_probe
+        if direktversand.aktiv() and direktversand_probe.postfach():
+            direktversand_probe.pruefen()
+            # Im ausgerufenen Notfall nicht: Exchange ist dann weg, die Probe
+            # käme nicht an und meldete einen Fehler, den es nicht gibt.
+            if direktversand_probe.faellig() and not _notfall_ausgerufen():
+                direktversand_probe.senden()
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("scheduler: Direktversand-Probe fehlgeschlagen: %s", exc)
+    finally:
+        _last_probe_run = time.monotonic()
+
+
 def _sync_ooo() -> None:
     """Zentrale Abwesenheitsnotiz normalisieren (nur wenn eingeschaltet).
 
@@ -619,12 +648,6 @@ def _sync_notbetrieb() -> None:
             if alt is None or alt > _NOTBETRIEB_RECHTE_INTERVAL:
                 notbetrieb.profile_sichern()
             notbetrieb.abgleich_alle()
-            # Tägliche Probe des Notfallwegs nach außen (Direktversand):
-            # erst die gestrige auswerten, dann ggf. die nächste schicken.
-            import notbetrieb_probe
-            notbetrieb_probe.pruefen()
-            if notbetrieb_probe.faellig():
-                notbetrieb_probe.senden()
     except Exception as exc:                                        # noqa: BLE001
         log.warning("scheduler: Notbetrieb-Abgleich fehlgeschlagen: %s", exc)
     finally:
@@ -663,6 +686,8 @@ def _loop() -> None:
                 _sync_ooo()
             if time.monotonic() - _last_notbetrieb_run > _NOTBETRIEB_INTERVAL:
                 _sync_notbetrieb()
+            if time.monotonic() - _last_probe_run > _PROBE_INTERVAL:
+                _direktversand_probe()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

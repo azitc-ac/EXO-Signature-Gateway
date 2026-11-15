@@ -88,6 +88,9 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     # sonst erst im Ernstfall auf. Kein `seit` — die Aufgabe entsteht aus dem
     # Zustand, nicht aus einem Update.
     Aufgabe("notbetrieb-bereit", abnahme._notbetrieb_lokal, "/notbetrieb"),
+    # Direktversand an, aber keine (bestandene) tägliche Probe: ob Post ankommt, weiss niemand.
+    Aufgabe("direktversand-probe", abnahme._direktversand_probe,
+            "/settings/routing#direktversand-probe", seit="1.12.31"),
 )
 
 _TTL_S = 10

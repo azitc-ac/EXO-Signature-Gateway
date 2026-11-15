@@ -720,20 +720,42 @@ def test_praefix_wird_nicht_doppelt_maskiert():
     assert "&amp;nbsp;" not in tb.render_html(meta), "doppelt maskiert"
 
 
+def _standardvorlagen():
+    """Die MITGELIEFERTE Standardvorlage (app/seed_templates/) — plus die örtliche
+    Fassung in templates/, wo vorhanden.
+
+    Bis v1.12.23 lasen die beiden Tests darunter nur `templates/`. Das ist in
+    einem frischen Auschecken leer (.gitignore); die Tests liefen in der CI
+    ohne eine einzige Assertion durch und standen trotzdem als PASSED da —
+    dieselbe Falle, die _pruefvorlagen() oben schon beschreibt."""
+    from pathlib import Path
+    wurzel = Path(__file__).resolve().parents[1]
+    seed = wurzel / "app" / "seed_templates" / "signature.html"
+    assert seed.exists(), f"mitgelieferte Standardvorlage fehlt: {seed}"
+    dateien = [seed]
+    for name in ("signature.html", "default-without-greeting.html"):
+        f = wurzel / "templates" / name
+        if f.exists():
+            dateien.append(f)
+    return dateien
+
+
 def test_standardvorlage_wird_vollstaendig_zerlegt():
     """Die mitgelieferten Vorlagen müssen ihren Kontaktblock als Zweispalter
     zeigen — sonst steht dort ein unverständlicher Block HTML."""
-    from pathlib import Path
-    verz = Path(__file__).resolve().parents[1] / "templates"
-    for name in ("signature.html", "default-without-greeting.html"):
-        f = verz / name
-        if not f.exists():
-            continue
+    for f in _standardvorlagen():
+        name = f"{f.parent.name}/{f.name}"
         meta = tp.parse_html(f.read_text(encoding="utf-8"))
         meta.pop("_hinweise", None)
-        typen = [b["type"] for b in meta["blocks"]]
+        # Rekursiv: Die mitgelieferte Vorlage legt den Zweispalter in eine Box.
+        def alle(bs):
+            for b in bs:
+                yield b
+                for k in ("left", "right", "children"):
+                    yield from alle(b.get(k) or [])
+        typen = [b["type"] for b in alle(meta["blocks"])]
         assert "two_col" in typen, f"{name}: kein Zweispalter, nur {typen}"
-        zwei = [b for b in meta["blocks"] if b["type"] == "two_col"][0]
+        zwei = [b for b in alle(meta["blocks"]) if b["type"] == "two_col"][0]
         rechts = [b["type"] for b in zwei["right"]]
         assert "phone" in rechts and "email_link" in rechts, (
             f"{name}: Kontaktdaten nicht zerlegt, rechts steht {rechts}")
@@ -759,23 +781,19 @@ def test_bild_in_einer_spalte_wird_ein_logo_baustein():
 
 def test_standardvorlage_zeigt_ihre_logos_als_bausteine():
     """Über den ganzen Weg an der echten Vorlage."""
-    from pathlib import Path
-    f = Path(__file__).resolve().parents[1] / "templates/signature.html"
-    if not f.exists():
-        return
-    meta = tp.parse_html(f.read_text(encoding="utf-8"))
-    meta.pop("_hinweise", None)
-
     def sammle(bs):
         for b in bs:
             yield b["type"]
             for k in ("left", "right", "children"):
                 yield from sammle(b.get(k) or [])
 
-    typen = list(sammle(meta["blocks"]))
-    assert typen.count("logo") >= 1, f"kein Logo-Baustein: {typen}"
-    for erwartet in ("two_col", "phone", "email_link"):
-        assert erwartet in typen, f"{erwartet} fehlt: {typen}"
+    for f in _standardvorlagen():
+        meta = tp.parse_html(f.read_text(encoding="utf-8"))
+        meta.pop("_hinweise", None)
+        typen = list(sammle(meta["blocks"]))
+        assert typen.count("logo") >= 1, f"{f}: kein Logo-Baustein: {typen}"
+        for erwartet in ("two_col", "phone", "email_link"):
+            assert erwartet in typen, f"{f}: {erwartet} fehlt: {typen}"
 
 
 # ── Das Ergebnis muss ein GÜLTIGES Template sein ─────────────────────────────

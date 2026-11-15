@@ -1118,8 +1118,8 @@ def test_bereitschaft_meldet_luecken_und_wird_bereit(nb, graph, monkeypatch):
     nb["NOTBETRIEB_LDAP_SERVER"], nb["NOTBETRIEB_LDAP_BASIS"] = "ldaps://dc01", "DC=x"
     monkeypatch.setattr(direktversand, "aktiv", lambda: True)
     # Eingerichtet allein reicht nicht mehr — erst eine angekommene, bestandene Probe.
-    nb["NOTBETRIEB_PROBE_POSTFACH"] = "probe@firma.at"
-    nb["_NOTBETRIEB_PROBE"] = {"ts": datetime.now(timezone.utc).isoformat(), "zustand": "angekommen",
+    nb["DIREKTVERSAND_PROBE_POSTFACH"] = "probe@firma.at"
+    nb["_DIREKTVERSAND_PROBE"] = {"ts": datetime.now(timezone.utc).isoformat(), "zustand": "angekommen",
                                "ordner": "inbox", "minuten": 1.0,
                                "auth": {"spf": "pass", "dkim": "pass", "dmarc": "pass"}}
     monkeypatch.setattr(nba, "erreichbar", lambda: (True, "ok"))
@@ -1179,3 +1179,40 @@ def test_aufgabe_notbetrieb_bereit_erscheint_und_verschwindet(nb, graph, monkeyp
     nb["NOTBETRIEB_AKTIV"] = False
     assert abnahme._notbetrieb_lokal()["zustand"] == abnahme.OK
     assert any(a.kennung == "notbetrieb-bereit" for a in aufgaben.AUFGABEN)
+
+
+def test_bereitschaft_versand_folgt_der_direktversand_probe(nb, monkeypatch):
+    """„Versand nach außen“ ist nur nach bestandener Probe OK — dieselbe
+    Bewertung wie Tagesbericht und Mail-Routing (direktversand_probe)."""
+    import abnahme
+    import direktversand
+    import notbetrieb_bereitschaft as nbb
+    monkeypatch.setattr(direktversand, "aktiv", lambda: True)
+    assert nbb._versand()["zustand"] == abnahme.UNBEKANNT              # kein Probe-Postfach
+    nb["DIREKTVERSAND_PROBE_POSTFACH"] = "probe@firma.at"
+    assert nbb._versand()["zustand"] == abnahme.UNBEKANNT              # noch keine Probe
+    nb["_DIREKTVERSAND_PROBE"] = {"ts": datetime.now(timezone.utc).isoformat(), "zustand": "angekommen",
+                                  "ordner": "Posteingang", "sekunden": 9,
+                                  "auth": {"spf": "pass", "dkim": "pass", "dmarc": "pass"}}
+    assert nbb._versand()["zustand"] == abnahme.OK
+    nb["_DIREKTVERSAND_PROBE"]["zustand"] = "fehlt"
+    assert nbb._versand()["zustand"] == abnahme.OFFEN
+
+
+def test_keine_direktversand_probe_im_ausgerufenen_notfall(nb, monkeypatch):
+    """Im Notfall ist Exchange weg — die Probe käme nicht an und meldete einen
+    Fehler, den es nicht gibt. Geprüft (pruefen) wird weiter, gesendet nicht."""
+    import direktversand
+    import direktversand_probe
+    import scheduler
+    monkeypatch.setattr(direktversand, "aktiv", lambda: True)
+    nb["DIREKTVERSAND_PROBE_POSTFACH"] = "probe@firma.at"
+    gesendet = []
+    monkeypatch.setattr(direktversand_probe, "pruefen", lambda: {})
+    monkeypatch.setattr(direktversand_probe, "senden", lambda: gesendet.append(1))
+    nb["NOTBETRIEB_AUSGERUFEN"] = True
+    scheduler._direktversand_probe()
+    assert gesendet == []
+    nb["NOTBETRIEB_AUSGERUFEN"] = False
+    scheduler._direktversand_probe()
+    assert gesendet == [1]

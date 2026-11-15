@@ -6,22 +6,20 @@
 </div>
 {% include "_nav_einstellungen.html" %}
 
-<!-- ── ACME HTTP-Proxy (Residential-Proxy für CASTLE) ─────────────────────── -->
+<!-- ── Proxy für ACME-Aufrufe ──────────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">
     <span class="step-badge" style="background:#0369a1;font-size:10px">ACME</span>
-    <span class="step-title">ACME HTTP-Proxy — nur für CASTLE-Verbindung
+    <span class="step-title">Proxy für die Zertifizierungsstelle (ACME)
       <span style="font-weight:400;font-size:12px;color:#57534e"> — optional, leer = Direktverbindung</span>
     </span>
   </div>
   <div class="step-body">
     <p class="hint" style="margin-bottom:10px">
-      Optionaler Proxy nur für die ACME/CASTLE-HTTP-Aufrufe (new-order, finalize, etc.) —
-      Graph-API, EXO-SMTP und alles andere bleiben unverändert. In der Regel <strong>nicht
-      nötig</strong>: Der frühere CASTLE-500-FileNotFoundError bei Erneuerungen lag NICHT an
-      der Absender-IP, sondern an einem CASTLE-Bug bei bestehendem Zertifikat — behoben seit
-      v1.4.392 (Widerruf vor Neuausstellung). Diese Option bleibt als Werkzeug für andere
-      Netzwerk-/CA-Szenarien erhalten.
+      Leitet nur die ACME-Aufrufe an die Zertifizierungsstelle (Bestellung, Abschluss usw.)
+      über einen Proxy; Graph-API, EXO-SMTP und alles andere bleiben unverändert. Nur nötig,
+      wenn die Verbindung zur Zertifizierungsstelle aus diesem Netz über einen Proxy laufen
+      muss.
     </p>
     <div class="settings-row" style="margin-bottom:10px">
       <label for="acme-proxy-input">Proxy-URL</label>
@@ -189,11 +187,13 @@ document.addEventListener('DOMContentLoaded', acmeAccountUsersLoad);
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">
     <span class="step-badge" style="background:#78716c;font-size:10px">Lab</span>
-    <span class="step-title">Exchange Header Observatory
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — testet welche Header Exchange bei ACME-Antwortmails hinzufügt</span>
+    <span class="step-title">Labor: Was Exchange an ausgehenden Mails ändert
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — zeigt am Beispiel einer ACME-Antwort, welche Kopfzeilen Exchange hinzufügt</span>
     </span>
   </div>
   <div class="step-body">
+  <details>
+  <summary style="cursor:pointer;font-size:13px">Labor öffnen</summary>
 
     <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
       Schickt eine Test-ACME-Reply via <strong>Graph API sendMail</strong> durch Exchange.
@@ -285,6 +285,7 @@ document.addEventListener('DOMContentLoaded', acmeAccountUsersLoad);
       </div>
     </div>
 
+  </details>
   </div>
 </div>
 

@@ -69,7 +69,7 @@ def test_vendor_wird_uebersprungen(tmp_path):
     assert g == []
 
 
-def test_stand_sperrt_neue_kopie_und_laesst_weniger_zu(tmp_path):
+def test_stand_sperrt_neue_kopie_und_verlangt_festschreiben_bei_weniger(tmp_path):
     quelle = tmp_path / "q"
     quelle.mkdir()
     stand = tmp_path / "stand.json"
@@ -87,5 +87,11 @@ def test_stand_sperrt_neue_kopie_und_laesst_weniger_zu(tmp_path):
     assert r.returncode == 1 and "c.js" in r.stdout
     (quelle / "c.js").unlink()
     (quelle / "b.js").write_text("function nix() { return 1; }", encoding="utf-8")
+    # Weniger ist ein Gewinn, der festgeschrieben werden MUSS — bis v1.12.23
+    # nur ein Hinweis mit Exit 0, und der Spielraum blieb stehen.
     r = lauf()
-    assert r.returncode == 0 and "Weniger als im Stand" in r.stdout
+    assert r.returncode == 1 and "Weniger Kopien als im Stand" in r.stdout
+    stand.write_text(stand.read_text().replace('"begruendungen": []',
+                     '"begruendungen": [{"datei": "x", "auf": 1, "grund": "g"}]'))
+    assert lauf("--schreiben").returncode == 0 and lauf().returncode == 0
+    assert '"grund": "g"' in stand.read_text(), "--schreiben verwirft die Begründungen"
