@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.14 — 2026-11-15 — Baukasten: Baustein nur zeigen, wenn jemand für ein Postfach schreibt
+
+Jeder Baustein im Baukasten hat die neue Einstellung **„Anzeigen wenn“**:
+*Immer* (Vorgabe, wie bisher), *Verfasser im eigenen Postfach* oder
+*Verfasser im fremden Postfach*.
+
+Gedacht ist das für geteilte Postfächer. Eine Vorlage kann mit
+`{{ bearbeiter.displayName }}` die Person zeigen, die schreibt, und daneben den
+Namen des Postfachs. Das Verfassen-Add-in kennt diese Person immer. Das Gateway
+kennt sie nur bei „Senden im Auftrag von“, weil dann der `Sender`-Kopf sie nennt.
+Bei „Senden als“ fehlt dieser Kopf, und `bearbeiter` ist das Postfach selbst.
+Ohne Bedingung stünde der Postfachname dann zweimal in der Signatur. Setzt du den
+Baustein mit dem Postfachnamen auf *Verfasser im fremden Postfach*, erscheint er
+nur, wenn die Person bekannt ist.
+
+Die Einstellung wirkt in der HTML- und in der Text-Signatur, auch in zweispaltigen
+Bausteinen. Verglichen wird die Adresse ohne Rücksicht auf Groß- und
+Kleinschreibung. Unbekannte Werte werden ignoriert und gelangen nicht in die
+Vorlage.
+
+**Zu tun:** nichts. Bestehende Vorlagen bleiben unverändert.
+
 ## v1.12.13 — 2026-11-15 — Test zum Wartungsband an die Zählung je Grund angepasst
 
 Seit v1.12.12 zählt das Band „Wartungsmodus“ nur Mails, die wegen der Wartung

@@ -282,7 +282,25 @@ def _render_block(b: dict, g: dict, indent: int) -> str:
     fn = _HTML_RENDERERS.get(t)
     if fn is None:
         return ""
-    return fn(b, g, pad, indent)
+    return _bedingt(b, fn(b, g, pad, indent))
+
+
+# Wann ein Baustein erscheint (`bedingung`). `fuer_postfach` setzt
+# signature_engine._kontext: Jemand schreibt für ein geteiltes Postfach, und
+# das Gateway oder das Add-in kennt die Person. Der Jinja-Ausdruck kommt
+# AUSSCHLIESSLICH aus dieser Tabelle — ein unbekannter Wert im Meta heisst
+# „immer“ und wird nie in die Vorlage geschrieben.
+BEDINGUNGEN = {
+    "fuer_postfach": "fuer_postfach",
+    "selbst": "not fuer_postfach",
+}
+
+
+def _bedingt(b: dict, inhalt: str) -> str:
+    ausdruck = BEDINGUNGEN.get(b.get("bedingung") or "")
+    if not ausdruck or not inhalt:
+        return inhalt
+    return f"{{% if {ausdruck} %}}{inhalt}{{% endif %}}"
 
 
 # ── HTML block renderers ───────────────────────────────────────────────────────
@@ -911,6 +929,14 @@ def _render_blocks_txt(blocks: list[dict], g: dict, lines: list[str]) -> None:
 
 
 def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
+    beginn = len(lines)
+    _render_block_txt_roh(b, g, lines)
+    neu = lines[beginn:]
+    if neu:
+        lines[beginn:] = [_bedingt(b, "\n".join(neu))]
+
+
+def _render_block_txt_roh(b: dict, g: dict, lines: list[str]) -> None:
     t = b.get("type", "")
     if t == "greeting":
         lines.append(b.get("text") or "Freundliche Grüße")
