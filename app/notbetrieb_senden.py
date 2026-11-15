@@ -200,14 +200,20 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
     _drossel(benutzer)
     sender = benutzer if recht == "auftrag" else None
     msg = _bauen(postfach, sender, an_l, cc_l, betreff or "", text or "", anhaenge, bezug)
-    mid = msg["Message-ID"]
+    await _hinaus(benutzer, postfach, recht, alle, msg.as_bytes(), msg["Message-ID"], bcc_l, "Webmail")
+    return {"ok": True, "message_id": msg["Message-ID"], "intern": len(intern), "extern": len(extern)}
 
+
+async def _hinaus(benutzer: str, postfach: str, recht: str, alle: list, inhalt: bytes, mid: str,
+                  bcc_l: list, weg: str) -> None:
+    """Gemeinsamer Ausgang für Webmail und Mailprogramme (587): durch den
+    Handler (Signatur …), zustellen, Gesendet-Kopie ablegen."""
     import handler
     import reinject
     zustellungen: list[tuple[str, list, bytes]] = []
     with reinject.umleiten(lambda von, empf, inhalt: zustellungen.append((von, empf, inhalt))):
         antwort = await handler.SignatureHandler().handle_DATA(
-            None, _Sitzung(), _Umschlag(postfach, alle, msg.as_bytes()))
+            None, _Sitzung(), _Umschlag(postfach, alle, inhalt))
     if not str(antwort).startswith("250"):
         raise SendeFehler(f"Nicht gesendet: {antwort}")
     haupt = next((z for z in zustellungen if _message_id(z[2]) == mid), None)
@@ -218,20 +224,104 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
         raise SendeFehler("Nicht gesendet." + (f" {meldung}" if meldung else ""))
 
     # Derselbe Zustellweg wie für das Gateway im ausgerufenen Notfall.
-    for von, empf, inhalt in zustellungen:
+    for von, empf, roh in zustellungen:
         try:
-            notbetrieb.zustellen(von, empf, inhalt)
+            notbetrieb.zustellen(von, empf, roh)
         except Exception as exc:                                    # noqa: BLE001
             log.warning("Notbetrieb-Senden: Zustellung fehlgeschlagen: %s", exc)
             raise SendeFehler("Versand nach außen fehlgeschlagen — bitte später erneut.") from None
     # Gesendet-Kopie = was hinausging (mit Signatur), dazu Bcc.
     kopie = email.message_from_bytes(haupt[2], policy=email.policy.SMTP)
+    del kopie["Bcc"]
     if bcc_l:
         kopie["Bcc"] = ", ".join(bcc_l)
     notbetrieb.lokal_ablegen(postfach, "sentitems", kopie.as_bytes(), gelesen=True)
-    log.info("Notbetrieb-Senden: %s aus %s (%s) — %s intern, %s extern, %s", benutzer, postfach, recht,
-             len(intern), len(extern), mid)
-    return {"ok": True, "message_id": mid, "intern": len(intern), "extern": len(extern)}
+    intern = sum(1 for a in alle if notbetrieb.postfach_fuer(a))
+    log.info("Notbetrieb-Senden (%s): %s aus %s (%s) — %s intern, %s extern, %s", weg, benutzer, postfach,
+             recht, intern, len(alle) - intern, mid)
+
+
+# ── Mailprogramme (Submission 587) ──────────────────────────────────────────
+
+class Konto:
+    """Anmeldung am 587-Listener mit dem AD-Kennwort (`session.auth_data`).
+    Bewusst eine eigene Klasse: Der Handler unterscheidet daran die
+    Notbetrieb-Einlieferung von einer Sende-Identität (dict)."""
+
+    def __init__(self, benutzer: str, anmeldename: str = ""):
+        # benutzer = eigenes Postfach (wie Webmail-Sitzung und IMAP), nicht der
+        # eingegebene Anmeldename — das Rechte-Abbild kennt nur Postfächer.
+        self.benutzer, self.anmeldename = benutzer, anmeldename
+
+    def __repr__(self) -> str:
+        return f"Konto({self.benutzer!r})"
+
+
+def smtp_erlaubt(benutzer: str) -> bool:
+    """Senden aus Mailprogrammen: Funktion an, Schalter an, und Notfall
+    ausgerufen oder Probegruppe — dieselbe Regel wie für Inhalte im Webmail."""
+    import settings_store
+    if not notbetrieb.funktion_aktiv() or settings_store.get("NOTBETRIEB_SMTP") is not True:
+        return False
+    return notbetrieb.inhalte_erlaubt(benutzer)
+
+
+async def einliefern(konto: Konto, mail_from: str, rcpt_tos: list, raw: bytes) -> str:
+    """Mail eines Mailprogramms (587). Gibt die SMTP-Antwort zurück.
+
+    Absender ist der From-Kopf (dafür braucht es ein Senderecht), Empfänger
+    sind die Umschlag-Empfänger — darunter die Bcc, die das Programm schon
+    aus dem Kopf genommen hat. Gesendet-Kopie legt das Gateway selbst ab;
+    das APPEND des Programms nimmt der IMAP-Zugang dann ohne Doppel an."""
+    import direktversand
+    if not smtp_erlaubt(konto.benutzer):
+        return "550 5.7.1 Senden aus Mailprogrammen nur im ausgerufenen Notfall"
+    if len(raw) > MAX_GROESSE + 5 * 1024 * 1024:     # Kodierung (base64) zählt mit
+        return "552 5.3.4 Mail zu groß"
+    msg = email.message_from_bytes(raw, policy=email.policy.SMTP)
+    von = getaddresses([str(msg.get("From") or "")])
+    if len(von) != 1 or "@" not in von[0][1]:
+        return "550 5.7.1 Genau ein Absender im From-Kopf"
+    adresse = von[0][1].strip().lower()
+    postfach = notbetrieb.postfach_fuer(adresse) or adresse
+    recht = senderecht(konto.benutzer, postfach)
+    if not recht:
+        log.info("Notbetrieb-587: %s darf nicht aus %s senden", konto.benutzer, adresse)
+        return f"550 5.7.1 Kein Senderecht für {adresse}"
+    try:
+        alle = list(dict.fromkeys(a.lower() for a in _adressen(", ".join(rcpt_tos))))
+    except SendeFehler as exc:
+        return f"550 5.1.3 {exc}"
+    if not alle:
+        return "554 5.5.1 Keine Empfänger"
+    if len(alle) > MAX_EMPFAENGER:
+        return f"452 4.5.3 Höchstens {MAX_EMPFAENGER} Empfänger"
+    if any(not notbetrieb.postfach_fuer(a) for a in alle) and not direktversand.aktiv():
+        return "550 5.7.1 Versand nach außen ist im Notbetrieb nicht eingerichtet"
+    try:
+        _drossel(konto.benutzer)
+    except SendeFehler:
+        return "451 4.7.1 Zu viele Mails in der letzten Stunde"
+
+    # Kopf festziehen: Sender bei „im Auftrag“, Message-ID für Ablage und APPEND.
+    del msg["Bcc"]
+    del msg["Sender"]
+    if recht == "auftrag":
+        msg["Sender"] = konto.benutzer
+    mid = (msg.get("Message-ID") or "").strip()
+    if not mid:
+        mid = make_msgid(domain=adresse.split("@", 1)[1])
+        msg["Message-ID"] = mid
+    if not msg.get("Date"):
+        msg["Date"] = format_datetime(datetime.now(timezone.utc))
+    sichtbar = {a.lower() for _n, a in getaddresses(
+        [str(msg.get(k) or "") for k in ("To", "Cc")])}
+    bcc_l = [a for a in alle if a not in sichtbar]
+    try:
+        await _hinaus(konto.benutzer, postfach, recht, alle, msg.as_bytes(), mid, bcc_l, "587")
+    except SendeFehler as exc:
+        return f"451 4.3.0 {exc}"
+    return "250 OK"
 
 
 class _Sitzung:

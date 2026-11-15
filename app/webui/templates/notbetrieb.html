@@ -253,23 +253,33 @@
 
 <!-- Mailprogramme -->
 <div class="settings-card" style="margin-bottom:18px">
-  <h2 style="margin-top:0">Zugang für Mailprogramme (IMAP)</h2>
+  <h2 style="margin-top:0">Zugang für Mailprogramme (IMAP und SMTP)</h2>
   <p class="hint" style="margin-top:0">
-    Outlook (als zusätzliches Konto) und Mail-Apps auf dem Handy lesen die Kopie per IMAP — nur lesend;
-    gesendet wird über das Notfall-Webmail. Vor dem Notfall zeigt das Konto einen leeren Posteingang
-    (außer für die Probegruppe), es kann also vorab auf allen Geräten eingerichtet werden.
+    Outlook (als zusätzliches Konto) und Mail-Apps auf dem Handy lesen die Kopie per IMAP — nur lesend —
+    und senden per SMTP über das Gateway, mit Signatur wie im Webmail. Vor dem Notfall zeigt das Konto einen
+    leeren Posteingang und sendet nicht (außer für die Probegruppe), es kann also vorab auf allen Geräten
+    eingerichtet werden.
   </p>
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="nb-imap" {% if imap %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbImap(this)"> IMAP-Zugang einschalten
+             onchange="nbSchalter(this, 'NOTBETRIEB_IMAP', 'nb-imap-msg')"> Lesen per IMAP einschalten
     </label>
   </div>
   <div class="msg" id="nb-imap-msg" hidden></div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-smtp" {% if smtp %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
+             onchange="nbSchalter(this, 'NOTBETRIEB_SMTP', 'nb-smtp-msg')"> Senden per SMTP einschalten
+    </label>
+  </div>
+  <div class="msg" id="nb-smtp-msg" hidden></div>
   <p class="hint" style="margin:6px 0 0">
-    Kontodaten: Server <code>{{ imap_host or 'Hostname dieses Gateways' }}</code>, Port <code>993</code>,
-    SSL/TLS, Benutzername und Kennwort wie bei der Windows-Anmeldung. Die Firewall muss Port 993 zum Gateway
-    durchlassen.
+    Kontodaten: Server <code>{{ imap_host or 'Hostname dieses Gateways' }}</code>, eingehend IMAP Port
+    <code>993</code> (SSL/TLS), ausgehend SMTP Port <code>587</code> (STARTTLS, Anmeldung erforderlich),
+    Benutzername und Kennwort wie bei der Windows-Anmeldung. Die Firewall muss beide Ports zum Gateway
+    durchlassen. Gesendet wird aus dem eigenen Postfach oder einem mit „Senden als“/„Senden im Auftrag“;
+    die Kopie unter „Gesendete Elemente“ legt das Gateway selbst ab.
   </p>
 </div>
 
@@ -529,8 +539,8 @@ async function nbProbeSpeichern() {
 }
 
 // Reiner Schalter → speichert sofort (Speichern-Linie Regel 4).
-async function nbImap(el) {
-  if (!await savePartial({NOTBETRIEB_IMAP: el.checked}, 'nb-imap-msg')) el.checked = !el.checked;
+async function nbSchalter(el, schluessel, meldung) {
+  if (!await savePartial({[schluessel]: el.checked}, meldung)) el.checked = !el.checked;
 }
 
 async function nbEingangSpeichern() {

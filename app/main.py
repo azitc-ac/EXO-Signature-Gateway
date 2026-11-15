@@ -35,6 +35,15 @@ class _LenientSMTP(_BaseSMTP):
     parameters instead of returning 555.  EXO may send AUTH=, REQUIRETLS
     etc. when forwarding messages; we don't need them but must not reject."""
 
+    # Notbetrieb: Die AD-Prüfung (LDAP-Bind) kann Sekunden dauern. aiosmtpd
+    # ruft den Authenticator synchron — er reicht sie deshalb nur als
+    # `_NotbetriebOffen` durch, geprüft wird hier im Hintergrund-Thread.
+    async def auth_PLAIN(self, _, args):
+        return await _notbetrieb_nachpruefen(self, await super().auth_PLAIN(_, args))
+
+    async def auth_LOGIN(self, _, args):
+        return await _notbetrieb_nachpruefen(self, await super().auth_LOGIN(_, args))
+
     def connection_made(self, transport) -> None:
         """STARTTLS bleibt Pflicht — ausser fuer ein freigegebenes Relay-Geraet.
 
@@ -244,6 +253,53 @@ class _LenientController(Controller):
         return _LenientSMTP(self.handler, **self.SMTP_kwargs)
 
 
+class _NotbetriebOffen:
+    """Anmeldung, die nur noch die AD-Prüfung des Notbetriebs bestehen kann."""
+
+    def __init__(self, login: bytes, passwort: bytes, quelle: str):
+        self.login, self.passwort, self.quelle = login, passwort, quelle
+
+    def __repr__(self) -> str:                    # nie das Kennwort in ein Protokoll
+        return "_NotbetriebOffen()"
+
+
+def _notbetrieb_smtp_an() -> bool:
+    try:
+        import notbetrieb
+        return notbetrieb.funktion_aktiv() and settings_store.get("NOTBETRIEB_SMTP") is True
+    except Exception:                                         # noqa: BLE001
+        return False
+
+
+async def _notbetrieb_nachpruefen(server, ergebnis):
+    """Zweite Stufe am 587-Listener: AD-Kennwort (wie Webmail und IMAP).
+    Der Sendeweg prüft danach je Mail, ob der Notfall ausgerufen ist."""
+    from aiosmtpd.smtp import AuthResult
+    offen = getattr(ergebnis, "auth_data", None)
+    if not isinstance(offen, _NotbetriebOffen):
+        return ergebnis
+    import notbetrieb_anmeldung
+    import notbetrieb_senden
+    try:
+        benutzer = offen.login.decode("utf-8")
+        passwort = offen.passwort.decode("utf-8")
+    except UnicodeDecodeError:
+        return AuthResult(success=False, handled=False)
+    try:
+        r = await asyncio.to_thread(notbetrieb_anmeldung.anmelden, benutzer, passwort, offen.quelle)
+    except Exception as exc:                                  # noqa: BLE001
+        log.warning("Notbetrieb-587: Anmeldung fehlgeschlagen: %s", exc)
+        return AuthResult(success=False, handled=False)
+    if r.get("ok"):
+        return AuthResult(success=True, auth_data=notbetrieb_senden.Konto(r["postfach"], r["benutzer"]))
+    try:
+        import anmelde_ereignisse
+        anmelde_ereignisse.merke("587", offen.quelle, "Notbetrieb: Login/Passwort abgewiesen")
+    except Exception:                                         # noqa: BLE001
+        pass
+    return AuthResult(success=False, handled=False)
+
+
 def _submission_authenticator(server, session, envelope, mechanism, auth_data):
     """Prüft die Anmeldung am Submission-Listener (587) gegen die
     Sende-Identitäten. Bei Erfolg wird die Identität als `auth_data` an die
@@ -252,10 +308,12 @@ def _submission_authenticator(server, session, envelope, mechanism, auth_data):
     Solange `SUBMISSION_ENABLED` aus ist, wird jede Anmeldung abgewiesen; der
     Port ist dann zwar offen, nimmt aber niemanden an (live umschaltbar, ohne
     Neustart).
+
+    Notbetrieb (`NOTBETRIEB_SMTP`): Passt keine Sende-Identität, darf das
+    AD-Kennwort gelten — unabhängig von `SUBMISSION_ENABLED`. Geprüft wird es
+    in `_notbetrieb_nachpruefen` (asynchron, LDAP).
     """
     from aiosmtpd.smtp import AuthResult, LoginPassword
-    if not settings_store.get("SUBMISSION_ENABLED"):
-        return AuthResult(success=False, handled=False)
     if not isinstance(auth_data, LoginPassword):
         return AuthResult(success=False, handled=False)
     # Quell-IP der Anmeldung für die Anmelde-Bremse (Brute-Force-Schutz je IP).
@@ -266,6 +324,12 @@ def _submission_authenticator(server, session, envelope, mechanism, auth_data):
             quelle = peer[0]
     except Exception:                                         # noqa: BLE001
         pass
+    notbetrieb_an = _notbetrieb_smtp_an()
+    if not settings_store.get("SUBMISSION_ENABLED"):
+        if notbetrieb_an:
+            return AuthResult(success=False, handled=False,
+                              auth_data=_NotbetriebOffen(auth_data.login, auth_data.password, quelle))
+        return AuthResult(success=False, handled=False)
     try:
         import sende_identitaeten
         ident = sende_identitaeten.pruefe_login(
@@ -275,6 +339,9 @@ def _submission_authenticator(server, session, envelope, mechanism, auth_data):
         return AuthResult(success=False, handled=False)
     if ident:
         return AuthResult(success=True, auth_data=ident)
+    if notbetrieb_an:
+        return AuthResult(success=False, handled=False,
+                          auth_data=_NotbetriebOffen(auth_data.login, auth_data.password, quelle))
     # Fehlgeschlagene Anmeldung sichtbar machen (Angriffs-Indikator).
     try:
         import anmelde_ereignisse

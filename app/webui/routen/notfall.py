@@ -54,13 +54,9 @@ def _benutzer(request: Request) -> str:
 
 
 def inhalte_erlaubt(benutzer: str) -> bool:
-    """Vor dem Notfall sieht nur die Probegruppe Inhalte (Probealarm); alle
-    anderen können sich anmelden und sehen „bereit“. So kann der Zugang vorab
-    auf jedem Gerät eingerichtet werden, ohne dass dort jemand mitliest."""
-    if notbetrieb.ausgerufen():
-        return True
-    probe = settings_store.get("NOTBETRIEB_PROBEGRUPPE") or []
-    return benutzer.strip().lower() in {str(a).strip().lower() for a in probe if a}
+    """So kann der Zugang vorab auf jedem Gerät eingerichtet werden, ohne dass
+    dort jemand mitliest — Regel in `notbetrieb.inhalte_erlaubt`."""
+    return notbetrieb.inhalte_erlaubt(benutzer)
 
 
 def _leser(benutzer: str = Depends(_benutzer)) -> str:

@@ -582,6 +582,8 @@ def test_kalender_wird_ersetzt_und_privates_nur_fuer_den_inhaber(schatten):
     assert [t["betreff"] for t in alle] == ["Planung", "Arzt"] and alle[0]["teilnehmer"][0]["antwort"] == "accepted"
     fremd = pim.termine("team@firma.at", "2026-11-16T00:00:00Z", "2026-11-17T00:00:00Z", eigen=False)
     assert fremd[1]["betreff"] == "Privater Termin" and fremd[1]["text"] == "" and fremd[1]["teilnehmer"] == []
+    # Kennzeichen „privat“ nur beim Inhaber; beim Geschwärzten trägt es der Betreff.
+    assert alle[1]["privat"] and not alle[1].get("geschwaerzt") and fremd[1]["geschwaerzt"] is True
     # Erneuter Abgleich ersetzt (abgesagter Termin verschwindet).
     pim.kalender_abgleichen(_Graph({"/calendarView": {"value": [TERMIN]}}), "tok", "team@firma.at", 3, 3)
     assert len(pim.termine("team@firma.at", "2026-11-16T00:00:00Z", "2026-11-17T00:00:00Z", True)) == 1

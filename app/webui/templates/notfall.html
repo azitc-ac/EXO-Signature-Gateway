@@ -272,6 +272,7 @@ async function kalenderZeigen() {
       + '<div class="kopf"><span>' + (t.ganztag ? 'ganztägig' : esc(uhrzeit(t.beginn) + '–' + uhrzeit(t.ende)))
       + '</span><span>' + esc(t.ort || '') + '</span></div>'
       + '<div class="betreff">' + (t.abgesagt ? '<s>' : '') + esc(t.betreff || '(ohne Betreff)') + (t.abgesagt ? '</s>' : '')
+      + (t.privat && !t.geschwaerzt ? ' <span class="leise">· privat</span>' : '')
       + '</div></div>';
   }).join('');
   if (innerWidth > 720) terminZeigen(Math.max(0, d.termine.findIndex(t => new Date(t.ende) >= new Date())));
@@ -284,7 +285,8 @@ function terminZeigen(i) {
   const antw = {accepted: 'zugesagt', declined: 'abgesagt', tentativelyAccepted: 'vorläufig', none: '', notResponded: 'offen', organizer: 'Organisator'};
   document.getElementById('lesen').innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
     + '<div style="padding:12px 18px"><h2 style="margin:0 0 6px">' + (t.abgesagt ? 'Abgesagt: ' : '') + esc(t.betreff || '(ohne Betreff)') + '</h2>'
-    + '<div class="leise">' + esc(tagText(t.beginn)) + (t.ganztag ? ', ganztägig' : ', ' + esc(uhrzeit(t.beginn) + '–' + uhrzeit(t.ende))) + '</div>'
+    + '<div class="leise">' + esc(tagText(t.beginn)) + (t.ganztag ? ', ganztägig' : ', ' + esc(uhrzeit(t.beginn) + '–' + uhrzeit(t.ende)))
+    + (t.privat && !t.geschwaerzt ? ' · privat (für andere nur als „Privater Termin“)' : '') + '</div>'
     + (t.ort ? '<div>Ort: ' + esc(t.ort) + '</div>' : '')
     + (t.organisator && t.organisator.address ? '<div>Organisator: ' + wer(t.organisator) + '</div>' : '')
     + (t.teilnehmer.length ? '<div style="margin-top:6px">Teilnehmer:<ul style="margin:2px 0 0 18px;padding:0">'

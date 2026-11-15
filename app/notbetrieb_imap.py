@@ -45,7 +45,8 @@ log = logging.getLogger(__name__)
 
 PORT = 993
 MAX_ZEILE = 64 * 1024
-MAX_LITERAL = 64 * 1024        # nur für Anmeldung/Suche; APPEND gibt es nicht
+MAX_LITERAL = 64 * 1024        # Anmeldung/Suche
+MAX_APPEND = 40 * 1024 * 1024  # APPEND nach der Anmeldung (Gesendet-Kopie des Programms)
 LEERLAUF_S = 30 * 60
 MAX_FEHLVERSUCHE = 3
 TRENNER = "/"
@@ -278,6 +279,9 @@ class Fehler(Exception):
     pass
 
 
+_ZK_ENDE = re.compile(r'["\\]')
+
+
 def zerlegen(text: str) -> list:
     """Atome, Zeichenketten und Klammerlisten (Literale sind schon eingesetzt)."""
     out, stapel, i = [], [], 0
@@ -287,16 +291,19 @@ def zerlegen(text: str) -> list:
         if c == " ":
             i += 1
         elif c == '"':
+            # Stückweise bis zum nächsten " oder \ — ein APPEND-Literal hat Megabytes.
             j, puffer = i + 1, []
-            while j < len(text) and text[j] != '"':
-                if text[j] == "\\" and j + 1 < len(text):
-                    j += 1
-                puffer.append(text[j])
-                j += 1
-            if j >= len(text):
-                raise Fehler("Zeichenkette nicht geschlossen")
+            while True:
+                k = _ZK_ENDE.search(text, j)
+                if not k:
+                    raise Fehler("Zeichenkette nicht geschlossen")
+                puffer.append(text[j:k.start()])
+                if k.group() == '"':
+                    i = k.start() + 1
+                    break
+                puffer.append(text[k.start() + 1:k.start() + 2])
+                j = k.start() + 2
             aktuell.append("".join(puffer))
-            i = j + 1
         elif c == "(":
             neu = []
             aktuell.append(neu)
@@ -340,6 +347,8 @@ def menge(angabe: str, hoechstes: int) -> set[int]:
 
 # ── Sitzung ─────────────────────────────────────────────────────────────────
 
+_APPEND = re.compile(rb"^\S+ APPEND ", re.I)
+
 class Sitzung:
     def __init__(self, leser: asyncio.StreamReader, schreiber: asyncio.StreamWriter, quelle: str):
         self.r, self.w, self.quelle = leser, schreiber, quelle
@@ -370,7 +379,8 @@ class Sitzung:
                 stuecke.append(z)
                 return b"".join(stuecke).decode("utf-8", "replace")
             n = int(m.group(1))
-            if n > MAX_LITERAL:
+            grenze = MAX_APPEND if (self.benutzer and _APPEND.match(b"".join(stuecke) + z)) else MAX_LITERAL
+            if n > grenze:
                 raise Fehler("Literal zu groß")
             stuecke.append(z[:m.start()])
             if not m.group(2):
@@ -449,10 +459,30 @@ class Sitzung:
                 await self.senden(f"{tag} BAD Unbekannt\r\n".encode())
         elif b in ("EXPUNGE",):
             await self.senden(f"{tag} OK EXPUNGE\r\n".encode())
-        elif b in ("APPEND", "COPY", "MOVE", "CREATE", "DELETE", "RENAME", "SUBSCRIBE", "UNSUBSCRIBE"):
+        elif b == "APPEND":
+            await self._append(tag, args)
+        elif b in ("SUBSCRIBE", "UNSUBSCRIBE"):
+            # Ohne Wirkung — LSUB liefert ohnehin alle Ordner. Outlook Classic
+            # abonniert beim ersten Abgleich und bricht bei NO ab (800CCC16).
+            await self.senden(f"{tag} OK {b}\r\n".encode())
+        elif b in ("COPY", "MOVE", "CREATE", "DELETE", "RENAME"):
             await self.senden(f"{tag} NO [CANNOT] Im Notbetrieb nur lesend\r\n".encode())
         else:
             await self.senden(f"{tag} BAD Unbekannter Befehl\r\n".encode())
+
+    async def _append(self, tag: str, args: list) -> None:
+        """Nur die Gesendet-Kopie einer Mail, die das Gateway selbst gesendet
+        und schon abgelegt hat (587): angenommen ohne zweite Ablage. Outlook und
+        iOS legen nach dem Senden per APPEND ab und melden sonst einen Fehler."""
+        o = self._finden(str(args[0])) if args and isinstance(args[0], str) else None
+        inhalt = args[-1] if len(args) >= 2 and isinstance(args[-1], str) else ""
+        if o and not o.get("leer") and o["wk"] == "sentitems" and inhalt:
+            kopf = email.message_from_string(inhalt.split("\r\n\r\n", 1)[0] + "\r\n\r\n",
+                                             policy=email.policy.compat32)
+            if notbetrieb.lokal_vorhanden(o["postfach"], "sentitems", str(kopf.get("Message-ID") or "")):
+                await self.senden(f"{tag} OK APPEND (schon abgelegt)\r\n".encode())
+                return
+        await self.senden(f"{tag} NO [CANNOT] Im Notbetrieb nur lesend\r\n".encode())
 
     async def _anmelden(self, tag: str, b: str, args: list) -> None:
         if self.benutzer:

@@ -97,6 +97,9 @@ def test_nur_lesend_aber_gelesen_flag_in_der_kopie(imap):
                    lambda: c.copy("1", "Archiv"), lambda: c.create("Neu"), lambda: c.delete("Archiv")):
         typ, _ = befehl()
         assert typ == "NO"
+    # Abonnieren ist ohne Wirkung, aber kein Fehler — Outlook bricht sonst den Abgleich ab.
+    assert c.subscribe("INBOX")[0] == "OK" and c.unsubscribe("Archiv")[0] == "OK"
+    assert len(c.lsub()[1]) == len(c.list()[1])
     typ, daten = c.search(None, "UNSEEN")
     vorher = daten[0].split()
     assert vorher

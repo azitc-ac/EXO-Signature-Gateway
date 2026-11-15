@@ -39,6 +39,7 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "ausgerufen": notbetrieb.ausgerufen(),
             "probegruppe": settings_store.get("NOTBETRIEB_PROBEGRUPPE") or [],
             "imap": settings_store.get("NOTBETRIEB_IMAP") is True,
+            "smtp": settings_store.get("NOTBETRIEB_SMTP") is True,
             "imap_host": aussenadresse.ehlo_hostname() or "",
             "eingang": {"greylist": notbetrieb_eingang.greylisting_an(), "max_empf": notbetrieb_eingang.max_empfaenger(),
                         "max_mb": notbetrieb_eingang.max_bytes() // (1024 * 1024),

@@ -47,6 +47,7 @@ DEFAULTS: dict = {
     "NOTBETRIEB_AUSGERUFEN": False,   # Notfall: Übergabe an Exchange geht in die Kopie
     "NOTBETRIEB_PROBEGRUPPE": [],     # sieht im Webmail schon vor dem Notfall Inhalte (Probealarm)
     "NOTBETRIEB_IMAP": False,         # IMAP-Zugang zur Kopie (Port 993, lesend)
+    "NOTBETRIEB_SMTP": False,         # Senden aus Mailprogrammen (587, AD-Anmeldung, nur im Notfall)
     "NOTBETRIEB_EINGANG_GREYLIST": True,   # Notfall-Eingang von außen: Greylisting
     "NOTBETRIEB_EINGANG_MAX_EMPF": 50,     # … höchstens Empfänger je Mail
     "NOTBETRIEB_EINGANG_MAX_MB": 25,       # … höchstens MB je Mail

@@ -125,6 +125,16 @@ def ausgerufen() -> bool:
     return funktion_aktiv() and settings_store.get("NOTBETRIEB_AUSGERUFEN") is True
 
 
+def inhalte_erlaubt(benutzer: str) -> bool:
+    """Vor dem Notfall sieht nur die Probegruppe Inhalte (Probealarm); alle
+    anderen können sich anmelden und sehen „bereit“. EINE Regel für Webmail,
+    IMAP und Senden aus Mailprogrammen."""
+    if ausgerufen():
+        return True
+    probe = settings_store.get("NOTBETRIEB_PROBEGRUPPE") or []
+    return benutzer.strip().lower() in {str(a).strip().lower() for a in probe if a}
+
+
 def postfach_fuer(adresse: str) -> str | None:
     """Postfach (Primäradresse) zu einer Adresse — Primäradresse, UPN oder ein
     Alias aus den gesicherten Profilen —, sonst None."""
@@ -370,6 +380,16 @@ def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
             (postfach.lower(), graph_id, ordner, imid,
              _iso(empfangen or datetime.now(timezone.utc)), 1 if gelesen else 0, str(pfad), LOKAL))
     return imid
+
+
+def lokal_vorhanden(postfach: str, ordner: str, imid: str) -> bool:
+    """Liegt diese im Notbetrieb entstandene Mail schon im Ordner (Message-ID)?"""
+    imid = (imid or "").strip()
+    if not imid or not _db_pfad().exists():
+        return False
+    with _lock, _conn() as conn:
+        return conn.execute("SELECT 1 FROM mails WHERE postfach=? AND ordner=? AND imid=? AND herkunft=?",
+                            (postfach.lower(), ordner, imid, LOKAL)).fetchone() is not None
 
 
 # ── Abgleich von Exchange ───────────────────────────────────────────────────

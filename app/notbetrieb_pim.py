@@ -156,7 +156,7 @@ def termine(postfach: str, von: str, bis: str, eigen: bool) -> list[dict]:
     for z in zeilen:
         d = {"id": z["id"], **json.loads(z["daten"])}
         if d["privat"] and not eigen:
-            d.update(betreff="Privater Termin", ort="", teilnehmer=[], text="", online="")
+            d.update(betreff="Privater Termin", ort="", teilnehmer=[], text="", online="", geschwaerzt=True)
         out.append(d)
     return out
 

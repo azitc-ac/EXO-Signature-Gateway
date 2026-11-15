@@ -550,6 +550,15 @@ class SignatureHandler:
         _ident = (getattr(session, "auth_data", None)
                   if getattr(session, "authenticated", False) else None)
 
+        # Notbetrieb: angemeldet mit dem AD-Kennwort (Mailprogramm, 587). Eigener
+        # Weg mit Senderecht aus dem Rechte-Abbild; der läuft danach im Prozess
+        # durch diesen Handler (ohne Anmeldung) — Signatur wie im Webmail.
+        import notbetrieb_senden as _nbs
+        if isinstance(_ident, _nbs.Konto):
+            log.info("Notbetrieb-587: Einlieferung von %s (%s) aus %s", _ident.benutzer, peer_ip,
+                     sender)
+            return await _nbs.einliefern(_ident, sender or "", list(recipients), raw)
+
         # Notfall ausgerufen: Post von außen (MX zeigt aufs Gateway). Sie gilt
         # weder als Exchange-Connector noch als Relay — eigene Prüfung in
         # notbetrieb_eingang, danach der normale Weg für eingehende Post; die
