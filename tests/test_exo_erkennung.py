@@ -106,7 +106,7 @@ def aufbau(monkeypatch, tmp_path):
                                    require_starttls=True)
     ctrl.start()
     yield {"port": port, "werte": werte, "erlaubt": erlaubt, "relay": relay,
-           "merker": merker, "exo": exo, "fremd": fremd}
+           "merker": merker, "exo": exo, "fremd": fremd, "srv": srv}
     ctrl.stop()
 
 
@@ -165,6 +165,125 @@ def test_streng_verlangt_beides(aufbau):
     _senden(aufbau["port"], aufbau["exo"])
     _senden(aufbau["port"])
     assert aufbau["merker"].urteile == [(True, "Adresse+Zertifikat"), (False, "Adresse")]
+
+
+def test_submission_587_fordert_kein_zertifikat_an(aufbau, caplog):
+    """Auf dem Submission-Listener (Anmeldung Pflicht) spricht nie Exchange.
+    Outlook Classic hing nach einer CertificateRequest still — dort darf also
+    nie ein Client-Zertifikat angefordert werden, auch wenn exo_erkennung es
+    für die Quelladresse täte."""
+    from aiosmtpd.smtp import AuthResult
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port587 = s.getsockname()[1]
+    ctrl = main._LenientController(
+        aufbau["merker"], hostname="127.0.0.1", port=port587,
+        tls_context=smtp_cert.baue_listener_kontext([aufbau["srv"]]),
+        require_starttls=True, auth_required=True, auth_require_tls=True,
+        authenticator=lambda *a: AuthResult(success=False, handled=False))
+    ctrl.start()
+    try:
+        k = ssl.create_default_context()
+        k.check_hostname = False
+        k.verify_mode = ssl.CERT_NONE
+        k.load_cert_chain(*aufbau["exo"])
+        with caplog.at_level(logging.INFO):
+            c = smtplib.SMTP()
+            c._host = "localhost"
+            c.connect("127.0.0.1", port587)
+            c.ehlo("client.test")
+            c.starttls(context=k)
+            c.ehlo("client.test")
+            assert c.has_extn("auth")
+            c.quit()
+        assert not any("SMTP-TLS von" in r.getMessage() for r in caplog.records), \
+            "587 hat ein Client-Zertifikat angefordert"
+    finally:
+        ctrl.stop()
+    # Gegenprobe: Port 25 (ohne Anmeldepflicht) fordert für dieselbe Quelle an.
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        _senden(aufbau["port"], aufbau["exo"])
+    assert any("SMTP-TLS von" in r.getMessage() for r in caplog.records)
+
+
+def _zeile(datei):
+    return datei.readline().decode("ascii").rstrip("\r\n")
+
+
+def _auth_dialog(aufbau, befehle):
+    """Roh-Dialog nach STARTTLS; liefert die Antwortzeile je gesendetem Befehl."""
+    from aiosmtpd.smtp import AuthResult
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    ctrl = main._LenientController(
+        aufbau["merker"], hostname="127.0.0.1", port=port,
+        tls_context=smtp_cert.baue_listener_kontext([aufbau["srv"]]),
+        require_starttls=True, auth_required=True, auth_require_tls=True,
+        authenticator=lambda *a: AuthResult(success=False, handled=False))
+    ctrl.start()
+    try:
+        k = ssl.create_default_context()
+        k.check_hostname = False
+        k.verify_mode = ssl.CERT_NONE
+        roh = socket.create_connection(("127.0.0.1", port), timeout=5)
+        f = roh.makefile("rb")
+        _zeile(f)
+        roh.sendall(b"EHLO client.test\r\n")
+        while _zeile(f).startswith("250-"):
+            pass
+        roh.sendall(b"STARTTLS\r\n")
+        _zeile(f)
+        t = k.wrap_socket(roh, server_hostname="localhost")
+        f = t.makefile("rb")
+        t.sendall(b"EHLO client.test\r\n")
+        while _zeile(f).startswith("250-"):
+            pass
+        antworten = []
+        for b in befehle:
+            t.sendall(b + b"\r\n")
+            antworten.append(_zeile(f))
+        f.close()
+        t.close()
+        return antworten
+    finally:
+        ctrl.stop()
+
+
+def test_auth_login_fragt_nach_username_und_password(aufbau):
+    """Outlook Classic antwortet nicht auf aiosmtpds „User Name\\0“ und lief in
+    eine Zeitüberschreitung. Erwartet: die üblichen Rückfragen."""
+    antworten = _auth_dialog(aufbau, [b"AUTH LOGIN", b"bWF4", b"Z2VoZWlt"])
+    assert antworten[0] == "334 VXNlcm5hbWU6"      # base64 „Username:“
+    assert antworten[1] == "334 UGFzc3dvcmQ6"      # base64 „Password:“
+    assert antworten[2].startswith("535")
+
+
+def test_auth_login_mit_initial_response_fragt_nur_das_passwort(aufbau):
+    antworten = _auth_dialog(aufbau, [b"AUTH LOGIN bWF4", b"Z2VoZWlt"])
+    assert antworten[0] == "334 UGFzc3dvcmQ6"
+    assert antworten[1].startswith("535")
+
+
+def test_smtp_ascii_schreibt_umlaute_um():
+    assert main.smtp_ascii("550 Kein Senderecht für „x“ — …") == \
+        '550 Kein Senderecht fuer "x" - ...'
+    assert main.smtp_ascii("Größe ÄÖÜ äöü ß – €") == "Groesse AeOeUe aeoeue ss - ?"
+
+
+def test_antwort_mit_umlaut_kommt_als_ascii_an(aufbau, monkeypatch):
+    """aiosmtpd kodiert Antworten bei abgeschaltetem SMTPUTF8 als ASCII und
+    wirft bei einem Umlaut; mit SMTPUTF8 gingen UTF-8-Bytes hinaus, die
+    Outlook als „fÃ¼r“ zeigte. Jetzt kommt reines ASCII an."""
+    async def _abweisen(server, session, envelope):
+        return "550 Kein Senderecht für „max@firma.at“ — bitte prüfen"
+    monkeypatch.setattr(aufbau["merker"], "handle_DATA", _abweisen)
+    with pytest.raises(smtplib.SMTPDataError) as fehler:
+        _senden(aufbau["port"], aufbau["exo"])
+    assert fehler.value.smtp_code == 550
+    text = fehler.value.smtp_error
+    assert text.decode("ascii") == 'Kein Senderecht fuer "max@firma.at" - bitte pruefen'
 
 
 def test_nur_adresse_wie_bisher(aufbau):

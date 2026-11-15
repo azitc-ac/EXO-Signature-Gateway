@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.24 — 2026-11-15 — Port 587 mit Outlook Classic: kein Hängen nach STARTTLS, übliche Anmelde-Rückfragen, Meldungen ohne Zeichensalat
+
+Drei Korrekturen am Submission-Listener (Port 587), alle mit Outlook Classic
+als Absender aufgefallen:
+
+- **Kein Hängen nach STARTTLS.** Der Listener forderte beim TLS-Aufbau unter
+  Umständen ein Client-Zertifikat an — dieselbe Erkennung, mit der Port 25
+  Exchange Online am Zertifikat erkennt. Outlook Classic beantwortete die
+  Anforderung nicht und das Senden lief ins Leere. Auf 587 spricht nie
+  Exchange, sondern ein Programm oder Gerät mit Anmeldung; dort wird jetzt
+  kein Zertifikat mehr angefordert. Port 25 bleibt unverändert.
+- **AUTH LOGIN mit den üblichen Rückfragen.** Der Server fragte bei der
+  Anmeldung „User Name“ und „Password“ jeweils mit einem Nullzeichen am Ende.
+  Outlook Classic antwortete darauf nicht und brach nach 60 Sekunden ab. Jetzt
+  lauten die Rückfragen „Username:“ und „Password:“, wie bei üblichen
+  Mailservern.
+- **Fehlermeldungen ohne Zeichensalat.** SMTP-Antworten müssen ASCII sein
+  (RFC 5321). Meldungen mit Umlauten kamen in Outlook als „fÃ¼r“ an. Das
+  Gateway schreibt Umlaute und typografische Zeichen jetzt in ASCII um
+  („für“ → „fuer“, „—“ → „-“). Das gilt für alle Antworten, auch auf Port 25:
+  Dort konnte die Ablehnung „Verschlüsselung fehlgeschlagen“ wegen des
+  Umlauts bisher nicht gesendet werden. Die SMTP-Bibliothek brach beim
+  Kodieren ab und antwortete stattdessen allgemein mit
+  „500 Error: (UnicodeEncodeError) …“. Der Absender erfuhr dadurch nicht, woran
+  die Zustellung gescheitert war.
+
+**Zu tun:** nichts.
+
 ## v1.12.23 — 2026-11-15 — Telefonbreite: alle Seiten werden gemessen statt fotografiert
 
 Ein neuer Browsertest (`tests/test_mobil_alle_seiten.py`, im CI-Browserjob)

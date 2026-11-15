@@ -30,10 +30,34 @@ from webui.app import app as fastapi_app
 log = logging.getLogger(__name__)
 
 
+_ASCII_ERSATZ = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue",
+                               "ß": "ss", "—": "-", "–": "-", "„": '"', "“": '"', "”": '"', "…": "..."})
+
+
+def smtp_ascii(text: str) -> str:
+    """SMTP-Antworttext als ASCII: Umlaute umschreiben, Rest durch „?“."""
+    return text.translate(_ASCII_ERSATZ).encode("ascii", "replace").decode("ascii")
+
+
 class _LenientSMTP(_BaseSMTP):
     """Like aiosmtpd.SMTP but silently discards unrecognized MAIL FROM
     parameters instead of returning 555.  EXO may send AUTH=, REQUIRETLS
     etc. when forwarding messages; we don't need them but must not reject."""
+
+    async def push(self, status):
+        """Antwortzeilen nur in ASCII (RFC 5321 §4.2) — Texte im Code dürfen
+        Umlaute tragen. Outlook zeigte „Kein Senderecht fÃ¼r …“: aiosmtpd
+        schickt sonst UTF-8 (oder wirft bei abgeschaltetem SMTPUTF8)."""
+        if isinstance(status, str):
+            status = smtp_ascii(status)
+        await super().push(status)
+
+    # AUTH LOGIN: die üblichen Rückfragen (base64 „Username:“/„Password:“).
+    # aiosmtpd fragt sonst „User Name\0“/„Password\0“ — Outlook Classic
+    # antwortet darauf nicht und läuft nach 60 s in eine Zeitüberschreitung
+    # (Mitschnitt: letzte Serverantwort genau 22 Byte = 334 VXNlciBOYW1lAA==).
+    AuthLoginUsernameChallenge = "Username:"
+    AuthLoginPasswordChallenge = "Password:"
 
     def connection_made(self, transport) -> None:
         """STARTTLS bleibt Pflicht — ausser fuer ein freigegebenes Relay-Geraet.
@@ -148,7 +172,11 @@ class _LenientSMTP(_BaseSMTP):
             import runtime_state
             anfordern = getattr(runtime_state, "tls_kontext_anfordern", None)
             ip = (self.session.peer or ("",))[0]
-            if anfordern is not None and exo_erkennung.zertifikat_anfordern(ip):
+            # Submission (587, Anmeldung Pflicht): dort spricht nie Exchange,
+            # sondern ein Programm oder Gerät — keine Anforderung. Outlook
+            # Classic hing nach einer CertificateRequest still (Klicktest).
+            if (anfordern is not None and not self._auth_required
+                    and exo_erkennung.zertifikat_anfordern(ip)):
                 self.tls_context = anfordern
                 self._zert_angefordert = True
             else:
