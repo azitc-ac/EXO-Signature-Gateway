@@ -62,6 +62,7 @@ ANZAHL_CODES = 10
 AUSSTELLER = "Notbetrieb"
 
 PK_OFFEN_S = 180            # so lange gilt eine Passkey-Herausforderung
+PK_ANMELDEN_S = 60          # so lange wartet der Browser beim Anmelden auf den Passkey (dann Code-Weg)
 MAX_PASSKEYS = 10
 
 _lock = threading.Lock()
@@ -476,7 +477,7 @@ def passkey_anmelden_optionen(postfach: str, host: str) -> dict | None:
             return None
         optionen = webauthn.generate_authentication_options(
             rp_id=rp, allow_credentials=[PublicKeyCredentialDescriptor(id=_unb64(p["id"])) for p in passende],
-            user_verification=UserVerificationRequirement.PREFERRED, timeout=PK_OFFEN_S * 1000)
+            user_verification=UserVerificationRequirement.PREFERRED, timeout=PK_ANMELDEN_S * 1000)
         e["pk_offen"] = {"c": _b64(optionen.challenge), "rp": rp, "art": "anmelden", "ts": time.time()}
         _speichern(daten)
     return json.loads(webauthn.options_to_json(optionen))

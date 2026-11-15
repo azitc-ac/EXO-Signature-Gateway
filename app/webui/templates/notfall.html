@@ -283,6 +283,7 @@ async function anmelden(ev) {
 
 async function faktorSenden(ev) {
   ev.preventDefault();
+  if (nb.pkAbbruch) nb.pkAbbruch.abort();
   const feld = document.getElementById('faktor-code');
   const d = await knopfAktion('faktor-knopf', 'Prüfe…', () =>
     postJSON('/notfall/anmelden/faktor', {vorgang: nb.vorgang, code: feld.value}));
@@ -337,7 +338,10 @@ async function passkeyAnmelden() {
     const o = await postJSON('/notfall/anmelden/passkey/optionen', {vorgang: nb.vorgang});
     if (!o.ok) return o;
     let c;
-    try { c = await navigator.credentials.get({publicKey: pkOptionen(o.optionen)}); }
+    // Abbrechbar: Wer stattdessen einen Code eingibt, soll nicht auf das Ende
+    // eines übersehenen Passkey-Dialogs warten (Klicktest: knapp 3 Minuten).
+    nb.pkAbbruch = new AbortController();
+    try { c = await navigator.credentials.get({publicKey: pkOptionen(o.optionen), signal: nb.pkAbbruch.signal}); }
     catch (e) { return {ok: false, still: pkAbgebrochen(e), error: 'Passkey nicht verfügbar: ' + e.message}; }
     return postJSON('/notfall/anmelden/passkey', {vorgang: nb.vorgang, antwort: pkAntwort(c)});
   });

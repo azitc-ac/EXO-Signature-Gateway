@@ -90,6 +90,14 @@ def test_einrichten_und_anmelden(faktor):  # noqa: F811
     assert nf.pruefen(PF, codes[0])[0] is True
 
 
+def test_anmelden_wartet_hoechstens_eine_minute(faktor):  # noqa: F811
+    """Ein übersehener Passkey-Dialog sperrte den Knopf knapp 3 Minuten
+    (Klicktest) — beim Anmelden wartet der Browser höchstens 60 s."""
+    _einrichten()
+    assert nf.passkey_anmelden_optionen(PF, HOST)["timeout"] <= 60_000
+    assert nf.passkey_beginnen(PF, HOST)["timeout"] > 60_000       # Einrichten darf länger
+
+
 def test_herausforderung_gilt_einmal(faktor):  # noqa: F811
     pk, _ = _einrichten()
     # Zähler 0: synchronisierte Passkeys (Apple, Google) zählen nicht — dann
