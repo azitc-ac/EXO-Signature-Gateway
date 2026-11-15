@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.30 — 2026-11-15 — Kundendaten-Prüfung läuft jetzt auch in der CI
+
+Die Prüfung auf vertrauliche Begriffe (Kundennamen, Domänen) lief bisher nur
+lokal im Commit-Hook und liess sich umgehen. Jetzt prüft die CI alle
+versionierten Dateien und die letzte Commit-Nachricht gegen eine Sperrliste aus
+geschlüsselten Hashes. Im Repository steht kein Begriff im Klartext, und ein
+Treffer wird nur mit Datei und Zeile gemeldet.
+
+**Zu tun:** nichts.
+
 ## v1.12.29 — 2026-11-15 — Testsuite: Skip-Grenze verträgt den direkten Aufruf der Startprüfung
 
 Die in v1.12.26 eingeführte Grenze für übersprungene Tests meldet sich beim
