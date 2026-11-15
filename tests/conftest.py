@@ -77,7 +77,8 @@ def pytest_configure(config):
     Dazu die Grenze für übersprungene Tests (tests/skip_grenze.py, wirkt mit SKIP_GRENZE=1)."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import skip_grenze
-    if not config.pluginmanager.has_plugin("skip_grenze"):
+    # config ist None, wenn test_speicher_sperre.py die Funktion direkt ruft.
+    if config is not None and not config.pluginmanager.has_plugin("skip_grenze"):
         config.pluginmanager.register(skip_grenze, "skip_grenze")
     if os.environ.get("PYTEST_SPEICHER_EGAL") == "1":
         return

@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.29 — 2026-11-15 — Testsuite: Skip-Grenze verträgt den direkten Aufruf der Startprüfung
+
+Die in v1.12.26 eingeführte Grenze für übersprungene Tests meldet sich beim
+Start der Testsuite an. Ein Test ruft diese Startfunktion zur Prüfung der
+Speichersperre ohne pytest-Umgebung auf; dort scheiterte die Anmeldung. Sie
+wird in diesem Fall jetzt übersprungen.
+
+**Zu tun:** nichts.
+
 ## v1.12.28 — 2026-11-15 — Farben aus JavaScript auch in den Skriptdateien geprüft; Kundendaten-Hook warnt deutlich
 
 - Die Prüfung „keine Farben per JavaScript“ (Dark-Mode-Regel 2) durchsuchte
