@@ -255,6 +255,7 @@ DEFAULTS: dict = {
     "DIREKT_SMARTHOST_USER": "",
     "DIREKT_SMARTHOST_PW": "",
     "DIREKT_AUSSEN_IP": "",   # öffentliche Ausgangsadresse — nur für die DNS-Prüfung (SPF/PTR)
+    "DIREKTVERSAND_PROBE_POSTFACH": "",  # internes Postfach für die tägliche Probe (direktversand_probe.py)
     "DKIM_DOMAINS": {},       # {"example.com": "gw202610"} — Schlüssel in data/dkim/<domain>.<selektor>.pem
     "ONPREM_MAILUSERS": [],   # ["max.mustermann@zarenko.net", …] — via EXO Get-MailUser
     "ONPREM_MAILUSERS_TS": "", # ISO8601 des letzten erfolgreichen Abgleichs
@@ -465,6 +466,7 @@ INTERNAL_KEYS = frozenset({
     "_TEAMS_APP_STAND",           # webui/routen/addin.py — dasselbe für das Teams-App-Paket (Tab)
     "_ADDIN_VERFASSEN_STAND",     # webui/routen/addin_verfassen.py — dasselbe für das Verfassen-Add-in
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
+    "_DIREKTVERSAND_PROBE",       # direktversand_probe.py — Stand der letzten Probe
 })
 
 # Schlüssel aus entfernten Funktionen. Sie blieben in settings.json stehen, weil

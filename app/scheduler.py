@@ -30,6 +30,8 @@ _RETRY_INTERVAL = 60                   # jede Minute — feinste Exchange-Retry-
                                        # held_mails.next_retry
 _last_mailuser_run: float = 0.0        # monotonic; 0 = never (triggers run on first tick)
 _MAILUSER_INTERVAL = 24 * 60 * 60      # onprem-MailUser-Liste täglich abgleichen (Per-Empfänger-Routing)
+_last_probe_run: float = 0.0           # monotonic; 0 = never (triggers run on first tick)
+_PROBE_INTERVAL = 15 * 60              # Direktversand-Probe: Ankunft prüfen (jeder Takt), Senden täglich
 _last_ooo_run: float = 0.0             # monotonic; 0 = never (triggers run on first tick)
 _OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisieren; dank
                                        # Idempotenz (nur PATCH bei echter Abweichung) ist
@@ -577,6 +579,26 @@ def _refresh_onprem_mailusers() -> None:
         _last_mailuser_run = time.monotonic()
 
 
+def _direktversand_probe() -> None:
+    """Tägliche Probe des Direktversands (direktversand_probe.py).
+
+    ⚠️ `pruefen()` läuft in JEDEM Takt, nicht nur einmal am Tag: Sonst würde die
+    Ankunft einer Probe erst am nächsten Tag erkannt, und der Stand hinge fast
+    24 Stunden auf „gesendet“. Gesendet wird höchstens einmal je TAKT_H."""
+    global _last_probe_run
+    try:
+        import direktversand
+        import direktversand_probe
+        if direktversand.aktiv() and direktversand_probe.postfach():
+            direktversand_probe.pruefen()
+            if direktversand_probe.faellig():
+                direktversand_probe.senden()
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("scheduler: Direktversand-Probe fehlgeschlagen: %s", exc)
+    finally:
+        _last_probe_run = time.monotonic()
+
+
 def _sync_ooo() -> None:
     """Zentrale Abwesenheitsnotiz normalisieren (nur wenn eingeschaltet).
 
@@ -625,6 +647,8 @@ def _loop() -> None:
                 _refresh_onprem_mailusers()
             if time.monotonic() - _last_ooo_run > _OOO_INTERVAL:
                 _sync_ooo()
+            if time.monotonic() - _last_probe_run > _PROBE_INTERVAL:
+                _direktversand_probe()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

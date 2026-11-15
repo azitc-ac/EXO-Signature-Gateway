@@ -29,6 +29,15 @@
   .zahl-knopf[aria-expanded="true"] { text-decoration-style: solid; font-weight: 600; }
   [data-theme="dark"] .zahl-knopf                  { color: #7dd3fc; }
   [data-theme="dark"] .zahl-knopf[data-fehler="1"] { color: #fca5a5; }
+  /* Ampel der täglichen Direktversand-Probe (data-ampel aus der Bewertung). */
+  .probe-ampel { font-size: 13px; color: #64748b; }
+  .probe-ampel[data-ampel="ok"]      { color: #166534; }
+  .probe-ampel[data-ampel="warnung"] { color: #b45309; }
+  .probe-ampel[data-ampel="fehler"]  { color: #991b1b; font-weight: 600; }
+  [data-theme="dark"] .probe-ampel                     { color: #94a3b8; }
+  [data-theme="dark"] .probe-ampel[data-ampel="ok"]      { color: #4ade80; }
+  [data-theme="dark"] .probe-ampel[data-ampel="warnung"] { color: #fcd34d; }
+  [data-theme="dark"] .probe-ampel[data-ampel="fehler"]  { color: #fca5a5; }
 </style>
 
 <!-- ── Zielserver ──────────────────────────────────────────────────────────── -->
@@ -270,6 +279,31 @@
     <button type="button" class="btn secondary" onclick="port25Pruefen(this)">Port 25 prüfen</button>
   </div>
   <div id="direkt-result" style="display:none;margin-top:10px"></div>
+
+  <h3 id="direktversand-probe" style="font-size:14px;margin:20px 0 8px">Tägliche Probe</h3>
+  <p class="hint" style="margin:0 0 8px">
+    Einmal am Tag schickt das Gateway eine Mail über diesen Weg an ein internes Postfach.
+    Sie kommt über den eigenen MX zurück wie Post von außen. Geprüft werden Ankunft,
+    Ordner (Junk?) und SPF/DKIM/DMARC; danach wird sie gelöscht. Grün nur, wenn sie
+    angekommen ist und alle drei bestanden hat.
+  </p>
+  <div class="settings-row">
+    <label for="probe-postfach">Probe-Postfach</label>
+    <div class="settings-control">
+      <input type="email" id="probe-postfach" value="{{ s.DIREKTVERSAND_PROBE_POSTFACH or '' }}"
+             placeholder="probe@example.com" autocomplete="off" style="width:min(320px,100%)">
+      <div style="margin-top:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn secondary" id="probe-postfach-btn"
+                data-wache="probe-postfach" data-wache-hinweis="probe-postfach-result"
+                onclick="probePostfachSpeichern()">Speichern</button>
+        <button type="button" class="btn secondary" onclick="probeJetzt(this)">Probe jetzt</button>
+        <span id="probe-postfach-result" style="font-size:12px"></span>
+      </div>
+      <span class="hint">Ein internes Postfach, z. B. ein geteiltes. Liest und löscht die App per Graph —
+        bei RBAC for Applications muss es im erlaubten Bereich liegen.</span>
+    </div>
+  </div>
+  <div id="probe-stand" class="probe-ampel" data-ampel="" style="margin:6px 0 0">Wird geladen …</div>
 
   <h3 style="font-size:14px;margin:20px 0 8px">DKIM-Schlüssel</h3>
   <p class="hint" style="margin:0 0 8px">
@@ -1001,6 +1035,46 @@ async function coexVorgaengeZeigen(knopf) {
 }
 
 
+// ── Tägliche Probe des Direktversands ────────────────────────────────────────
+const PROBE_AMPELN = ['ok', 'warnung', 'fehler'];
+
+function probeZeigen(r) {
+  const el = document.getElementById('probe-stand');
+  el.dataset.ampel = PROBE_AMPELN.includes(r.ampel) ? r.ampel : '';
+  if (!r.aktiv) {
+    el.textContent = 'Selbst zustellen ist aus — keine Probe.';
+    return;
+  }
+  const zeichen = { ok: '✓ ', warnung: '⚠ ', fehler: '✗ ' }[r.ampel] || '';
+  const st = r.stand || {};
+  el.textContent = zeichen + r.text + (st.ts ? ' · zuletzt gesendet ' + st.ts.replace('T', ' ').slice(0, 16) + ' UTC' : '');
+}
+
+async function probeLaden() {
+  const r = await getJSON('/api/direkt/probe');
+  if (r.ok) probeZeigen(r);
+  else document.getElementById('probe-stand').textContent = 'Stand nicht abrufbar: ' + errText(r);
+}
+
+async function probePostfachSpeichern() {
+  wacheFertig('probe-postfach-btn',
+              await savePartial({ DIREKTVERSAND_PROBE_POSTFACH: feldWert('probe-postfach').toLowerCase() },
+                                'probe-postfach-result', 'routing:probe'));
+  probeLaden();
+}
+
+async function probeJetzt(btn) {
+  const r = await knopfAktion(btn, null, () => postJSON('/api/direkt/probe', {}));
+  const box = document.getElementById('probe-postfach-result');
+  if (r && r.ok) {
+    probeZeigen(r);
+    showMsg(box, 'Probe gesendet — die Ankunft wird in den nächsten Minuten geprüft.', true);
+  } else {
+    showMsg(box, (r && r.error) || errText(r), false);
+  }
+}
+
 laden();
+probeLaden();
 </script>
 {% endblock %}

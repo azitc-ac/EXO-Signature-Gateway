@@ -417,6 +417,32 @@ def _tls_rueckweg() -> dict:
                   "Smarthost: als Namen *.mail.protection.outlook.com eintragen.")
 
 
+def _direktversand_probe() -> dict:
+    """Kommt Post über den Direktversand an (v1.12.31)? Nur lokal: liest den
+    Stand der täglichen Probe, keine Netzabfrage. Dieselbe Bewertung wie
+    Tagesbericht und Oberfläche (direktversand_probe.bewertung) — „eingerichtet“
+    allein ist kein „ok“."""
+    import direktversand
+    import direktversand_probe
+    name = "Direktversand-Probe"
+    if not direktversand.aktiv():
+        return _punkt(name, OK, "Direktversand ist aus — keine Probe nötig.")
+    if not direktversand_probe.postfach():
+        return _punkt(name, OFFEN,
+                      "Der Direktversand ist an, aber kein Probe-Postfach eingetragen. "
+                      "Ob Post über den eigenen Weg ankommt (und nicht im Junk-Ordner), prüft niemand.",
+                      "Einstellungen → Mail-Routing → Selbst zustellen: ein internes Postfach "
+                      "als Probe-Postfach eintragen (z. B. ein geteiltes). Ist der Zugriff der "
+                      "App per RBAC for Applications eingegrenzt, muss es im Bereich liegen.")
+    ampel, text = direktversand_probe.bewertung()
+    if ampel == "ok":
+        return _punkt(name, OK, text)
+    # „gesendet“/„noch keine Probe“ sind noch kein Nachweis — unbekannt, nicht ok.
+    return _punkt(name, OFFEN if ampel == "fehler" or "Junk" in text else UNBEKANNT, text,
+                  "Ergebnis der Probe unter Einstellungen → Mail-Routing ansehen; "
+                  "„Probe jetzt“ startet sie sofort.")
+
+
 def _wartende_zertifikate() -> dict:
     """Warten eingesammelte Empfängerzertifikate auf eine Entscheidung?
 
@@ -788,7 +814,7 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _addin_rollen, _addin_fassung, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
-              _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg,
+              _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,
               _csp_berichte)
 

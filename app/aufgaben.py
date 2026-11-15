@@ -84,6 +84,9 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     Aufgabe("waechter-code", abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),
     # Eingetragener Key Vault ohne Datenrechte der App: Schlüssel blieben still lokal.
     Aufgabe("key-vault-zugriff", abnahme._key_vault_zugriff, "/setup#step-keyvault", seit="1.12.4"),
+    # Direktversand an, aber keine (bestandene) tägliche Probe: ob Post ankommt, weiss niemand.
+    Aufgabe("direktversand-probe", abnahme._direktversand_probe,
+            "/settings/routing#direktversand-probe", seit="1.12.31"),
 )
 
 _TTL_S = 10

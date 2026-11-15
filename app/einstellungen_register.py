@@ -178,6 +178,7 @@ REGISTER: dict[str, E] = {
     "DIREKT_SMARTHOST_USER": E(art=OPTION, ort="/api/direkt/einstellungen"),
     "DIREKT_SMARTHOST_PW": E(art=GEHEIMNIS),
     "DIREKT_AUSSEN_IP": E(art=OPTION, ort="/api/direkt/einstellungen"),
+    "DIREKTVERSAND_PROBE_POSTFACH": E(art=OPTION, ort="settings_routing.html"),
     "DKIM_DOMAINS": E(art=STRUKTUR, ort="/api/direkt/dkim"),
     "OOO_ENABLED": E(art=OPTION, ort="abwesenheit.html"),  # zentrale Abwesenheitsnotiz
     "UPDATE_CHANNEL": E(art=OPTION, ort="backup.html"),  # Update-Kanal release|nightly|main

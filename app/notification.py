@@ -254,6 +254,25 @@ def _ketten_farbe(antworten: int, verhindert: int) -> str:
     return "#e67e22" if antworten >= 20 and verhindert == 0 else ""
 
 
+# Farben der Ampel im Tagesbericht (Mail, kein Dunkelmodus) — wie die übrigen Zeilen.
+_PROBE_FARBE = {"fehler": "#e74c3c", "warnung": "#e67e22", "keine": "#888", "ok": ""}
+
+
+def _direktversand_probe_row() -> str:
+    """Zeile „Direktversand-Probe“ — IMMER, sobald der Direktversand an ist.
+
+    Hier ist die fehlende Meldung die Meldung (CLAUDE.md, Verifikationspflicht
+    8): Ohne Probe-Postfach oder ohne bestandene Probe weiss niemand, ob Post
+    über den eigenen Weg ankommt. Die Bewertung kommt aus derselben Funktion
+    wie Oberfläche und Aufgabe (direktversand_probe.bewertung)."""
+    import direktversand
+    if not direktversand.aktiv():
+        return ""
+    import direktversand_probe
+    ampel, text = direktversand_probe.bewertung()
+    return _row("Direktversand-Probe", text, _PROBE_FARBE.get(ampel, "#e74c3c"))
+
+
 def send_daily_report(daily: dict, total: dict) -> bool:
     to = _get_notify_to()
     if not to:
@@ -416,6 +435,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         *([ _row("IP-Adresse", ip_str) ] if ip_str else []),
         *([ _row("Container-Uptime", uptime_str) ] if uptime_str else []),
         ooo_row,
+        _direktversand_probe_row(),
     ])
 
     # ── TLS cert ──

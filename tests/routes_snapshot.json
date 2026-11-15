@@ -476,6 +476,20 @@
     "name": "api_direkt_port25_test"
   },
   {
+    "pfad": "/api/direkt/probe",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_direkt_probe_stand"
+  },
+  {
+    "pfad": "/api/direkt/probe",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_direkt_probe_senden"
+  },
+  {
     "pfad": "/api/entra/users",
     "methoden": [
       "GET"

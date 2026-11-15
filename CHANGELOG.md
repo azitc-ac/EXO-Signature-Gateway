@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.31 — 2026-11-15 — Tägliche Probe des Direktversands
+
+„Selbst zustellen eingerichtet“ hiess bisher nicht „kommt an“. Ob Postfix, DKIM,
+DNS und Port 25 tragen und ob die Post im Junk-Ordner landet, merkte erst ein
+Empfänger.
+
+Jetzt schickt das Gateway einmal am Tag eine Mail über genau diesen Weg an ein
+internes Postfach. Sie kommt über den eigenen MX zurück wie Post von aussen. Alle
+15 Minuten prüft das Gateway per Graph, ob sie angekommen ist, in welchem Ordner
+sie liegt und wie SPF, DKIM und DMARC ausgefallen sind; danach löscht es sie.
+Grün ist die Probe nur, wenn die Mail angekommen ist und alle drei bestanden hat.
+„Gesendet“ allein ist eine Warnung, der Junk-Ordner ebenfalls; fehlt die Mail nach
+60 Minuten oder ist die letzte Probe älter als 26 Stunden, ist es ein Fehler.
+
+Zu sehen ist das Ergebnis unter Einstellungen → Mail-Routing → Selbst zustellen
+(dort auch „Probe jetzt“), im Tagesbericht als Zeile „Direktversand-Probe“
+(immer, solange Selbst zustellen an ist) und in der Abnahme.
+
+**Zu tun:** Nutzt du „Selbst zustellen“, trag unter Einstellungen → Mail-Routing
+→ Selbst zustellen ein internes Postfach als Probe-Postfach ein (z. B. ein
+geteiltes Postfach). Die App liest und löscht dort per Graph; ist ihr Zugriff
+per RBAC for Applications auf bestimmte Postfächer eingegrenzt, nimm das
+Probe-Postfach in den Bereich auf. Ohne Selbst zustellen ist nichts zu tun.
+
 ## v1.12.30 — 2026-11-15 — Kundendaten-Prüfung läuft jetzt auch in der CI
 
 Die Prüfung auf vertrauliche Begriffe (Kundennamen, Domänen) lief bisher nur
