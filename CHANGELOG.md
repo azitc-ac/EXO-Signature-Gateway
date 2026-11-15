@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.13 — 2026-11-15 — Test zum Wartungsband an die Zählung je Grund angepasst
+
+Seit v1.12.12 zählt das Band „Wartungsmodus“ nur Mails, die wegen der Wartung
+zurückgehalten werden. Vorher zählte es alle Mails außer den Zustellfehlern,
+also auch die neu geparkten Rückläufe. Der zugehörige Test prüft jetzt jeden
+Grund einzeln.
+
+**Zu tun:** nichts.
+
 ## v1.12.12 — 2026-11-15 — Zurückkommender Graph-Versand wird geparkt statt verworfen
 
 Schickt das Gateway eine Mail per Graph `sendMail` an Exchange zurück, trägt
