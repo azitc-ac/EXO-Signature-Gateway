@@ -99,7 +99,7 @@ def test_nur_lesend_aber_gelesen_flag_in_der_kopie(imap):
     c = verbinden()
     c.select("INBOX")
     for befehl in (lambda: c.append("INBOX", None, None, b"Subject: x\r\n\r\nx\r\n"),
-                   lambda: c.copy("1", "Archiv"), lambda: c.create("Neu"), lambda: c.delete("Archiv")):
+                   lambda: c.create("Neu"), lambda: c.delete("Archiv")):
         typ, _ = befehl()
         assert typ == "NO"
     # Abonnieren ist ohne Wirkung, aber kein Fehler — Outlook bricht sonst den Abgleich ab.
@@ -212,3 +212,106 @@ def test_ohne_anmeldung_keine_daten(imap):
 
 def test_ohne_tls_startet_kein_server():
     assert asyncio.run(ni.starten(None, 0, "127.0.0.1")) is None
+
+
+# ── Verschieben und Löschen: derselbe Schreibweg wie im Webmail ────────────
+
+def _ordner_von(gid):
+    with notbetrieb._conn() as conn:
+        return conn.execute("SELECT ordner FROM mails WHERE graph_id=?", (gid,)).fetchone()[0]
+
+
+@pytest.fixture
+def schreiben(imap, monkeypatch):
+    import notbetrieb_aenderungen
+    monkeypatch.setattr(notbetrieb_aenderungen, "bald", lambda: None)
+    with notbetrieb._conn() as conn:
+        conn.execute("INSERT INTO ordner (postfach, id, eltern, name, wk) VALUES "
+                     "('a@firma.at','ord-del','root','Gelöschte Elemente','deleteditems')")
+    return imap
+
+
+def test_move_verschiebt_ueber_die_warteschlange(schreiben):
+    import notbetrieb_aenderungen
+    verbinden, _, _ = schreiben
+    c = verbinden()
+    assert "MOVE" in c.capability()[1][0].decode()
+    vorher = int(c.select("INBOX")[1][0])
+    uid = c.uid("SEARCH", None, "ALL")[1][0].split()[0]
+    typ, daten = c.uid("MOVE", uid, "Archiv")
+    assert typ == "OK"
+    assert int(c.select("INBOX")[1][0]) == vorher - 1
+    assert int(c.select("Archiv")[1][0]) == 1
+    assert notbetrieb_aenderungen.offen()["offen"] == 1             # geht nach Exchange (a@ arbeitet)
+    c.logout()
+
+
+def test_outlook_verschieben_copy_deleted_expunge(schreiben):
+    """Outlook Classic verschiebt als COPY + \\Deleted + EXPUNGE — das wird EIN
+    Verschieben (eine Mail liegt in Exchange an einer Stelle), keine Kopie."""
+    verbinden, _, _ = schreiben
+    c = verbinden()
+    c.select("INBOX")
+    uid = c.uid("SEARCH", None, "ALL")[1][0].split()[0]
+    assert c.uid("COPY", uid, "Archiv")[0] == "OK"
+    assert c.uid("STORE", uid, "+FLAGS", "(\\Deleted)")[0] == "OK"
+    assert b"\\Deleted" in c.uid("FETCH", uid, "(FLAGS)")[1][0]
+    assert c.expunge()[0] == "OK"
+    c.select("Archiv")
+    assert len(c.uid("SEARCH", None, "ALL")[1][0].split()) == 1
+    with notbetrieb._conn() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM mails WHERE ordner='ord-x'").fetchone()[0] == 1
+    c.logout()
+
+
+def test_loeschen_geht_nach_geloeschte_elemente(schreiben):
+    verbinden, _, _ = schreiben
+    c = verbinden()
+    c.select("INBOX")
+    uid = c.uid("SEARCH", None, "ALL")[1][0].split()[0]
+    c.uid("STORE", uid, "+FLAGS", "(\\Deleted)")
+    assert c.expunge()[0] == "OK"
+    c.select('"Gel&APY-schte Elemente"')
+    assert len(c.uid("SEARCH", None, "ALL")[1][0].split()) == 1
+    # Endgültig löschen gibt es nicht — ehrlich NO, die Mail bleibt.
+    uid = c.uid("SEARCH", None, "ALL")[1][0].split()[0]
+    c.uid("STORE", uid, "+FLAGS", "(\\Deleted)")
+    assert c.expunge()[0] == "NO"
+    c.select('"Gel&APY-schte Elemente"')
+    assert len(c.uid("SEARCH", None, "ALL")[1][0].split()) == 1
+    c.logout()
+
+
+def test_copy_ohne_loeschen_verschiebt_nichts(schreiben):
+    verbinden, _, _ = schreiben
+    c = verbinden()
+    c.select("INBOX")
+    vorher = c.uid("SEARCH", None, "ALL")[1][0].split()
+    assert c.uid("COPY", vorher[0], "Archiv")[0] == "OK"
+    c.select("INBOX")                                                # Ordnerwechsel verwirft die Vormerkung
+    assert c.uid("SEARCH", None, "ALL")[1][0].split() == vorher
+    c.logout()
+
+
+def test_verschieben_nur_wer_im_webmail_arbeitet_und_nur_im_postfach(schreiben):
+    verbinden, _, werte = schreiben
+    c = verbinden()
+    c.select("INBOX")
+    uid = c.uid("SEARCH", None, "ALL")[1][0].split()[0]
+    assert c.uid("MOVE", uid, '"Geteilt/team@firma.at/Posteingang"')[0] == "NO"   # anderes Postfach
+    werte["NOTBETRIEB_PROBEGRUPPE"], werte["NOTBETRIEB_LESEN_ALLE"] = [], True       # nur lesen, nicht arbeiten
+    c.select("INBOX")
+    assert c.uid("MOVE", uid, "Archiv")[0] == "NO"
+    assert c.uid("STORE", uid, "+FLAGS", "(\\Deleted)")[0] == "NO"
+    assert _ordner_von("g-text") == "ord-in" and _ordner_von("g-html") == "ord-in"
+    c.logout()
+
+
+def test_abgelehnte_befehle_stehen_im_protokoll(imap, caplog):
+    import logging
+    verbinden, _, _ = imap
+    c = verbinden()
+    with caplog.at_level(logging.INFO, logger="notbetrieb_imap"):
+        assert c.create("Neu")[0] == "NO"
+    assert any("CREATE 'Neu' abgelehnt" in r.getMessage() for r in caplog.records), caplog.text
+    c.logout()

@@ -428,14 +428,17 @@ def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
     return imid
 
 
-def lokal_vorhanden(postfach: str, ordner: str, imid: str) -> bool:
-    """Liegt diese im Notbetrieb entstandene Mail schon im Ordner (Message-ID)?"""
+def im_ordner(postfach: str, ordner: list[str], imid: str) -> bool:
+    """Liegt eine Mail mit dieser Message-ID schon in einem der Ordner
+    (Kennung oder bekannter Name) — gleich, ob lokal entstanden, schon nach
+    Exchange zurückgespielt oder per Abgleich gekommen?"""
     imid = (imid or "").strip()
-    if not imid or not _db_pfad().exists():
+    ordner = [o for o in ordner if o]
+    if not imid or not ordner or not _db_pfad().exists():
         return False
     with _lock, _conn() as conn:
-        return conn.execute("SELECT 1 FROM mails WHERE postfach=? AND ordner=? AND imid=? AND herkunft=?",
-                            (postfach.lower(), ordner, imid, LOKAL)).fetchone() is not None
+        return conn.execute(f"SELECT 1 FROM mails WHERE postfach=? AND imid=? AND ordner IN "
+                            f"({','.join('?' * len(ordner))})", (postfach.lower(), imid, *ordner)).fetchone() is not None
 
 
 # ── Abgleich von Exchange ───────────────────────────────────────────────────

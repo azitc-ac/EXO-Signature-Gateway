@@ -1,9 +1,15 @@
-"""Notbetrieb: IMAP-Zugang zur Kopie (Etappe 2) — lesend.
+"""Notbetrieb: IMAP-Zugang zur Kopie (Etappe 2).
 
 Outlook Classic (Zusatzkonto im bestehenden Profil) und Mail-Apps auf dem
-Handy lesen die Kopie per IMAP. Gesendet wird weiter über das Webmail; IMAP
-nimmt keine Post an (kein APPEND/COPY/MOVE), nur das Gelesen-Flag gilt —
-lokal in der Kopie, es geht nicht nach Exchange zurück.
+Handy lesen die Kopie per IMAP. Gesendet wird über 587 oder das Webmail.
+
+SCHREIBEN: derselbe Weg wie im Webmail (notbetrieb_aenderungen.merken) —
+Gelesen (\Seen), Verschieben (MOVE, oder COPY + \Deleted + EXPUNGE, wie
+Outlook Classic es macht) und Löschen (\Deleted + EXPUNGE = nach „Gelöschte
+Elemente“). Verschieben/Löschen nur, wer im Webmail arbeitet (sendeweg) —
+wie /notfall/api/verschieben; nur innerhalb eines Postfachs. Endgültiges
+Löschen aus „Gelöschte Elemente“ gibt es nicht (NO). Neue Post nimmt IMAP
+nicht an (APPEND nur für die Gesendet-Kopie, die das Gateway schon hat).
 
 SICHERHEIT
 ----------
@@ -51,7 +57,7 @@ MAX_APPEND = 40 * 1024 * 1024  # APPEND nach der Anmeldung (Gesendet-Kopie des P
 LEERLAUF_S = 30 * 60
 MAX_FEHLVERSUCHE = 3
 TRENNER = "/"
-FAEHIGKEITEN = "IMAP4rev1 AUTH=PLAIN LITERAL+ IDLE NAMESPACE ID UNSELECT SPECIAL-USE"
+FAEHIGKEITEN = "IMAP4rev1 AUTH=PLAIN LITERAL+ IDLE NAMESPACE ID UNSELECT SPECIAL-USE MOVE"
 _SPEZIAL = {"sentitems": "\\Sent", "junkemail": "\\Junk", "deleteditems": "\\Trash", "drafts": "\\Drafts"}
 
 
@@ -349,6 +355,8 @@ def menge(angabe: str, hoechstes: int) -> set[int]:
 # ── Sitzung ─────────────────────────────────────────────────────────────────
 
 _APPEND = re.compile(rb"^\S+ APPEND ", re.I)
+_ABGELEHNT = re.compile(rb"(?:^|\r\n)\S+ ((?:NO|BAD) [^\r\n]*)\r\n$")
+_ORDNER_BEFEHLE = {"SELECT", "EXAMINE", "STATUS", "APPEND", "COPY", "MOVE", "CREATE", "DELETE", "RENAME"}
 
 class Sitzung:
     def __init__(self, leser: asyncio.StreamReader, schreiber: asyncio.StreamWriter, quelle: str):
@@ -361,7 +369,15 @@ class Sitzung:
         self.fehlversuche = 0
 
     async def senden(self, *teile: bytes) -> None:
-        self.w.write(b"".join(teile))
+        daten = b"".join(teile)
+        # Abgelehnte Befehle protokollieren: Ein Mailprogramm, das bei jedem
+        # Abgleich an einer Stelle scheitert, zeigt nur eine Fehlernummer
+        # (Outlook 800CCCD2) — ohne diese Zeile wäre die Ursache unsichtbar.
+        m = _ABGELEHNT.search(daten[-300:])
+        if m and getattr(self, "befehl", ""):
+            log.info("Notbetrieb-IMAP: %s — %s abgelehnt: %s", self.benutzer or "-", self.befehl,
+                     m.group(1).decode("ascii", "replace")[:120])
+        self.w.write(daten)
         await self.w.drain()
 
     async def zeile(self) -> str | None:
@@ -413,6 +429,15 @@ class Sitzung:
 
     async def ausfuehren(self, tag: str, befehl: str, args: list) -> None:
         b = befehl.upper()
+        # Für das Protokoll abgelehnter Befehle: Name, bei UID der Unterbefehl,
+        # bei Ordnerbefehlen der Ordner — nie Inhalte oder Kennwörter.
+        unter = str(args[0]).upper() if b == "UID" and args and isinstance(args[0], str) else ""
+        ordner = ""
+        if (unter or b) in _ORDNER_BEFEHLE:
+            rest = args[1:] if unter else args
+            kandidat = rest[-1] if (unter or b) in ("COPY", "MOVE") and rest else (rest[0] if rest else "")
+            ordner = f" {mutf7_zurueck(str(kandidat))[:80]!r}" if isinstance(kandidat, str) else ""
+        self.befehl = (f"UID {unter}" if unter else b) + ordner
         if b == "CAPABILITY":
             await self.senden(f"* CAPABILITY {FAEHIGKEITEN}\r\n{tag} OK CAPABILITY\r\n".encode())
         elif b == "NOOP" or b == "CHECK":
@@ -437,6 +462,9 @@ class Sitzung:
         elif b in ("SELECT", "EXAMINE"):
             await self._waehlen(tag, b, args)
         elif b in ("CLOSE", "UNSELECT"):
+            if b == "CLOSE" and self.gewaehlt and not self.nur_lesen:
+                await self._loeschen_ausfuehren(melden=False)   # RFC 3501 §6.4.2: CLOSE löscht still
+            self._kopien_verwerfen()
             self.gewaehlt = None
             await self.senden(f"{tag} OK {b}\r\n".encode())
         elif b == "IDLE":
@@ -454,20 +482,34 @@ class Sitzung:
                 await self._store(tag, args, per_uid)
             elif b == "SEARCH":
                 await self._search(tag, args, per_uid)
-            elif b in ("COPY", "MOVE", "EXPUNGE"):
-                await self.senden(f"{tag} NO [CANNOT] Im Notbetrieb nur lesend\r\n".encode())
+            elif b in ("COPY", "MOVE"):
+                await self._verschieben(tag, b, args, per_uid)
+            elif b == "EXPUNGE":
+                await self.senden(f"{tag} BAD UID EXPUNGE nicht angeboten\r\n".encode())
             else:
                 await self.senden(f"{tag} BAD Unbekannt\r\n".encode())
-        elif b in ("EXPUNGE",):
-            await self.senden(f"{tag} OK EXPUNGE\r\n".encode())
+        elif b == "EXPUNGE":
+            if not self.gewaehlt:
+                await self.senden(f"{tag} NO Kein Ordner gewählt\r\n".encode())
+            elif self.nur_lesen:
+                await self.senden(f"{tag} NO [READ-ONLY] Ordner nur lesend geöffnet\r\n".encode())
+            else:
+                rest = await self._loeschen_ausfuehren(melden=True)
+                await self.senden((f"{tag} NO [CANNOT] Endgültig löschen geht im Notbetrieb nicht ({rest} Mails "
+                                   f"bleiben)\r\n" if rest else f"{tag} OK EXPUNGE\r\n").encode())
         elif b == "APPEND":
             await self._append(tag, args)
         elif b in ("SUBSCRIBE", "UNSUBSCRIBE"):
             # Ohne Wirkung — LSUB liefert ohnehin alle Ordner. Outlook Classic
             # abonniert beim ersten Abgleich und bricht bei NO ab (800CCC16).
             await self.senden(f"{tag} OK {b}\r\n".encode())
-        elif b in ("COPY", "MOVE", "CREATE", "DELETE", "RENAME"):
-            await self.senden(f"{tag} NO [CANNOT] Im Notbetrieb nur lesend\r\n".encode())
+        elif b in ("COPY", "MOVE"):
+            if not self.gewaehlt:
+                await self.senden(f"{tag} NO Kein Ordner gewählt\r\n".encode())
+            else:
+                await self._verschieben(tag, b, args, False)
+        elif b in ("CREATE", "DELETE", "RENAME"):
+            await self.senden(f"{tag} NO [CANNOT] Ordner ändern geht im Notbetrieb nicht\r\n".encode())
         else:
             await self.senden(f"{tag} BAD Unbekannter Befehl\r\n".encode())
 
@@ -480,10 +522,12 @@ class Sitzung:
         if o and not o.get("leer") and o["wk"] == "sentitems" and inhalt:
             kopf = email.message_from_string(inhalt.split("\r\n\r\n", 1)[0] + "\r\n\r\n",
                                              policy=email.policy.compat32)
-            if notbetrieb.lokal_vorhanden(o["postfach"], "sentitems", str(kopf.get("Message-ID") or "")):
+            # Egal woher: lokal abgelegt, schon nach Exchange zurückgespielt
+            # (dann trägt die Zeile die Kennung des Ordners) oder per Abgleich da.
+            if notbetrieb.im_ordner(o["postfach"], [o["id"], "sentitems"], str(kopf.get("Message-ID") or "")):
                 await self.senden(f"{tag} OK APPEND (schon abgelegt)\r\n".encode())
                 return
-        await self.senden(f"{tag} NO [CANNOT] Im Notbetrieb nur lesend\r\n".encode())
+        await self.senden(f"{tag} NO [CANNOT] Neue Post nimmt der Notbetrieb per IMAP nicht an\r\n".encode())
 
     async def _anmelden(self, tag: str, b: str, args: list) -> None:
         if self.benutzer:
@@ -585,15 +629,17 @@ class Sitzung:
             await self.senden(f"{tag} NO [NONEXISTENT] Ordner unbekannt\r\n".encode())
             return
         validitaet, naechste, mails = await asyncio.to_thread(self._inhalt, o)
-        self.gewaehlt = {**o, "mails": mails, "validitaet": validitaet}
+        self._kopien_verwerfen()
+        self.gewaehlt = {**o, "mails": mails, "validitaet": validitaet, "geloescht": set(), "kopiert": {}}
         self.nur_lesen = b == "EXAMINE" or bool(o.get("leer"))
         ungelesen = next((i + 1 for i, m in enumerate(mails) if not m["gelesen"]), None)
         await self.senden(
-            b"* FLAGS (\\Seen)\r\n",
+            b"* FLAGS (\\Seen \\Deleted)\r\n",
             f"* {len(mails)} EXISTS\r\n* 0 RECENT\r\n".encode(),
             f"* OK [UIDVALIDITY {validitaet}] UIDs gültig\r\n* OK [UIDNEXT {naechste}] nächste UID\r\n".encode(),
             (f"* OK [UNSEEN {ungelesen}] erste ungelesene\r\n".encode() if ungelesen else b""),
-            f"* OK [PERMANENTFLAGS ({'' if self.nur_lesen else chr(92) + 'Seen'})] Gelesen-Flag nur in der Kopie\r\n".encode(),
+            f"* OK [PERMANENTFLAGS ({'' if self.nur_lesen else chr(92) + 'Seen ' + chr(92) + 'Deleted'})] "
+            f"Flags\r\n".encode(),
             f"{tag} OK [{'READ-ONLY' if self.nur_lesen else 'READ-WRITE'}] {b}\r\n".encode())
 
     async def _exists_melden(self) -> None:
@@ -645,7 +691,7 @@ class Sitzung:
                 if oben == "UID":
                     teile.append(b"UID %d" % m["uid"])
                 elif oben == "FLAGS":
-                    teile.append(b"FLAGS (\\Seen)" if m["gelesen"] else b"FLAGS ()")
+                    teile.append(b"FLAGS (" + self._flags(m) + b")")
                 elif oben == "INTERNALDATE":
                     try:
                         dt = datetime.fromisoformat(m["empfangen"].replace("Z", "+00:00"))
@@ -687,7 +733,7 @@ class Sitzung:
             if gelesen_setzen and not m["gelesen"] and not self.nur_lesen:
                 await asyncio.to_thread(_gelesen, self.benutzer, self.gewaehlt["postfach"], m["graph_id"], True)
                 m["gelesen"] = 1
-                teile.append(b"FLAGS (\\Seen)")
+                teile.append(b"FLAGS (" + self._flags(m) + b")")
             await self.senden(b"* %d FETCH (" % nr + b" ".join(teile) + b")\r\n")
         await self.senden(f"{tag} OK FETCH\r\n".encode())
 
@@ -706,7 +752,18 @@ class Sitzung:
             await self.senden(f"{tag} BAD Menge\r\n".encode())
             return
         seen = "\\seen" in flags
+        if "\\deleted" in flags and not self._darf_aendern():
+            await self.senden(f"{tag} NO [CANNOT] Löschen nur, wer im Webmail arbeitet\r\n".encode())
+            return
+        geloescht = self.gewaehlt["geloescht"]
         for nr, m in auswahl:
+            if "\\deleted" in flags:
+                if art.startswith("-FLAGS"):
+                    geloescht.discard(m["graph_id"])
+                else:
+                    geloescht.add(m["graph_id"])
+            elif art.startswith("FLAGS"):
+                geloescht.discard(m["graph_id"])
             ziel = m["gelesen"]
             if art.startswith("+FLAGS") and seen:
                 ziel = 1
@@ -719,8 +776,99 @@ class Sitzung:
                 m["gelesen"] = ziel
             if not art.endswith(".SILENT"):
                 uid = b" UID %d" % m["uid"] if per_uid else b""
-                await self.senden(b"* %d FETCH (FLAGS (%s)%s)\r\n" % (nr, b"\\Seen" if ziel else b"", uid))
+                await self.senden(b"* %d FETCH (FLAGS (%s)%s)\r\n" % (nr, self._flags(m), uid))
         await self.senden(f"{tag} OK STORE\r\n".encode())
+
+    def _flags(self, m: dict) -> bytes:
+        f = [b"\\Seen"] if m["gelesen"] else []
+        if self.gewaehlt and m["graph_id"] in self.gewaehlt.get("geloescht", ()):
+            f.append(b"\\Deleted")
+        return b" ".join(f)
+
+    def _darf_aendern(self) -> bool:
+        """Wie /notfall/api/verschieben: nur wer im Webmail arbeitet."""
+        return notbetrieb.sendeweg(self.benutzer) is not None
+
+    def _kopien_verwerfen(self) -> None:
+        o = self.gewaehlt
+        if o and o.get("kopiert"):
+            # COPY ohne anschließendes Löschen: echtes Kopieren gibt es nicht
+            # (eine Mail liegt in Exchange an EINER Stelle) — sichtbar machen.
+            log.info("Notbetrieb-IMAP: %s — %s COPY ohne Löschen nicht ausgeführt", self.benutzer, len(o["kopiert"]))
+            o["kopiert"] = {}
+
+    async def _ziel(self, name: str) -> dict | None:
+        z = self._finden(name)
+        if not z or z.get("leer") or z["postfach"] != self.gewaehlt["postfach"]:
+            return None
+        return z
+
+    def _bewegen(self, m: dict, ziel_id: str) -> bool:
+        import notbetrieb_aenderungen
+        import notbetrieb_lesen
+        kennung = notbetrieb_lesen.ordner_kennung(self.gewaehlt["postfach"], ziel_id)
+        return bool(kennung) and notbetrieb_aenderungen.merken(
+            self.benutzer, self.gewaehlt["postfach"], m["graph_id"], notbetrieb_aenderungen.VERSCHIEBEN, kennung)
+
+    async def _weg_melden(self, weg: list[int], melden: bool) -> None:
+        """Entfernte Nachrichten von hinten melden (Sequenznummern rücken nach)."""
+        mails = self.gewaehlt["mails"]
+        for nr in sorted(weg, reverse=True):
+            del mails[nr - 1]
+            if melden:
+                await self.senden(f"* {nr} EXPUNGE\r\n".encode())
+
+    async def _verschieben(self, tag: str, b: str, args: list, per_uid: bool) -> None:
+        """MOVE: sofort. COPY: vorgemerkt — Outlook Classic verschiebt als
+        COPY + \\Deleted + EXPUNGE; erst das Löschen führt die Verschiebung aus."""
+        if self.nur_lesen or not self._darf_aendern():
+            await self.senden(f"{tag} NO [CANNOT] Verschieben nur, wer im Webmail arbeitet\r\n".encode())
+            return
+        if len(args) < 2:
+            await self.senden(f"{tag} BAD {b} menge ordner\r\n".encode())
+            return
+        ziel = await self._ziel(str(args[-1]))
+        if not ziel:
+            await self.senden(f"{tag} NO [CANNOT] Zielordner unbekannt oder in einem anderen Postfach\r\n".encode())
+            return
+        try:
+            auswahl = self._auswahl(str(args[0]), per_uid)
+        except (Fehler, ValueError):
+            await self.senden(f"{tag} BAD Menge\r\n".encode())
+            return
+        if b == "COPY":
+            for _, m in auswahl:
+                self.gewaehlt["kopiert"][m["graph_id"]] = ziel["id"] or ziel["wk"]
+            await self.senden(f"{tag} OK COPY\r\n".encode())
+            return
+        weg = []
+        for nr, m in auswahl:
+            if await asyncio.to_thread(self._bewegen, m, ziel["id"] or ziel["wk"]):
+                weg.append(nr)
+        await self._weg_melden(weg, True)
+        await self.senden(f"{tag} OK MOVE\r\n".encode())
+
+    async def _loeschen_ausfuehren(self, melden: bool) -> int:
+        """\\Deleted-Mails: vorgemerktes COPY-Ziel, sonst „Gelöschte Elemente“.
+        Gibt zurück, wie viele bleiben (schon in „Gelöschte Elemente“)."""
+        o = self.gewaehlt
+        weg, rest = [], 0
+        for nr, m in enumerate(list(o["mails"]), 1):
+            if m["graph_id"] not in o["geloescht"]:
+                continue
+            ziel = o["kopiert"].pop(m["graph_id"], None)
+            if ziel is None:
+                if o["wk"] == "deleteditems":
+                    rest += 1
+                    continue
+                ziel = "deleteditems"
+            if ziel != (o["id"] or o["wk"]) and await asyncio.to_thread(self._bewegen, m, ziel):
+                weg.append(nr)
+            else:
+                rest += 1
+        o["geloescht"] = set()
+        await self._weg_melden(weg, melden)
+        return rest
 
     async def _search(self, tag: str, args: list, per_uid: bool) -> None:
         mails = self.gewaehlt["mails"]

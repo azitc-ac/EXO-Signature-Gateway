@@ -193,6 +193,16 @@ def test_append_der_gesendet_kopie_ohne_doppel(listener, monkeypatch):
         fremd = _mail().as_bytes().replace(b"outlook-1@", b"nie-gesendet@")
         assert c.append('"Gesendete Elemente"', None, None, fremd)[0] == "NO"
         assert c.append("INBOX", None, None, _mail().as_bytes())[0] == "NO"
+        # Nach dem Rückspielen trägt die Zeile die Ordner-Kennung und gilt als
+        # Exchange-Mail — Outlook legt später (oder erneut) ab und bekam bis
+        # dahin NO: eigene Kopie behalten (doppelt), 800CCCD2 bei jedem Abgleich.
+        with notbetrieb._conn() as conn:
+            conn.execute("UPDATE mails SET ordner='ord-s', herkunft='exo' WHERE postfach='a@firma.at' "
+                         "AND ordner='sentitems'")
+        assert c.append('"Gesendete Elemente"', "(\\Seen)", None, _mail().as_bytes())[0] == "OK"
+        with notbetrieb._conn() as conn:
+            assert conn.execute("SELECT COUNT(*) FROM mails WHERE postfach='a@firma.at' "
+                                "AND ordner IN ('ord-s','sentitems')").fetchone()[0] == 1
         c.logout()
     finally:
         schleife.call_soon_threadsafe(server.close)
