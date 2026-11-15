@@ -194,20 +194,27 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
     # Dieselbe Einordnung wie notbetrieb.zustellen (Aliase eingeschlossen).
     intern = [a for a in alle if notbetrieb.postfach_fuer(a)]
     extern = [a for a in alle if not notbetrieb.postfach_fuer(a)]
-    if extern and not direktversand.aktiv():
+    if extern and not direktversand.aktiv() and notbetrieb.sendeweg(benutzer) == notbetrieb.WEG_NOTFALL:
         raise SendeFehler("Versand nach außen ist im Notbetrieb nicht eingerichtet (Direktversand).")
 
     _drossel(benutzer)
     sender = benutzer if recht == "auftrag" else None
     msg = _bauen(postfach, sender, an_l, cc_l, betreff or "", text or "", anhaenge, bezug)
-    await _hinaus(benutzer, postfach, recht, alle, msg.as_bytes(), msg["Message-ID"], bcc_l, "Webmail")
-    return {"ok": True, "message_id": msg["Message-ID"], "intern": len(intern), "extern": len(extern)}
+    ueber = await _hinaus(benutzer, postfach, recht, alle, msg.as_bytes(), msg["Message-ID"], bcc_l, "Webmail")
+    return {"ok": True, "message_id": msg["Message-ID"], "intern": len(intern), "extern": len(extern),
+            "ueber": ueber}
 
 
 async def _hinaus(benutzer: str, postfach: str, recht: str, alle: list, inhalt: bytes, mid: str,
-                  bcc_l: list, weg: str) -> None:
+                  bcc_l: list, weg: str) -> str:
     """Gemeinsamer Ausgang für Webmail und Mailprogramme (587): durch den
-    Handler (Signatur …), zustellen, Gesendet-Kopie ablegen."""
+    Handler (Signatur …), zustellen, Gesendet-Kopie ablegen. Gibt den
+    Sendeweg zurück (notbetrieb.sendeweg).
+
+    Der Handler läuft IMMER umgeleitet: So sehen wir, ob er die Mail
+    überhaupt hinausgab (Verschlüsselung ohne Zertifikat …), und Zusätze des
+    Normalbetriebs, die eine Outlook-Kopie voraussetzen (SENT_ITEMS_UPDATE),
+    bleiben aus. Zugestellt wird danach je nach Weg."""
     import handler
     import reinject
     zustellungen: list[tuple[str, list, bytes]] = []
@@ -223,22 +230,37 @@ async def _hinaus(benutzer: str, postfach: str, recht: str, alle: list, inhalt: 
         meldung = next((_klartext(z[2]) for z in zustellungen), "")
         raise SendeFehler("Nicht gesendet." + (f" {meldung}" if meldung else ""))
 
-    # Derselbe Zustellweg wie für das Gateway im ausgerufenen Notfall.
+    ueber = notbetrieb.sendeweg(benutzer) or notbetrieb.WEG_NOTFALL
+    exchange_kopie = False
     for von, empf, roh in zustellungen:
+        if ueber == notbetrieb.WEG_EXCHANGE:
+            # Der normale Rückweg des Gateways — mit Warteschlange bei Fehlern
+            # wie jede Mail vom Connector. Interne Empfänger bekommen sie von
+            # Exchange; die Kopie holt sie beim nächsten Abgleich.
+            erg = reinject.send(von, empf, roh)
+            exchange_kopie |= erg == reinject.WEG_GRAPH_MIT_KOPIE and _message_id(roh) == mid
+            continue
+        # Notfall bzw. Probealarm: derselbe Weg wie für das Gateway im Notfall.
         try:
             notbetrieb.zustellen(von, empf, roh)
         except Exception as exc:                                    # noqa: BLE001
             log.warning("Notbetrieb-Senden: Zustellung fehlgeschlagen: %s", exc)
             raise SendeFehler("Versand nach außen fehlgeschlagen — bitte später erneut.") from None
-    # Gesendet-Kopie = was hinausging (mit Signatur), dazu Bcc.
+    # Gesendet-Kopie = was hinausging (mit Signatur), dazu Bcc. Hat Exchange
+    # selbst eine angelegt (Graph sendMail mit MIME), gilt die lokale als
+    # schon zurückgespielt — sonst stünde sie dort zweimal.
     kopie = email.message_from_bytes(haupt[2], policy=email.policy.SMTP)
     del kopie["Bcc"]
     if bcc_l:
         kopie["Bcc"] = ", ".join(bcc_l)
-    notbetrieb.lokal_ablegen(postfach, "sentitems", kopie.as_bytes(), gelesen=True)
+    notbetrieb.lokal_ablegen(postfach, "sentitems", kopie.as_bytes(), gelesen=True,
+                             schon_zurueck="exchange_kopie" if exchange_kopie else None)
+    if ueber == notbetrieb.WEG_EXCHANGE and not exchange_kopie:
+        notbetrieb.rueckspielen_bald()
     intern = sum(1 for a in alle if notbetrieb.postfach_fuer(a))
-    log.info("Notbetrieb-Senden (%s): %s aus %s (%s) — %s intern, %s extern, %s", weg, benutzer, postfach,
-             recht, intern, len(alle) - intern, mid)
+    log.info("Notbetrieb-Senden (%s, %s): %s aus %s (%s) — %s intern, %s extern, %s", weg, ueber, benutzer,
+             postfach, recht, intern, len(alle) - intern, mid)
+    return ueber
 
 
 # ── Mailprogramme (Submission 587) ──────────────────────────────────────────

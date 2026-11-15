@@ -367,9 +367,10 @@ async def notfall_ich(benutzer: str = Depends(_benutzer)):
         return JSONResponse({"ok": True, "benutzer": benutzer, "bereit_modus": True,
                              "letzter_abgleich": letzter, "zugriff": [], "absender": []})
     zugriff = [p for p in await asyncio.to_thread(notbetrieb_rechte.zugriff, benutzer) if p["voll"]]
-    senden = notbetrieb.senden_erlaubt(benutzer)
+    sendeweg = notbetrieb.sendeweg(benutzer)
+    senden = sendeweg is not None
     return JSONResponse({"ok": True, "benutzer": benutzer, "bereit_modus": False, "zugriff": zugriff,
-                         "senden": senden, "vorschau": None if notbetrieb.ausgerufen() else
+                         "senden": senden, "sendeweg": sendeweg, "vorschau": None if notbetrieb.ausgerufen() else
                          await asyncio.to_thread(_vorschau, [p["postfach"] for p in zugriff]),
                          "absender": await asyncio.to_thread(notbetrieb_senden.absender, benutzer) if senden else []})
 

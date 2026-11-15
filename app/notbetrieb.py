@@ -142,12 +142,29 @@ def inhalte_erlaubt(benutzer: str) -> bool:
     return ausgerufen() or lesen_alle() or _in_probegruppe(benutzer)
 
 
+WEG_NOTFALL, WEG_EXCHANGE = "notfall", "exchange"
+
+
+def sendeweg(benutzer: str) -> str | None:
+    """Wie geht Post aus Webmail und 587 hinaus — EINE Stelle.
+
+    `notfall`  am Exchange vorbei: externe per Direktversand, interne in die
+               Kopie. Im ausgerufenen Notfall für alle, sonst für die
+               Probegruppe (Probealarm: sie prüft den echten Notfallweg).
+    `exchange` der normale Rückweg des Gateways (reinject.send), die
+               Gesendet-Kopie kommt per Rückspielen nach Exchange — im
+               Normalbetrieb für alle, wenn beide Schalter an sind.
+    None       kein Senden."""
+    if ausgerufen() or _in_probegruppe(benutzer):
+        return WEG_NOTFALL
+    if lesen_alle() and settings_store.get("NOTBETRIEB_SENDEN_ALLE") is True:
+        return WEG_EXCHANGE
+    return None
+
+
 def senden_erlaubt(benutzer: str) -> bool:
-    """SENDEN (Webmail, 587). Strenger als Lesen: Gesendet wird im
-    Notbetrieb am Exchange vorbei (Direktversand, interne Post in die Kopie).
-    Im Normalbetrieb liefe das neben Exchange her — dort also nur die
-    Probegruppe (Probealarm), auch wenn alle lesen dürfen."""
-    return ausgerufen() or _in_probegruppe(benutzer)
+    """SENDEN (Webmail, 587) — siehe `sendeweg`."""
+    return sendeweg(benutzer) is not None
 
 
 def postfach_fuer(adresse: str) -> str | None:
@@ -334,7 +351,10 @@ def _conn() -> sqlite3.Connection:
 # Kopfdaten für die Liste im Webmail — beim ersten Lesen aus dem MIME
 # nachgetragen (notbetrieb_lesen._kopf_nachtragen), damit Abgleich und lokale
 # Ablage nichts davon wissen müssen.
-_MAIL_ZUSATZ = ("betreff TEXT", "von TEXT", "an TEXT", "anhang INTEGER", "text TEXT")
+_MAIL_ZUSATZ = ("betreff TEXT", "von TEXT", "an TEXT", "anhang INTEGER", "text TEXT",
+               # Kennung in Exchange nach dem Rückspielen — Ziel späterer
+               # Änderungen (gelesen, verschoben), bis der Abgleich die Zeile übernimmt.
+               "exo_id TEXT")
 _MAIL_ZUSATZ = tuple(z.split()[0] for z in _MAIL_ZUSATZ)
 
 # Bekannte Ordner, deren Kennung je Postfach gemerkt wird: Lokale Post wird
@@ -382,11 +402,14 @@ def _zeit(text: str) -> datetime | None:
 
 
 def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
-                  empfangen: datetime | None = None, gelesen: bool = False) -> str:
+                  empfangen: datetime | None = None, gelesen: bool = False,
+                  schon_zurueck: str | None = None) -> str:
     """Im Notbetrieb entstandene Post ablegen. Gibt die Message-ID zurück.
 
     Fehlt die Message-ID, wird eine gesetzt — ohne sie wäre das Rückspielen
-    nicht idempotent (Abgleich über internetMessageId)."""
+    nicht idempotent (Abgleich über internetMessageId). `schon_zurueck`:
+    Exchange hat die Mail selbst (Graph sendMail legt die Gesendet-Kopie an)
+    — dann gilt sie als erledigt und wird nicht noch einmal eingespielt."""
     msg = email.message_from_bytes(mime, policy=email.policy.compat32)
     imid = (msg.get("Message-ID") or "").strip()
     if not imid:
@@ -397,10 +420,11 @@ def lokal_ablegen(postfach: str, ordner: str, mime: bytes,
     pfad = _schreiben(postfach, graph_id, mime)
     with _lock, _conn() as conn:
         conn.execute(
-            "INSERT INTO mails (postfach, graph_id, ordner, imid, empfangen, gelesen, datei, herkunft)"
-            " VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO mails (postfach, graph_id, ordner, imid, empfangen, gelesen, datei, herkunft, zurueck)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
             (postfach.lower(), graph_id, ordner, imid,
-             _iso(empfangen or datetime.now(timezone.utc)), 1 if gelesen else 0, str(pfad), LOKAL))
+             _iso(empfangen or datetime.now(timezone.utc)), 1 if gelesen else 0, str(pfad), LOKAL,
+             f"{schon_zurueck} {_iso(datetime.now(timezone.utc))}" if schon_zurueck else None))
     return imid
 
 
@@ -647,6 +671,14 @@ def abgleich_alle() -> dict:
         ergebnis = {"aktiv": True, **zaehlung, "postfaecher": len(postfaecher), "kein_token": True}
         _persist_last(ergebnis)
         return ergebnis
+    # Dauerbetrieb: Was lokal entstand, zuerst nach Exchange — der Abgleich
+    # danach findet es dort und übernimmt die Zeile. Im Notfall nicht
+    # (Exchange ist dann gerade das, was fehlt).
+    if not ausgerufen():
+        try:
+            zaehlung["zurueck"] = zurueckspielen(min_alter_s=RUECKSPIEL_WARTEN_S)
+        except Exception as exc:                                    # noqa: BLE001
+            log.warning("Notbetrieb: Rückspielen vor dem Abgleich fehlgeschlagen: %s", exc)
     with httpx.Client(timeout=30) as client:
         for key, pf in postfaecher:
             fenster = fenster_fuer(key, pf)[0]
@@ -784,14 +816,45 @@ def _gross_anhaengen(client, token: str, pf: str, neu_id: str, name: str, typ: s
             raise RuntimeError(f"Upload HTTP {r.status_code}")
 
 
-def zurueckspielen() -> dict:
-    """Lokale, noch nicht zurückgespielte Post nach Exchange bringen."""
+# Im Normalbetrieb spielt das Gateway lokale Post laufend zurück — nicht erst
+# nach einer Störung. Kurz gewartet wird trotzdem: Die Gesendet-Kopie entsteht
+# im selben Augenblick wie der Versand, und auf manchen Wegen legt Exchange
+# eine eigene an (die WEG_GRAPH_MIT_KOPIE nicht meldet, etwa nach einer
+# Warteschlange). Die Abfrage nach der Message-ID sähe sie sonst noch nicht.
+RUECKSPIEL_WARTEN_S = 120
+_bald_lock = threading.Lock()
+_bald: threading.Timer | None = None
+
+
+def rueckspielen_bald() -> None:
+    """Rückspielen in RUECKSPIEL_WARTEN_S anstoßen (ein Zeitgeber, nicht je Mail)."""
+    global _bald
+    with _bald_lock:
+        if _bald is not None and _bald.is_alive():
+            return
+        _bald = threading.Timer(RUECKSPIEL_WARTEN_S + 5, _rueckspielen_im_hintergrund)
+        _bald.daemon = True
+        _bald.start()
+
+
+def _rueckspielen_im_hintergrund() -> None:
+    try:
+        if not ausgerufen():
+            zurueckspielen(min_alter_s=RUECKSPIEL_WARTEN_S)
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("Notbetrieb: Rückspielen im Hintergrund fehlgeschlagen: %s", exc)
+
+
+def zurueckspielen(min_alter_s: int = 0) -> dict:
+    """Lokale, noch nicht zurückgespielte Post nach Exchange bringen.
+    `min_alter_s`: jüngere Zeilen auslassen (laufender Betrieb, siehe oben)."""
     zaehlung = {"eingespielt": 0, "schon_da": 0, "fehler": 0, "offen": 0}
     if not _db_pfad().exists():
         return zaehlung
+    grenze = _iso(datetime.now(timezone.utc) - timedelta(seconds=min_alter_s))
     with _lock, _conn() as conn:
-        offen = conn.execute("SELECT * FROM mails WHERE herkunft=? AND zurueck IS NULL",
-                             (LOKAL,)).fetchall()
+        offen = conn.execute("SELECT * FROM mails WHERE herkunft=? AND zurueck IS NULL AND empfangen<=?",
+                             (LOKAL, grenze)).fetchall()
     if not offen:
         return zaehlung
     token = graph_client._acquire_token()
@@ -814,7 +877,7 @@ def zurueckspielen() -> dict:
                 if such.status_code != 200:
                     raise RuntimeError(f"Suche HTTP {such.status_code}")
                 if such.json().get("value"):
-                    _erledigt(z, "vorhanden")
+                    _erledigt(z, "vorhanden", such.json()["value"][0].get("id", ""))
                     zaehlung["schon_da"] += 1
                     continue
                 nachricht, gross = _als_graph(Path(z["datei"]).read_bytes(), bool(z["gelesen"]),
@@ -833,7 +896,7 @@ def zurueckspielen() -> dict:
                     client.delete(f"{GRAPH}/users/{pf}/messages/{neu_id}",
                                   headers={"Authorization": f"Bearer {token}"})
                     raise
-                _erledigt(z, "eingespielt")
+                _erledigt(z, "eingespielt", neu_id)
                 zaehlung["eingespielt"] += 1
             except Exception as exc:                                # noqa: BLE001
                 zaehlung["fehler"] += 1
@@ -844,10 +907,11 @@ def zurueckspielen() -> dict:
     return zaehlung
 
 
-def _erledigt(zeile, wie: str) -> None:
+def _erledigt(zeile, wie: str, exo_id: str = "") -> None:
     with _lock, _conn() as conn:
-        conn.execute("UPDATE mails SET zurueck=? WHERE postfach=? AND graph_id=?",
-                     (f"{wie} {_iso(datetime.now(timezone.utc))}", zeile["postfach"], zeile["graph_id"]))
+        conn.execute("UPDATE mails SET zurueck=?, exo_id=? WHERE postfach=? AND graph_id=?",
+                     (f"{wie} {_iso(datetime.now(timezone.utc))}", exo_id or None,
+                      zeile["postfach"], zeile["graph_id"]))
 
 
 # ── Profile für die Signatur ────────────────────────────────────────────────

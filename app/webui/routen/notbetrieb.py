@@ -40,6 +40,7 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "ausgerufen": notbetrieb.ausgerufen(),
             "probegruppe": settings_store.get("NOTBETRIEB_PROBEGRUPPE") or [],
             "lesen_alle": notbetrieb.lesen_alle(),
+            "senden_alle": settings_store.get("NOTBETRIEB_SENDEN_ALLE") is True,
             "webmail_url": aussenadresse.basis() + "/notfall",
             "imap": settings_store.get("NOTBETRIEB_IMAP") is True,
             "smtp": settings_store.get("NOTBETRIEB_SMTP") is True,

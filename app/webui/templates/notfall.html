@@ -244,6 +244,7 @@ async function start() {
   nb.zugriff = d.zugriff;
   nb.absender = d.absender || [];
   nb.senden = !!d.senden;
+  nb.sendeweg = d.sendeweg;
   nb.vorschau = d.vorschau;
   document.getElementById('neu-zeile').hidden = !nb.senden;
   document.getElementById('band').textContent = d.vorschau ? 'Vorschau' : 'Notbetrieb';
@@ -473,7 +474,8 @@ function vorschauZeigen() {
     + (min === null ? 'unbekannt' : min < 1 ? 'gerade eben' : min < 120 ? 'vor ' + min + ' min'
        : 'vom ' + new Date(v.stand).toLocaleString('de-DE'))
     + (tage ? ', Post der letzten ' + tage + (tage === 1 ? ' Tag' : ' Tage') : '')
-    + (nb.senden ? '. Senden geht hier am Exchange vorbei (Probegruppe).' : '. Senden nur im Notfall — arbeite wie gewohnt in Outlook.');
+    + (nb.sendeweg === 'exchange' ? '. Gesendet wird über Exchange, wie aus Outlook.'
+       : nb.senden ? '. Senden geht hier am Exchange vorbei (Probealarm).' : '. Senden nur im Notfall — arbeite wie gewohnt in Outlook.');
   kopfhoeheMerken();
 }
 
@@ -777,8 +779,10 @@ async function absenden(ev) {
   clearTimeout(nb.entwurf.takt);
   nb.entwurf = {id: '', takt: null};
   document.getElementById('lesen').innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
-    + '<div class="ok" style="margin:18px">Gesendet. Die Mail liegt unter „Gesendete Elemente“ und wird nach der Störung '
-    + 'nach Exchange übernommen.</div>';
+    + '<div class="ok" style="margin:18px">' + (d.ueber === 'exchange'
+      ? 'Gesendet über Exchange. Die Kopie erscheint in wenigen Minuten auch in Outlook unter „Gesendete Elemente“.'
+      : 'Gesendet. Die Mail liegt unter „Gesendete Elemente“ und wird nach der Störung nach Exchange übernommen.')
+    + '</div>';
   ordnerLaden();
 }
 

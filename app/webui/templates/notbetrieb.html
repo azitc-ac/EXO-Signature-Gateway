@@ -54,12 +54,22 @@
     <span class="hint">Webmail und IMAP, nur lesen</span>
   </div>
   <div class="msg" id="nb-lesen-alle-msg" hidden></div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-senden-alle" {% if senden_alle %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
+             onchange="nbSchalter(this, {NOTBETRIEB_SENDEN_ALLE: this.checked}, 'nb-senden-alle-msg')"> … und senden, über Exchange
+    </label>
+    <span class="hint">Wirkt nur zusammen mit „für alle lesbar“</span>
+  </div>
+  <div class="msg" id="nb-senden-alle-msg" hidden></div>
   <p class="hint">
     So sieht jeder jederzeit, was im Ausfall da wäre, und kennt die Oberfläche schon. Das Webmail zeigt
-    dabei oben, wie alt die Kopie ist und wie viele Tage sie zurückreicht. Senden bleibt der Probegruppe
-    vorbehalten: Es liefe sonst am Exchange vorbei. Gelesen-Markierungen gelten nur in der Kopie.
+    dabei oben, wie alt die Kopie ist und wie viele Tage sie zurückreicht. Gesendet wird im Normalbetrieb
+    über Exchange wie jede Mail des Gateways; die Kopie unter „Gesendete Elemente“ legt das Gateway selbst
+    nach Exchange zurück — derselbe Weg wie nach einer Störung, nur laufend.
   </p>
-  <p class="hint">Probegruppe — sieht Inhalte und darf senden (Probealarm). Eine Adresse je Zeile.</p>
+  <p class="hint">Probegruppe — sendet schon jetzt wie im Notfall, am Exchange vorbei (Probealarm:
+    externe per Direktversand, interne nur in die Kopie). Eine Adresse je Zeile.</p>
   <div class="settings-row">
     <label for="nb-probegruppe">Probegruppe</label>
     <div class="settings-control"><textarea id="nb-probegruppe" rows="3" style="width:100%"

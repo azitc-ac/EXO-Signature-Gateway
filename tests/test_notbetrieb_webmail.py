@@ -707,6 +707,86 @@ def test_lesen_alle_heisst_nicht_senden(client, postfix, schatten):
     assert r.status_code == 200
 
 
+# ── Dauerbetrieb: Senden im Normalbetrieb über Exchange ─────────────────────
+
+@pytest.fixture
+def exchange(postfix, schatten, monkeypatch):
+    """Normalbetrieb, beide Schalter an, a@ NICHT in der Probegruppe; der
+    Weg nach Exchange (reinject._senden) wird mitgeschrieben."""
+    import reinject
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = []
+    schatten["NOTBETRIEB_LESEN_ALLE"] = True
+    schatten["NOTBETRIEB_SENDEN_ALLE"] = True
+    weg = {"rueckgabe": None, "aufrufe": [], "bald": 0}
+    monkeypatch.setattr(reinject, "_senden", lambda von, empf, inhalt, *a, **k: (
+        weg["aufrufe"].append((von, list(empf), inhalt)), weg["rueckgabe"])[1])
+    monkeypatch.setattr(notbetrieb, "rueckspielen_bald", lambda: weg.__setitem__("bald", weg["bald"] + 1))
+    return weg
+
+
+def test_sendeweg_eine_stelle(schatten):
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = []
+    assert notbetrieb.sendeweg("a@firma.at") is None
+    schatten["NOTBETRIEB_SENDEN_ALLE"] = True
+    assert notbetrieb.sendeweg("a@firma.at") is None                # ohne „für alle lesbar“ nicht
+    schatten["NOTBETRIEB_LESEN_ALLE"] = True
+    assert notbetrieb.sendeweg("a@firma.at") == notbetrieb.WEG_EXCHANGE
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = ["a@firma.at"]               # Probealarm: Notfallweg
+    assert notbetrieb.sendeweg("a@firma.at") == notbetrieb.WEG_NOTFALL
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = []
+    schatten["NOTBETRIEB_AUSGERUFEN"] = True
+    assert notbetrieb.sendeweg("a@firma.at") == notbetrieb.WEG_NOTFALL
+
+
+def test_normalbetrieb_sendet_ueber_exchange(client, exchange):
+    _anmelden(client)
+    assert client.get("/notfall/api/ich").json()["sendeweg"] == "exchange"
+    r = client.post("/notfall/api/senden", json={"postfach": "a@firma.at", "an": "kunde@extern.de, b@firma.at",
+                                                 "bcc": "c@firma.at", "betreff": "Dauer", "text": "Hallo"})
+    assert r.status_code == 200 and r.json()["ueber"] == "exchange"
+    (von, empf, inhalt), = exchange["aufrufe"]
+    assert set(empf) == {"kunde@extern.de", "b@firma.at", "c@firma.at"}
+    assert "SIG Anna Muster" in _teile(inhalt)[0]                  # durch den Handler
+    assert _lokal("b@firma.at", "inbox") == []                      # interne Post bringt Exchange
+    gesendet, = _lokal("a@firma.at", "sentitems")
+    assert gesendet["zurueck"] is None and exchange["bald"] == 1   # Kopie geht per Rückspielen
+    assert "c@firma.at" in str(_mime(gesendet)["Bcc"])
+
+
+def test_exchange_legt_kopie_selbst_an(client, exchange):
+    """Graph sendMail mit MIME legt die Gesendet-Kopie selbst an
+    (reinject.WEG_GRAPH_MIT_KOPIE) — dann nicht noch einmal einspielen."""
+    import reinject
+    exchange["rueckgabe"] = reinject.WEG_GRAPH_MIT_KOPIE
+    _anmelden(client)
+    assert client.post("/notfall/api/senden", json={"postfach": "a@firma.at", "an": "kunde@extern.de",
+                                                    "betreff": "x"}).status_code == 200
+    gesendet, = _lokal("a@firma.at", "sentitems")
+    assert str(gesendet["zurueck"]).startswith("exchange_kopie") and exchange["bald"] == 0
+
+
+def test_rueckspielen_wartet_auf_junge_post(schatten, monkeypatch):
+    import graph_client
+    monkeypatch.setattr(graph_client, "_acquire_token", lambda: (_ for _ in ()).throw(AssertionError("zu früh")))
+    notbetrieb.lokal_ablegen("a@firma.at", "sentitems", TEXT_MAIL, gelesen=True)
+    assert notbetrieb.zurueckspielen(min_alter_s=notbetrieb.RUECKSPIEL_WARTEN_S)["eingespielt"] == 0
+    monkeypatch.setattr(graph_client, "_acquire_token", lambda: None)
+    with notbetrieb._conn() as conn:
+        offen = conn.execute("SELECT COUNT(*) FROM mails WHERE herkunft='lokal' AND zurueck IS NULL").fetchone()[0]
+    assert offen >= 1 and notbetrieb.zurueckspielen()["offen"] == offen   # ohne Wartezeit alle
+
+
+def test_abgleich_spielt_zurueck_ausser_im_notfall(schatten, monkeypatch):
+    aufrufe = []
+    monkeypatch.setattr(notbetrieb, "zurueckspielen", lambda **k: aufrufe.append(k) or {})
+    monkeypatch.setattr(notbetrieb, "_postfaecher", lambda: [])
+    notbetrieb.abgleich_alle()
+    assert aufrufe == [{"min_alter_s": notbetrieb.RUECKSPIEL_WARTEN_S}]
+    schatten["NOTBETRIEB_AUSGERUFEN"] = True
+    notbetrieb.abgleich_alle()
+    assert len(aufrufe) == 1
+
+
 def test_entwuerfe_sichern_oeffnen_senden(client, postfix, schatten):
     """Entwurf je angemeldeter Person; Senden mit Entwurf räumt ihn weg;
     ohne Senderecht gibt es keine Entwürfe (sie wären nicht absendbar)."""
