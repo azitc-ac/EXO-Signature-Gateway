@@ -259,11 +259,11 @@ class Konto:
 
 def smtp_erlaubt(benutzer: str) -> bool:
     """Senden aus Mailprogrammen: Funktion an, Schalter an, und Notfall
-    ausgerufen oder Probegruppe — dieselbe Regel wie für Inhalte im Webmail."""
+    ausgerufen oder Probegruppe — dieselbe Regel wie fürs Senden im Webmail."""
     import settings_store
     if not notbetrieb.funktion_aktiv() or settings_store.get("NOTBETRIEB_SMTP") is not True:
         return False
-    return notbetrieb.inhalte_erlaubt(benutzer)
+    return notbetrieb.senden_erlaubt(benutzer)
 
 
 async def einliefern(konto: Konto, mail_from: str, rcpt_tos: list, raw: bytes) -> str:

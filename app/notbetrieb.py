@@ -125,14 +125,29 @@ def ausgerufen() -> bool:
     return funktion_aktiv() and settings_store.get("NOTBETRIEB_AUSGERUFEN") is True
 
 
-def inhalte_erlaubt(benutzer: str) -> bool:
-    """Vor dem Notfall sieht nur die Probegruppe Inhalte (Probealarm); alle
-    anderen können sich anmelden und sehen „bereit“. EINE Regel für Webmail,
-    IMAP und Senden aus Mailprogrammen."""
-    if ausgerufen():
-        return True
+def _in_probegruppe(benutzer: str) -> bool:
     probe = settings_store.get("NOTBETRIEB_PROBEGRUPPE") or []
     return benutzer.strip().lower() in {str(a).strip().lower() for a in probe if a}
+
+
+def lesen_alle() -> bool:
+    """Schalter: Die Kopie ist schon im Normalbetrieb für alle lesbar
+    (Vorschau — man sieht jederzeit, was im Ausfall da wäre)."""
+    return settings_store.get("NOTBETRIEB_LESEN_ALLE") is True
+
+
+def inhalte_erlaubt(benutzer: str) -> bool:
+    """LESEN der Kopie (Webmail, IMAP). Im Notfall alle; vorher die
+    Probegruppe und — mit `lesen_alle` — alle. Sonst sieht man „bereit“."""
+    return ausgerufen() or lesen_alle() or _in_probegruppe(benutzer)
+
+
+def senden_erlaubt(benutzer: str) -> bool:
+    """SENDEN (Webmail, 587). Strenger als Lesen: Gesendet wird im
+    Notbetrieb am Exchange vorbei (Direktversand, interne Post in die Kopie).
+    Im Normalbetrieb liefe das neben Exchange her — dort also nur die
+    Probegruppe (Probealarm), auch wenn alle lesen dürfen."""
+    return ausgerufen() or _in_probegruppe(benutzer)
 
 
 def postfach_fuer(adresse: str) -> str | None:
@@ -297,6 +312,13 @@ def _conn() -> sqlite3.Connection:
             eltern   TEXT,
             name     TEXT NOT NULL,
             PRIMARY KEY (postfach, id)
+        );
+        CREATE TABLE IF NOT EXISTS entwuerfe (
+            benutzer TEXT NOT NULL,
+            id       TEXT NOT NULL,
+            daten    TEXT NOT NULL,
+            ts       TEXT NOT NULL,
+            PRIMARY KEY (benutzer, id)
         );
         """)
     # Spalten, die nach der ersten Fassung dazukamen (Bestandsdatenbanken).

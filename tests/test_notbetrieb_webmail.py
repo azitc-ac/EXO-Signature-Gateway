@@ -648,7 +648,7 @@ def test_vor_dem_notfall_jede_inhaltsroute_gesperrt(client, schatten):
     _anmelden(client)
     d = client.get("/notfall/api/ich").json()
     assert d["ok"] and d["bereit_modus"] is True and d["zugriff"] == []
-    frei = {"/notfall", "/notfall/anmelden", "/notfall/abmelden", "/notfall/api/ich",
+    frei = {"/notfall", "/notfall/anmelden", "/notfall/abmelden", "/notfall/api/ich", "/notfall/app.webmanifest",
             # Zweiter Faktor: Anmeldeschritt und Einrichten — vor jeder Sitzung, eigene Wachen
             # (Vorgang bzw. Entra-Bescheinigung), geprüft in test_notbetrieb_faktor.py.
             "/notfall/anmelden/faktor", "/notfall/einrichten", "/notfall/api/faktor",
@@ -676,6 +676,91 @@ def test_vor_dem_notfall_jede_inhaltsroute_gesperrt(client, schatten):
     schatten["NOTBETRIEB_PROBEGRUPPE"] = ["A@Firma.at"]
     assert client.get("/notfall/api/ordner", params={"postfach": "a@firma.at"}).status_code == 200
     assert client.get("/notfall/api/ich").json()["bereit_modus"] is False
+
+
+def test_lesen_alle_heisst_nicht_senden(client, postfix, schatten):
+    """Schalter „für alle lesbar“: Inhalte für jeden, Senden weiter nur für die
+    Probegruppe (es liefe am Exchange vorbei) — im Webmail wie über 587."""
+    import notbetrieb
+    import notbetrieb_senden
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = []
+    schatten["NOTBETRIEB_LESEN_ALLE"] = True
+    schatten["NOTBETRIEB_SMTP"] = True
+    schatten[notbetrieb._LAST_KEY] = {"ts": "2026-11-15T10:00:00+00:00"}
+    _anmelden(client)
+    d = client.get("/notfall/api/ich").json()
+    assert d["bereit_modus"] is False and d["senden"] is False and d["absender"] == []
+    assert d["vorschau"]["stand"] == "2026-11-15T10:00:00+00:00" and "a@firma.at" in d["vorschau"]["tage"]
+    assert client.get("/notfall/api/ordner", params={"postfach": "a@firma.at"}).status_code == 200
+    r = client.post("/notfall/api/senden", json={"postfach": "a@firma.at", "an": "kunde@extern.de", "betreff": "x"})
+    assert r.status_code == 403 and postfix == []
+    assert notbetrieb_senden.smtp_erlaubt("a@firma.at") is False
+    # Probegruppe darf senden; im ausgerufenen Notfall alle, ohne Vorschau-Hinweis.
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = ["a@firma.at"]
+    assert client.get("/notfall/api/ich").json()["senden"] is True
+    assert notbetrieb_senden.smtp_erlaubt("a@firma.at") is True
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = []
+    schatten["NOTBETRIEB_AUSGERUFEN"] = True
+    d = client.get("/notfall/api/ich").json()
+    assert d["senden"] is True and d["vorschau"] is None
+    r = client.post("/notfall/api/senden", json={"postfach": "a@firma.at", "an": "kunde@extern.de", "betreff": "x"})
+    assert r.status_code == 200
+
+
+def test_entwuerfe_sichern_oeffnen_senden(client, postfix, schatten):
+    """Entwurf je angemeldeter Person; Senden mit Entwurf räumt ihn weg;
+    ohne Senderecht gibt es keine Entwürfe (sie wären nicht absendbar)."""
+    import notbetrieb_entwuerfe as ne
+    _anmelden(client)
+    r = client.post("/notfall/api/entwurf", json={"postfach": "a@firma.at", "an": "kunde@extern.de",
+                                                 "betreff": "Angebot", "text": "Hallo", "unbekannt": "x"})
+    assert r.status_code == 200
+    eid = r.json()["id"]
+    r = client.post("/notfall/api/entwurf", json={"id": eid, "postfach": "a@firma.at", "an": "kunde@extern.de",
+                                                 "betreff": "Angebot 2", "text": "Hallo Welt"})
+    assert r.json()["id"] == eid                                    # überschrieben, nicht neu
+    liste = client.get("/notfall/api/entwuerfe").json()["entwuerfe"]
+    assert [(e["id"], e["betreff"]) for e in liste] == [(eid, "Angebot 2")]
+    e = client.get("/notfall/api/entwurf", params={"id": eid}).json()
+    assert e["text"] == "Hallo Welt" and "unbekannt" not in e
+    # Fremde Person sieht ihn nicht, auch mit der Kennung nicht.
+    assert ne.laden("b@firma.at", eid) is None and ne.loeschen("b@firma.at", eid) is False
+    with pytest.raises(ne.EntwurfFehler):
+        ne.speichern("b@firma.at", eid, {"betreff": "gekapert"})
+    # Senden mit Entwurf löscht ihn.
+    r = client.post("/notfall/api/senden", json={"postfach": "a@firma.at", "an": "kunde@extern.de",
+                                                 "betreff": "Angebot 2", "entwurf": eid})
+    assert r.status_code == 200 and client.get("/notfall/api/entwuerfe").json()["entwuerfe"] == []
+    # Verwerfen.
+    eid = client.post("/notfall/api/entwurf", json={"betreff": "weg"}).json()["id"]
+    assert client.post("/notfall/api/entwurf/loeschen", json={"id": eid}).status_code == 200
+    assert client.get("/notfall/api/entwurf", params={"id": eid}).status_code == 404
+    # Ohne Senderecht (nur „für alle lesbar“) keine Entwürfe.
+    schatten["NOTBETRIEB_PROBEGRUPPE"] = []
+    schatten["NOTBETRIEB_LESEN_ALLE"] = True
+    assert client.get("/notfall/api/entwuerfe").status_code == 403
+    assert client.post("/notfall/api/entwurf", json={"betreff": "x"}).status_code == 403
+
+
+def test_entwuerfe_obergrenze(schatten):
+    import notbetrieb_entwuerfe as ne
+    for i in range(ne.MAX_JE_BENUTZER):
+        ne.speichern("a@firma.at", "", {"betreff": str(i)})
+    with pytest.raises(ne.EntwurfFehler):
+        ne.speichern("a@firma.at", "", {"betreff": "zu viel"})
+    assert len(ne.liste("a@firma.at")) == ne.MAX_JE_BENUTZER
+
+
+def test_manifest_der_homescreen_app(client, schatten):
+    r = client.get("/notfall/app.webmanifest")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("application/manifest+json")
+    m = r.json()
+    assert m["start_url"] == "/notfall" and m["scope"] == "/notfall" and m["display"] == "standalone"
+    for symbol in m["icons"]:                                       # jedes Symbol wird auch ausgeliefert
+        assert client.get(symbol["src"]).status_code == 200, symbol["src"]
+    assert '<link rel="manifest" href="/notfall/app.webmanifest">' in client.get("/notfall").text
+    schatten["NOTBETRIEB_AKTIV"] = False
+    assert client.get("/notfall/app.webmanifest").status_code == 404
 
 
 @pytest.mark.parametrize("kopf, erwartet", [

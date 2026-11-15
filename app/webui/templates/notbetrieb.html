@@ -43,9 +43,23 @@
   <h3>Vor dem Notfall</h3>
   <p class="hint" style="margin-top:0">
     Anmelden kann sich jeder jederzeit — so lässt sich der Zugang vorab auf allen Geräten einrichten.
-    Inhalte zeigt das Webmail vor dem Notfall nur der Probegruppe (für Probealarme); alle anderen sehen
-    „bereit“. Eine Adresse je Zeile.
+    Ohne den Schalter unten zeigt das Webmail vor dem Notfall nur der Probegruppe Inhalte; alle anderen
+    sehen „bereit“.
   </p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-lesen-alle" {% if lesen_alle %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
+             onchange="nbSchalter(this, {NOTBETRIEB_LESEN_ALLE: this.checked}, 'nb-lesen-alle-msg')"> Kopie schon im Normalbetrieb für alle lesbar
+    </label>
+    <span class="hint">Webmail und IMAP, nur lesen</span>
+  </div>
+  <div class="msg" id="nb-lesen-alle-msg" hidden></div>
+  <p class="hint">
+    So sieht jeder jederzeit, was im Ausfall da wäre, und kennt die Oberfläche schon. Das Webmail zeigt
+    dabei oben, wie alt die Kopie ist und wie viele Tage sie zurückreicht. Senden bleibt der Probegruppe
+    vorbehalten: Es liefe sonst am Exchange vorbei. Gelesen-Markierungen gelten nur in der Kopie.
+  </p>
+  <p class="hint">Probegruppe — sieht Inhalte und darf senden (Probealarm). Eine Adresse je Zeile.</p>
   <div class="settings-row">
     <label for="nb-probegruppe">Probegruppe</label>
     <div class="settings-control"><textarea id="nb-probegruppe" rows="3" style="width:100%"
@@ -257,8 +271,8 @@
   <p class="hint" style="margin-top:0">
     Outlook (als zusätzliches Konto) und Mail-Apps auf dem Handy lesen die Kopie per IMAP — nur lesend —
     und senden per SMTP über das Gateway, mit Signatur wie im Webmail. Vor dem Notfall zeigt das Konto einen
-    leeren Posteingang und sendet nicht (außer für die Probegruppe), es kann also vorab auf allen Geräten
-    eingerichtet werden.
+    leeren Posteingang (außer für die Probegruppe oder wenn die Kopie für alle lesbar ist) und sendet nicht
+    (außer für die Probegruppe), es kann also vorab auf allen Geräten eingerichtet werden.
   </p>
   <div class="settings-row">
     <label class="checkbox-label">
@@ -281,6 +295,24 @@
     durchlassen. Als Server immer den Namen eintragen, nie die IP-Adresse: Er muss zum Zertifikat passen,
     sonst lehnt das Programm die Verbindung ab — Outlook bricht das Senden dann womöglich ohne Rückfrage ab. Gesendet wird aus dem eigenen Postfach oder einem mit „Senden als“/„Senden im Auftrag“;
     die Kopie unter „Gesendete Elemente“ legt das Gateway selbst ab.
+  </p>
+</div>
+
+<!-- Auf die Geräte -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Webmail auf die Geräte bringen</h2>
+  <p class="hint" style="margin-top:0">
+    Verteile immer diesen Link — Passkeys gelten nur für den Namen, unter dem sie eingerichtet wurden:
+    <code>{{ webmail_url }}</code>. Auf dem Handy lässt sich das Webmail als App auf den Home-Bildschirm legen
+    (Safari: Teilen → „Zum Home-Bildschirm“; Chrome/Edge: „App installieren“). Es öffnet sich dann ohne
+    Browserleiste.
+  </p>
+  <p class="hint">
+    Mit Intune: <em>Apps → All Apps → Create</em>, Typ „iOS/iPadOS web clip“ (mit „Full screen“: Yes),
+    „Windows web link“ oder für Android Enterprise ein Web-Link über Managed Google Play; App URL wie oben.
+    Weise ihn als <em>Available</em> zu: Als <em>Required</em> zugewiesene Web-Clips lassen sich auf iOS nur
+    über die Zuweisung <em>Uninstall</em> wieder entfernen. „Require a managed browser“ öffnet den Link in
+    Microsoft Edge — nur nötig, wenn eure App-Schutzrichtlinien das verlangen.
   </p>
 </div>
 

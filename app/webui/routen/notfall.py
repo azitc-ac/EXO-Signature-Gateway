@@ -20,6 +20,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 import notbetrieb
 import notbetrieb_anmeldung
+import notbetrieb_entwuerfe
 import notbetrieb_faktor
 import notbetrieb_lesen
 import notbetrieb_rechte
@@ -68,6 +69,13 @@ def _leser(benutzer: str = Depends(_benutzer)) -> str:
     return benutzer
 
 
+def _sender(benutzer: str = Depends(_leser)) -> str:
+    """Wache fürs SENDEN — strenger als Lesen (notbetrieb.senden_erlaubt)."""
+    if not notbetrieb.senden_erlaubt(benutzer):
+        raise HTTPException(403, "Senden geht hier nur im Notfall — im Normalbetrieb nimm Outlook.")
+    return benutzer
+
+
 def _postfach(benutzer: str, postfach: str) -> str:
     postfach = (postfach or "").strip().lower()
     if not notbetrieb_lesen.darf_lesen(benutzer, postfach):
@@ -83,6 +91,22 @@ async def notfall_seite(request: Request):
                                       context={"gateway_name": _gateway_name(), "einrichten": False,
                                                "eingerichtet": notbetrieb_anmeldung.eingerichtet(),
                                                "frisch_min": FRISCH_S // 60})
+
+
+@router.get("/notfall/app.webmanifest")
+async def notfall_manifest():
+    """Homescreen-App („Zum Home-Bildschirm“, Intune-Web-Link): eigenes
+    Fenster ohne Browserleiste, Start und Geltungsbereich nur /notfall."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    return JSONResponse({
+        "name": f"Notfall-Mail {_gateway_name()}", "short_name": "Notfall-Mail",
+        "start_url": "/notfall", "scope": "/notfall", "display": "standalone",
+        "background_color": "#f1f5f9", "theme_color": "#0f172a", "lang": "de",
+        "icons": [{"src": "/static/favicon.svg", "sizes": "any", "type": "image/svg+xml"},
+                  {"src": "/static/symbol/192.png", "sizes": "192x192", "type": "image/png"},
+                  {"src": "/static/apple-touch-icon.png", "sizes": "180x180", "type": "image/png"}],
+    }, media_type="application/manifest+json")
 
 
 @router.post("/notfall/anmelden")
@@ -342,10 +366,20 @@ async def notfall_ich(benutzer: str = Depends(_benutzer)):
         letzter = (notbetrieb.status().get("letzter_lauf") or {}).get("ts")
         return JSONResponse({"ok": True, "benutzer": benutzer, "bereit_modus": True,
                              "letzter_abgleich": letzter, "zugriff": [], "absender": []})
-    return JSONResponse({"ok": True, "benutzer": benutzer, "bereit_modus": False,
-                         "zugriff": [p for p in await asyncio.to_thread(notbetrieb_rechte.zugriff, benutzer)
-                                     if p["voll"]],
-                         "absender": await asyncio.to_thread(notbetrieb_senden.absender, benutzer)})
+    zugriff = [p for p in await asyncio.to_thread(notbetrieb_rechte.zugriff, benutzer) if p["voll"]]
+    senden = notbetrieb.senden_erlaubt(benutzer)
+    return JSONResponse({"ok": True, "benutzer": benutzer, "bereit_modus": False, "zugriff": zugriff,
+                         "senden": senden, "vorschau": None if notbetrieb.ausgerufen() else
+                         await asyncio.to_thread(_vorschau, [p["postfach"] for p in zugriff]),
+                         "absender": await asyncio.to_thread(notbetrieb_senden.absender, benutzer) if senden else []})
+
+
+def _vorschau(postfaecher: list[str]) -> dict:
+    """Für den Hinweis im Normalbetrieb: Stand der Kopie und je Postfach, wie
+    viele Tage Post sie hält — damit niemand die Kopie für das Postfach hält."""
+    stand = (notbetrieb.status().get("letzter_lauf") or {}).get("ts")
+    tage = {p["postfach"].lower(): p["mail"] for p in notbetrieb.postfach_uebersicht()}
+    return {"stand": stand, "tage": {pf: tage.get(pf.lower()) for pf in postfaecher}}
 
 
 @router.get("/notfall/api/ordner")
@@ -438,7 +472,7 @@ _MAX_RUMPF = 22 * 1024 * 1024      # 15 MB Anhänge, base64 (×4/3) plus Text
 
 
 @router.post("/notfall/api/senden")
-async def notfall_senden(request: Request, benutzer: str = Depends(_leser)):
+async def notfall_senden(request: Request, benutzer: str = Depends(_sender)):
     import base64
     import binascii
     if int(request.headers.get("content-length") or 0) > _MAX_RUMPF:
@@ -460,4 +494,44 @@ async def notfall_senden(request: Request, benutzer: str = Depends(_leser)):
             str(body.get("art") or "neu"))
     except notbetrieb_senden.SendeFehler as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    if body.get("entwurf"):
+        await asyncio.to_thread(notbetrieb_entwuerfe.loeschen, benutzer, str(body["entwurf"]))
     return JSONResponse(erg)
+
+
+# ── Entwürfe (automatisch gesichert, je angemeldetem Benutzer) ──────────────
+
+@router.get("/notfall/api/entwuerfe")
+async def notfall_entwuerfe(benutzer: str = Depends(_sender)):
+    return JSONResponse({"ok": True, "entwuerfe": await asyncio.to_thread(notbetrieb_entwuerfe.liste, benutzer)})
+
+
+@router.get("/notfall/api/entwurf")
+async def notfall_entwurf(id: str, benutzer: str = Depends(_sender)):
+    e = await asyncio.to_thread(notbetrieb_entwuerfe.laden, benutzer, id)
+    if not e:
+        raise HTTPException(404)
+    return JSONResponse({"ok": True, **e})
+
+
+@router.post("/notfall/api/entwurf")
+async def notfall_entwurf_speichern(request: Request, benutzer: str = Depends(_sender)):
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    try:
+        return JSONResponse({"ok": True, **await asyncio.to_thread(
+            notbetrieb_entwuerfe.speichern, benutzer, str(body.get("id") or ""), body)})
+    except notbetrieb_entwuerfe.EntwurfFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@router.post("/notfall/api/entwurf/loeschen")
+async def notfall_entwurf_loeschen(request: Request, benutzer: str = Depends(_sender)):
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    await asyncio.to_thread(notbetrieb_entwuerfe.loeschen, benutzer, str(body.get("id") or ""))
+    return JSONResponse({"ok": True})

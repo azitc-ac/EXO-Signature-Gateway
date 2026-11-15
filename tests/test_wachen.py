@@ -111,6 +111,7 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     "/notfall/anmelden/faktor": "zweiter Anmeldeschritt: signierter Vorgang (5 min) aus geprüftem Kennwort, "
                                 "Code gedrosselt und hart gesperrt (notbetrieb_faktor)",
     "/notfall/einrichten": "Hülle der Einrichtungsseite; Daten hängen an notfall._entra_postfach",
+    "/notfall/app.webmanifest": "Manifest der Homescreen-App: Name, Symbole, Startadresse — keine Daten",
     "/notfall/anmelden/passkey/optionen": "zweiter Anmeldeschritt mit Passkey: signierter Vorgang (5 min) aus "
                                           "geprüftem Kennwort, Herausforderung gilt einmal",
     "/notfall/anmelden/passkey": "zweiter Anmeldeschritt mit Passkey: signierter Vorgang, Signatur geprüft, "

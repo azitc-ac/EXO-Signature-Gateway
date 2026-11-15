@@ -11,7 +11,8 @@ SICHERHEIT
 - Anmeldung = Webmail-Anmeldung (`notbetrieb_anmeldung.anmelden`: DC, Drossel
   je Name und Adresse); Postfächer = Rechte-Abbild (eigenes + Vollzugriff).
 - Vor dem Notfall: Anmelden geht, sichtbar ist nur ein leerer Posteingang —
-  außer für die Probegruppe (`notfall.inhalte_erlaubt`). So lässt sich das
+  außer für die Probegruppe oder mit „für alle lesbar“ (`notbetrieb.inhalte_erlaubt`,
+  Lesen; Senden regelt `senden_erlaubt`). So lässt sich das
   Konto vorab auf allen Geräten einrichten.
 - Grenzen: Zeilenlänge, Literalgröße, Leerlauf; Fehlversuche je Verbindung.
 - Schalter `NOTBETRIEB_IMAP` wird je Verbindung geprüft — live umschaltbar.

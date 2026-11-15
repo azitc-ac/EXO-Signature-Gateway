@@ -188,6 +188,7 @@ REGISTER: dict[str, E] = {
     "NOTBETRIEB_AUSGERUFEN": E(art=OPTION, ort="notbetrieb.html"),  # Notfall ausgerufen
     "NOTBETRIEB_PROBEGRUPPE": E(art=STRUKTUR, ort="notbetrieb.html"),  # Inhalte vor dem Notfall
     "NOTBETRIEB_IMAP": E(art=OPTION, ort="notbetrieb.html"),  # IMAP-Zugang (993)
+    "NOTBETRIEB_LESEN_ALLE": E(art=OPTION, ort="notbetrieb.html"),  # Kopie im Normalbetrieb für alle lesbar
     "NOTBETRIEB_SMTP": E(art=OPTION, ort="notbetrieb.html"),  # Senden aus Mailprogrammen (587)
     "NOTBETRIEB_ZWEITFAKTOR": E(art=OPTION, ort="notbetrieb.html"),  # zweiter Faktor Pflicht
     "NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE": E(art=OPTION, ort="notbetrieb.html"),

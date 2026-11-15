@@ -7,6 +7,11 @@
 <meta name="referrer" content="no-referrer">
 <title>Notbetrieb — {{ gateway_name }}</title>
 {% include "_favicon.html" %}
+<link rel="manifest" href="/notfall/app.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Notfall-Mail">
 <script src="/static/common.js?v={{ version }}"></script>
 <style>
 /* Eigenständige Seite für alle Mitarbeiter (nicht die Admin-Oberfläche):
@@ -37,6 +42,8 @@ header .rechts { margin-left: auto; display: flex; gap: 10px; align-items: cente
 header button, header select { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); }
 header select option { color: #1e293b; background: #fff; }
 header .wer { color: #e2e8f0; }
+/* Vorschau im Normalbetrieb: eigene Zeile im Kopf, damit niemand die Kopie für das Postfach hält. */
+header .vorschau { flex-basis: 100%; font-size: 12px; color: #e2e8f0; }
 button, select, input { font: inherit; color: inherit; }
 button { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
 button.haupt { background: var(--akzent); color: var(--akzent-text); border-color: var(--akzent); }
@@ -57,7 +64,7 @@ a.knopf { display: inline-block; text-decoration: none; border-radius: 6px; padd
 a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 .meldung { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--fehler-bg); color: var(--fehler); }
 .meldung[hidden] { display: none; }
-#app { display: grid; grid-template-columns: 240px 360px 1fr; height: calc(100vh - 48px); }
+#app { display: grid; grid-template-columns: 240px 360px 1fr; height: calc(100vh - var(--kopfhoehe, 48px)); }
 #app[hidden] { display: none; }
 .spalte { border-right: 1px solid var(--rand); overflow: auto; background: var(--flaeche); }
 #ordner .eintrag, #liste .eintrag { padding: 7px 12px; cursor: pointer; border-bottom: 1px solid var(--rand); }
@@ -109,12 +116,13 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 <body>
 <header>
   <span class="titel">{{ gateway_name }}</span>
-  <span class="band">Notbetrieb</span>
+  <span class="band" id="band">Notbetrieb</span>
   <span class="rechts" id="kopf-rechts" hidden>
     <select id="postfachwahl" aria-label="Postfach" onchange="postfachWaehlen(this.value)"></select>
     <span id="ich" class="wer"></span>
     <button onclick="abmelden()">Abmelden</button>
   </span>
+  <span class="vorschau" id="vorschau" hidden></span>
 </header>
 
 <section class="anmeldung" id="anmeldung" hidden>
@@ -199,7 +207,7 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 <main id="app" hidden data-ansicht="liste">
   <nav class="spalte" id="ordnerspalte"><div id="ordner"></div></nav>
   <section class="spalte" id="listenspalte">
-    <div style="padding:8px 8px 0"><button class="haupt" onclick="verfassen()">Neue Mail</button></div>
+    <div style="padding:8px 8px 0" id="neu-zeile"><button class="haupt" onclick="verfassen()">Neue Mail</button></div>
     <select id="ordnerwahl" aria-label="Ordner" style="display:none;margin:8px;width:calc(100% - 16px)"
             onchange="ordnerWaehlen(this.value)"></select>
     <form class="suche" onsubmit="event.preventDefault(); listeLaden(0)">
@@ -235,6 +243,10 @@ async function start() {
   }
   nb.zugriff = d.zugriff;
   nb.absender = d.absender || [];
+  nb.senden = !!d.senden;
+  nb.vorschau = d.vorschau;
+  document.getElementById('neu-zeile').hidden = !nb.senden;
+  document.getElementById('band').textContent = d.vorschau ? 'Vorschau' : 'Notbetrieb';
   document.getElementById('ich').textContent = d.benutzer;
   document.getElementById('postfachwahl').innerHTML = d.zugriff.map(p =>
     '<option value="' + escAttr(p.postfach) + '">' + esc(p.postfach) + (p.eigen ? '' : ' (geteilt)') + '</option>').join('');
@@ -446,8 +458,24 @@ async function abmelden() {
   location.reload();
 }
 
+// Normalbetrieb: Hinweis, wie alt die Kopie ist und wie weit sie zurückreicht.
+function vorschauZeigen() {
+  const el = document.getElementById('vorschau'), v = nb.vorschau;
+  el.hidden = !v;
+  if (!v) return;
+  const min = v.stand ? Math.max(0, Math.round((Date.now() - new Date(v.stand)) / 60000)) : null;
+  const tage = v.tage[nb.postfach.toLowerCase()];
+  el.textContent = 'Das ist die Notfall-Kopie, nicht dein Postfach: Stand '
+    + (min === null ? 'unbekannt' : min < 1 ? 'gerade eben' : min < 120 ? 'vor ' + min + ' min'
+       : 'vom ' + new Date(v.stand).toLocaleString('de-DE'))
+    + (tage ? ', Post der letzten ' + tage + (tage === 1 ? ' Tag' : ' Tage') : '')
+    + (nb.senden ? '. Senden geht hier am Exchange vorbei (Probegruppe).' : '. Senden nur im Notfall — arbeite wie gewohnt in Outlook.');
+  kopfhoeheMerken();
+}
+
 async function postfachWaehlen(pf) {
   nb.postfach = pf; nb.ordner = '';
+  vorschauZeigen();
   const erster = await ordnerLaden();
   if (erster) ordnerWaehlen(erster.id);
 }
@@ -467,7 +495,9 @@ async function ordnerLaden() {
     + (o.id === nb.ordner ? ' aria-current="true"' : '') + '>' + esc(o.name)
     + '<span class="zahl">' + zahl(o) + '</span></div>').join('');
   // Alle erreichbaren Postfächer untereinander; nur das geöffnete klappt auf.
-  el.innerHTML = nb.zugriff.map(p => {
+  el.innerHTML = (nb.senden ? '<div class="eintrag" data-id="__entwuerfe" onclick="ordnerWaehlen(this.dataset.id)"'
+      + (nb.ordner === '__entwuerfe' ? ' aria-current="true"' : '') + '>Meine Entwürfe</div>' : '')
+    + nb.zugriff.map(p => {
     const offen = p.postfach === nb.postfach;
     return '<div class="postfach" data-pf="' + escAttr(p.postfach) + '" aria-expanded="' + offen
       + '" onclick="postfachWaehlen(this.dataset.pf)" title="' + escAttr(p.postfach) + '">'
@@ -482,7 +512,8 @@ async function ordnerLaden() {
   const wahl = document.getElementById('ordnerwahl');
   wahl.innerHTML = d.ordner.map(o => '<option value="' + escAttr(o.id) + '">'
     + esc('\u00a0'.repeat(2 * t(o)) + o.name) + ' (' + zahl(o) + ')</option>').join('')
-    + '<option value="__kalender">Kalender</option><option value="__kontakte">Kontakte</option>';
+    + '<option value="__kalender">Kalender</option><option value="__kontakte">Kontakte</option>'
+    + (nb.senden ? '<option value="__entwuerfe">Meine Entwürfe</option>' : '');
   if (nb.ordner) wahl.value = nb.ordner;
   return d.ordner.find(o => o.wk === 'inbox') || d.ordner[0] || null;
 }
@@ -494,7 +525,26 @@ function ordnerWaehlen(id) {
   document.getElementById('ordnerwahl').value = id;
   if (id === '__kalender') return kalenderZeigen();
   if (id === '__kontakte') return kontakteZeigen();
+  if (id === '__entwuerfe') return entwuerfeZeigen();
   listeLaden(0);
+}
+
+// ── Entwürfe (auf dem Gateway gesichert, je angemeldeter Person) ─────────
+async function entwuerfeZeigen() {
+  const d = await getJSON('/notfall/api/entwuerfe');
+  const el = document.getElementById('liste');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  el.innerHTML = d.entwuerfe.length ? d.entwuerfe.map(e => '<div class="eintrag" data-id="' + escAttr(e.id)
+      + '" onclick="entwurfOeffnen(this.dataset.id)"><div class="betreff">' + esc(e.betreff || '(ohne Betreff)') + '</div>'
+      + '<div class="vorschau">' + esc([e.an ? 'An: ' + e.an : '', datumKurz(e.ts)].filter(Boolean).join(' · '))
+      + '</div></div>').join('')
+    : '<p class="leise" style="padding:12px">Keine Entwürfe. Was du hier schreibst, sichert sich von selbst.</p>';
+}
+
+async function entwurfOeffnen(id) {
+  const e = await getJSON('/notfall/api/entwurf?' + q({id: id}));
+  if (!e.ok) { alert(errText(e)); return; }
+  await verfassen(e.art && e.art !== 'neu' ? e.art : '', e);
 }
 
 // ── Kalender und Kontakte (nur lesend) ───────────────────────────────────
@@ -570,7 +620,8 @@ function kontaktZeigen(i) {
   document.getElementById('lesen').innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
     + '<div style="padding:12px 18px"><h2 style="margin:0 0 6px">' + esc(k.name) + '</h2>'
     + (k.titel || k.firma ? '<div class="leise">' + esc([k.titel, k.firma].filter(Boolean).join(', ')) + '</div>' : '')
-    + k.mails.map(m => '<div>' + esc(m) + ' <button data-an="' + escAttr(m) + '" onclick="anSchreiben(this.dataset.an)">Mail schreiben</button></div>').join('')
+    + k.mails.map(m => '<div>' + esc(m) + (nb.senden ? ' <button data-an="' + escAttr(m)
+      + '" onclick="anSchreiben(this.dataset.an)">Mail schreiben</button>' : '') + '</div>').join('')
     + k.telefon.map(t => '<div>Telefon: ' + esc(t) + '</div>').join('') + '</div>';
   ansicht('lesen');
 }
@@ -637,9 +688,9 @@ async function mailOeffnen(id) {
        + '(SPF/DKIM/DMARC) — Vorsicht bei Links, Anhängen und Zahlungsaufforderungen.</div>' : '')
     + (d.anhaenge.length ? '<div class="anhaenge">' + d.anhaenge.map(a => '<a href="/notfall/anhang?' + escAttr(p)
         + '&nr=' + a.nr + '">📎 ' + esc(a.name) + ' (' + Math.max(1, Math.round(a.groesse / 1024)) + ' KB)</a>').join('') + '</div>' : '')
-    + '<div class="aktionen"><button onclick="verfassen(\'antwort\')">Antworten</button>'
-    + '<button onclick="verfassen(\'allen\')">Allen antworten</button>'
-    + '<button onclick="verfassen(\'weiterleiten\')">Weiterleiten</button></div>'
+    + (nb.senden ? '<div class="aktionen"><button onclick="verfassen(\'antwort\')">Antworten</button>'
+      + '<button onclick="verfassen(\'allen\')">Allen antworten</button>'
+      + '<button onclick="verfassen(\'weiterleiten\')">Weiterleiten</button></div>' : '')
     + '</div>'
     + (d.html
        // sandbox ohne Rechte: kein Skript, kein Formular, kein Zugriff auf diese Seite.
@@ -658,34 +709,42 @@ kopfhoeheMerken();
 
 // ── Verfassen ────────────────────────────────────────────────────────────
 // art: '' (neu) | 'antwort' | 'allen' | 'weiterleiten' (bezieht sich auf nb.mail)
-async function verfassen(art) {
-  let v = {an: '', cc: '', betreff: '', text: ''};
-  if (art) {
+async function verfassen(art, entwurf) {
+  let v = {an: '', cc: '', bcc: '', betreff: '', text: ''};
+  // Bezug fest am Formular — nicht nb.mail, das sich beim Weiterlesen ändert.
+  let bezug = art ? nb.mail : '', bezugPf = art ? nb.postfach : '';
+  if (entwurf) {
+    v = entwurf; bezug = entwurf.bezug; bezugPf = entwurf.bezug_postfach;
+  } else if (art) {
     const d = await getJSON('/notfall/api/vorlage?' + q({postfach: nb.postfach, id: nb.mail, art: art}));
     if (!d.ok) { alert(errText(d)); return; }
     v = d;
   }
   if (!nb.absender.length) { alert('Du darfst aus keinem Postfach senden.'); return; }
   // Vorbelegter Absender: das gerade geöffnete Postfach, wenn es ein Senderecht hat.
-  const von = nb.absender.find(a => a.postfach === nb.postfach) ? nb.postfach : nb.absender[0].postfach;
+  const von = entwurf && nb.absender.find(a => a.postfach === entwurf.postfach) ? entwurf.postfach
+    : nb.absender.find(a => a.postfach === nb.postfach) ? nb.postfach : nb.absender[0].postfach;
   const recht = {eigen: '', als: ' (senden als)', auftrag: ' (im Auftrag)'};
   const el = document.getElementById('lesen');
   el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
-    + '<form id="verfassen" onsubmit="absenden(event)">'
+    + '<form id="verfassen" onsubmit="absenden(event)" oninput="entwurfMerken()">'
     + '<div class="zeile"><label for="vf-von">Von</label><select id="vf-von">' + nb.absender.map(a =>
         '<option value="' + escAttr(a.postfach) + '"' + (a.postfach === von ? ' selected' : '') + '>'
         + esc(a.postfach + recht[a.recht]) + '</option>').join('') + '</select></div>'
     + '<div class="zeile"><label for="vf-an">An</label><input id="vf-an" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.an) + '"></div>'
     + '<div class="zeile"><label for="vf-cc">Cc</label><input id="vf-cc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.cc) + '"></div>'
-    + '<div class="zeile"><label for="vf-bcc">Bcc</label><input id="vf-bcc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)"><datalist id="vf-vorschlaege"></datalist></div>'
+    + '<div class="zeile"><label for="vf-bcc">Bcc</label><input id="vf-bcc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.bcc || '') + '"><datalist id="vf-vorschlaege"></datalist></div>'
     + '<div class="zeile"><label for="vf-betreff">Betreff</label><input id="vf-betreff" value="' + escAttr(v.betreff) + '"></div>'
     + '<textarea id="vf-text" aria-label="Text">' + esc(v.text) + '</textarea>'
     + (art === 'weiterleiten' ? '<div class="leise">Die Nachricht wird als Anhang weitergeleitet.</div>' : '')
     + '<div class="zeile"><label for="vf-dateien">Anhänge</label><input id="vf-dateien" type="file" multiple></div>'
     + '<div class="aktionen"><button class="haupt" id="vf-senden" type="submit">Senden</button>'
-    + '<button type="button" onclick="verwerfen()">Verwerfen</button></div>'
+    + '<button type="button" onclick="verwerfen()">Verwerfen</button>'
+    + '<span class="leise" id="vf-entwurf">' + (entwurf ? 'Entwurf vom ' + esc(datumKurz(entwurf.ts)) : '') + '</span></div>'
+    + '<div class="leise">Entwürfe sichern sich von selbst (ohne Anhänge).</div>'
     + '<div class="meldung" id="vf-meldung" hidden></div></form>';
   el.dataset.art = art || '';
+  nb.entwurf = {id: entwurf ? entwurf.id : '', bezug: bezug || '', bezugPf: bezugPf || '', takt: null};
   ansicht('lesen');
   document.getElementById(art ? 'vf-text' : 'vf-an').focus();
 }
@@ -708,16 +767,42 @@ async function absenden(ev) {
   const d = await knopfAktion('vf-senden', 'Sende…', async () => postJSON('/notfall/api/senden', {
     postfach: document.getElementById('vf-von').value, an: feldWert('vf-an'), cc: feldWert('vf-cc'),
     bcc: feldWert('vf-bcc'), betreff: feldWert('vf-betreff'), text: document.getElementById('vf-text').value,
-    anhaenge: await Promise.all(dateien.map(dateiLesen)), bezug: art ? nb.mail : '', art: art || 'neu'}));
+    anhaenge: await Promise.all(dateien.map(dateiLesen)), bezug: art ? nb.entwurf.bezug : '', art: art || 'neu',
+    entwurf: nb.entwurf.id}));
   if (!d.ok) { meldung.textContent = errText(d); meldung.hidden = false; return; }
+  clearTimeout(nb.entwurf.takt);
+  nb.entwurf = {id: '', takt: null};
   document.getElementById('lesen').innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
     + '<div class="ok" style="margin:18px">Gesendet. Die Mail liegt unter „Gesendete Elemente“ und wird nach der Störung '
     + 'nach Exchange übernommen.</div>';
   ordnerLaden();
 }
 
-function verwerfen() {
+// Sichern 1,5 s nach der letzten Eingabe — nicht je Tastendruck.
+function entwurfMerken() {
+  clearTimeout(nb.entwurf.takt);
+  nb.entwurf.takt = setTimeout(entwurfSichern, 1500);
+}
+
+async function entwurfSichern() {
+  if (!document.getElementById('verfassen')) return;
+  const art = document.getElementById('lesen').dataset.art || '';
+  const d = await postJSON('/notfall/api/entwurf', {
+    id: nb.entwurf.id, postfach: document.getElementById('vf-von').value, an: feldWert('vf-an'),
+    cc: feldWert('vf-cc'), bcc: feldWert('vf-bcc'), betreff: feldWert('vf-betreff'),
+    text: document.getElementById('vf-text').value, art: art, bezug: nb.entwurf.bezug,
+    bezug_postfach: nb.entwurf.bezugPf});
+  const el = document.getElementById('vf-entwurf');
+  if (d.ok) nb.entwurf.id = d.id;
+  if (el) el.textContent = d.ok ? 'Entwurf gesichert ' + new Date(d.ts).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'})
+                                : 'Entwurf nicht gesichert: ' + errText(d);
+}
+
+async function verwerfen() {
   if (!confirm('Entwurf verwerfen?')) return;
+  clearTimeout(nb.entwurf.takt);
+  if (nb.entwurf.id) await postJSON('/notfall/api/entwurf/loeschen', {id: nb.entwurf.id});
+  nb.entwurf = {id: '', takt: null};
   document.getElementById('lesen').innerHTML = '<p class="leise" style="padding:18px">Verworfen.</p>';
   ansicht('liste');
 }

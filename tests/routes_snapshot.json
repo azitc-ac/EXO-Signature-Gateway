@@ -2359,6 +2359,34 @@
     "name": "notfall_adressen"
   },
   {
+    "pfad": "/notfall/api/entwuerfe",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_entwuerfe"
+  },
+  {
+    "pfad": "/notfall/api/entwurf",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_entwurf"
+  },
+  {
+    "pfad": "/notfall/api/entwurf",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_entwurf_speichern"
+  },
+  {
+    "pfad": "/notfall/api/entwurf/loeschen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_entwurf_loeschen"
+  },
+  {
     "pfad": "/notfall/api/faktor",
     "methoden": [
       "GET"
@@ -2462,6 +2490,13 @@
       "GET"
     ],
     "name": "notfall_vorlage"
+  },
+  {
+    "pfad": "/notfall/app.webmanifest",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_manifest"
   },
   {
     "pfad": "/notfall/einrichten",

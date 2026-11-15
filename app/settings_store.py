@@ -46,6 +46,7 @@ DEFAULTS: dict = {
     "NOTBETRIEB_AKTIV": False,
     "NOTBETRIEB_AUSGERUFEN": False,   # Notfall: Übergabe an Exchange geht in die Kopie
     "NOTBETRIEB_PROBEGRUPPE": [],     # sieht im Webmail schon vor dem Notfall Inhalte (Probealarm)
+    "NOTBETRIEB_LESEN_ALLE": False,   # Webmail/IMAP: alle lesen die Kopie schon im Normalbetrieb (Senden nicht)
     "NOTBETRIEB_IMAP": False,         # IMAP-Zugang zur Kopie (Port 993, lesend)
     "NOTBETRIEB_SMTP": False,         # Senden aus Mailprogrammen (587, AD-Anmeldung, nur im Notfall)
     "NOTBETRIEB_ZWEITFAKTOR": True,   # Webmail: AD-Kennwort + zweiter Faktor (TOTP) Pflicht
