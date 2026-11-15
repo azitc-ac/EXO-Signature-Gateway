@@ -320,13 +320,28 @@ def test_handler_vermerkt_nur_bestaetigte_signatur(umgebung, handler_lauf):
     assert _bestand("paula@partner.example")
 
 
-def test_handler_liefert_falsche_signatur_signiert_und_ohne_vermerk(umgebung, handler_lauf):
+def test_handler_entfernt_falsche_signatur_mit_warnvermerk(umgebung, handler_lauf):
+    """Seit v1.12.33: Auch eine NICHT bestätigte Signatur verliert ihre Hülle —
+    der Betreff warnt statt Outlook. Nie „signiert von“, nie eingesammelt."""
     cert, key = _mk("Dr. Vorstand Mueller (CEO)", san="chef@partner.example")
     roh = _signiert("chef@partner.example", cert, key).replace(b"50.000", b"99.000")
     raus = handler_lauf(roh, "chef@partner.example")
-    assert "signiert von" not in raus["Subject"]
-    assert raus.get_content_type() == "multipart/signed", \
-        "unbestätigt muss die Signatur bleiben, damit Outlook selbst urteilt"
+    import email.header
+    betreff = str(email.header.make_header(email.header.decode_header(raus["Subject"])))
+    assert "signiert von" not in betreff
+    assert "[Signatur nicht bestätigt]" in betreff
+    assert raus.get_content_type() == "text/plain", "Hülle muss weg sein"
+    assert not _bestand("chef@partner.example"), "veränderter Inhalt darf nichts einsammeln"
+
+
+def test_handler_laesst_falsche_signatur_wenn_entfernen_aus(umgebung, handler_lauf):
+    """SMIME_STRIP_INBOUND = false: wie bisher signiert, ohne Vermerk."""
+    umgebung["werte"]["SMIME_STRIP_INBOUND"] = False
+    cert, key = _mk("Dr. Vorstand Mueller (CEO)", san="chef@partner.example")
+    roh = _signiert("chef@partner.example", cert, key).replace(b"50.000", b"99.000")
+    raus = handler_lauf(roh, "chef@partner.example")
+    assert raus.get_content_type() == "multipart/signed"
+    assert "nicht bestätigt" not in (raus["Subject"] or "")
 
 
 # ── 8. Nachlauf über den Bestand ─────────────────────────────────────────────

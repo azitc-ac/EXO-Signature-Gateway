@@ -5,6 +5,123 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.37 — 2026-11-15 — Test der Add-in-Verteilung ohne festen Zeitpunkt
+
+Der Test zur Verteilung neuer Add-in-Fassungen (v1.12.36) rechnete mit einem
+fest eingetragenen Datum. Er rechnet jetzt relativ zur aktuellen Zeit, wie es
+die Prüfung auf fest verdrahtete Zeitpunkte verlangt.
+
+**Zu tun:** nichts.
+
+## v1.12.36 — 2026-11-15 — Neue Add-in-Fassung: „wird verteilt“ statt Aufforderung zum Aktualisieren
+
+Stand ein Postfach noch auf einer älteren Fassung des Verfassen-Add-ins,
+forderten Postfachprüfung und die Aufgabe „Verfassen-Add-in aktuell“ dazu auf,
+das Add-in im Admin Center zu aktualisieren — auch dann, wenn das längst
+geschehen war und Exchange die neue Fassung nur noch Postfach für Postfach
+verteilt. Zu tun war in diesem Fall nichts.
+
+Jetzt unterscheidet das Gateway drei Lagen, für Postfachprüfung und Aufgabe
+gleich:
+
+- **Noch kein Postfach hat die neue Fassung:** wie bisher eine Aufgabe mit dem
+  Weg ins Admin Center (Integrierte Apps → Aktualisieren).
+- **Mindestens ein Postfach hat sie:** Das Aktualisieren ist erledigt, Exchange
+  verteilt (laut Microsoft bis zu 72 Stunden). Keine Aufgabe; in der
+  Postfachliste steht neutral „wird verteilt“ (ℹ Hinweis statt ⚠ Warnung).
+- **72 Stunden nach dem ersten aktuellen Postfach noch nicht da:** Aufgabe mit
+  dem Hinweis, die Zuweisung zu prüfen (Add-in an alle zuweisen).
+
+Den Zeitpunkt der Aktualisierung im Admin Center sieht das Gateway nicht; die
+72 Stunden zählen ab der ersten Postfachprüfung, die ein Postfach auf der neuen
+Fassung sah. Liegt noch keine Postfachprüfung gegen die aktuelle Fassung vor,
+meldet die Abnahme „unbekannt“ statt „in Ordnung“.
+
+**Zu tun:** nichts.
+
+## v1.12.35 — 2026-11-15 — S/MIME-Eingangsregeln: Stand wird nach dem Neu-Erstellen gemerkt
+
+Nach „Transport-Regeln neu erstellen“ (Einrichtung → S/MIME – Inbound
+Transport-Regeln) merkt sich das Gateway, dass die Regeln dem aktuellen Stand
+entsprechen. In v1.12.34 ging dieser Merker verloren, weil er über einen
+Speicherweg geschrieben wurde, der nur bekannte Einstellungen annimmt. Die
+Aufgabe „S/MIME-Eingangsregeln aktuell“ blieb deshalb nach dem Knopf offen,
+obwohl die Regeln im Tenant richtig standen. Ein Test prüft jetzt für den
+ganzen Code, dass dieser Speicherweg nur bekannte Einstellungen bekommt.
+
+**Zu tun:** Wenn du in v1.12.34 schon „Transport-Regeln neu erstellen“
+gedrückt hast, drücke den Knopf nach dem Update noch einmal; die Regeln selbst
+ändern sich dabei nicht mehr.
+
+## v1.12.34 — 2026-11-15 — Signierte Einladungen externer Absender laufen nicht mehr übers Gateway
+
+Die Transportregel „SMIME Signed Inbound“ leitete jede signierte Mail von
+außen ans Gateway, auch Besprechungsanfragen. Das Gateway nahm die Signatur ab
+und stellte die Mail neu zu. Im Rückweg-Modus Graph++ geschieht das per Ablage
+im Postfach, und dabei legt Exchange keinen Kalendereintrag an. Die Regel nimmt
+Kalenderelemente jetzt aus (`ExceptIfMessageTypeMatches Calendaring`), wie es
+die ausgehenden Gateway-Regeln schon tun. Exchange stellt signierte Einladungen
+damit selbst zu, mit Kalendereintrag und Antwortknöpfen; die Signatur zeigt
+Outlook selbst an. Das Absenderzertifikat sammelt das Gateway bei der nächsten
+signierten normalen Mail desselben Absenders ein.
+
+Verschlüsselte Einladungen sind von außen nicht als Kalenderelement erkennbar;
+die Regel „SMIME Encrypted Inbound“ bleibt unverändert.
+
+Der Soll-Abgleich der Tenant-Konfiguration meldet die fehlende Ausnahme als
+Warnung.
+
+**Zu tun:** Hast du die S/MIME-Eingangsregeln eingerichtet: Einrichtung →
+S/MIME – Inbound Transport-Regeln → „Transport-Regeln neu erstellen“. Die
+bestehenden Regeln werden dabei ergänzt, nicht ersetzt. Der Punkt erscheint
+unter „Offene Aufgaben“, bis das erledigt ist.
+
+## v1.12.33 — 2026-11-15 — Graph++: Eingang wahlweise per Graph statt IMAP; nicht bestätigte Signaturen mit Warnvermerk
+
+**Eingang per Graph statt IMAP (Graph++, in Erprobung).** Post von externen
+Absendern, die das Gateway bearbeitet hat – vor allem entschlüsselte
+S/MIME-Post –, legt Graph++ bisher per IMAP APPEND in den Posteingang. Unter
+*Erweitert → Zustellwege → Eingang per Graph statt IMAP* lässt sich jetzt
+stattdessen die Graph-API wählen: Die Nachricht wird direkt als empfangene
+Mail angelegt, mit Absender, Message-ID, Zeiten und Unterhaltung. Gemessen
+trägt dieser Weg HTML mit eingebetteten Bildern, große Anhänge und Nur-Text.
+Scheitert die Graph-Anlage, versucht das Gateway IMAP; scheitert auch das,
+geht die Mail den bisherigen Weg bis zur Warteschlange – verloren geht nichts.
+Mails, die noch verschlüsselt oder signiert sind (etwa wenn dem Gateway der
+Schlüssel fehlt), gehen weiter per IMAP, weil die Graph-Anlage eine solche
+Hülle nicht abbilden kann. Verschlüsselte oder signierte Einladungen externer
+Absender kommen über den Graph-Weg als `.ics`-Anlage an, und die
+Original-Kopfzeilen stehen nicht in der Nachricht. Der Tagesbericht zeigt bei
+eingeschaltetem Graph-Weg immer die Zeile „Eingang abgelegt (Graph / IMAP)“ –
+fällt alles auf IMAP zurück, ist sie orange.
+
+**Nicht bestätigte Signatur: Hülle entfernt, Warnvermerk im Betreff.** Ließ
+sich die S/MIME-Signatur einer eingehenden Mail nicht bestätigen (Inhalt
+verändert, Aussteller unbekannt, Zertifikat passt nicht zum Absender), ging
+die Mail bisher signiert weiter, und Outlook warnte selbst. Jetzt entfernt
+das Gateway die Hülle auch dann – wie bei bestätigten Signaturen – und setzt
+stattdessen den Vermerk „[Signatur nicht bestätigt]“ in den Betreff. Er
+behauptet nie „signiert von …“, und eingesammelt wird dabei kein Zertifikat,
+das nicht schon vorher eingesammelt worden wäre. Der Text ist unter
+*Einstellungen → S/MIME → Betreff* anpassbar. Mit ausgeschaltetem „S/MIME-
+Signaturen eingehender Mails entfernen“ bleibt es beim alten Verhalten.
+
+**Zu tun:** nichts. Die Vorgabe bleibt IMAP. Nutzt du Graph++, kannst du den
+neuen Weg unter *Erweitert* einschalten und im Tagesbericht verfolgen.
+
+## v1.12.32 — 2026-11-15 — Graph-Rückfall in den Posteingang behält Message-ID, Sendezeit und Unterhaltung
+
+Scheitern die anderen Zustellwege, legt das Gateway eingehende Post per Graph
+als nachgebaute Nachricht direkt in den Posteingang. Dabei vergab Exchange
+bisher eine neue Message-ID, als Sendezeit erschien die Einlieferzeit, und eine
+Antwort landete in einer eigenen Unterhaltung statt beim Vorgänger. Jetzt
+übergibt das Gateway beim Anlegen die Message-ID, die Sendezeit aus dem
+Date-Kopf sowie In-Reply-To und References der Originalmail. Fehlt ein Wert oder
+ist er ungültig, wird er weggelassen; ein unlesbarer Date-Kopf fällt auf die
+Einlieferzeit zurück.
+
+**Zu tun:** nichts.
+
 ## v1.12.31 — 2026-11-15 — Tägliche Probe des Direktversands
 
 „Selbst zustellen eingerichtet“ hiess bisher nicht „kommt an“. Ob Postfix, DKIM,

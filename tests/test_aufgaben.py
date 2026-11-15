@@ -32,6 +32,8 @@ OHNE_AUFGABE: dict[str, str] = {
                "Adresse ein weiterreichendes Gateway ist, kann keine lokale Prüfung "
                "feststellen — ein abgewiesener Absender kann ebenso ein falsch "
                "eingestelltes Gerät sein. Die Abweisungsliste zeigt den Fall bereits",
+    "1.12.35": "deckt die bestehende Aufgabe „smime-regeln“ (seit 1.12.34) ab: Sie bleibt "
+               "offen, bis der Knopf den Stand gemerkt hat — eine zweite Aufgabe wäre doppelt",
 }
 
 _KOPF = re.compile(r"^## v(\d+\.\d+\.\d+)\b.*$", re.M)

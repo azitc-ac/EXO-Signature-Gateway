@@ -425,7 +425,6 @@ def _senden(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
                            "Graph fehlgeschlagen, SMTP-Fallback aus", queue_on_failure)
     elif mode == "graph_plus":
         import email as _em
-        import smtp_submit
         # ── Absender im Tenant → Graph sendMail ──────────────────────────────
         # Die Post nimmt so den Exchange-Zustellweg: Abwesenheitsantwort und
         # Posteingangsregeln greifen. IMAP APPEND legt nur in den Ordner ab —
@@ -440,12 +439,12 @@ def _senden(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
                 stats.increment("graph_api_calls")
                 return WEG_GRAPH_MIT_KOPIE
             log.warning("Graph++: sendMail für %s fehlgeschlagen — Rückfall auf "
-                        "IMAP APPEND (ohne Posteingangsregeln)", mail_from)
+                        "Ablage im Posteingang (ohne Posteingangsregeln)", mail_from)
             imap_failed = [r for r in rcpt_tos
-                           if not smtp_submit.deliver_inbound_imap(r, content_bytes, mail_from)]
+                           if not _eingang_ablegen(r, content_bytes, mail_from)]
             if imap_failed:
                 _fail_delivery(mail_from, imap_failed, content_bytes,
-                               "Graph sendMail und IMAP APPEND fehlgeschlagen",
+                               "Graph sendMail und Ablage im Posteingang fehlgeschlagen",
                                queue_on_failure)
             return None
         # ── Absender außerhalb → IMAP APPEND ─────────────────────────────────
@@ -454,10 +453,10 @@ def _senden(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         # gescheiterter Entschlüsselung unverändert). Die Abwesenheitsantwort
         # schickt dann das Gateway selbst (oof_ablage, seit v1.9.144);
         # Posteingangsregeln laufen für diese Mails nicht (bekannte Grenze).
-        # IMAP APPEND works only for internal (same-tenant) mailboxes.
-        # External recipients fall back to Graph sendMail.
+        # Ablage geht nur in Postfächer des Tenants (IMAP APPEND wie Graph-Anlage).
+        # Externe Empfänger fallen auf Graph sendMail zurück.
         imap_failed = [r for r in rcpt_tos
-                       if not smtp_submit.deliver_inbound_imap(r, content_bytes, mail_from)]
+                       if not _eingang_ablegen(r, content_bytes, mail_from)]
         if imap_failed:
             import graph_reinject
             _ct = _em.message_from_bytes(content_bytes).get_content_type().lower()
@@ -477,6 +476,54 @@ def _senden(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
             _send_smtp(mail_from, rcpt_tos, content_bytes)
         except Exception as exc:                              # noqa: BLE001
             _fail_delivery(mail_from, rcpt_tos, content_bytes, f"SMTP-Reinject: {exc}", queue_on_failure)
+
+
+def _eingang_ablegen(rcpt_to: str, content_bytes: bytes, mail_from: str) -> bool:
+    """Graph++: Post eines externen Absenders in den Posteingang EINES Empfängers legen.
+
+    Weg nach `settings_store.graph_plus_eingang()`:
+
+    * ``"imap"`` (Vorgabe) — IMAP APPEND, wie bisher.
+    * ``"graph"`` — Graph-Anlage mit PR_MESSAGE_FLAGS beim Anlegen
+      (`graph_reinject.deliver_to_mailbox`; Message-ID, Zeiten und Thread-Bezug
+      seit v1.12.32). Gemessen 15.11.2026: trägt HTML mit Inline-Bild, große
+      Anhänge, Nur-Text und Threading. Verschlüsselte oder signierte Einladungen
+      externer Absender kommen über diesen Weg als .ics-Anlage an.
+
+    Noch verschlüsselte oder noch signierte Post (``application/pkcs7-mime``,
+    ``multipart/signed``) geht IMMER per IMAP: Der JSON-Nachbau kann sie nicht
+    abbilden — aus einer Mail, die das Gateway mangels Schlüssel verschlüsselt
+    durchreicht, würde eine Anlage „smime.p7m", die Outlook nicht mehr
+    entschlüsselt. Das ist dieselbe Regel wie im Modus ``graph`` (MIME-Weg).
+
+    Scheitert die Graph-Anlage, wird IMAP versucht; scheitert auch das, liefert
+    die Funktion False und der Aufrufer geht seinen bisherigen Weg (Graph
+    sendMail bzw. Warteschlange) — verloren geht nichts.
+    """
+    import smtp_submit
+    if settings_store.graph_plus_eingang() == "graph":
+        import email as _em
+        _ct = _em.message_from_bytes(content_bytes).get_content_type().lower()
+        if _ct in ("multipart/signed", "application/pkcs7-mime",
+                   "application/x-pkcs7-mime"):
+            log.info("Eingang per Graph: %s für %s — S/MIME-Hülle, daher IMAP APPEND",
+                     _ct, rcpt_to)
+        else:
+            import exo_mailboxes
+            known = exo_mailboxes.known_addresses()
+            if known and rcpt_to.strip().lower() not in known:
+                return False      # nicht im Tenant: wie beim IMAP-Weg → Graph sendMail
+            import graph_reinject
+            if graph_reinject.deliver_to_mailbox(mail_from, [rcpt_to], content_bytes):
+                stats.increment("eingang_graph")
+                log.info("Eingang per Graph abgelegt: to=%s from=%s", rcpt_to, mail_from)
+                return True
+            log.warning("Eingang per Graph für %s fehlgeschlagen — Rückfall auf "
+                        "IMAP APPEND", rcpt_to)
+    if smtp_submit.deliver_inbound_imap(rcpt_to, content_bytes, mail_from):
+        stats.increment("eingang_imap")
+        return True
+    return False
 
 
 # Veraltete Signatur-Kopfzeilen, die vor dem smtp-Reinject weg müssen.

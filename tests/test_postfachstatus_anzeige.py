@@ -50,12 +50,15 @@ def _stand(monkeypatch, aktiv=True, verfassen="1.9.167", knopf="1.9.163"):
         "ADDIN_ENABLED": aktiv,
         "_ADDIN_VERFASSEN_STAND": {"hash": "h", "version": verfassen, "seit": "2026-10-17"},
         "_ADDIN_MANIFEST_STAND": {"hash": "h", "version": knopf},
+        "_ADDIN_VERTEILUNG": {},            # Verteilungsuhr je Test frisch (addin_verteilung)
     }
     monkeypatch.setattr(health_check, "_addin_id_aus_adresse",
                         lambda art: VERF if art == "verfassen" else KNOPF)
     alt = settings_store.get
     monkeypatch.setattr(settings_store, "get",
                         lambda k, *a, **kw: werte[k] if k in werte else alt(k, *a, **kw))
+    monkeypatch.setattr(settings_store, "force_update", lambda d: werte.update(d))
+    return werte
 
 
 def _pruefe(installiert):
@@ -79,6 +82,7 @@ def test_jedes_addin_hat_seine_eigene_zeile(monkeypatch):
     r = _pruefe({VERF: "1.9.167", KNOPF: "1.9.148"})
     assert r["verfassen"]["status"] == "ok" and "1.9.167" in r["verfassen"]["detail"]
     assert r["knopf"]["status"] == "warn" and "1.9.148 statt 1.9.164" in r["knopf"]["detail"]
+    _stand(monkeypatch, knopf="1.9.164")   # frisch: noch kein Postfach auf 1.9.167 gesehen
     r = _pruefe({VERF: "1.9.164", KNOPF: "1.9.164"})
     assert r["verfassen"]["status"] == "warn" and r["knopf"]["status"] == "ok"
 

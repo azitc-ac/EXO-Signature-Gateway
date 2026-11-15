@@ -34,8 +34,11 @@ Seitdem gilt (`pruefen()`):
 3. Die Kette muss strukturell taugen und auf einen bekannten oder
    freigegebenen Aussteller führen (`trust_store`).
 
-Nur wenn alles stimmt, wird die Signatur entfernt und der Vermerk gesetzt.
-Sonst geht die Mail unverändert signiert weiter, und Outlook urteilt selbst.
+Nur wenn alles stimmt, gibt es den Vermerk „signiert von …“. Sonst nimmt
+seit v1.12.33 der Handler die Hülle trotzdem ab und setzt stattdessen den
+Warnvermerk SMIME_TAG_UNBESTAETIGT (handler._unbestaetigt_entfernen) — bis
+dahin ging die Mail signiert weiter, und Outlook urteilte selbst. Der Vermerk
+bescheinigt also nie eine Prüfung, die nicht bestanden wurde.
 
 Eingesammelt wird jedes Zertifikat mit gültiger Inhaltssignatur — aber nur
 über `_uebernehmen()`; das ist der EINZIGE Weg in den Empfängerbestand
@@ -236,9 +239,13 @@ def strip_and_harvest(msg: Message, adressen: list[str], raw: bytes | None = Non
 def nur_entfernen(msg: Message) -> bytes | None:
     """Signaturhülle abnehmen, ohne Prüfung und ohne Einsammeln.
 
-    Nur für die EIGENE, über eine Fremdweiterleitung zurückgekehrte Post: Sie
-    wird nicht als „signiert von …“ ausgewiesen, und ihr Zertifikat gehört
-    nicht in den Bestand der Kommunikationspartner.
+    Zwei Aufrufer, beide ohne „signiert von …“-Vermerk:
+    * die EIGENE, über eine Fremdweiterleitung zurückgekehrte Post — ihr
+      Zertifikat gehört nicht in den Bestand der Kommunikationspartner;
+    * eingehende Post mit NICHT bestätigter Signatur (handler.
+      _unbestaetigt_entfernen, seit v1.12.33) — nach `pruefen()`; der Betreff
+      bekommt dort den Warnvermerk, eingesammelt hat `strip_and_harvest`
+      schon nach seinen eigenen Regeln.
     """
     parts = msg.get_payload()
     if msg.get_content_type().lower() != "multipart/signed" or not isinstance(parts, list) or not parts:

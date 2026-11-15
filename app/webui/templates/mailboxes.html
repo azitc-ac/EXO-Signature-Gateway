@@ -946,9 +946,9 @@ var _CHECK_LABELS = {
 // Zustände aus health_check._make_result — jeder muss hier stehen
 // (tests/test_postfachstatus_anzeige.py). Bis v1.9.174 stand hier „warning“,
 // geliefert wird aber „warn“: Warnungen erschienen grau mit „?“.
-var _STATUS_FARBE = {ok:'#15803d', warn:'#d97706', fixed:'#d97706', error:'#dc2626', skip:'#94a3b8'};
-var _STATUS_ZEICHEN = {ok:'●', warn:'⚠', fixed:'⚠', error:'✗', skip:'–'};
-var _STATUS_TEXT = {ok:'● OK', warn:'⚠ Warnung', fixed:'⚠ Behoben', error:'✗ Fehler', skip:'– entfällt'};
+var _STATUS_FARBE = {ok:'#15803d', info:'#0369a1', warn:'#d97706', fixed:'#d97706', error:'#dc2626', skip:'#94a3b8'};
+var _STATUS_ZEICHEN = {ok:'●', info:'ℹ', warn:'⚠', fixed:'⚠', error:'✗', skip:'–'};
+var _STATUS_TEXT = {ok:'● OK', info:'ℹ Hinweis', warn:'⚠ Warnung', fixed:'⚠ Behoben', error:'✗ Fehler', skip:'– entfällt'};
 
 function _healthBadge(mb) {
   if (!mb.health_overall) return '<span style="color:#bbb;font-size:16px" title="Noch nicht geprüft">–</span>';

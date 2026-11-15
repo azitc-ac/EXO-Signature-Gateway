@@ -506,6 +506,45 @@ def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: 
     return ok
 
 
+_MID_FORM = re.compile(r"^<[^<>\s@]+@[^<>\s]+>$")
+
+
+def _graph_zeit(dt) -> str:
+    """ISO 8601 in UTC mit Z — Format für SystemTime-Properties."""
+    from datetime import timezone
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _herkunft_felder(msg) -> tuple[str | None, list[dict]]:
+    """Message-ID, Zeiten und Thread-Bezug der Originalmail für die JSON-Anlage.
+
+    Ohne sie vergibt Exchange eine neue Message-ID, das Datum wird die
+    Einlieferzeit, und eine Antwort landet in einer eigenen Unterhaltung
+    (Messmatrix 15.11.2026, DEV-Tenant, Fall 5). Mit internetMessageId und
+    0x0E06/0x0039/0x1042/0x1039 BEIM ANLEGEN blieben MID, Datum und
+    Unterhaltung erhalten. Leere Werte gehen nicht mit.
+    """
+    from datetime import datetime, timezone
+    jetzt = datetime.now(timezone.utc)
+    mid = " ".join((msg.get("Message-ID") or "").split())
+    mid = mid if _MID_FORM.match(mid) else None
+    try:
+        gesendet = email.utils.parsedate_to_datetime(msg.get("Date") or "")
+    except (TypeError, ValueError, IndexError):
+        gesendet = None
+    props = [
+        {"id": "SystemTime 0x0E06", "value": _graph_zeit(jetzt)},
+        {"id": "SystemTime 0x0039", "value": _graph_zeit(gesendet or jetzt)},
+    ]
+    for pid, kopf in (("String 0x1042", "In-Reply-To"), ("String 0x1039", "References")):
+        wert = " ".join((msg.get(kopf) or "").split())
+        if wert:
+            props.append({"id": pid, "value": wert})
+    return mid, props
+
+
 def deliver_to_mailbox(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> bool:
     """
     Write a message into each recipient's inbox via Graph API (JSON fallback).
@@ -547,6 +586,12 @@ def deliver_to_mailbox(mail_from: str, rcpt_tos: list[str], content_bytes: bytes
         # Ein PATCH danach wirkt NICHT — siehe Docstring.
         "singleValueExtendedProperties": [{"id": "Integer 0x0E07", "value": "0"}],
     }
+    # Herkunft der Originalmail ebenfalls BEIM ANLEGEN — ein PATCH danach
+    # wirkt auf eine empfangene Nachricht nicht (siehe oben).
+    _mid, _props = _herkunft_felder(msg)
+    if _mid:
+        message["internetMessageId"] = _mid
+    message["singleValueExtendedProperties"].extend(_props)
     if attachments:
         message["attachments"] = attachments
 

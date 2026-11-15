@@ -401,9 +401,10 @@ def _check_addins(installiert: dict | None) -> dict[str, dict]:
 
     Ein über „Integrierte Apps“ bereitgestelltes Add-in übernimmt ein neues
     Manifest erst, wenn ein Admin es dort aktualisiert; danach verteilt
-    Microsoft Postfach für Postfach (24–72 h). Eine ältere Fassung ist deshalb
-    eine Warnung mit dem Weg, kein Fehler. „Nicht installiert“ ist neutral —
-    das Add-in kann bewusst nur einem Teil der Nutzer zugewiesen sein."""
+    Microsoft Postfach für Postfach (24–72 h). Ob eine ältere Fassung eine
+    Handlungsanweisung (Aktualisieren, später Zuweisung) oder nur „wird
+    verteilt“ ist, entscheidet `addin_verteilung.einordnen` — dieselbe
+    Einordnung wie die Aufgabe in abnahme._addin_fassung."""
     soll = {a["art"]: a for a in _addin_soll()}
     ergebnis = {}
     for _schluessel, art in _ADDINS:
@@ -415,9 +416,26 @@ def _check_addins(installiert: dict | None) -> dict[str, dict]:
             ergebnis[art] = _make_result("skip", "Nicht abgefragt (PowerShell-Fehler)")
             continue
         ist = (installiert.get(a["id"]) or "").strip()
-        if not ist:
+        # EINE Einordnung für Postfachprüfung und Aufgabe (addin_verteilung):
+        # Ist die Soll-Fassung schon bei einem Postfach angekommen, ist das
+        # Aktualisieren im Admin Center erledigt — dann nur Verteilung, keine
+        # Handlungsanweisung.
+        import addin_verteilung as av
+        av.gesehen(art, a["version"], ist)
+        lage = av.einordnen(art, a["version"], ist)
+        if lage == av.AKTUELL:
+            ergebnis[art] = _make_result("ok", f"{ist} — aktuell")
+        elif lage == av.NICHT_INSTALLIERT:
             ergebnis[art] = _make_result("skip", "Nicht installiert")
-        elif _versionstupel(ist) < _versionstupel(a["version"]):
+        elif lage == av.VERTEILUNG:
+            ergebnis[art] = _make_result(
+                "info", f"{ist} statt {a['version']} — wird verteilt. Nichts zu tun; "
+                        "Exchange braucht bis zu 72 Stunden.")
+        elif lage == av.ZUWEISUNG:
+            ergebnis[art] = _make_result(
+                "warn", f"{ist or 'nicht installiert'} statt {a['version']}. "
+                        "Zuweisung prüfen: " + av.ZUWEISUNG_WEG)
+        else:
             seit = ""
             if a.get("seit"):
                 j, m, t = a["seit"].split("-")
@@ -428,8 +446,7 @@ def _check_addins(installiert: dict | None) -> dict[str, dict]:
                 "warn", f"{ist} statt {a['version']}{seit}. Integrierte Apps → Add-in → "
                         "Aktualisieren; „Last modified“ vor diesem Datum = noch nicht "
                         "aktualisiert. Danach bis 72 h.")
-        else:
-            ergebnis[art] = _make_result("ok", f"{ist} — aktuell")
+        ergebnis[art].update(ist=ist, soll=a["version"], lage=lage)
     # Anzeigename wie im Admin Center — dort sucht man das Add-in.
     from webui.routen.addin import addin_namen
     for art, name in addin_namen().items():
@@ -787,6 +804,17 @@ def _veraltete_entfernen(aktuell: list[str]) -> None:
         log.info("health_check: Status nicht mehr konfigurierter Postfächer entfernt: %d", len(weg))
 
 
+def _verteilung_vormerken(exo_data: dict) -> None:
+    """Vor der Einzelbewertung: Hat IRGENDEIN Postfach dieses Laufs schon die
+    Soll-Fassung, startet die Verteilungsuhr — sonst bekäme ein Postfach, das in
+    der Reihenfolge vor dem ersten aktuellen kommt, „Aktualisieren“ gemeldet."""
+    import addin_verteilung as av
+    for a in _addin_soll():
+        for daten in (exo_data or {}).values():
+            if isinstance(daten, dict) and not daten.get("error"):
+                av.gesehen(a["art"], a["version"], ((daten.get("addins") or {}).get(a["id"]) or ""))
+
+
 async def run_all_checks(emails: list[str] | None = None) -> dict:
     """
     Run checks for all configured mailboxes (or given list).
@@ -808,6 +836,7 @@ async def run_all_checks(emails: list[str] | None = None) -> dict:
     # Run the EXO batch PS check once for all emails
     loop = asyncio.get_event_loop()
     exo_data = await loop.run_in_executor(None, _check_exo_batch_sync, emails)
+    _verteilung_vormerken(exo_data)
 
     results = {}
     for email in emails:

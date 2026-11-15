@@ -83,11 +83,14 @@ $signedRuleName = "$GatewayName - SMIME Signed Inbound"
 $existingSigned = Get-TransportRule -Identity $signedRuleName -ErrorAction SilentlyContinue
 
 if ($existingSigned) {
-    Write-Warn "Rule '$signedRuleName' already exists — updating comment + Loop-Header"
+    Write-Warn "Rule '$signedRuleName' already exists — updating comment + Loop-Header + Calendaring-Ausnahme"
+    # Kalender-Ausnahme (seit v1.12.34): signierte Einladungen stellt Exchange
+    # selbst zu — sonst kein Kalendereintrag nach der Ablage durchs Gateway.
     Set-TransportRule -Identity $signedRuleName -Comments $managedBy `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
-        -ExceptIfHeaderMatchesPatterns $LoopPattern | Out-Null
-    Write-OK "Rule comment + Loop-Header ($LoopHeader) updated: $signedRuleName"
+        -ExceptIfHeaderMatchesPatterns $LoopPattern `
+        -ExceptIfMessageTypeMatches Calendaring | Out-Null
+    Write-OK "Rule comment + Loop-Header ($LoopHeader) + Calendaring-Ausnahme updated: $signedRuleName"
 } else {
     New-TransportRule `
         -Name $signedRuleName `
@@ -95,6 +98,7 @@ if ($existingSigned) {
         -MessageTypeMatches Signed `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
         -ExceptIfHeaderMatchesPatterns $LoopPattern `
+        -ExceptIfMessageTypeMatches Calendaring `
         -RouteMessageOutboundConnector $connectorId `
         -StopRuleProcessing $true `
         -Comments $managedBy `

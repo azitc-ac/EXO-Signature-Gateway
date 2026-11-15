@@ -20,3 +20,26 @@ def gate_leer(from_member_of) -> bool:
 def gate_offen(state: str | None, from_member_of) -> bool:
     """DER gefährliche Zustand: Regel aktiv UND ohne Absender-Gate."""
     return (state or "") == "Enabled" and gate_leer(from_member_of)
+
+
+# ── S/MIME-Eingangsregeln ─────────────────────────────────────────────────────
+# Kalender-Ausnahme je Regeltyp. Signierte Einladungen externer Absender liefen
+# bis v1.12.34 übers Gateway: Es nahm die Signatur ab und stellte neu zu — in
+# Graph++ per Ablage, wo Exchange keinen Kalendereintrag anlegt. Mit der
+# Ausnahme stellt Exchange sie selbst zu. Verschlüsselte Einladungen sind von
+# außen nicht als Kalenderelement erkennbar; dort gibt es keine Ausnahme.
+SMIME_KALENDER_AUSNAHME = {"Signed": "Calendaring", "Encrypted": None}
+
+# Stand des Solls der S/MIME-Eingangsregeln. Bei jeder Änderung am Soll
+# erhöhen: Installationen mit älterem angewendetem Stand bekommen die Aufgabe,
+# die Regeln neu zu schreiben (abnahme._smime_regeln_stand).
+SMIME_REGELN_STAND = 2   # 2 = Kalender-Ausnahme an „Signed Inbound“ (v1.12.34)
+
+
+def smime_kalender_fehlt(typ: str, except_if) -> bool:
+    """Fehlt der S/MIME-Eingangsregel `typ` die Kalender-Ausnahme, die sie haben soll?"""
+    soll = SMIME_KALENDER_AUSNAHME.get(typ)
+    if not soll:
+        return False
+    werte = except_if if isinstance(except_if, (list, tuple)) else [except_if]
+    return soll not in [str(w or "").strip() for w in werte]
