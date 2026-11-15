@@ -104,8 +104,9 @@ def test_kein_block_ohne_textfassung():
     vorkommen. Sonst verschwindet er still aus der Nur-Text-Signatur — und
     das sieht niemand, der nur die HTML-Vorschau ansieht."""
     import inspect
-    quelle = inspect.getsource(tb._render_block_txt) if hasattr(tb, "_render_block_txt") \
-        else inspect.getsource(tb)
+    # Die Typ-Weiche steht in _render_block_txt_roh; _render_block_txt legt
+    # nur die Bedingung („Anzeigen wenn“) darum.
+    quelle = inspect.getsource(tb._render_block_txt_roh)
     # Bewusst ohne Textfassung, mit Grund — sonst meldet der Wächter dauerhaft
     # und wird ignoriert.
     OHNE_TEXTFASSUNG = {

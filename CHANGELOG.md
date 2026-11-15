@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.15 — 2026-11-15 — Test: Wächter für die Nur-Text-Fassung liest die richtige Funktion
+
+Seit v1.12.14 steht die Weiche der Bausteintypen für die Nur-Text-Signatur in
+einer eigenen Funktion; die bisherige legt nur noch die Bedingung „Anzeigen
+wenn“ darum. Der Test, der prüft, dass jeder Bausteintyp eine Textfassung hat,
+las noch die alte Funktion und meldete deshalb alle Typen als fehlend. Er liest
+jetzt die Weiche selbst.
+
+**Zu tun:** nichts.
+
 ## v1.12.14 — 2026-11-15 — Baukasten: Baustein nur zeigen, wenn jemand für ein Postfach schreibt
 
 Jeder Baustein im Baukasten hat die neue Einstellung **„Anzeigen wenn“**:
