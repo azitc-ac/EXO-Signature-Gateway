@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.35 — 2026-11-15 — S/MIME-Eingangsregeln: Stand wird nach dem Neu-Erstellen gemerkt
+
+Nach „Transport-Regeln neu erstellen“ (Einrichtung → S/MIME – Inbound
+Transport-Regeln) merkt sich das Gateway, dass die Regeln dem aktuellen Stand
+entsprechen. In v1.12.34 ging dieser Merker verloren, weil er über einen
+Speicherweg geschrieben wurde, der nur bekannte Einstellungen annimmt. Die
+Aufgabe „S/MIME-Eingangsregeln aktuell“ blieb deshalb nach dem Knopf offen,
+obwohl die Regeln im Tenant richtig standen. Ein Test prüft jetzt für den
+ganzen Code, dass dieser Speicherweg nur bekannte Einstellungen bekommt.
+
+**Zu tun:** Wenn du in v1.12.34 schon „Transport-Regeln neu erstellen“
+gedrückt hast, drücke den Knopf nach dem Update noch einmal; die Regeln selbst
+ändern sich dabei nicht mehr.
+
 ## v1.12.34 — 2026-11-15 — Signierte Einladungen externer Absender laufen nicht mehr übers Gateway
 
 Die Transportregel „SMIME Signed Inbound“ leitete jede signierte Mail von

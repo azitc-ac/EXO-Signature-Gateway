@@ -100,11 +100,14 @@ def test_abnahme_ok_nach_neuem_schreiben(monkeypatch):
 
 
 def test_einrichtung_merkt_den_stand(monkeypatch, tmp_path):
+    """Mit dem ECHTEN settings_store auf einer Testdatei. Die erste Fassung
+    ersetzte update() durch dict.update — dessen Filter auf DEFAULTS kam so nie
+    zum Zug, und der Merker ging auf der VM still verloren."""
     import settings_store
     import setup_wizard
-    geschrieben = {}
-    monkeypatch.setattr(settings_store, "update", lambda d: geschrieben.update(d))
-    monkeypatch.setattr(settings_store, "get", lambda k, d=None, *a, **kw: d)
+    monkeypatch.setattr(settings_store, "SETTINGS_FILE", tmp_path / "settings.json")
+    monkeypatch.setattr(settings_store, "_data", {})
+    settings_store.init()
     cert = tmp_path / "auth.pfx"
     cert.write_bytes(b"x")
     monkeypatch.setattr(setup_wizard, "_AUTH_CERT_PATH", cert)
@@ -112,7 +115,10 @@ def test_einrichtung_merkt_den_stand(monkeypatch, tmp_path):
     monkeypatch.setattr(subprocess, "run",
                         lambda *a, **kw: subprocess.CompletedProcess(a, 0, "ok", ""))
     assert setup_wizard.run_smime_rules_setup("app", "t.onmicrosoft.com")["ok"]
-    assert geschrieben.get("_SMIME_REGELN_STAND") == regel_soll.SMIME_REGELN_STAND
+    import json
+    gespeichert = json.loads((tmp_path / "settings.json").read_text())
+    assert gespeichert.get("_SMIME_REGELN_STAND") == regel_soll.SMIME_REGELN_STAND
+    assert gespeichert.get("SMIME_RULES_CREATED") is True
 
 
 def test_aufgabe_ist_eingetragen():

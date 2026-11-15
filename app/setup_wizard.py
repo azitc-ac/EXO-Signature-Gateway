@@ -1053,8 +1053,11 @@ def run_smime_rules_setup(
             import regel_soll
             # Angewendeter Stand des Regel-Solls: Ändert sich das Soll (z. B. die
             # Kalender-Ausnahme, v1.12.34), meldet die Abnahme ältere Stände als offen.
-            settings_store.update({"SMIME_RULES_CREATED": True,
-                                   "_SMIME_REGELN_STAND": regel_soll.SMIME_REGELN_STAND})
+            settings_store.update({"SMIME_RULES_CREATED": True})
+            # Interner Laufzeitschlüssel → force_update. update() nimmt nur
+            # DEFAULTS-Schlüssel an und verwarf ihn bis v1.12.34 still: Auf der VM
+            # blieb die Aufgabe „S/MIME-Eingangsregeln“ nach dem Knopf offen.
+            settings_store.force_update({"_SMIME_REGELN_STAND": regel_soll.SMIME_REGELN_STAND})
             log.info("S/MIME transport rules setup succeeded")
             return {"ok": True, "output": output}
         else:
