@@ -119,6 +119,7 @@ def test_angekommen_ausgewertet_und_geloescht(probe):
     assert st["zustand"] == "angekommen" and st["auth"] == {"spf": "pass", "dkim": "pass", "dmarc": "pass"}
     assert ("DELETE", f"https://graph.microsoft.com/v1.0/users/{PF}/messages/p1") in g.aufrufe
     assert np_.bewertung()[0] == "ok"
+    assert "angekommen nach " in np_.bewertung()[1] and " s (" in np_.bewertung()[1]   # unter 2 min in Sekunden
 
 
 @pytest.mark.parametrize("auth, ordner, ampel", [

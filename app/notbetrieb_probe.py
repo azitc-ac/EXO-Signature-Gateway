@@ -157,11 +157,14 @@ def pruefen() -> dict:
             if f.status_code == 200:
                 ordner = f.json().get("displayName") or ""
         angekommen = _zeit(m.get("receivedDateTime") or "")
+        # Laufzeit = Senden bis Empfang laut Exchange — nicht bis zur Prüfung
+        # (die läuft im Abgleichtakt, also Minuten später).
+        sekunden = max(0, round(((angekommen or _jetzt()) - (_zeit(st["ts"]) or _jetzt())).total_seconds()))
         st.update(zustand="angekommen", ordner=ordner, auth=_auswerten(m.get("internetMessageHeaders")),
-                  minuten=round(((angekommen or _jetzt()) - (_zeit(st["ts"]) or _jetzt())).total_seconds() / 60, 1))
+                  sekunden=sekunden, minuten=round(sekunden / 60, 1))
         d = client.delete(f"https://graph.microsoft.com/v1.0/users/{pf}/messages/{m['id']}", headers=hdr)
         st["geloescht"] = d.status_code in (200, 204)
-    log.info("Notbetrieb-Probe: angekommen nach %s min in %s, %s", st["minuten"], st["ordner"] or "?", st["auth"])
+    log.info("Notbetrieb-Probe: angekommen nach %s s in %s, %s", st["sekunden"], st["ordner"] or "?", st["auth"])
     settings_store.force_update({KEY: st})
     return st
 
@@ -185,7 +188,9 @@ def bewertung(st: dict | None = None) -> tuple[str, str]:
         return ("warnung" if alter < timedelta(minutes=PRUEF_FRIST_MIN) else "fehler"), "gesendet, Ankunft noch offen"
     auth = st.get("auth") or {}
     teile = [f"{a.upper()} {auth.get(a, '–')}" for a in ("spf", "dkim", "dmarc")]
-    text = f"angekommen nach {st.get('minuten')} min ({st.get('ordner') or '?'}), " + ", ".join(teile)
+    sek = st.get("sekunden")
+    dauer = f"{sek} s" if isinstance(sek, int) and sek < 120 else f"{st.get('minuten')} min"
+    text = f"angekommen nach {dauer} ({st.get('ordner') or '?'}), " + ", ".join(teile)
     if alter > timedelta(hours=TAKT_H + 3):
         return "fehler", text + f" — aber zuletzt vor {alter.total_seconds() / 3600:.0f} h"
     if any(auth.get(a) != "pass" for a in ("spf", "dkim", "dmarc")):

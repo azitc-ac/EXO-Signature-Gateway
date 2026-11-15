@@ -580,7 +580,9 @@ async function nbStand() {
 }
 
 async function nbAbgleich() {
-  const d = await knopfAktion('nb-abgleich-btn', 'Gleiche ab…', () => postJSON('/api/notbetrieb/abgleich', {}));
+  // Fortschritt an der Standzeile — sonst zeigt sie bis zum Ende den vorigen Lauf (Klicktest).
+  const d = await knopfAktion('nb-abgleich-btn', 'Gleiche ab…', () => postJSON('/api/notbetrieb/abgleich', {}),
+                              {anzeige: 'nb-stand'});
   showMsg('nb-msg', d.ok ? 'Abgleich gelaufen: ' + d.neu + ' neu, ' + d.entfernt + ' entfernt.'
                          : 'Abgleich fehlgeschlagen: ' + errText(d), d.ok);
   nbStand(); nbPostfaecher();
