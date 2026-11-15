@@ -263,14 +263,14 @@
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="nb-imap" {% if imap %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbSchalter(this, 'NOTBETRIEB_IMAP', 'nb-imap-msg')"> Lesen per IMAP einschalten
+             onchange="nbImap(this)"> Lesen per IMAP einschalten
     </label>
   </div>
   <div class="msg" id="nb-imap-msg" hidden></div>
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="nb-smtp" {% if smtp %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbSchalter(this, 'NOTBETRIEB_SMTP', 'nb-smtp-msg')"> Senden per SMTP einschalten
+             onchange="nbSmtp(this)"> Senden per SMTP einschalten
     </label>
   </div>
   <div class="msg" id="nb-smtp-msg" hidden></div>
@@ -539,8 +539,11 @@ async function nbProbeSpeichern() {
 }
 
 // Reiner Schalter → speichert sofort (Speichern-Linie Regel 4).
-async function nbSchalter(el, schluessel, meldung) {
-  if (!await savePartial({[schluessel]: el.checked}, meldung)) el.checked = !el.checked;
+async function nbImap(el) {
+  if (!await savePartial({NOTBETRIEB_IMAP: el.checked}, 'nb-imap-msg')) el.checked = !el.checked;
+}
+async function nbSmtp(el) {
+  if (!await savePartial({NOTBETRIEB_SMTP: el.checked}, 'nb-smtp-msg')) el.checked = !el.checked;
 }
 
 async function nbEingangSpeichern() {
