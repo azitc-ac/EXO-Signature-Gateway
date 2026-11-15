@@ -155,6 +155,24 @@ def _bypass_gemeldet() -> dict | None:
 templates.env.globals["bypass_gemeldet"] = _bypass_gemeldet
 
 
+def _gate_offen_gemeldet() -> dict | None:
+    """Fürs Band: Signatur-Regel AKTIV und ohne Absender-Gate (FromMemberOf leer)?
+    Dann läuft JEDER interne Absender durchs Gateway — der Vorfall vom 04.09.
+    Quelle ist die Regelabfrage des Schedulers (waechter_regel.regel_lesen),
+    die Soll-Funktion regel_soll.gate_offen. Rückgabe {geprueft} oder None."""
+    try:
+        import waechter_state
+        st = waechter_state.lesen()
+        if st.get("rule_gate_offen") is True and st.get("rule_state") == "Enabled":
+            return {"geprueft": _utc_anzeige(st.get("rule_checked") or "")}
+    except Exception:                                       # noqa: BLE001
+        pass
+    return None
+
+
+templates.env.globals["gate_offen_gemeldet"] = _gate_offen_gemeldet
+
+
 # ── Betriebszustände als Band auf JEDER Seite (wie Lernmodus und Bypass) ─────
 # Bis v1.10.86 standen Wartungsmodus, Zustellfehler und Wächter-Ausfall nur auf
 # der Übersicht. Wer auf einer anderen Seite arbeitete, sah sie nicht — und

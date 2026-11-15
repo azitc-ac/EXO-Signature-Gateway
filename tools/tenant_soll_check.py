@@ -29,6 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 from loop_detector import muster_fuer  # noqa: E402 — dieselbe Ableitung wie das Gateway
+from regel_soll import gate_leer  # noqa: E402 — dieselbe Soll-Funktion wie der Wächter
 
 KRITISCH = "KRITISCH"
 WARNUNG = "WARNUNG"
@@ -73,10 +74,8 @@ def _loop_pruefen(add, obj: str, r: dict, inputs: dict) -> None:
             "Loop-Detection-Header → Regeln angleichen.")
 
 
-def _gate_leer(from_member_of) -> bool:
-    """FromMemberOf gilt als leer, wenn keine nicht-leere Kennung enthalten ist.
-    (Die PS-Serialisierung liefert für ein leeres Gate [""], nicht [].)"""
-    return not any((x or "").strip() for x in (from_member_of or []))
+# Dieselbe Soll-Funktion wie der laufende Wächter (app/regel_soll.py).
+_gate_leer = gate_leer
 
 
 def _regel(state, name):

@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.22 — 2026-11-15 — Band „Transportregel ohne Absender-Gate“
+
+Die Signatur-Transportregel greift nur für Absender aus der Verteilerliste
+des Gateways (Absender-Gate, `FromMemberOf`). Ist die Regel aktiv und das Gate
+leer, läuft **jeder interne Absender** durchs Gateway. Kann das Gateway dann
+nicht zustellen, staut sich die gesamte interne Post.
+
+Die tägliche Regelabfrage des Gateways las bisher nur, ob die Regel aktiv ist
+und ob sie eine Empfängerbedingung trägt. Ein leeres Gate fiel im Betrieb
+nicht auf. Jetzt liest sie auch das Gate und zeigt bei aktiver Regel ohne Gate
+ein rotes Band auf jeder Seite. Behoben wird das über **Postfächer →
+Speichern**: Das setzt das Gate wieder auf die Verteilerliste.
+
+Die Abfrage ist rein lesend und braucht keine zusätzliche Berechtigung.
+
+**Zu tun:** nichts.
+
 ## v1.12.21 — 2026-11-15 — Tests: Schleifen- und Gate-Schutz am Verhalten statt am Quelltext geprüft
 
 Drei Tests sicherten Schutzfunktionen ab, deren Ausfall den Mailfluss trifft,

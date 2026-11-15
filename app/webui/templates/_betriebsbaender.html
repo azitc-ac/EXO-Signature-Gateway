@@ -41,6 +41,22 @@
 </div>
 {% endif %}
 
+{# Regel aktiv ohne Absender-Gate: JEDER interne Absender läuft durchs Gateway
+   (Vorfall 04.09.). Aus der Regelabfrage des Schedulers, regel_soll.gate_offen. #}
+{% set _gate_offen = gate_offen_gemeldet() %}
+{% if _gate_offen %}
+<div id="gate-offen-banner"
+     style="background:#fef2f2;border-bottom:2px solid #fca5a5;padding:9px 16px;
+            font-size:13px;color:#991b1b;display:flex;gap:10px;
+            align-items:center;flex-wrap:wrap">
+  <strong>Transportregel ohne Absender-Gate</strong>
+  <span>Die Signatur-Regel ist aktiv, prüft aber nicht mehr, wer sendet: <strong>jeder
+    interne Absender</strong> läuft durchs Gateway. Speichere die Postfächer erneut, das setzt
+    das Gate wieder auf die Verteilerliste.{% if _gate_offen.geprueft %} Regel zuletzt geprüft: {{ _gate_offen.geprueft }}.{% endif %}</span>
+  <a href="/mailboxes" style="color:#991b1b;font-weight:700;margin-left:auto">Zu den Postfächern</a>
+</div>
+{% endif %}
+
 {# Betriebszustände aus der Übersicht — seit v1.10.87 auf JEDER Seite, wie
    Lernmodus und Bypass. Nur für Admins: die Ziele liegen unter „Erweitert“.
    Globals aus deps.py; keine Route kann sie vergessen. #}

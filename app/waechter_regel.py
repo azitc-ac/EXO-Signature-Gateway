@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+import regel_soll
 import settings_store
 import waechter_state
 
@@ -89,8 +90,17 @@ def regel_lesen() -> dict | None:
         return None
     erg = {"state": str(data.get("state") or ""),
            "sent_to_scope": str(data.get("sent_to_scope") or "").strip()}
+    # Ältere Skriptfassungen liefern kein from_member_of: dann UNBEKANNT (None),
+    # nicht „leer“ — sonst meldete ein Update-Zwischenstand einen Totalausfall.
+    # Ist der Schlüssel da, zählt auch null als leer (leeres Gate).
+    if "from_member_of" in data:
+        erg["from_member_of"] = data.get("from_member_of")
+        erg["gate_offen"] = regel_soll.gate_offen(erg["state"], erg["from_member_of"])
+    else:
+        erg["from_member_of"], erg["gate_offen"] = None, None
     waechter_state.merge(
         rule_state=erg["state"], rule_sent_to_scope=erg["sent_to_scope"],
+        rule_gate_offen=erg["gate_offen"],
         rule_checked=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
     return erg
 
@@ -122,6 +132,11 @@ def pruefe_und_merke() -> str | None:
     if state == "Disabled":
         log.warning("Signatur-Transportregel %r ist DISABLED — Bypass aktiv, "
                     "ausgehende Post geht ohne Signatur.", regelname())
+    if erg.get("gate_offen"):
+        log.error("Signatur-Transportregel %r ist AKTIV, aber ohne Absender-Gate "
+                  "(FromMemberOf leer) — JEDER interne Absender läuft durchs Gateway. "
+                  "Postfächer → Speichern setzt das Gate wieder auf die Verteilerliste.",
+                  regelname())
     import regel_bedingung
     if not regel_bedingung.ist_soll(erg["sent_to_scope"]):
         log.warning("Signatur-Transportregel %r trägt die Empfängerbedingung "
