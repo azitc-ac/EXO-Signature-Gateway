@@ -87,6 +87,8 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     # Direktversand an, aber keine (bestandene) tägliche Probe: ob Post ankommt, weiss niemand.
     Aufgabe("direktversand-probe", abnahme._direktversand_probe,
             "/settings/routing#direktversand-probe", seit="1.12.31"),
+    # Kalender-Ausnahme an „SMIME Signed Inbound“: bestehende Regeln neu schreiben.
+    Aufgabe("smime-regeln", abnahme._smime_regeln_stand, "/setup#step-smime", seit="1.12.34"),
 )
 
 _TTL_S = 10

@@ -41,7 +41,7 @@ def gut() -> dict:
             {"Name": "EXO Signature Gateway - SMIME Signed Inbound", "State": "Enabled", "Priority": 14,
              "Mode": "Enforce", "FromScope": "NotInOrganization", "SentToScope": "",
              "FromMemberOf": [""], "RouteMessageOutboundConnector": "EXO Signature Gateway - Outbound",
-             "ExceptIfHeaderMatchesMessageHeader": "X-Sig-Applied", "ExceptIfHeaderMatchesPatterns": [MUSTER], "ExceptIfMessageTypeMatches": "",
+             "ExceptIfHeaderMatchesMessageHeader": "X-Sig-Applied", "ExceptIfHeaderMatchesPatterns": [MUSTER], "ExceptIfMessageTypeMatches": "Calendaring",
              "MessageTypeMatches": "Signed", "StopRuleProcessing": True},
             {"Name": "EXO Signature Gateway - SMIME Encrypted Inbound", "State": "Enabled", "Priority": 15,
              "Mode": "Enforce", "FromScope": "NotInOrganization", "SentToScope": "",

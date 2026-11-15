@@ -476,6 +476,7 @@ INTERNAL_KEYS = frozenset({
     "_ADDIN_VERFASSEN_STAND",     # webui/routen/addin_verfassen.py — dasselbe für das Verfassen-Add-in
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
     "_DIREKTVERSAND_PROBE",       # direktversand_probe.py — Stand der letzten Probe
+    "_SMIME_REGELN_STAND",        # setup_wizard.py — angewendeter Stand des S/MIME-Regel-Solls
 })
 
 # Schlüssel aus entfernten Funktionen. Sie blieben in settings.json stehen, weil

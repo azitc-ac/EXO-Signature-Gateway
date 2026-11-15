@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.34 — 2026-11-15 — Signierte Einladungen externer Absender laufen nicht mehr übers Gateway
+
+Die Transportregel „SMIME Signed Inbound“ leitete jede signierte Mail von
+außen ans Gateway, auch Besprechungsanfragen. Das Gateway nahm die Signatur ab
+und stellte die Mail neu zu. Im Rückweg-Modus Graph++ geschieht das per Ablage
+im Postfach, und dabei legt Exchange keinen Kalendereintrag an. Die Regel nimmt
+Kalenderelemente jetzt aus (`ExceptIfMessageTypeMatches Calendaring`), wie es
+die ausgehenden Gateway-Regeln schon tun. Exchange stellt signierte Einladungen
+damit selbst zu, mit Kalendereintrag und Antwortknöpfen; die Signatur zeigt
+Outlook selbst an. Das Absenderzertifikat sammelt das Gateway bei der nächsten
+signierten normalen Mail desselben Absenders ein.
+
+Verschlüsselte Einladungen sind von außen nicht als Kalenderelement erkennbar;
+die Regel „SMIME Encrypted Inbound“ bleibt unverändert.
+
+Der Soll-Abgleich der Tenant-Konfiguration meldet die fehlende Ausnahme als
+Warnung.
+
+**Zu tun:** Hast du die S/MIME-Eingangsregeln eingerichtet: Einrichtung →
+S/MIME – Inbound Transport-Regeln → „Transport-Regeln neu erstellen“. Die
+bestehenden Regeln werden dabei ergänzt, nicht ersetzt. Der Punkt erscheint
+unter „Offene Aufgaben“, bis das erledigt ist.
+
 ## v1.12.33 — 2026-11-15 — Graph++: Eingang wahlweise per Graph statt IMAP; nicht bestätigte Signaturen mit Warnvermerk
 
 **Eingang per Graph statt IMAP (Graph++, in Erprobung).** Post von externen

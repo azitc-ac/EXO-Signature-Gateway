@@ -417,6 +417,29 @@ def _tls_rueckweg() -> dict:
                   "Smarthost: als Namen *.mail.protection.outlook.com eintragen.")
 
 
+def _smime_regeln_stand() -> dict:
+    """Sind die S/MIME-Eingangsregeln nach dem aktuellen Soll geschrieben?
+
+    Seit v1.12.34 nimmt „SMIME Signed Inbound“ Kalenderelemente aus
+    (regel_soll.SMIME_KALENDER_AUSNAHME). Bestehende Regeln bekommen das nur,
+    wenn die Einrichtung sie neu schreibt. Liest nur den gemerkten Stand
+    (regel_soll.SMIME_REGELN_STAND), fragt Exchange nicht ab — den Live-Abgleich
+    macht tools/tenant_soll_check.py mit demselben Soll."""
+    import regel_soll
+    import settings_store
+    name = "S/MIME-Eingangsregeln aktuell"
+    if not settings_store.get("SMIME_RULES_CREATED"):
+        return _punkt(name, ENTFAELLT, "S/MIME-Eingangsregeln nicht eingerichtet.")
+    stand = settings_store.get("_SMIME_REGELN_STAND") or 1
+    if stand >= regel_soll.SMIME_REGELN_STAND:
+        return _punkt(name, OK, "Regeln nach aktuellem Soll geschrieben.")
+    return _punkt(name, OFFEN,
+                  "Die Regel „SMIME Signed Inbound“ nimmt Kalenderelemente noch nicht aus: "
+                  "signierte Einladungen externer Absender laufen übers Gateway.",
+                  "Einrichtung → S/MIME – Inbound Transport-Regeln → "
+                  "„Transport-Regeln neu erstellen“.")
+
+
 def _direktversand_probe() -> dict:
     """Kommt Post über den Direktversand an (v1.12.31)? Nur lokal: liest den
     Stand der täglichen Probe, keine Netzabfrage. Dieselbe Bewertung wie
@@ -815,6 +838,7 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _addin_rollen, _addin_fassung, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
+              _smime_regeln_stand,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,
               _csp_berichte)
 

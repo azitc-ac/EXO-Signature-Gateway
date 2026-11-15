@@ -30,6 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 from loop_detector import muster_fuer  # noqa: E402 — dieselbe Ableitung wie das Gateway
 from regel_soll import gate_leer  # noqa: E402 — dieselbe Soll-Funktion wie der Wächter
+from regel_soll import smime_kalender_fehlt  # noqa: E402 — dasselbe Soll wie das Setzer-Skript
 
 KRITISCH = "KRITISCH"
 WARNUNG = "WARNUNG"
@@ -155,6 +156,10 @@ def pruefe(state: dict, inputs: dict) -> list[dict]:
                 "S/MIME-Regel hat ein DG-Gate — sie muss über Typ+Scope greifen, nicht über eine DG.")
         if not sr.get("StopRuleProcessing"):
             add(HINWEIS, name, "StopRuleProcessing nicht gesetzt (Soll: true).")
+        if smime_kalender_fehlt(typ, sr.get("ExceptIfMessageTypeMatches")):
+            add(WARNUNG, name,
+                "Kalender-Ausnahme (ExceptIfMessageTypeMatches=Calendaring) fehlt — signierte "
+                "Einladungen laufen übers Gateway und verlieren in Graph++ den Kalendereintrag.")
 
     # ── Outbound-Connector ────────────────────────────────────────────────────
     outs = state.get("outbound_connectoren", [])
