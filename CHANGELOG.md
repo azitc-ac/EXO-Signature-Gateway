@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.12 — 2026-11-15 — Zurückkommender Graph-Versand wird geparkt statt verworfen
+
+Schickt das Gateway eine Mail per Graph `sendMail` an Exchange zurück, trägt
+sie die Gateway-Markierung `X-Sig-Applied`. Daran erkennt die Transportregel,
+dass sie nicht noch einmal ans Gateway gehen soll. Beim Versand aus einem
+**geteilten Postfach** hat Exchange diese Markierung in Messungen verworfen,
+nicht in jedem Fall. Die Mail lief dann ein zweites Mal ans Gateway, mit
+gleicher Message-ID und gleichen Empfängern. Die Duplikat-Sperre hielt das
+für ein Duplikat, meldete „OK“, und die Mail wurde **nie zugestellt**. Es gab
+keine Unzustellbarkeitsmeldung und keine Zahl, die es zeigte.
+
+- **Rücklauf erkannt:** Ein Rücklauf ist bei Exchange eine neue Einlieferung
+  und trägt eine andere `Network-Message-Id` als die erste. Ein echtes Duplikat
+  wird weiter übersprungen. Ein Rücklauf kommt in die Warteschlange (Grund
+  „Rücklauf“), und zwar in der Fassung des ersten Durchlaufs. Dazu erscheinen
+  ein Hinweisband und eine Zeile im Tagesbericht.
+- **Keine automatische Wiederholung:** Sie nähme denselben Weg und käme
+  wieder zurück. Ein Zustellweg für geteilte Postfächer, der die Markierung
+  sicher erhält, folgt.
+- **Sperre erst nach angenommenem Versand:** Die Duplikat-Sperre merkte sich
+  eine Mail schon vor dem Versand. Scheiterte er, hielt sie den ersten
+  Wiederholungsversuch aus der Warteschlange (nach einer Minute, Fenster 120 s)
+  für ein Duplikat und meldete ihn als zugestellt. Jetzt merkt sie sich die
+  Mail erst, wenn Graph den Versand angenommen hat.
+
+Betroffen sind die Modi Graph-only und Graph++. Im Modus SMTP geht nur Post
+von Sende-Identitäten über Graph.
+
+**Zu tun:** nichts, das Update genügt. Steht nach dem Update das Band
+„Nicht zugestellt: Rücklauf“ an, liegen dort Mails, die das Gateway früher
+verworfen hätte.
+
 ## v1.12.11 — 2026-11-14 — Eingehende Post im Rückfallweg nicht mehr als Entwurf
 
 Findet das Gateway für eingehende Post keinen Zustellweg (587, Graph sendMail

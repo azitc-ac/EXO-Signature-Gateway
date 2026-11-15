@@ -470,6 +470,16 @@ def send_daily_report(daily: dict, total: dict) -> bool:
             f'dann alle 5, dann alle 15 Minuten, Aufgabe nach 2 Tagen). Bleibt es dauerhaft, '
             f'die Zustellwege prüfen — einsehen und sofort zustellen in der Oberfläche.</p>'
         )
+    # Rücklauf (graph_reinject._ruecklauf_parken): eigener Graph-Versand kam ohne
+    # Markierung zurück. Bis v1.12.11 still verworfen — deshalb hier sichtbar.
+    _rl = _held.count("ruecklauf")
+    if _rl:
+        queue_block += (
+            f'<h3 style="color:#e74c3c;margin-top:20px">⚠ Rücklauf, nicht zugestellt: {_rl}</h3>'
+            f'<p style="margin:4px 0">Diese Mails kamen nach dem Versand per Graph ohne '
+            f'Gateway-Markierung zurück (z.B. aus geteilten Postfächern) und warten in der '
+            f'Warteschlange. Keine automatische Wiederholung — sie nähme denselben Weg.</p>'
+        )
 
     body = (
         f'<h3 style="margin-top:4px">Statistiken heute – {date_str}</h3>'

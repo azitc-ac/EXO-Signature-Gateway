@@ -167,7 +167,7 @@ def _wartung_gemeldet() -> dict | None:
         if not settings_store.get("MAINTENANCE_MODE"):
             return None
         import held_mails
-        return {"zurueck": max(0, held_mails.count() - held_mails.count("delivery_failed"))}
+        return {"zurueck": held_mails.count("maintenance")}
     except Exception:                                       # noqa: BLE001
         return None
 
@@ -185,6 +185,18 @@ def _zustellfehler_anzahl() -> int:
 
 
 templates.env.globals["zustellfehler_anzahl"] = _zustellfehler_anzahl
+
+
+def _ruecklauf_anzahl() -> int:
+    """Mails, deren Graph-Versand ohne Gateway-Markierung zurückkam (graph_reinject)."""
+    try:
+        import held_mails
+        return held_mails.count("ruecklauf")
+    except Exception:                                       # noqa: BLE001
+        return 0
+
+
+templates.env.globals["ruecklauf_anzahl"] = _ruecklauf_anzahl
 
 
 def _exo_abgewiesen_gemeldet() -> dict | None:

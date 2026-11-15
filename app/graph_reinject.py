@@ -63,23 +63,72 @@ def _post_with_429_retry(client: httpx.Client, url: str, **kwargs) -> httpx.Resp
 # skipped as a "duplicate" and never delivered). Keying on (MID, recipients)
 # still blocks a genuine duplicate (same MID AND same recipients, e.g. Exchange
 # handing us the identical fork twice) while letting disjoint forks through.
-_sendmail_dedup: dict[tuple, float] = {}
+#
+# ⚠️ RÜCKLAUF (gemessen 15.11.2026): Graph sendMail aus einem GETEILTEN Postfach
+# verwirft alle eigenen X-Köpfe, auch X-Sig-Applied. Die Transportregel schickt
+# die Mail dann ein zweites Mal ans Gateway — gleiche Message-ID, gleiche
+# Empfänger. Die Sperre hielt das für ein Duplikat, meldete „OK“ und die Mail
+# war verloren. Unterscheidungsmerkmal: Der Rücklauf ist eine NEUE Einlieferung
+# bei Exchange und trägt eine andere Network-Message-Id als die erste. Ein
+# Rücklauf wird deshalb nicht verworfen, sondern mit der Fassung des ERSTEN
+# Durchlaufs geparkt (der zweite ist doppelt bearbeitet).
+_sendmail_dedup: dict[tuple, tuple] = {}
 _SENDMAIL_DEDUP_SECS = 120
+_NMID = "X-MS-Exchange-CrossTenant-Network-Message-Id"
+
+NEU, DUPLIKAT, RUECKLAUF = "neu", "duplikat", "ruecklauf"
 
 
-def _is_first_sendmail(message_id: str, recipients: list[str] | None = None) -> bool:
-    """Return True (and register) for the first sendMail with this
-    (Message-ID, recipient-set). Empty Message-ID never dedups."""
+def _netz_kennung(msg) -> str:
+    return (msg.get(_NMID) or "").strip().lower()
+
+
+def _sendmail_pruefen(message_id: str, recipients: list[str] | None,
+                      msg, mail_from: str, content_bytes: bytes) -> tuple[str, tuple | None]:
+    """NEU, DUPLIKAT (gleiche Einlieferung erneut) oder RUECKLAUF (eigener
+    Versand kam zurück). Bei RUECKLAUF zusätzlich der vorgemerkte erste
+    Durchlauf (absender, bytes). Ohne Message-ID immer NEU.
+
+    Vorgemerkt wird erst nach ANGENOMMENEM Versand (`_sendmail_vormerken`).
+    Bis v1.12.11 geschah das schon vor dem Aufruf: Scheiterte er, hielt die
+    Sperre den Wiederholungsversuch aus der Warteschlange (erster nach 1 min,
+    Fenster 120 s) für ein Duplikat und meldete ihn als zugestellt."""
     if not message_id:
-        return True
-    key = (message_id, frozenset((r or "").strip().lower() for r in (recipients or [])))
+        return NEU, None
     now = time.monotonic()
-    for k in [k for k, t in _sendmail_dedup.items() if now - t > _SENDMAIL_DEDUP_SECS]:
+    for k in [k for k, v in _sendmail_dedup.items() if now - v[0] > _SENDMAIL_DEDUP_SECS]:
         del _sendmail_dedup[k]
-    if key in _sendmail_dedup:
-        return False
-    _sendmail_dedup[key] = now
-    return True
+    vorher = _sendmail_dedup.get(_dedup_schluessel(message_id, recipients))
+    if vorher is None:
+        return NEU, None
+    if vorher[1] == _netz_kennung(msg):
+        return DUPLIKAT, None
+    return RUECKLAUF, (vorher[2], vorher[3])
+
+
+def _dedup_schluessel(message_id: str, recipients: list[str] | None) -> tuple:
+    return (message_id, frozenset((r or "").strip().lower() for r in (recipients or [])))
+
+
+def _sendmail_vormerken(message_id: str, recipients: list[str] | None,
+                        msg, mail_from: str, content_bytes: bytes) -> None:
+    if message_id:
+        _sendmail_dedup[_dedup_schluessel(message_id, recipients)] = (
+            time.monotonic(), _netz_kennung(msg), mail_from, content_bytes)
+
+
+def _ruecklauf_parken(erster: tuple, rcpt_tos: list[str], mid: str) -> None:
+    """Rücklauf nicht verwerfen: erste Fassung in die Warteschlange. Grund
+    „ruecklauf“ — ohne automatische Wiederholung, sie nähme denselben Weg."""
+    import held_mails
+    import stats
+    absender, roh = erster
+    log.warning("RÜCKLAUF: eigener Graph-Versand kam ohne Gateway-Markierung zurück "
+                "(MID %.40s, from=%s, to=%s) — Exchange hat X-Sig-Applied verworfen "
+                "(z.B. geteiltes Postfach). Mail geparkt, NICHT zugestellt.",
+                mid, absender, rcpt_tos)
+    stats.increment("graph_ruecklauf")
+    held_mails.hold(absender, list(rcpt_tos), roh, reason="ruecklauf")
 
 
 def _addr_list(header_val: str) -> list[dict]:
@@ -537,8 +586,12 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
     # Dedup: skip only if this exact (Message-ID, recipient-set) was already
     # sent — disjoint bifurcated forks must NOT dedup each other (see helper).
     mid = (msg.get("Message-ID") or "").strip()
-    if not _is_first_sendmail(mid, rcpt_tos):
+    _art, _erster = _sendmail_pruefen(mid, rcpt_tos, msg, mail_from, content_bytes)
+    if _art == DUPLIKAT:
         log.info("Skipping duplicate sendMail (MID %.24s, same recipients already sent)", mid)
+        return True
+    if _art == RUECKLAUF:
+        _ruecklauf_parken(_erster, rcpt_tos, mid)
         return True
 
     # ── Extract headers ───────────────────────────────────────────────────────
@@ -610,6 +663,7 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
             resp = _post_with_429_retry(client, url, json=payload, headers=headers)
 
         if resp.status_code == 202:
+            _sendmail_vormerken(mid, rcpt_tos, msg, mail_from, content_bytes)
             log.info("Graph re-inject OK: from=%s to=%s", from_addr, rcpt_tos)
             return True
 
@@ -676,11 +730,15 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
     # AND same recipients) is skipped. Disjoint bifurcated forks share the MID
     # but not the recipients, so they must each go through (see helper).
     mid = (msg.get("Message-ID") or "").strip()
-    if not _is_first_sendmail(mid, rcpt_tos):
+    _art, _erster = _sendmail_pruefen(mid, rcpt_tos, msg, mail_from, content_bytes)
+    if _art == DUPLIKAT:
         log.info(
             "Skipping duplicate sendMail (MID %.24s, same recipients already sent)",
             mid,
         )
+        return True
+    if _art == RUECKLAUF:
+        _ruecklauf_parken(_erster, rcpt_tos, mid)
         return True
 
     url = f"{GRAPH}/users/{from_addr}/sendMail"
@@ -703,6 +761,7 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
             resp = _post_with_429_retry(client, url, content=encoded, headers=headers)
 
         if resp.status_code == 202:
+            _sendmail_vormerken(mid, rcpt_tos, msg, mail_from, content_bytes)
             log.info("Graph MIME re-inject OK: from=%s to=%s", from_addr, rcpt_tos)
             return True
 

@@ -306,7 +306,7 @@ smtpCertLaden();
           '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escAttr(m.from_addr) + '">' + esc(m.from_addr) + '</td>' +
           '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escAttr(an) + '">' + esc(an) + '</td>' +
           '<td style="font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escAttr(m.subject||'') + '">' + esc(m.subject || '(kein Betreff)') + '</td>' +
-          '<td style="font-size:12px;white-space:nowrap">' + (m.reason === 'delivery_failed' ? '⚠ Zustellfehler' : 'Wartung') + '</td>' +
+          '<td style="font-size:12px;white-space:nowrap">' + (m.reason === 'delivery_failed' ? '⚠ Zustellfehler' : m.reason === 'ruecklauf' ? '⚠ Rücklauf' : 'Wartung') + '</td>' +
           '<td style="white-space:nowrap">' +
             '<button class="btn secondary btn-sm" onclick="openPreview(\'' + escJsAttr(id) + '\',this)" style="margin-right:4px">Preview</button>' +
             '<button class="btn secondary btn-sm" onclick="releaseSingle(\'' + escJsAttr(id) + '\',this)" style="margin-right:4px">Zustellen</button>' +
