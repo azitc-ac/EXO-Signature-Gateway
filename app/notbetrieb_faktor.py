@@ -156,8 +156,18 @@ def stand(postfach: str) -> dict:
             "codes_uebrig": len(e.get("codes") or []), "gesperrt": bool(e.get("gesperrt"))}
 
 
-def eingerichtet(postfach: str) -> bool:
-    return stand(postfach)["aktiv"]
+def abdeckung() -> dict:
+    """Wie viele Benutzerpostfächer könnten sich mit zweitem Faktor anmelden?
+    EINE Zählung für Bereitschaft und Notbetrieb-Seite, mit Bezugsgröße —
+    „3“ allein wäre nicht zu deuten. Geteilte Postfächer melden sich nicht an."""
+    import notbetrieb
+    eingerichtet = {f["postfach"] for f in uebersicht() if not f["gesperrt"]}
+    if not notbetrieb._db_pfad().exists():
+        return {"eingerichtet": 0, "nutzer": 0}
+    with notbetrieb._lock, notbetrieb._conn() as conn:
+        nutzer = {z["primary_adr"].lower() for z in conn.execute(
+            "SELECT primary_adr FROM konten WHERE typ='UserMailbox'")}
+    return {"eingerichtet": len(eingerichtet & nutzer), "nutzer": len(nutzer)}
 
 
 def uebersicht() -> list[dict]:

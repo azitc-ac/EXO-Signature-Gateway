@@ -285,10 +285,45 @@
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Webmail auf die Geräte bringen</h2>
   <p class="hint" style="margin-top:0">
-    Verteile immer diesen Link — Passkeys gelten nur für den Namen, unter dem sie eingerichtet wurden:
-    <code>{{ webmail_url }}</code>. Auf dem Handy lässt sich das Webmail als App auf den Home-Bildschirm legen
-    (Safari: Teilen → „Zum Home-Bildschirm“; Chrome/Edge: „App installieren“). Es öffnet sich dann ohne
-    Browserleiste.
+    Im Notfall installiert niemand mehr etwas — bring die Notfall-Mail vorher auf die Geräte. Verteile immer
+    diesen Link, Passkeys gelten nur für den Namen, unter dem sie eingerichtet wurden:
+    <code>{{ webmail_url }}</code>. Sie öffnet sich dann als eigene App ohne Browserleiste und hängt nicht an
+    Microsoft 365.
+  </p>
+  <p class="hint" id="nb-faktor-abdeckung">
+    Zweiter Faktor: <strong>{{ faktor_abdeckung.eingerichtet }} von {{ faktor_abdeckung.nutzer }}</strong>
+    Benutzerpostfächern eingerichtet{% if faktor_abdeckung.nutzer and faktor_abdeckung.eingerichtet < faktor_abdeckung.nutzer %}
+    — die übrigen richten ihn unter <code>{{ webmail_url }}/einrichten</code> ein, solange die Microsoft-Anmeldung
+    geht{% endif %}.{% if not zweitfaktor.pflicht %} Er ist derzeit nicht vorgeschrieben.{% endif %}
+  </p>
+
+  <h3>Windows-PCs (Microsoft Edge)</h3>
+  <p class="hint" style="margin-top:0">
+    Die Edge-Richtlinie <em>Configure list of force-installed Web Apps</em> (<code>WebAppInstallForceList</code>)
+    installiert die App still bei allen Nutzern, mit Eintrag im Startmenü und Verknüpfung auf dem Desktop.
+    Entfernen können die Nutzer sie nicht. Wert der Richtlinie:
+  </p>
+  <div class="feld-werkzeuge">
+    <div class="feld-knoepfe">
+      <button type="button" class="copy-btn" data-copy-target="nb-edge-richtlinie"
+              title="Wert der Richtlinie kopieren"></button>
+    </div>
+    <pre id="nb-edge-richtlinie" class="code-block">{{ edge_richtlinie }}</pre>
+  </div>
+  <p class="hint">
+    Gruppenrichtlinie: <em>Computer- bzw. Benutzerkonfiguration → Administrative Vorlagen → Microsoft Edge →
+    Configure list of force-installed Web Apps</em> (Vorlage <code>MSEdge.admx</code>), Wert wie oben. Ohne
+    Vorlage: Registrierung <code>HKLM\SOFTWARE\Policies\Microsoft\Edge</code>, Wert
+    <code>WebAppInstallForceList</code> (REG_SZ).
+    Intune: <em>Geräte → Konfiguration → Erstellen → Einstellungskatalog</em>, Kategorie <em>Microsoft Edge</em>,
+    Einstellung <em>Configure list of force-installed Web Apps</em>, Wert wie oben.
+    Ohne Richtlinie: In Edge auf das App-Symbol in der Adressleiste → „Installieren“.
+  </p>
+
+  <h3>Handys und Tablets</h3>
+  <p class="hint" style="margin-top:0">
+    Auf dem Handy lässt sich die Notfall-Mail als App auf den Home-Bildschirm legen (Safari: Teilen →
+    „Zum Home-Bildschirm“; Chrome/Edge: „App installieren“).
   </p>
   <p class="hint">
     Mit Intune: <em>Apps → All Apps → Create</em>, Typ „iOS/iPadOS web clip“ (mit „Full screen“: Yes),
@@ -333,7 +368,7 @@
     Kennwort allein reicht nicht: Dazu kommt ein Passkey (Fingerabdruck, Gesicht, Windows Hello,
     Sicherheitsschlüssel) oder ein Code aus einer Authenticator-App (TOTP). Eingerichtet wird er im
     Normalbetrieb nach einer Microsoft-Anmeldung, damit nur die Person selbst ihn einrichten kann — unter
-    <code>https://{{ imap_host or 'Hostname dieses Gateways' }}/notfall/einrichten</code>. Auch das prüft das Gateway
+    <code>{{ webmail_url }}/einrichten</code>. Auch das prüft das Gateway
     ohne Cloud. Microsoft verlangt dabei eine frische Anmeldung; wer dort noch keine MFA-Methode hat, wird
     zuerst durch deren Einrichtung geführt.
   </p>

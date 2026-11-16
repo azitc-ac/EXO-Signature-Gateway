@@ -103,13 +103,19 @@ async def notfall_manifest():
     if not notbetrieb.funktion_aktiv():
         raise HTTPException(404)
     return JSONResponse({
-        "name": f"Notfall-Mail {_gateway_name()}", "short_name": "Notfall-Mail",
+        # Kurz: Windows zeigt `name` im Startmenü und schneidet nach rund 25
+        # Zeichen ab („Notfall-Mail HV1 Signature…“). Der Gateway-Name steht
+        # in der Beschreibung. `id` hält die Installation fest, auch wenn sich
+        # start_url einmal ändert (sonst gälte sie als neue App).
+        "id": "/notfall", "name": "Notfall-Mail", "short_name": "Notfall-Mail",
+        "description": f"Notfall-Zugang zur Post über {_gateway_name()}",
         "start_url": "/notfall", "scope": "/notfall", "display": "standalone",
         "background_color": "#f1f5f9", "theme_color": "#0f172a", "lang": "de",
         # „maskable“: Android schneidet rund/eckig zu; ohne setzt es das
         # Symbol verkleinert auf eine weiße Scheibe (web.dev „maskable icon“).
-        "icons": [{"src": "/static/favicon.svg", "sizes": "any", "type": "image/svg+xml"},
-                  {"src": "/static/symbol/192.png", "sizes": "192x192", "type": "image/png"},
+        # Kein SVG: Edge 157 meldete „failed to load“ für favicon.svg (Datei
+        # ohne width/height, sizes „any“), die PNGs decken alle Größen ab.
+        "icons": [{"src": "/static/symbol/192.png", "sizes": "192x192", "type": "image/png"},
                   {"src": "/static/symbol/512.png", "sizes": "512x512", "type": "image/png"},
                   {"src": "/static/symbol/maskable-512.png", "sizes": "512x512", "type": "image/png",
                    "purpose": "maskable"},
@@ -135,8 +141,10 @@ async def notfall_anmelden(request: Request):
     # Zweiter Faktor: erst das Kennwort, dann der Code (sonst verriete die
     # Antwort ohne Kennwort, wer einen Faktor hat). Das Kennwort ist hier
     # geprüft; der Vorgang trägt das Postfach für 5 Minuten.
-    if notbetrieb_faktor.eingerichtet(postfach):
-        st = notbetrieb_faktor.stand(postfach)
+    # Faktor-Datei mit eigener Sperre: im Thread, nicht in der Event-Loop
+    # (Anmeldewelle am Notfall-Morgen).
+    st = await asyncio.to_thread(notbetrieb_faktor.stand, postfach)
+    if st["aktiv"]:
         rp = notbetrieb_faktor.passkey_rp(_seiten_host(request))
         return JSONResponse({"ok": True, "faktor": True, "totp": st["totp"],
                              "passkey": any(p["rp"] == rp for p in st["passkeys"]),
@@ -295,7 +303,8 @@ async def notfall_einrichten_seite(request: Request):
 
 @router.get("/notfall/api/faktor")
 async def notfall_faktor_stand(postfach: str = Depends(_entra_postfach)):
-    return JSONResponse({"ok": True, "postfach": postfach, **notbetrieb_faktor.stand(postfach)})
+    return JSONResponse({"ok": True, "postfach": postfach,
+                         **await asyncio.to_thread(notbetrieb_faktor.stand, postfach)})
 
 
 @router.post("/notfall/api/faktor/beginnen")

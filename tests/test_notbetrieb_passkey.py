@@ -78,7 +78,7 @@ def _einrichten(pk: Passkey | None = None, host: str = HOST) -> tuple[Passkey, l
 
 
 def test_einrichten_und_anmelden(faktor):  # noqa: F811
-    assert not nf.eingerichtet(PF)
+    assert not nf.stand(PF)["aktiv"]
     pk, codes = _einrichten()
     assert len(codes) == nf.ANZAHL_CODES                            # erster Faktor → Wiederherstellungscodes
     st = nf.stand(PF)
@@ -139,7 +139,7 @@ def test_registrierung_mit_fremder_herkunft_abgewiesen(faktor):  # noqa: F811
         nf.passkey_bestaetigen(PF, pk.erstellen(optionen, herkunft="https://evil.example"))
     with pytest.raises(nf.FaktorFehler):                            # Herausforderung verbraucht
         nf.passkey_bestaetigen(PF, pk.erstellen(optionen))
-    assert not nf.eingerichtet(PF)
+    assert not nf.stand(PF)["aktiv"]
 
 
 def test_zweiter_passkey_behaelt_die_codes(faktor):  # noqa: F811
@@ -151,7 +151,7 @@ def test_zweiter_passkey_behaelt_die_codes(faktor):  # noqa: F811
     # Entfernen: der andere bleibt.
     assert nf.passkey_entfernen(PF, _b64(pk2.id)) is True
     assert nf.passkey_entfernen(PF, _b64(pk2.id)) is False
-    assert len(nf.stand(PF)["passkeys"]) == 1 and nf.eingerichtet(PF)
+    assert len(nf.stand(PF)["passkeys"]) == 1 and nf.stand(PF)["aktiv"]
 
 
 def test_sperre_gilt_auch_fuer_passkeys(faktor, monkeypatch):  # noqa: F811

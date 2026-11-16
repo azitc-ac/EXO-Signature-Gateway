@@ -8,6 +8,7 @@ deshalb in einem Thread, damit die Oberfläche bedienbar bleibt.
 from __future__ import annotations
 
 import asyncio
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -25,6 +26,15 @@ from webui.deps import templates, log, _gateway_name, _require_admin
 router = APIRouter()
 
 
+def edge_richtlinie(webmail_url: str) -> str:
+    """Wert der Edge-Richtlinie WebAppInstallForceList (GPO/Intune): installiert
+    die Notfall-Mail still als App mit eigenem Fenster. Felder nach
+    learn.microsoft.com „WebAppInstallForceList“ (Edge ≥ 80): `url` Pflicht,
+    `default_launch_container` „window“, `create_desktop_shortcut`."""
+    return json.dumps([{"url": webmail_url, "default_launch_container": "window",
+                        "create_desktop_shortcut": True}])
+
+
 @router.get("/notbetrieb", response_class=HTMLResponse)
 async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)):
     # Aus UND keine Kopie → kein versteckter Zugang über die URL; zum Schalter
@@ -32,6 +42,10 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
     if not notbetrieb.sichtbar():
         return RedirectResponse("/setup#step-mode", status_code=303)
     regeln = settings_store.get("NOTBETRIEB_REGELN") or []
+    webmail_url = aussenadresse.basis() + "/notfall"
+    # Kopie und Faktor-Datei tragen Sperren: im Thread, nicht in der Event-Loop.
+    postfaecher = await asyncio.to_thread(notbetrieb._postfaecher)
+    faktor_abdeckung = await asyncio.to_thread(notbetrieb_faktor.abdeckung)
     return templates.TemplateResponse(
         request=request, name="notbetrieb.html",
         context={
@@ -41,7 +55,9 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "probegruppe": settings_store.get("NOTBETRIEB_PROBEGRUPPE") or [],
             "lesen_alle": notbetrieb.lesen_alle(),
             "senden_alle": settings_store.get("NOTBETRIEB_SENDEN_ALLE") is True,
-            "webmail_url": aussenadresse.basis() + "/notfall",
+            "webmail_url": webmail_url,
+            "edge_richtlinie": edge_richtlinie(webmail_url),
+            "faktor_abdeckung": faktor_abdeckung,
             "zweitfaktor": {"pflicht": notbetrieb_faktor.pflicht(), "notfall_ohne": notbetrieb_faktor.im_notfall_ohne()},
             "imap_host": aussenadresse.ehlo_hostname() or "",
             "eingang": {"greylist": notbetrieb_eingang.greylisting_an(), "max_empf": notbetrieb_eingang.max_empfaenger(),
@@ -51,7 +67,7 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "fenster": notbetrieb.standard_fenster(),
             "regeln": regeln if isinstance(regeln, list) else [],
             "gruppen": sorted(gruppen.interne_gruppen()),
-            "postfaecher": [upn for _key, upn in notbetrieb._postfaecher()],
+            "postfaecher": [upn for _key, upn in postfaecher],
             "max_tage": notbetrieb.MAX_TAGE,
             "mess_tage": notbetrieb.MESS_TAGE,
             "ldap": notbetrieb_anmeldung.einstellungen(),

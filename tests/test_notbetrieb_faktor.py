@@ -40,7 +40,7 @@ def test_totp_rfc6238_testvektor():
 
 def test_einrichten_aktiviert_erst_nach_gueltigem_code(faktor):
     g = nf.totp_beginnen("a@firma.at")["geheimnis"]
-    assert not nf.eingerichtet("a@firma.at")                       # begonnen ≠ aktiv
+    assert not nf.stand("a@firma.at")["aktiv"]                       # begonnen ≠ aktiv
     with pytest.raises(nf.FaktorFehler):
         nf.totp_bestaetigen("a@firma.at", "000000" if nf._code(g, nf._schritt()) != "000000" else "111111")
     codes = nf.totp_bestaetigen("a@firma.at", nf._code(g, nf._schritt()))
@@ -81,7 +81,7 @@ def test_harte_sperre_nach_fehlversuchen(faktor, monkeypatch):
 def test_zuruecksetzen(faktor):
     _einrichten()
     assert nf.zuruecksetzen("a@firma.at", "admin") is True
-    assert not nf.eingerichtet("a@firma.at") and nf.zuruecksetzen("a@firma.at", "admin") is False
+    assert not nf.stand("a@firma.at")["aktiv"] and nf.zuruecksetzen("a@firma.at", "admin") is False
 
 
 # ── Webmail ─────────────────────────────────────────────────────────────────
@@ -165,6 +165,25 @@ def test_bereitschaft_zaehlt_mit_bezugsgroesse(faktor):
     assert z["zustand"] == abnahme.OK and z["befund"].startswith("1 von ")
     faktor["NOTBETRIEB_ZWEITFAKTOR"] = False
     assert nbb._zweitfaktor()["zustand"] == abnahme.ENTFAELLT
+
+
+def test_abdeckung_zaehlt_nur_benutzerpostfaecher_ohne_gesperrte(faktor):
+    """Bezugsgröße sind Benutzerpostfächer — ein geteiltes Postfach meldet sich
+    nicht an. Ein gesperrter Faktor hilft im Notfall nicht."""
+    with notbetrieb._lock, notbetrieb._conn() as conn:
+        typen = [z["typ"] for z in conn.execute("SELECT typ FROM konten")]
+    nutzer = typen.count("UserMailbox")
+    assert nutzer >= 1 and len(typen) > nutzer                    # Netz scharf: es gibt auch andere
+    geteilt = next(z["primary_adr"] for z in notbetrieb._conn().execute(
+        "SELECT primary_adr FROM konten WHERE typ!='UserMailbox'"))
+    assert nf.abdeckung() == {"eingerichtet": 0, "nutzer": nutzer}
+    _einrichten("a@firma.at")
+    _einrichten(geteilt)
+    assert nf.abdeckung() == {"eingerichtet": 1, "nutzer": nutzer}
+    daten = nf._laden()
+    daten[nf._schluessel("a@firma.at")]["gesperrt"] = True
+    nf._speichern(daten)
+    assert nf.abdeckung()["eingerichtet"] == 0
 
 
 def test_kopie_loeschen_laesst_faktoren_stehen(faktor):

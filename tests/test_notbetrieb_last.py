@@ -198,6 +198,7 @@ def test_anmeldung_ueber_upn_nutzt_den_index(kopie):
 
 APP = WURZEL / "app"
 ROUTEN = APP / "webui" / "routen" / "notfall.py"
+ROUTEN_ADMIN = APP / "webui" / "routen" / "notbetrieb.py"
 
 
 def _sperrende_funktionen() -> set:
@@ -206,6 +207,7 @@ def _sperrende_funktionen() -> set:
     „modul.funktion“."""
     dateien = {d.stem: d for d in APP.glob("notbetrieb*.py")}
     dateien["notfall"] = ROUTEN
+    dateien["routen_notbetrieb"] = ROUTEN_ADMIN
     rufe: dict[str, set] = {}
     sperrt: set = set()
     for modul, datei in dateien.items():
@@ -216,7 +218,10 @@ def _sperrende_funktionen() -> set:
             ziele = rufe.setdefault(name, set())
             for k in ast.walk(fn):
                 text = ast.unparse(k) if isinstance(k, (ast.Attribute, ast.Name)) else ""
-                if text == "notbetrieb._lock" or (modul == "notbetrieb" and text == "_lock"):
+                # Jede Sperre eines notbetrieb*-Moduls (die der Kopie, die der
+                # Faktor-Datei …): Wer in der Event-Loop auf sie wartet, hält alle an.
+                if (text == "_lock" and modul.startswith("notbetrieb")) or (
+                        text.endswith("._lock") and text.split(".")[0] in dateien):
                     sperrt.add(name)
                 if isinstance(k, ast.Call):
                     f = k.func
@@ -238,6 +243,7 @@ def _sperrende_funktionen() -> set:
 def _async_funktionen() -> set:
     dateien = {d.stem: d for d in APP.glob("notbetrieb*.py")}
     dateien["notfall"] = ROUTEN
+    dateien["routen_notbetrieb"] = ROUTEN_ADMIN
     return {f"{m}.{fn.name}" for m, d in dateien.items() for fn in ast.walk(ast.parse(d.read_text("utf-8")))
             if isinstance(fn, ast.AsyncFunctionDef)}
 
@@ -260,9 +266,11 @@ def test_keine_sperre_in_der_event_loop():
     sperrt = _sperrende_funktionen()
     asynchron = _async_funktionen()
     assert "notbetrieb_rechte.zugriff" in sperrt and "notbetrieb_lesen.darf_lesen" in sperrt  # Netz scharf?
+    assert "notbetrieb_faktor.stand" in sperrt  # eigene Sperre der Faktor-Datei zählt mit
     funde = []
     dateien = {d.stem: d for d in APP.glob("notbetrieb*.py")}
     dateien["notfall"] = ROUTEN
+    dateien["routen_notbetrieb"] = ROUTEN_ADMIN
     for modul, datei in dateien.items():
         for fn in ast.walk(ast.parse(datei.read_text("utf-8"))):
             if not isinstance(fn, ast.AsyncFunctionDef):

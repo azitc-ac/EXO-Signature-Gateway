@@ -936,6 +936,14 @@ def test_manifest_der_homescreen_app(client, schatten):
     assert r.status_code == 200 and r.headers["content-type"].startswith("application/manifest+json")
     m = r.json()
     assert m["start_url"] == "/notfall" and m["scope"] == "/notfall" and m["display"] == "standalone"
+    # Feste Kennung: ändert sich start_url, bleibt es dieselbe installierte App.
+    assert m["id"] == "/notfall"
+    # Windows schneidet den Namen im Startmenü nach rund 25 Zeichen ab
+    # (Edge 157: „Notfall-Mail HV1 Signature…“) — der Gateway-Name gehört
+    # in die Beschreibung, nicht in den Namen.
+    assert len(m["name"]) <= 20 and len(m["short_name"]) <= 12
+    # Kein SVG: Edge lud favicon.svg als App-Symbol nicht (16.11.2026).
+    assert all(s["type"] == "image/png" for s in m["icons"])
     import struct
     for symbol in m["icons"]:                                       # jedes Symbol wird auch ausgeliefert …
         r = client.get(symbol["src"])
@@ -1103,3 +1111,32 @@ def test_senden_an_verteiler_geht_an_die_mitglieder(postfix):
     erg = _senden("a@firma.at", "a@firma.at", "Alle <alle@firma.at>", betreff="Rundmail", text="x")
     assert (erg["intern"], erg["extern"]) == (2, 0) and postfix == []
     assert len(_lokal("b@firma.at", "inbox")) == 1 and len(_lokal("chef@firma.at", "inbox")) == 1
+
+
+def test_edge_richtlinie_installiert_die_notfall_mail_als_fenster():
+    """WebAppInstallForceList (learn.microsoft.com, Edge ≥ 80): eine Liste von
+    Objekten mit Pflichtfeld `url`; „window“ öffnet ohne Browserleiste. Nur
+    dokumentierte Felder — ein Tippfehler im Schlüssel bliebe still wirkungslos."""
+    import json as _json
+    from webui.routen.notbetrieb import edge_richtlinie
+    wert = _json.loads(edge_richtlinie("https://gw.firma.at/notfall"))
+    assert isinstance(wert, list) and len(wert) == 1
+    app = wert[0]
+    assert app["url"] == "https://gw.firma.at/notfall"
+    assert app["default_launch_container"] == "window"
+    assert set(app) <= {"url", "default_launch_container", "create_desktop_shortcut", "fallback_app_name",
+                        "custom_name", "custom_icon", "install_as_shortcut"}
+
+
+def test_notbetrieb_seite_zeigt_richtlinie_zum_kopieren_und_faktor_abdeckung():
+    from pathlib import Path as _P
+    wurzel = _P(__file__).resolve().parent.parent
+    html = (wurzel / "app/webui/templates/notbetrieb.html").read_text("utf-8")
+    route = (wurzel / "app/webui/routen/notbetrieb.py").read_text("utf-8")
+    # Wert im Codeblock, Kopierknopf liest ihn über data-copy-target (base.html).
+    assert '<pre id="nb-edge-richtlinie" class="code-block">{{ edge_richtlinie }}</pre>' in html
+    assert 'data-copy-target="nb-edge-richtlinie"' in html
+    assert '"edge_richtlinie": edge_richtlinie(webmail_url)' in route
+    # Zweiter Faktor mit Bezugsgröße und Weg zum Einrichten unter demselben Link.
+    assert "{{ faktor_abdeckung.eingerichtet }} von {{ faktor_abdeckung.nutzer }}" in html
+    assert "{{ webmail_url }}/einrichten" in html and "imap_host or" not in html
