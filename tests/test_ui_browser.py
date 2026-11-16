@@ -1809,6 +1809,7 @@ def test_schriftart_auswahl_mit_freitext(seite):
     pg = seite("/template", breite=1280)
     # global: Vorgabe gewählt, Freitext verborgen
     wahl, feld = pg.locator("#g-font-wahl"), pg.locator("#g-font")
+    pg.evaluate("() => document.getElementById('g-font-wahl').closest('details').open = true")
     assert wahl.input_value() == "Calibri, Arial, sans-serif"
     assert not feld.is_visible()
     wahl.select_option("Georgia, serif")
@@ -1855,10 +1856,7 @@ def test_vorschlag_kennt_bearbeiter(seite):
 
 def test_vorschau_schickt_wer_schreibt(seite):
     pg = seite("/template", breite=1280)
-    urls = []
-
     def abfangen(route):
-        urls.append(route.request.url)
         route.fulfill(json={"html": "<p>x</p>", "banner_html": "", "disclaimer_html": ""})
     pg.route("**/api/preview-data*", abfangen)
     pg.evaluate("""() => {
@@ -1870,10 +1868,12 @@ def test_vorschau_schickt_wer_schreibt(seite):
         }
         document.getElementById('preview-email-sel').value = 'info@example.org';
     }""")
-    pg.locator("#preview-bearbeiter-sel").select_option("max@example.org")
-    pg.wait_for_function("() => document.getElementById('preview-box').innerText.includes('x')")
-    assert "bearbeiter=max%40example.org" in urls[-1]
-    pg.locator("#preview-bearbeiter-sel").select_option("")
-    pg.wait_for_timeout(300)
-    assert "bearbeiter=" not in urls[-1]
+    # Die Vorschau steht in einem iframe (sigVorschau) — auf die Anfrage warten
+    with pg.expect_request("**/api/preview-data*") as anfrage:
+        pg.locator("#preview-bearbeiter-sel").select_option("max@example.org")
+    assert "bearbeiter=max%40example.org" in anfrage.value.url
+    with pg.expect_request("**/api/preview-data*") as anfrage:
+        pg.locator("#preview-bearbeiter-sel").select_option("")
+    assert "email=info%40example.org" in anfrage.value.url
+    assert "bearbeiter=" not in anfrage.value.url
     pg.context.close()

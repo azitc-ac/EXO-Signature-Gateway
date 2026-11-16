@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.53 — 2026-11-17 — Tests zu v1.12.52 berichtigt
+
+Zwei Browsertests zu v1.12.52 bedienten die globale Schriftauswahl in einem
+zugeklappten Bereich und lasen die Vorschau aus einem eingebetteten Rahmen per
+`innerText`. Sie prüfen jetzt aufgeklappt und an der Anfrage. Am Produkt ändert
+sich nichts.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.52 — 2026-11-17 — Baukasten: Schriftauswahl, bearbeiter.-Vorschläge, Vorschau „Schreibt“
 
 **Schriftart als Auswahl.** In den globalen Einstellungen und im Baustein
