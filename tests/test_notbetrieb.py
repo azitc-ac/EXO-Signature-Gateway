@@ -1113,8 +1113,9 @@ def test_bereitschaft_meldet_luecken_und_wird_bereit(nb, graph, monkeypatch):
     assert erg["bereit"] is False
     assert zustand["Kopie"] == zustand["Rechte-Abbild"] == zustand["Profile für Signaturen"] == abnahme.OFFEN
     assert zustand["Anmeldung (Domänencontroller)"] == abnahme.OFFEN and zustand["Versand nach außen"] == abnahme.OFFEN
-    # Alles nachholen.
-    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(ROH))
+    # Alles nachholen — der Abgleich liest auch die Hybrid-Connectoren (keiner kennt die Gateway-IP).
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(json.dumps({**json.loads(ROH), "connectoren": []})))
+    nb["DIREKT_AUSSEN_IP"] = "203.0.113.25"
     graph.seiten["/users?$select"] = {"value": [{"displayName": "A", "mail": "a@firma.at"}]}
     notbetrieb.profile_sichern()
     notbetrieb.abgleich_alle()
