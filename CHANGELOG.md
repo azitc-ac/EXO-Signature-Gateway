@@ -5,6 +5,45 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.43 — 2026-11-16 — Prüfungen: keine grünen Befunde mehr auf veralteten oder unvollständigen Grundlagen
+
+Eine Durchsicht aller Prüfungen fand Stellen, die auf veralteten oder
+unvollständigen Grundlagen „OK“ meldeten. Außerdem fand sie Einstellungen, die
+nur neu angelegte Objekte bekamen:
+
+- **Berechtigungen der Gateway-App.** „Exchange erreichbar“ verglich mit einer
+  fest eingetragenen Auswahl von Rollen. Fehlten andere, etwa die für
+  Abwesenheiten oder den Kalender, blieb der Punkt grün. Jetzt gilt dieselbe
+  Liste, aus der die Einrichtung die Berechtigungen beantragt.
+- **Anmeldung per Microsoft-Knopf.** Die Bootstrap-App braucht für SSO,
+  Add-in-Anmeldung und Self-Service eine Web-Rückadresse und die
+  ID-Token-Ausgabe. Die Einrichtung setzt beides, geprüft wurde es nie. Fehlte
+  es, scheiterte die Anmeldung mit AADSTS700054. Jetzt prüfen es die Abnahme
+  und „Anmeldung prüfen“; „In Entra ergänzen“ trägt es nach.
+- **Azure-Wächter.** Regelname, Health-Adresse und Organisation setzte nur das
+  Anlegen. Nach einer Umbenennung prüfte der Wächter die alte Regel. „Code
+  aktualisieren“ zieht diese Einstellungen jetzt mit, und die Aufgabe
+  „Bypass-Wächter aktuell“ meldet veraltete Einstellungen.
+- **Fassung der Add-ins je Postfach.** Ein Fehler beim Abfragen in Exchange
+  galt als „nicht installiert“, in der Abnahme als „entfällt“. Jetzt heißt er
+  „nicht abgefragt“.
+- **S/MIME-Schlüssel.** Ein Zertifikat ohne lokalen Schlüssel galt als „Key
+  Vault“, auch wenn kein Key Vault eingetragen war. Das ist jetzt ein Fehler.
+- **Routing-Regeln.** Die Prüfung aus v1.12.39 umfasst jetzt auch die
+  Ausnahme für Kalenderelemente; „Ausnahme ergänzen“ setzt beide. Ein aktives
+  Gate ohne Verteilerliste meldet die Abnahme jetzt selbst. Bisher tat das nur
+  das Band, und nur mit eingerichtetem Bypass-Wächter.
+- **Alter von Befunden.** Die Liste der Microsoft-Adressbereiche nennt ihren
+  Stand und gilt nach drei Tagen ohne erfolgreichen Abruf als offen. Die
+  Add-in-Fassung nennt den Zeitpunkt der letzten Postfachprüfung. Ein
+  gemerkter Regelbefund bleibt sichtbar, auch wenn der Einrichtungsmerker
+  zurückgesetzt wurde.
+
+**Zu tun:** Abnahme ausführen. Neue offene Punkte zeigen ihren Weg: fehlende
+Rollen über „Fehlende Berechtigungen erteilen“, die Anmeldung über
+„Anmeldung prüfen“ → „In Entra ergänzen“, Wächter über „Code aktualisieren“,
+Regel-Ausnahmen über Einrichtung → Schritt 6 → „Ausnahme ergänzen“.
+
 ## v1.12.42 — 2026-11-16 — Add-in-Fassung: Prüfung meldete nach einem Update fälschlich „aktuell“
 
 Die Postfachprüfung vergleicht je Postfach die Fassung des Add-ins in Outlook

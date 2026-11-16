@@ -169,8 +169,12 @@ def test_pruefung_meldet_fehlende_naa(monkeypatch):
     assert d["nachholen"] == "/api/addin/update-redirect-uri"
 
 
+IMPLICIT = {"web": {"redirectUris": ["https://sig.example/auth/id-callback"],
+                    "implicitGrantSettings": {"enableIdTokenIssuance": True}}}
+
+
 def test_pruefung_gruen_bei_vollstaendiger_naa(monkeypatch):
-    d = _pruefen(monkeypatch, VOLLSTAENDIG)
+    d = _pruefen(monkeypatch, {**VOLLSTAENDIG, **IMPLICIT})
     naa = next(s for s in d["schritte"] if "NAA" in s["name"])
     assert naa["ok"] and d["ok"] and "nachholen" not in d
 
@@ -243,3 +247,52 @@ def test_eingetragene_rueckadresse_ist_die_der_anmeldung(monkeypatch):
     assert erwartet in daten["BOOTSTRAP_REDIRECT_URIS"]
     assert not any(":8080" in u and u.startswith("https://") for u in daten["BOOTSTRAP_REDIRECT_URIS"])
     assert anmeldung._setup_redirect_uri() == erwartet, "Anmeldung kehrt jetzt über HTTPS zurück"
+
+
+# ── Anmeldung per Microsoft-Knopf (Implicit, v1.12.43) ────────────────────────
+# Setzer _implicit_web_patch gab es seit 2026-10, eine Prüfung nicht: Fehlte
+# es, kam AADSTS700054, und Abnahme wie „Anmeldung prüfen“ blieben grün.
+
+@pytest.mark.parametrize("web, fehlt", [
+    ({}, ["Web-Rückadresse", "ID-Token-Ausgabe"]),
+    ({"redirectUris": ["https://sig.example/auth/id-callback"]}, ["ID-Token-Ausgabe"]),
+    ({"implicitGrantSettings": {"enableIdTokenIssuance": True}}, ["Web-Rückadresse"]),
+    (IMPLICIT["web"], []),
+])
+def test_implicit_luecke_aus_dem_setzer(monkeypatch, web, fehlt):
+    import aussenadresse
+    monkeypatch.setattr(aussenadresse, "konfiguriert", lambda: "https://sig.example")
+    text = setup_wizard.implicit_luecke({"web": web})
+    assert all(f in text for f in fehlt) and (bool(text) == bool(fehlt)), text
+
+
+def test_pruefung_meldet_fehlende_implicit(monkeypatch):
+    d = _pruefen(monkeypatch, VOLLSTAENDIG)          # NAA vollständig, Implicit fehlt
+    schritt = next(s for s in d["schritte"] if "Implicit" in s["name"])
+    assert not schritt["ok"] and not d["ok"]
+    assert d["nachholen"] == "/api/addin/update-redirect-uri"
+
+
+def _abnahme_implicit(monkeypatch, app):
+    import abnahme
+    import aussenadresse
+    import graph_client
+    import httpx
+    daten = {"BOOTSTRAP_CLIENT_ID": CID, "ADMIN_USERS": [{"upn": "a@x"}]}
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: daten.get(k, *a))
+    monkeypatch.setattr(aussenadresse, "konfiguriert", lambda: "https://sig.example")
+    monkeypatch.setattr(graph_client, "_acquire_token", lambda: "T")
+
+    class _A:
+        def raise_for_status(self): pass
+        def json(self): return {"value": [app]}
+    monkeypatch.setattr(httpx, "get", lambda *a, **kw: _A())
+    return abnahme._implicit_anmeldung()
+
+
+def test_abnahme_implicit(monkeypatch):
+    import abnahme
+    p = _abnahme_implicit(monkeypatch, {})
+    assert p["zustand"] == abnahme.OFFEN and "AADSTS700054" in p["befund"]
+    assert _abnahme_implicit(monkeypatch, IMPLICIT)["zustand"] == abnahme.OK
+    assert abnahme._implicit_anmeldung in abnahme.PRUEFUNGEN

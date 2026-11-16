@@ -214,18 +214,6 @@ def _anmeldung() -> dict:
         "bestehen, ist aber kein Dauerzustand.")
 
 
-# Rollen aus dem Token lesen: EINE Quelle in berechtigungen.py (auch für den
-# Status im Einrichtungsassistenten und auf der Abwesenheits-Seite).
-def _token_rollen(token: str) -> set[str] | None:
-    import berechtigungen
-    return berechtigungen.token_rollen(token)
-
-
-def _exo_rollen() -> set[str] | None:
-    import berechtigungen
-    return berechtigungen.exo_rollen()
-
-
 def _exchange() -> dict:
     import graph_client
     # Frisch, nicht aus dem Cache — sonst fehlt eine eben erteilte Rolle bis zum
@@ -235,34 +223,29 @@ def _exchange() -> dict:
         return _punkt("Exchange erreichbar", OFFEN, "Keine Graph-Zugangsdaten.",
                       "Einrichtung durchlaufen — ohne Graph kann das Gateway "
                       "weder lesen noch zustellen.")
-    rollen = _token_rollen(token)
-    if rollen is None:
-        return _punkt("Exchange erreichbar", OK, "Zugangsdaten vorhanden",
-                      deckt_nicht="Die erteilten Berechtigungen ließen sich aus "
-                                  "dem Token nicht lesen.")
-    erwartet = {"Mail.Send", "User.Read.All"}
-    # Lesen und das Nachbessern der gesendeten Kopie deckt Mail.ReadWrite mit ab.
-    if "Mail.ReadWrite" not in rollen and "Mail.Read" not in rollen:
-        erwartet.add("Mail.ReadWrite")
-    fehlt = sorted(r for r in erwartet if r not in rollen)
-
-    # Exchange.ManageAsApp steht im separaten EXO-Token — dort nachsehen.
-    exo = _exo_rollen()
-    exo_hinweis = ""
-    if exo is not None and "Exchange.ManageAsApp" not in exo:
-        fehlt.append("Exchange.ManageAsApp")
-    elif exo is None:
-        exo_hinweis = "Exchange.ManageAsApp — kein Exchange-Token erhalten."
-
+    # Soll aus der EINEN Liste, aus der auch der Antrag entsteht
+    # (berechtigungen.status ← setup_wizard._GRAPH/_EXO_PERMISSION_SPECS). Bis
+    # v1.12.42 stand hier ein fester Auszug ({Mail.Send, User.Read.All} +
+    # Mail.ReadWrite + ManageAsApp): Fehlten etwa MailboxSettings.ReadWrite
+    # (Abwesenheit) oder Calendars.Read, meldete der Punkt trotzdem OK.
+    import berechtigungen
+    liste = berechtigungen.status()
+    unbekannt = sorted({b["api"] for b in liste if b["erteilt"] is None})
+    if "Graph" in unbekannt:
+        return _punkt("Exchange erreichbar", UNBEKANNT, "Zugangsdaten vorhanden",
+                      "Die erteilten Berechtigungen ließen sich aus dem Token nicht lesen.")
+    fehlt = sorted({b["name"] for b in liste if b["erteilt"] is False and b["benoetigt"]})
+    exo_hinweis = ("Exchange-Rollen — kein Exchange-Token erhalten."
+                   if "Exchange" in unbekannt else "")
     if fehlt:
         return _punkt(
             "Exchange erreichbar", OFFEN,
-            f"Zugangsdaten vorhanden, aber Berechtigung fehlt: {', '.join(sorted(set(fehlt)))}.",
-            "Im Entra Admin Center die Administratorzustimmung für die fehlenden "
-            "Anwendungsberechtigungen erteilen.")
+            f"Zugangsdaten vorhanden, aber Berechtigung fehlt: {', '.join(fehlt)}.",
+            "Einrichtung → „Fehlende Berechtigungen erteilen“ (Admin-Anmeldung).")
     return _punkt(
         "Exchange erreichbar", OK,
-        "Zugangsdaten, Graph- und Exchange-Berechtigungen vorhanden",
+        f"Zugangsdaten und alle {sum(1 for b in liste if b['benoetigt'])} benötigten "
+        "Graph- und Exchange-Berechtigungen vorhanden",
         deckt_nicht=exo_hinweis)
 
 
@@ -585,7 +568,22 @@ def _quell_ip_liste() -> dict:
                       "die Prüfung jede Quelle durch.",
                       "Erweitert → Quell-IP-Allowlist → „Jetzt aktualisieren“; scheitert das, "
                       "den Abruf von endpoints.office.com prüfen.")
-    return _punkt(name, OK, f"{n} Exchange-Adressbereiche geladen.")
+    # Alter mitprüfen: Der Abruf läuft alle 12 h. Scheitert er dauerhaft, blieb
+    # bis v1.12.42 eine beliebig alte Liste „OK“ — neue Microsoft-Bereiche
+    # fehlen dann, und Exchange wird an Port 25 abgewiesen.
+    import time
+    stand = smtp_acl.stand_ts()
+    if not stand:
+        return _punkt(name, UNBEKANNT, f"{n} Exchange-Adressbereiche geladen, Abrufzeit unbekannt.",
+                      "Erweitert → Quell-IP-Allowlist → „Jetzt aktualisieren“.")
+    tage = (time.time() - stand) / 86400
+    datum = time.strftime("%d.%m.%Y %H:%M", time.localtime(stand))
+    if tage > 3:
+        return _punkt(name, OFFEN, f"{n} Exchange-Adressbereiche, zuletzt abgerufen am {datum} "
+                      f"({int(tage)} Tage) — der Abruf alle 12 Stunden scheitert.",
+                      "Erweitert → Quell-IP-Allowlist → „Jetzt aktualisieren“; scheitert das, "
+                      "den Abruf von endpoints.office.com prüfen.")
+    return _punkt(name, OK, f"{n} Exchange-Adressbereiche geladen (Stand {datum}).")
 
 
 def _csp_berichte() -> dict:
@@ -700,6 +698,13 @@ def _regel_empfaenger() -> dict:
     if p["zustand"] == regel_bedingung.UNBEKANNT:
         return _punkt(name, UNBEKANNT, f"Regel „{p['regel']}“ ließ sich nicht lesen.",
                       "Exchange-Zugang prüfen (Einrichtung → Connector).")
+    # Das Absender-Gate liest dieselbe Abfrage mit. Bis v1.12.42 meldete es nur
+    # das Band, und das nur mit eingerichtetem Bypass-Wächter (täglicher Lauf).
+    if p.get("gate_offen"):
+        return _punkt(name, OFFEN,
+                      f"Die Regel „{p['regel']}“ ist AKTIV, aber ohne Absender-Gate "
+                      "(FromMemberOf leer): JEDER interne Absender läuft durchs Gateway.",
+                      "Postfächer → Speichern setzt das Gate wieder auf die Verteilerliste.")
     if p["zustand"] == regel_bedingung.BEDINGUNG:
         return _punkt(name, OFFEN,
                       f"Die Regel trägt SentToScope={p['sent_to_scope']} — interne "
@@ -742,10 +747,12 @@ def _regel_auto_ausnahme() -> dict:
     Fassung, nach der Connector-Einrichtung und nach „Ausnahme ergänzen“."""
     import regel_auto_ausnahme as raa
     import settings_store
-    name = "Routing-Regeln nehmen Abwesenheitsnotizen aus"
-    if not settings_store.get("EXO_CONNECTOR_CREATED"):
-        return _punkt(name, ENTFAELLT, "Exchange-Connector noch nicht eingerichtet.")
+    name = "Routing-Regeln nehmen Abwesenheitsnotizen und Kalender aus"
     g = raa.gemerkt()
+    # Ein gemerkter Befund zählt auch, wenn der Merker der Einrichtung
+    # zurückgesetzt wurde (Loop-Header geändert) — die Regeln gibt es weiter.
+    if not settings_store.get("EXO_CONNECTOR_CREATED") and not g:
+        return _punkt(name, ENTFAELLT, "Exchange-Connector noch nicht eingerichtet.")
     weg = "Einrichtung → Schritt 6 „EXO Outbound Connector + Transport Rule“ → „Ausnahme ergänzen“."
     if not g or g.get("zustand") == raa.UNBEKANNT:
         return _punkt(name, UNBEKANNT, "Die Regeln wurden noch nicht gelesen.",
@@ -754,10 +761,44 @@ def _regel_auto_ausnahme() -> dict:
         return _punkt(name, ENTFAELLT, "Keine Gateway-Routing-Regel gefunden.")
     if g["zustand"] == raa.FEHLT:
         return _punkt(name, OFFEN,
-                      f"Ohne Ausnahme für Auto-Antworten: {', '.join(g.get('fehlt') or [])}. "
-                      "Abwesenheitsnotizen laufen übers Gateway und erreichen externe "
-                      "Empfänger nicht (sie bleiben in der Warteschlange).", weg)
+                      f"Ausnahme fehlt an: {', '.join(g.get('fehlt') or [])}. Ohne sie laufen "
+                      "Abwesenheitsnotizen übers Gateway und erreichen externe Empfänger "
+                      "nicht, und Besprechungsanfragen gehen den Umweg übers Gateway.", weg)
     return _punkt(name, OK, f"Ausnahme vorhanden (geprüft {g.get('geprueft', '')}).")
+
+
+def _implicit_anmeldung() -> dict:
+    """Trägt die Bootstrap-App die Anmeldung per Microsoft-Knopf (Web-
+    Rückadresse + ID-Token-Ausgabe)? Gebraucht von SSO, Add-in-Login und
+    Self-Service. Bis v1.12.42 ungeprüft (setup_wizard.implicit_luecke)."""
+    import settings_store
+    name = "Anmeldung per Microsoft-Knopf (Bootstrap-App)"
+    if not (settings_store.get("ADMIN_USERS") or settings_store.get("ADDIN_ENABLED")
+            or settings_store.get("SELF_SERVICE_ENABLED")):
+        return _punkt(name, ENTFAELLT, "Weder Entra-Anmeldung, Add-in noch Self-Service eingerichtet")
+    client_id = (settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()
+    if not client_id:
+        return _punkt(name, OFFEN, "Keine Bootstrap-Anwendung eingetragen.",
+                      "Einrichtung (Schritt Anmeldung) durchlaufen.")
+    import graph_client
+    import httpx
+    import setup_wizard
+    token = graph_client._acquire_token()
+    if not token:
+        return _punkt(name, UNBEKANNT, "Keine Graph-Zugangsdaten.", "Einrichtung durchlaufen.")
+    r = httpx.get("https://graph.microsoft.com/v1.0/applications"
+                  f"?$filter=appId eq '{client_id}'&$select=web",
+                  headers={"Authorization": f"Bearer {token}"}, timeout=10)
+    r.raise_for_status()
+    apps = r.json().get("value", [])
+    if not apps:
+        return _punkt(name, OFFEN, f"Zu {client_id} gibt es keine Registrierung.",
+                      "Einrichtung (Schritt Anmeldung) erneut durchlaufen.")
+    fehlt = setup_wizard.implicit_luecke(apps[0])
+    if fehlt:
+        return _punkt(name, OFFEN, f"Es fehlt: {fehlt}. Die Anmeldung scheitert mit AADSTS700054.",
+                      "Einstellungen → Einrichtung → „Anmeldung prüfen“ → „In Entra ergänzen“.")
+    return _punkt(name, OK, "Web-Rückadresse und ID-Token-Ausgabe eingetragen")
 
 
 def _addin_rollen() -> dict:
@@ -835,8 +876,11 @@ def _addin_fassung() -> dict:
                       "zu tun; Exchange braucht bis zu 72 Stunden.")
     if not aktuell:
         return _punkt(name, ENTFAELLT, f"Bei keinem der {gesamt} geprüften Postfächer installiert.")
+    zeiten = sorted(str((((h or {}).get("checks") or {}).get("addin_verfassen") or {}).get("checked_at") or "")
+                    for h in gesundheit.values() if isinstance(h, dict))
+    stand = f", geprüft {zeiten[-1]}" if zeiten and zeiten[-1] else ""
     return _punkt(name, OK, f"{aktuell} von {gesamt} Postfächern aktuell "
-                            "(Stand der letzten Postfachprüfung).")
+                            f"(Stand der letzten Postfachprüfung{stand}).")
 
 
 def _waechter_code() -> dict:
@@ -854,11 +898,17 @@ def _waechter_code() -> dict:
         return _punkt(name, UNBEKANNT, f"Register nicht lesbar: {exc}")
     if not azure:
         return _punkt(name, ENTFAELLT, "Kein Azure-Wächter eingerichtet.")
+    # Auch die Einstellungen, die aus der Konfiguration folgen (Regelname,
+    # Health-Adresse) — bis v1.12.42 nur beim Anlegen gesetzt. Ein Wächter ohne
+    # gemerkten Stand gilt als veraltet: Was er hat, weiss niemand.
+    einst = watchdog_deploy.einstellungen_stand()
     alt = [w.get("name") or w.get("id") for w in azure
-           if (w.get("azure") or {}).get("code_stand") != soll]
+           if (w.get("azure") or {}).get("code_stand") != soll
+           or (w.get("azure") or {}).get("einstellungen_stand") != einst]
     if not alt:
-        return _punkt(name, OK, f"{len(azure)} Azure-Wächter mit aktuellem Code.")
-    return _punkt(name, OFFEN, f"{len(alt)} Azure-Wächter mit älterem Code (z. B. {alt[0]}).",
+        return _punkt(name, OK, f"{len(azure)} Azure-Wächter mit aktuellem Code und Einstellungen.")
+    return _punkt(name, OFFEN, f"{len(alt)} Azure-Wächter mit älterem Code oder veralteten "
+                               f"Einstellungen (Regelname, Health-Adresse; z. B. {alt[0]}).",
                   "Erweitert → Bypass-Wächter → beim Wächter „Code aktualisieren“ "
                   "(braucht den Azure-Login wie beim Anlegen).")
 
@@ -895,7 +945,7 @@ def _key_vault_zugriff() -> dict:
 
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
-              _regel_auto_ausnahme,
+              _regel_auto_ausnahme, _implicit_anmeldung,
               _addin_rollen, _addin_fassung, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,

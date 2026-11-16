@@ -52,9 +52,10 @@ def _skript(monkeypatch, antworten: list):
 # ── Soll ──────────────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("regel, soll", [
-    ({"header": "Auto-Submitted", "words": ["auto"]}, True),
-    ({"header": "auto-submitted", "words": "AUTO"}, True),      # PS liefert Einzelwert als Text
-    ({"header": "Auto-Submitted", "words": ["no", "auto"]}, True),
+    ({"header": "Auto-Submitted", "words": ["auto"], "message_types": ["Calendaring"]}, True),
+    ({"header": "auto-submitted", "words": "AUTO", "message_types": "Calendaring"}, True),  # Einzelwert
+    ({"header": "Auto-Submitted", "words": ["no", "auto"], "message_types": ["Calendaring"]}, True),
+    ({"header": "Auto-Submitted", "words": ["auto"]}, False),   # Kalender fehlt (v1.12.43)
     ({"header": "Auto-Submitted", "words": ["auto-replied"]}, False),
     ({"header": "", "words": []}, False),                       # die Regel aus dem Feld
     ({"header": "X-Sig-Applied", "words": ["auto"]}, False),
@@ -79,7 +80,7 @@ def test_fehlende_ausnahme_wird_gemerkt_und_gemeldet(store, monkeypatch):
         {"name": "Route via Mein Tor (Signatur)", "found": True, "header": "", "words": []},
         {"name": "Route via Mein Tor", "found": False},
         {"name": "Route via Mein Tor (S/MIME)", "found": True,
-         "header": "Auto-Submitted", "words": ["auto"]}]}])
+         "header": "Auto-Submitted", "words": ["auto"], "message_types": ["Calendaring"]}]}])
     assert raa.pruefen()["zustand"] == raa.FEHLT
     gespeichert = json.loads(store.read_text())[raa.KEY]
     assert gespeichert["zustand"] == raa.FEHLT and gespeichert["fassung"] == config.VERSION
@@ -91,7 +92,7 @@ def test_fehlende_ausnahme_wird_gemerkt_und_gemeldet(store, monkeypatch):
 def test_vorhandene_ausnahme_ist_ok(store, monkeypatch):
     _skript(monkeypatch, [{"ok": True, "regeln": [
         {"name": "Route via Mein Tor (Signatur)", "found": True,
-         "header": "Auto-Submitted", "words": ["auto"]}]}])
+         "header": "Auto-Submitted", "words": ["auto"], "message_types": ["Calendaring"]}]}])
     assert raa.pruefen()["zustand"] == raa.OK
     assert abnahme._regel_auto_ausnahme()["zustand"] == abnahme.OK
 
@@ -119,7 +120,7 @@ def test_ergaenzen_liest_nach(store, monkeypatch):
         {"ok": True, "regeln": [{"name": "Route via Mein Tor (Signatur)", "found": True,
                                  "vorher": ":", "nachher": "Auto-Submitted:auto"}]},
         {"ok": True, "regeln": [{"name": "Route via Mein Tor (Signatur)", "found": True,
-                                 "header": "Auto-Submitted", "words": ["auto"]}]}])
+                                 "header": "Auto-Submitted", "words": ["auto"], "message_types": ["Calendaring"]}]}])
     erg = raa.ergaenzen("test")
     assert erg["ok"] and erg["zustand"] == raa.OK
     assert [a[0] for a in aufrufe] == ["set_rule_auto_ausnahme.ps1", "get_rule_auto_ausnahme.ps1"]
@@ -141,7 +142,7 @@ def test_ergaenzen_ohne_wirkung_ist_kein_erfolg(store, monkeypatch):
 def test_nach_update_prueft_einmal_je_fassung(store, monkeypatch):
     aufrufe = _skript(monkeypatch, [{"ok": True, "regeln": [
         {"name": "Route via Mein Tor (Signatur)", "found": True,
-         "header": "Auto-Submitted", "words": ["auto"]}]}])
+         "header": "Auto-Submitted", "words": ["auto"], "message_types": ["Calendaring"]}]}])
     raa.nach_update()
     raa.nach_update()                      # gleiche Fassung: kein zweiter Exchange-Login
     assert len(aufrufe) == 1
@@ -202,6 +203,7 @@ def test_ergaenzen_skript_setzt_nur_die_ausnahme():
     setze = re.search(r"Set-TransportRule\b(.*?)\|\s*Out-Null", text, re.S).group(1)
     parameter = set(re.findall(r"(?<![\w-])-(\w+)", setze))
     assert parameter == {"Identity", "ExceptIfHeaderContainsMessageHeader",
-                         "ExceptIfHeaderContainsWords", "ErrorAction"}, parameter
+                         "ExceptIfHeaderContainsWords", "ExceptIfMessageTypeMatches",
+                         "ErrorAction"}, parameter
     lesen = (SKRIPTE / "get_rule_auto_ausnahme.ps1").read_text("utf-8")
     assert "Set-" not in lesen, "Das Leseskript schreibt nichts"

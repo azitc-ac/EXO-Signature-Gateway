@@ -42,6 +42,7 @@ _laeuft = False            # Prüfung nach Update läuft (Aufgabe zeigt Fortschr
 
 HEADER = "Auto-Submitted"
 WORT = "auto"
+KALENDER = "Calendaring"
 
 OK = "ok"
 FEHLT = "fehlt"
@@ -60,13 +61,19 @@ def regelnamen() -> list[str]:
     return list(dict.fromkeys(n for n in namen if n))
 
 
+def _liste(wert) -> list[str]:
+    if isinstance(wert, str):
+        wert = [wert]
+    return [str(w or "").strip().lower() for w in (wert or [])]
+
+
 def ist_soll(regel: dict) -> bool:
-    """Header `Auto-Submitted` und das Wort `auto` unter den Wörtern."""
-    worte = regel.get("words") or []
-    if isinstance(worte, str):
-        worte = [worte]
+    """Header `Auto-Submitted` mit dem Wort `auto` UND Kalenderelemente
+    ausgenommen. Die Kalender-Ausnahme steht seit v1.4.331 im Anlegen, wurde aber
+    bis v1.12.43 im Produkt nie geprüft (nur tools/tenant_soll_check.py)."""
     return (str(regel.get("header") or "").strip().lower() == HEADER.lower()
-            and WORT in [str(w or "").strip().lower() for w in worte])
+            and WORT in _liste(regel.get("words"))
+            and KALENDER.lower() in _liste(regel.get("message_types")))
 
 
 def _jetzt() -> str:
@@ -102,8 +109,8 @@ def pruefen() -> dict:
         befund = {"zustand": OK if all(r["ok"] for r in regeln) else FEHLT, "regeln": regeln}
     _merken(befund)
     if befund["zustand"] == FEHLT:
-        log.warning("Gateway-Regel(n) ohne Auto-Antwort-Ausnahme: %s — Abwesenheitsnotizen "
-                    "laufen übers Gateway und erreichen externe Empfänger nicht. "
+        log.warning("Gateway-Regel(n) ohne Ausnahme für Auto-Antworten/Kalender: %s — "
+                    "Abwesenheitsnotizen und Einladungen laufen übers Gateway. "
                     "Einrichtung → Schritt 6 (Connector + Transport Rule) → „Ausnahme ergänzen“.",
                     ", ".join(r["name"] for r in regeln if not r["ok"]))
     return befund

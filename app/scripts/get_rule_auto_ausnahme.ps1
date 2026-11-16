@@ -1,6 +1,7 @@
 # get_rule_auto_ausnahme.ps1
-# READ-ONLY: Auto-Antwort-Ausnahme (ExceptIfHeaderContainsMessageHeader +
-# ExceptIfHeaderContainsWords) der Gateway-Routing-Regeln lesen.
+# READ-ONLY: Ausnahmen der Gateway-Routing-Regeln lesen — Auto-Antworten
+# (ExceptIfHeaderContainsMessageHeader + ExceptIfHeaderContainsWords) und
+# Kalenderelemente (ExceptIfMessageTypeMatches).
 # RuleName = kommagetrennte Liste (regel_auto_ausnahme.regelnamen()); fehlende
 # Regeln werden mit found=$false gemeldet. Ausgabe: eine JSON-Zeile.
 param(
@@ -30,7 +31,8 @@ try {
         if (-not $r) { $regeln += @{ name = $name; found = $false }; continue }
         $regeln += @{ name = $name; found = $true
                       header = [string]$r.ExceptIfHeaderContainsMessageHeader
-                      words = @($r.ExceptIfHeaderContainsWords | ForEach-Object { [string]$_ }) }
+                      words = @($r.ExceptIfHeaderContainsWords | ForEach-Object { [string]$_ })
+                      message_types = @($r.ExceptIfMessageTypeMatches | ForEach-Object { [string]$_ }) }
     }
     Write-Output (@{ ok = $true; regeln = $regeln } | ConvertTo-Json -Compress -Depth 4)
 } catch {

@@ -36,6 +36,9 @@ OHNE_AUFGABE: dict[str, str] = {
                "offen, bis der Knopf den Stand gemerkt hat — eine zweite Aufgabe wäre doppelt",
     "1.12.42": "deckt die bestehende Aufgabe „addin-fassung“ (seit 1.11.56) ab: Sie vergleicht "
                "jetzt gegen die frisch bestimmte Soll-Fassung und erscheint damit von selbst",
+    "1.12.43": "schärft bestehende Prüfungen; Wächter und Regel-Ausnahmen erscheinen über die "
+               "Aufgaben „waechter-code“ und „regel-auto-ausnahme“, Rollen und Anmeldung brauchen "
+               "eine Graph-Abfrage (Aufgaben sind nur lokal) und stehen in der Abnahme",
 }
 
 _KOPF = re.compile(r"^## v(\d+\.\d+\.\d+)\b.*$", re.M)

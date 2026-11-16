@@ -1036,13 +1036,13 @@
     <div id="exo-auto-ausnahme" style="margin-top:8px">
       <p style="margin:0 0 6px;font-size:12.5px">
         {% if aa and aa.zustand == 'ok' %}
-        <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fertig" id="auto-ausnahme-stand">✓ Routing-Regeln nehmen Abwesenheitsnotizen aus (geprüft {{ aa.geprueft }})</span>
+        <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fertig" id="auto-ausnahme-stand">✓ Routing-Regeln nehmen Abwesenheitsnotizen und Kalender aus (geprüft {{ aa.geprueft }})</span>
         {% elif aa and aa.zustand == 'fehlt' %}
-        <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="auto-ausnahme-stand">⚠ Ohne Ausnahme für Abwesenheitsnotizen: {{ aa.fehlt | join(', ') }}. Sie laufen dann übers Gateway und erreichen externe Empfänger nicht.</span>
+        <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="auto-ausnahme-stand">⚠ Ausnahme für Abwesenheitsnotizen/Kalender fehlt an: {{ aa.fehlt | join(', ') }}. Abwesenheitsnotizen erreichen externe Empfänger dann nicht.</span>
         {% elif aa and aa.zustand == 'keine' %}
         <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="auto-ausnahme-stand">Keine Gateway-Routing-Regel gefunden.</span>
         {% else %}
-        <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="auto-ausnahme-stand">Ausnahme für Abwesenheitsnotizen noch nicht geprüft.</span>
+        <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="auto-ausnahme-stand">Ausnahmen für Abwesenheitsnotizen und Kalender noch nicht geprüft.</span>
         {% endif %}
       </p>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1050,7 +1050,7 @@
         {% if aa and aa.zustand == 'fehlt' %}
         <button type="button" class="btn secondary btn-sm" id="auto-ausnahme-btn" onclick="autoAusnahmeErgaenzen(this)">Ausnahme ergänzen</button>
         {% endif %}
-        <span class="hint">Ergänzt nur die Ausnahme <code>Auto-Submitted</code> enthält <code>auto</code>; Gate und übrige Bedingungen bleiben.</span>
+        <span class="hint">Ergänzt nur die Ausnahmen <code>Auto-Submitted</code> enthält <code>auto</code> und Kalenderelemente; Gate und übrige Bedingungen bleiben.</span>
       </div>
       <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="auto-ausnahme-result" hidden></span>
     </div>

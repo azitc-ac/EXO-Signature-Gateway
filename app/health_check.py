@@ -239,9 +239,22 @@ foreach ($email in $emails) {{
 
     # Welche Fassung der Add-ins Exchange diesem Postfach ausgeliefert hat (nur lesen)
     $addins = @{{}}
+    # „Nicht gefunden“ heisst nicht installiert (""). Jeder ANDERE Fehler
+    # (Drosselung, Sitzung weg) kommt als "!<Meldung>" zurück — bis v1.12.42
+    # verschluckte SilentlyContinue ihn, und aus „nicht abfragbar“ wurde
+    # „nicht installiert“ bzw. in der Abnahme „entfällt“.
     foreach ($aid in $addinIds) {{
-        $app = Get-App -Mailbox $email -Identity $aid -ErrorAction SilentlyContinue
-        $addins[$aid] = if ($app) {{ [string]$app.AppVersion }} else {{ "" }}
+        try {{
+            $app = Get-App -Mailbox $email -Identity $aid -ErrorAction Stop
+            $addins[$aid] = if ($app) {{ [string]$app.AppVersion }} else {{ "" }}
+        }} catch {{
+            $grund = [string]$_.CategoryInfo.Reason
+            if ($grund -eq 'ManagementObjectNotFoundException' -or $_.FullyQualifiedErrorId -like '*NotFound*') {{
+                $addins[$aid] = ""
+            }} else {{
+                $addins[$aid] = "!" + [string]$_.Exception.Message
+            }}
+        }}
     }}
 
     $results[$emailLow] = @{{
@@ -423,6 +436,10 @@ def _check_addins(installiert: dict | None) -> dict[str, dict]:
             ergebnis[art] = _make_result("skip", "Nicht abgefragt (PowerShell-Fehler)")
             continue
         ist = (installiert.get(a["id"]) or "").strip()
+        if ist.startswith("!"):
+            # Abfrage gescheitert — weder „nicht installiert“ noch eine Fassung.
+            ergebnis[art] = _make_result("skip", "Nicht abgefragt (Get-App: " + ist[1:][:120] + ")")
+            continue
         # EINE Einordnung für Postfachprüfung und Aufgabe (addin_verteilung):
         # Ist die Soll-Fassung schon bei einem Postfach angekommen, ist das
         # Aktualisieren im Admin Center erledigt — dann nur Verteilung, keine
@@ -549,6 +566,11 @@ def _check_smime_key(email: str) -> dict:
     # default_key_location() (dieselbe Quelle wie der kv_sign-Check) — sonst
     # behauptet die Anzeige „Key Vault" bei einem Postfach ganz ohne Schlüssel.
     if smime_store.default_key_location(email) == "kv":
+        # „kv“ heisst nur: Zertifikat da, lokal kein Schlüssel. Ohne eingetragenen
+        # Key Vault liegt er nirgends — bis v1.12.42 stand dann trotzdem „ok“.
+        if not (settings_store.get("KEYVAULT_URL") or "").strip():
+            return _make_result("error", "Zertifikat ohne Schlüssel: lokal keiner, "
+                                         "und kein Key Vault eingetragen")
         return _make_result("ok", "Key Vault")
 
     return _make_result("error", "Kein Schlüssel gefunden (lokal + Key Vault)")

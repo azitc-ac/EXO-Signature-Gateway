@@ -653,7 +653,13 @@ async def api_verify_sso(_=Depends(_require_admin)):
     schritt("Anmeldung für Add-in und Tab (NAA)", not fehlt,
             "vollständig" if not fehlt else
             "Es fehlt: " + "; ".join(fehlt) + ". „In Entra ergänzen“ trägt es nach.")
-    if fehlt:
+    # Anmeldung per Microsoft-Knopf (SSO, Add-in-Login, Self-Service): Web-
+    # Rückadresse + ID-Token-Ausgabe — dieselbe Soll-Funktion wie der Setzer.
+    implicit = setup_wizard.implicit_luecke(app_obj)
+    schritt("Anmeldung per Microsoft-Knopf (Implicit)", not implicit,
+            "vollständig" if not implicit else
+            "Es fehlt: " + implicit + ". „In Entra ergänzen“ trägt es nach.")
+    if fehlt or implicit:
         ergebnis["nachholen"] = "/api/addin/update-redirect-uri"
 
     # Den gemerkten Stand (Anzeige „Aktuell registriert“) still auffrischen —

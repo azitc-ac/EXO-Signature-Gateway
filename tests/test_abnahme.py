@@ -144,35 +144,49 @@ def _jwt_mit_rollen(rollen):
     return f"h.{payload}.s"
 
 
-def test_exchange_meldet_fehlende_berechtigung(monkeypatch):
+def _soll_rollen(api: str) -> list[str]:
+    import setup_wizard
+    specs = setup_wizard._GRAPH_PERMISSION_SPECS if api == "Graph" else setup_wizard._EXO_PERMISSION_SPECS
+    return [s["name"] for s in specs if setup_wizard.benoetigt(s)]
+
+
+@pytest.fixture
+def rollen(monkeypatch):
+    """Graph- und Exchange-Token mit den gegebenen Rollen (Vorgabe: alle benötigten)."""
+    import berechtigungen
     import graph_client
+    stand = {"graph": _soll_rollen("Graph"), "exo": _soll_rollen("Exchange")}
     monkeypatch.setattr(graph_client, "frisches_app_token",
-                        lambda *a: _jwt_mit_rollen(["User.Read.All"]))
+                        lambda *a: _jwt_mit_rollen(stand["graph"]))
+    monkeypatch.setattr(berechtigungen, "_rollen_im_cache", lambda: None)
+    monkeypatch.setattr(berechtigungen, "exo_rollen", lambda: set(stand["exo"]))
+    return stand
+
+
+def test_exchange_ok_mit_allen_rollen(rollen):
+    assert abnahme._exchange()["zustand"] == abnahme.OK
+
+
+def test_exchange_meldet_fehlende_berechtigung(rollen):
+    rollen["graph"] = ["User.Read.All"]
     p = abnahme._exchange()
-    assert p["zustand"] == abnahme.OFFEN
-    assert "Mail.Send" in p["befund"]
+    assert p["zustand"] == abnahme.OFFEN and "Mail.Send" in p["befund"]
 
 
-def test_exchange_ok_mit_allen_rollen(monkeypatch):
-    import graph_client
-    monkeypatch.setattr(
-        graph_client, "frisches_app_token",
-        lambda: _jwt_mit_rollen(["User.Read.All", "Mail.Send", "Mail.ReadWrite"]))
-    monkeypatch.setattr(abnahme, "_exo_rollen", lambda: {"Exchange.ManageAsApp"})
-    p = abnahme._exchange()
-    assert p["zustand"] == abnahme.OK
+def test_exchange_soll_kommt_aus_der_antragsliste(rollen):
+    """Bis v1.12.42 prüfte der Punkt einen festen Auszug: Jede andere fehlende
+    Rolle (Abwesenheit, Kalender …) blieb unbemerkt — JEDE benötigte zählt."""
+    for fehlend in _soll_rollen("Graph"):
+        rollen["graph"] = [r for r in _soll_rollen("Graph") if r != fehlend]
+        p = abnahme._exchange()
+        assert p["zustand"] == abnahme.OFFEN and fehlend in p["befund"], fehlend
 
 
-def test_exchange_meldet_fehlende_exo_rolle(monkeypatch):
+def test_exchange_meldet_fehlende_exo_rolle(rollen):
     """Exchange.ManageAsApp fehlt im EXO-Token → OFFEN (die kritische Rolle)."""
-    import graph_client
-    monkeypatch.setattr(
-        graph_client, "frisches_app_token",
-        lambda: _jwt_mit_rollen(["User.Read.All", "Mail.Send", "Mail.ReadWrite"]))
-    monkeypatch.setattr(abnahme, "_exo_rollen", lambda: set())
+    rollen["exo"] = []
     p = abnahme._exchange()
-    assert p["zustand"] == abnahme.OFFEN
-    assert "Exchange.ManageAsApp" in p["befund"]
+    assert p["zustand"] == abnahme.OFFEN and "Exchange.ManageAsApp" in p["befund"]
 
 
 # ── Von außen erreichbar — Selbstabruf + IP-Vergleich ────────────
