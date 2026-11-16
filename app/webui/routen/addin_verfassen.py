@@ -388,7 +388,14 @@ async def verfassen_signatur(request: Request):
     except AttributeError:
         von, empfaenger = "", []
     ident, bearbeiter = email, ""
-    if von and "@" in von and len(von) <= 254 and von != email:
+    if (von and "@" in von and len(von) <= 254 and von != email
+            and mailbox_match.selbes_postfach(settings_store.get("MAILBOX_CONFIG") or {}, email, von)):
+        # Dasselbe Postfach, nur unter anderer Adresse: Die Anmeldung nennt den
+        # UPN, Outlook die Hauptadresse. Kein geteiltes Postfach, kein Bearbeiter
+        # — bis v1.12.39 hielt der Textvergleich die Person für den Bearbeiter
+        # ihres eigenen Postfachs.
+        ident = von
+    elif von and "@" in von and len(von) <= 254 and von != email:
         von_cfg = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, von)
         if von_cfg.get("sig"):
             ident, bearbeiter = von, email

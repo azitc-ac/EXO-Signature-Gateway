@@ -56,6 +56,17 @@ def match_sender_key(mailbox_config: dict, sender: str) -> str:
     return ""
 
 
+def selbes_postfach(mailbox_config: dict, a: str, b: str) -> bool:
+    """Gehören zwei Adressen zum SELBEN Postfach-Eintrag (ExchangeGuid samt
+    bekannter Adressen)? Für jeden Vergleich „angemeldete Person ↔ Adresse
+    aus Outlook“: Die Anmeldung liefert den UPN, Outlook die Hauptadresse —
+    weichen beide ab (UPN = Kurzform, Hauptadresse = Langform), ist es
+    trotzdem das eigene Postfach. Ein Textvergleich hielt das bis v1.12.39
+    im Verfassen-Add-in für „schreibt für ein fremdes Postfach“."""
+    ka = match_sender_key(mailbox_config, a)
+    return bool(ka) and ka == match_sender_key(mailbox_config, b)
+
+
 def configured_addresses(mailbox_config: dict) -> list[str]:
     """The primary address of each config entry — the key itself for e-mail-keyed
     entries, or the cached `primary` for guid-keyed ones. Used wherever code needs

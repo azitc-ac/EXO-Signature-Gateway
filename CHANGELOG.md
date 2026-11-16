@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.41 — 2026-11-16 — Verfassen-Add-in: eigenes Postfach auch bei abweichendem Anmeldenamen
+
+Weicht der Anmeldename (UPN) einer Person von ihrer Hauptadresse ab (etwa
+Kurzform bei der Anmeldung, Vor- und Nachname als Hauptadresse), hielt das
+Verfassen-Add-in sie für die Bearbeiterin eines fremden Postfachs: Die
+Anmeldung nannte den UPN, Outlook als Von-Adresse die Hauptadresse, und beide
+wurden als Text verglichen. Die Signatur kam zwar aus dem richtigen Postfach,
+aber Bausteine mit der Bedingung „Verfasser im fremden Postfach“ und die
+Variable `bearbeiter` behandelten die Person wie eine zweite.
+
+Jetzt zählt der Postfach-Eintrag (ExchangeGuid samt bekannter Adressen): Gehören
+UPN und Von-Adresse zu demselben Postfach, ist es das eigene. Dieselbe Prüfung
+nutzen der Aufgabenbereich (dort seit v1.11.51) und der Versand beim Vergleich
+von `From` und `Sender`.
+
+**Zu tun:** nichts.
+
 ## v1.12.40 — 2026-11-16 — Dateirechte: mitentstehende Verzeichnisse, eine harden_file; Zustimmungsdatenbank ohne Schema bei jedem Öffnen
 
 - **Verzeichnisse, die beim Anlegen mit entstehen, bekommen 700.** Legt das

@@ -64,9 +64,7 @@ def _addin_postfach(request: Request, email: str, user: str) -> str:
         # Nachname), schlug der reine Textvergleich mit 403 fehl. Maßgeblich ist
         # der Postfach-Eintrag (ExchangeGuid samt bekannter Adressen) — dieselbe
         # Zuordnung, mit der Verfassen-Ereignis und Versand das Postfach finden.
-        mb_all = settings_store.get("MAILBOX_CONFIG") or {}
-        eintrag = mailbox_match.match_sender_key(mb_all, email)
-        if eintrag and eintrag == mailbox_match.match_sender_key(mb_all, user):
+        if mailbox_match.selbes_postfach(settings_store.get("MAILBOX_CONFIG") or {}, email, user):
             return email
         # Im Protokoll, damit eine 403 im Aufgabenbereich ohne Rückfrage zu deuten ist.
         log.warning("Add-in: %s fragt die Signatur von %s ab — als Self-Sitzung nur das "
