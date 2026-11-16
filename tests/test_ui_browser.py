@@ -1544,6 +1544,53 @@ def test_waechterzeile_quetscht_den_namen_nicht(browser, server, monkeypatch, br
         f"Textblock nur {masse['block']:.0f} px von {masse['liste']:.0f} px — die Knöpfe quetschen den Namen")
 
 
+def test_code_aktualisieren_ohne_azure_login_bietet_die_anmeldung_an(browser, server, monkeypatch):
+    """Fehlt die Azure-Anmeldung, verwies bis v1.12.43 eine Meldung auf
+    „Wächter hinzufügen → Azure-Zugriff holen“ — den Knopf gab es dort erst nach
+    Wahl von „Azure Function“. Jetzt erscheint am Wächter ein Knopf, und nach
+    der Anmeldung läuft „Code aktualisieren“ von selbst weiter."""
+    import json
+    import sso
+    monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-oberflaeche")
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
+    keks = sso.create_session_cookie("chefin@example.org", role=sso.ROLE_ADMIN)
+    daten = {"ok": True, "enabled": True, "code_stand": "neu", "rule_state": "an",
+             "watchers": [{"id": "w1", "kind": "azure", "name": "Azure – rg/wd",
+                           "last_seen": None, "azure": {"app_name": "wd", "code_stand": "alt",
+                                                        "resource_group": "rg", "grants_done": True}}]}
+    aufrufe = []
+
+    def _code(route):
+        aufrufe.append(1)
+        if len(aufrufe) == 1:
+            route.fulfill(status=400, content_type="application/json",
+                          body=json.dumps({"ok": False, "detail": "Kein Azure-Zugriff — erst per Azure-Login."}))
+        else:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({"ok": True}))
+    ctx = browser.new_context(viewport={"width": 1280, "height": 900})
+    ctx.add_cookies([{"name": sso.SESSION_COOKIE, "value": keks, "domain": "127.0.0.1", "path": "/"}])
+    ctx.route("**/api/watchdog/status*",
+              lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(daten)))
+    ctx.route("**/api/watchdog/code-aktualisieren", _code)
+    pg = ctx.new_page()
+    meldungen = []
+    pg.on("dialog", lambda d: (meldungen.append(d.message), d.accept()))
+    pg.goto(f"{server}/advanced", wait_until="domcontentloaded")
+    pg.evaluate("() => window.loadWatchdogStatus && window.loadWatchdogStatus()")
+    pg.wait_for_function("() => [...document.querySelectorAll('#wd-liste button')].some(b => b.textContent.includes('Code aktualisieren'))")
+    pg.evaluate("() => [...document.querySelectorAll('#wd-liste button')].find(b => b.textContent.includes('Code aktualisieren')).click()")
+    pg.wait_for_function("() => !document.getElementById('wd-arm-nachholen').hidden")
+    knopf_sichtbar = pg.is_visible("#wd-arm-nachholen button")
+    # Rückmeldung des Anmeldefensters nachspielen → Aktion läuft weiter.
+    pg.evaluate("() => window.postMessage({type: 'arm-auth-done'}, location.origin)")
+    pg.wait_for_function("() => document.getElementById('wd-arm-nachholen').hidden")
+    pg.wait_for_timeout(300)
+    ctx.close()
+    assert knopf_sichtbar
+    assert not any("Wächter hinzufügen" in m for m in meldungen), meldungen
+    assert len(aufrufe) == 2, "nach der Anmeldung lief „Code aktualisieren“ nicht erneut"
+
+
 # ── Mail-Routing: Port 25 wird vor „Selbst per MX“ gemessen ──────────────────
 
 @pytest.mark.parametrize("modus,port25_offen,antwort,gespeichert,getestet", [

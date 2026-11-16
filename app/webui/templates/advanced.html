@@ -76,6 +76,10 @@
     </div>
     <div id="wd-liste" style="font-size:13px;color:#78716c">— wird geladen … —</div>
     <div id="wd-einfuegen" hidden style="margin-top:8px"></div>
+    <div id="wd-arm-nachholen" hidden style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="wd-arm-nachholen-text"></span>
+      <button type="button" class="btn secondary btn-sm" onclick="wdArmNachholen(this)">Azure-Anmeldung öffnen</button>
+    </div>
     <div id="watchdog-status" style="font-size:12px;color:#78716c;margin-top:8px"></div>
     <p class="hint" style="margin:8px 0 0"><strong>Berechtigungen erteilen</strong>: gibt dem Azure-Wächter per Azure-Login die nötigen Exchange-Rechte (bis „✓ berechtigt" steht — vorher meldet er „EXO: UnAuthorized"). <strong>Entfernen</strong>: baut den Wächter samt seiner Azure-Ressourcen ab. Öffnet ein Popup — falls nichts passiert, Popups für diese Seite erlauben.</p>
   </div>
@@ -1275,6 +1279,12 @@ smtpCertLaden();
       else alert('Berechtigungen fehlgeschlagen: ' + (d.msg || 'unbekannt'));
     } else if (t === 'arm-auth-done'){
       _wdArmOk = true;
+      if (_wdNachArm){
+        var weiter = _wdNachArm; _wdNachArm = null;
+        var box = document.getElementById('wd-arm-nachholen');
+        box.hidden = true; box.style.display = '';
+        weiter();
+      }
       armKasten('wd-arm', 'ok', 'Verbunden — lade Abos …', '✓');
       document.getElementById('wd-arm-btn').textContent = 'Erneut verbinden';
       document.getElementById('wd-deploy-rows').style.display = 'block';
@@ -1443,14 +1453,30 @@ smtpCertLaden();
     else alert('Umbenennen fehlgeschlagen: ' + errText(d));
   };
 
-  // Fehlt der delegierte Azure-Login (Anlegen, Aktualisieren, Entfernen brauchen
-  // ihn), den Weg dorthin nennen und das Hinzufügen-Feld aufklappen. true = behandelt.
-  function _azureZugriffFehlt(d, wofuer, nochmal){
+  // Fehlt der delegierte Azure-Login (Aktualisieren, Entfernen brauchen ihn),
+  // erscheint am Wächter ein Knopf, der die Anmeldung öffnet; danach läuft die
+  // Aktion von selbst weiter. Bis v1.12.43 verwies eine Meldung auf „Wächter
+  // hinzufügen → Azure-Zugriff holen“ — der Knopf dort erscheint aber erst nach
+  // Wahl von „Azure Function“, war also nicht zu finden. Ein Anmeldefenster
+  // direkt nach der Antwort ginge nicht: Der Browser öffnet Fenster nur im Klick.
+  // true = behandelt.
+  var _wdNachArm = null;
+  function _azureZugriffFehlt(d, wofuer, wiederholen){
     if (!(d.http === 400 && /Azure-Zugriff/.test(d.detail || ''))) return false;
-    alert('Für ' + wofuer + ' erst Azure-Zugriff holen: „Wächter hinzufügen" → „Azure-Zugriff holen", dann erneut ' + nochmal + '.');
-    var p = document.getElementById('wd-add-panel'); if (p) p.style.display = 'block';
+    _wdNachArm = wiederholen;
+    document.getElementById('wd-arm-nachholen-text').textContent =
+      'Für ' + wofuer + ' braucht das Gateway deine Azure-Anmeldung. Danach geht es von selbst weiter.';
+    var box = document.getElementById('wd-arm-nachholen');
+    box.hidden = false; box.style.display = 'flex';
     return true;
   }
+
+  window.wdArmNachholen = async function(btn){
+    var r = await knopfAktion(btn, 'Öffne Azure-Login…', function() {
+      return anmeldeFenster('/api/setup/keyvault/arm-auth-url', 'wd-arm', true);
+    });
+    if (!r.ok) alert('Fehler: ' + r.fehler);
+  };
 
   // Lädt den mitgelieferten Function-Code auf einen bestehenden Azure-Wächter
   // (derselbe Weg wie beim Anlegen). Braucht den Azure-Login wie Anlegen/Entfernen.
@@ -1459,20 +1485,20 @@ smtpCertLaden();
       function(){ return postJSON('/api/watchdog/code-aktualisieren', {id: id}); });
     if (d.ok){
       loadWatchdogStatus();
-    } else if (!_azureZugriffFehlt(d, 'das Aktualisieren', '„Code aktualisieren"')){
+    } else if (!_azureZugriffFehlt(d, 'das Aktualisieren', function(){ wdCodeAktualisieren(knopf, id); })){
       alert('Code nicht aktualisiert: ' + errText(d));
     }
   };
 
-  window.wdRemove = async function(id, kind){
-    if (!confirm('Wächter „' + id + '" entfernen?' +
+  window.wdRemove = async function(id, kind, bestaetigt){
+    if (!bestaetigt && !confirm('Wächter „' + id + '" entfernen?' +
         (kind === 'azure' ? '\n\nDie Azure-Ressourcen (Function/Storage/Plan, ggf. Ressourcengruppe) werden gelöscht.' : ''))) return;
     var d = await postJSON('/api/watchdog/remove', {id: id});
     if (d.ok){
       if (d.kind === 'cron' && d.befehle){ alert((d.hinweis || '') + '\n\n' + d.befehle); }
       else if (d.detail){ alert(d.detail); }
       loadWatchdogStatus();
-    } else if (!_azureZugriffFehlt(d, 'den Rückbau eines Azure-Wächters', 'entfernen')){
+    } else if (!_azureZugriffFehlt(d, 'den Rückbau eines Azure-Wächters', function(){ wdRemove(id, kind, true); })){
       alert('Fehler: ' + errText(d));
     }
   };

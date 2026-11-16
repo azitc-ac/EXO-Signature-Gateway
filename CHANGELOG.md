@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.44 — 2026-11-16 — Bypass-Wächter: Azure-Anmeldung direkt am Wächter
+
+Fehlte beim „Code aktualisieren“ oder „Entfernen“ eines Azure-Wächters die
+Azure-Anmeldung, verwies eine Meldung auf „Wächter hinzufügen → Azure-Zugriff
+holen“. Den Knopf gab es dort aber erst nach Wahl von „Azure Function“, also
+war er nicht zu finden. Jetzt erscheint unter der Wächterliste „Azure-Anmeldung
+öffnen“. Nach der Anmeldung läuft die Aktion von selbst weiter.
+
+**Zu tun:** nichts.
+
 ## v1.12.43 — 2026-11-16 — Prüfungen: keine grünen Befunde mehr auf veralteten oder unvollständigen Grundlagen
 
 Eine Durchsicht aller Prüfungen fand Stellen, die auf veralteten oder
