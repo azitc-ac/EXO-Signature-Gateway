@@ -515,7 +515,14 @@ async def addin_manifest(request: Request):
 
     Base URL priority: 1) ADDIN_BASE_URL setting  2) X-Forwarded-Host  3) request.url
     """
-    base = _addin_base_url(request)
+    from fastapi.responses import Response
+    return Response(content=knopf_manifest_xml(_addin_base_url(request)),
+                    media_type="application/xml")
+
+
+def knopf_manifest_xml(base: str) -> str:
+    """Manifest des Knopf-Add-ins. Setzt dabei die Fassung (_manifest_version)
+    — auch ohne Abruf von außen, siehe manifest_staende_auffrischen()."""
     hostname = base.split("://")[-1].split(":")[0]
     # Stable add-in ID derived from the hostname so it never changes across restarts.
     addin_id = knopf_addin_id(hostname)
@@ -639,9 +646,28 @@ async def addin_manifest(request: Request):
     </VersionOverrides>
   </VersionOverrides>
 </OfficeApp>"""
-    xml = xml.replace("__VERSION__", _manifest_version(_ohne_adresse(xml, base, hostname, addin_id)), 1)
-    from fastapi.responses import Response
-    return Response(content=xml, media_type="application/xml")
+    return xml.replace("__VERSION__", _manifest_version(_ohne_adresse(xml, base, hostname, addin_id)), 1)
+
+
+def manifest_staende_auffrischen() -> None:
+    """Fassungen aller Manifeste neu bestimmen, ohne dass jemand sie abruft.
+
+    Die Fassung entsteht beim Erzeugen des Manifests (_manifest_version) und
+    wird gemerkt. Bis v1.12.41 geschah das NUR beim Abruf — und ein per Adresse
+    in „Integrierte Apps“ bereitgestelltes Add-in ruft Microsoft selten ab.
+    Nach einem Gateway-Update mit geändertem Manifest blieb der gemerkte Stand
+    deshalb alt, die Postfachprüfung verglich alt mit alt und meldete
+    „aktuell“, obwohl Outlook das Manifest ohne die neuen Ereignisse hatte.
+
+    Die Adresse ist für die Fassung ohne Belang (_ohne_adresse nimmt sie
+    heraus); ohne eingestellte Außenadresse wird nichts aufgefrischt."""
+    import aussenadresse
+    base = (aussenadresse.konfiguriert() or "").rstrip("/")
+    if not base:
+        return
+    from webui.routen import addin_verfassen
+    knopf_manifest_xml(base)
+    addin_verfassen.verfassen_manifest_xml(base)
 
 
 @router.get("/addin/icon/{size_str}")

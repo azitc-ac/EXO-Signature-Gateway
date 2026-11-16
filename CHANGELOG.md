@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.42 — 2026-11-16 — Add-in-Fassung: Prüfung meldete nach einem Update fälschlich „aktuell“
+
+Die Postfachprüfung vergleicht je Postfach die Fassung des Add-ins in Outlook
+mit der Fassung, die das Gateway ausliefert. Diese Soll-Fassung entstand bisher
+nur, wenn jemand das Manifest abrief. Ein per Adresse in „Integrierte Apps“
+bereitgestelltes Add-in ruft Microsoft aber selten ab. Änderte ein
+Gateway-Update das Manifest, blieb die gemerkte Soll-Fassung deshalb alt. Die
+Prüfung verglich alt mit alt und meldete „aktuell“, obwohl Outlook noch das
+alte Manifest hatte. So fehlte etwa das Ereignis „Empfänger geändert“ (seit
+v1.11.56), und die interne Signatur schaltete beim Verfassen nicht um, ohne
+dass eine Aufgabe erschien.
+
+Jetzt bestimmt das Gateway die Soll-Fassung bei jeder Prüfung und beim Öffnen
+der Einrichtung selbst, aus demselben Code, der das Manifest ausliefert.
+
+**Zu tun:** Postfächer → „Status aktualisieren“. Erscheint danach die Aufgabe
+„Verfassen-Add-in aktuell“: Einrichtung → Verfassen-Add-in → „Integrierte Apps
+öffnen“ → Add-in → Aktualisieren. Exchange verteilt die neue Fassung danach
+binnen bis zu 72 Stunden.
+
 ## v1.12.41 — 2026-11-16 — Verfassen-Add-in: eigenes Postfach auch bei abweichendem Anmeldenamen
 
 Weicht der Anmeldename (UPN) einer Person von ihrer Hauptadresse ab (etwa

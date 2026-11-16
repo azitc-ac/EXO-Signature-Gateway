@@ -156,6 +156,13 @@ async def setup_wizard(
     effective["exo_split_aktiv"] = regel_split.split_aktiv()
     effective["exo_rule_smime"] = regel_split.smime_regelname()
     addin_base_url = _addin_base_url(request)
+    # Fassungen der Outlook-Add-ins frisch bestimmen — sonst zeigte die Seite
+    # den Stand des letzten Manifest-Abrufs (nach einem Update oft veraltet).
+    try:
+        from webui.routen.addin import manifest_staende_auffrischen
+        manifest_staende_auffrischen()
+    except Exception as exc:                                # noqa: BLE001
+        log.warning("Einrichtung: Add-in-Fassungen nicht aufgefrischt: %s", exc)
     # Fassung des Teams-Pakets neben dem Download — das Admin Center zeigt keine
     # Versionsnummer, nur „Last modified“; `seit` ist der Vergleichswert.
     try:

@@ -34,6 +34,8 @@ OHNE_AUFGABE: dict[str, str] = {
                "eingestelltes Gerät sein. Die Abweisungsliste zeigt den Fall bereits",
     "1.12.35": "deckt die bestehende Aufgabe „smime-regeln“ (seit 1.12.34) ab: Sie bleibt "
                "offen, bis der Knopf den Stand gemerkt hat — eine zweite Aufgabe wäre doppelt",
+    "1.12.42": "deckt die bestehende Aufgabe „addin-fassung“ (seit 1.11.56) ab: Sie vergleicht "
+               "jetzt gegen die frisch bestimmte Soll-Fassung und erscheint damit von selbst",
 }
 
 _KOPF = re.compile(r"^## v(\d+\.\d+\.\d+)\b.*$", re.M)

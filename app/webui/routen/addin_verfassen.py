@@ -88,7 +88,13 @@ def addin_id(hostname: str) -> str:
 
 @router.get("/addin/verfassen/manifest.xml")
 async def verfassen_manifest(request: Request):
-    base = _addin_base_url(request)
+    return Response(content=verfassen_manifest_xml(_addin_base_url(request)),
+                    media_type="application/xml")
+
+
+def verfassen_manifest_xml(base: str) -> str:
+    """Manifest des Verfassen-Add-ins; setzt dabei die Fassung (siehe
+    addin.manifest_staende_auffrischen)."""
     hostname = base.split("://")[-1].split(":")[0]
     kennung = addin_id(hostname)
     t = _manifest_texte()
@@ -188,9 +194,8 @@ async def verfassen_manifest(request: Request):
     </VersionOverrides>
   </VersionOverrides>
 </OfficeApp>"""
-    xml = xml.replace("__VERSION__", _manifest_version(
+    return xml.replace("__VERSION__", _manifest_version(
         _ohne_adresse(xml, base, hostname, kennung), "_ADDIN_VERFASSEN_STAND"), 1)
-    return Response(content=xml, media_type="application/xml")
 
 
 @router.get(LAUFZEIT_HTML, response_class=HTMLResponse)

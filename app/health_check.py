@@ -353,6 +353,13 @@ def _addin_soll() -> list[dict]:
     Manifest schon einmal ausgeliefert wurde (sonst gibt es keine Version)."""
     if not settings_store.get("ADDIN_ENABLED"):
         return []
+    # Soll frisch bestimmen statt den zuletzt ABGERUFENEN Stand zu lesen — der
+    # blieb nach einem Update alt, und alt gegen alt hieß „aktuell“ (v1.12.42).
+    try:
+        from webui.routen import addin as _addin
+        _addin.manifest_staende_auffrischen()
+    except Exception as exc:                                # noqa: BLE001
+        log.warning("Add-in-Fassungen nicht aufgefrischt: %s", exc)
     soll = []
     for schluessel, art in _ADDINS:
         stand = settings_store.get(schluessel) or {}
