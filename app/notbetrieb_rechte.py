@@ -209,6 +209,10 @@ def _empfaenger(daten: dict, domaenen: set) -> list[dict]:
              "aliase": sorted(a for a in adressen if a.rsplit("@", 1)[1] in domaenen),
              "mitglieder": [_adr(m) for m in _liste(e.get("mitglieder")) if _adr(m)],
              "ziel": _adr(e.get("ziel"))}
+        # Externer Benutzer, dessen externe Adresse eine EIGENE ist (gemeinsamer
+        # Namensraum mit einer On-Prem-Organisation): Das Postfach liegt on-prem.
+        # Nur MailUser — ein Kontakt ist nie ein Postfach dieser Organisation.
+        e["onprem"] = e["art"] == "extern" and bool(e["ziel"]) and e["ziel"] in e["aliase"]
         eintraege.append(e)
         for a in e["aliase"]:
             index.setdefault(a, e)
@@ -220,6 +224,12 @@ def _empfaenger(daten: dict, domaenen: set) -> list[dict]:
         if e["adresse"] in gesehen:
             return []
         gesehen.add(e["adresse"])
+        if e["onprem"]:
+            # On-Prem-Postfach: die Adresse selbst ist das Ziel; wohin sie im
+            # Notfall geht, entscheidet notbetrieb.aufloesen (On-Prem-Ziel).
+            # Bis 11/2026 lief das in den Selbstbezug unten und ergab [] — auch
+            # jeder Verteiler verlor solche Mitglieder still.
+            return [e["ziel"]]
         if e["art"] in ARTEN[3:]:
             # Externer Benutzer ohne externe Adresse: nicht erreichbar.
             return flach(e["ziel"], gesehen) if e["ziel"] else []
@@ -280,9 +290,10 @@ def speichern(abbild: dict, ts: str | None = None) -> None:
         # Je eigene Adresse eine Zeile (annehmen=1); die Hauptadresse eines
         # Kontakts in fremder Domäne nur fürs Adressbuch (annehmen=0).
         conn.executemany("INSERT OR IGNORE INTO empfaenger (adresse, haupt, name, art, versteckt, nur_intern,"
-                         " ziele, annehmen) VALUES (?,?,?,?,?,?,?,?)",
+                         " ziele, annehmen, onprem) VALUES (?,?,?,?,?,?,?,?,?)",
                          [(a, e["adresse"], e["name"], e["art"], 1 if e["versteckt"] else 0,
-                           1 if e["nur_intern"] else 0, json.dumps(e["ziele"]), 1 if a in e["aliase"] else 0)
+                           1 if e["nur_intern"] else 0, json.dumps(e["ziele"]), 1 if a in e["aliase"] else 0,
+                           1 if e.get("onprem") else 0)
                           for e in empfaenger for a in dict.fromkeys(e["aliase"] + [e["adresse"]])])
         je_art = {a: sum(1 for e in empfaenger if e["art"] == a) for a in ARTEN}
         conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('rechte_stand', ?)",

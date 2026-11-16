@@ -563,6 +563,7 @@ class SignatureHandler:
         # andere wird abgewiesen statt still durchgelassen.
         import notbetrieb as _nb
         _nb.eingang_ordner.set("inbox")
+        _nb.eingang_quelle.set(peer_ip)
         if not peer_ip and not getattr(session, "notbetrieb_intern", False):
             log.warning("SMTP: Einlieferung ohne Absenderadresse abgewiesen")
             return "554 5.7.1 Access denied"

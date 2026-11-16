@@ -277,6 +277,42 @@
   </div>
 </div>
 
+<!-- On-Prem-Postfächer -->
+<div class="settings-card" id="nb-onprem-karte" style="margin-bottom:18px">
+  <h2 style="margin-top:0">On-Prem-Postfächer</h2>
+  <p class="hint" style="margin-top:0">
+    Liegen Postfächer noch auf einem eigenen Exchange-Server (gemeinsamer Namensraum: Exchange Online führt
+    sie als externe Benutzer mit eigener Adresse), leitet Exchange Online deren Post im Normalbetrieb dorthin.
+    Im Notfall übernimmt das Gateway — über einen Zielserver aus
+    <a href="/settings/routing#weiterleitungsziele">Einstellungen → Mail-Routing</a>. Weitergeleitet wird nur,
+    was im Abbild als On-Prem-Postfach steht, nie eine ganze Domäne. Gibt es für die Domäne schon eine
+    Route auf einen Zielserver, gilt diese. Ohne Ziel weist das Gateway solche Post im Notfall ab bzw. legt
+    sie in die Warteschlange; nach der Störung stellt Exchange sie zu.
+  </p>
+  <p class="hint" id="nb-onprem-stand" style="margin:6px 0">{{ onprem.postfaecher }} Postfächer liegen on-prem,
+    {{ onprem.ohne_ziel }} davon ohne Ziel.</p>
+  <div class="settings-row">
+    <label for="nb-onprem-ziel">Ziel im Notfall</label>
+    <div class="settings-control">
+      <select id="nb-onprem-ziel" data-vorher="{{ onprem_ziel }}" onchange="nbOnpremZiel(this)">
+        <option value="">— keines —</option>
+        {% for z in routing_ziele %}<option value="{{ z }}" {% if z == onprem_ziel %}selected{% endif %}>{{ z }}</option>{% endfor %}
+      </select>
+      <span id="nb-onprem-ziel-msg"></span>
+    </div>
+  </div>
+  {% if not routing_ziele %}
+  <p class="hint">Noch kein Zielserver angelegt — zuerst unter
+    <a href="/settings/routing#weiterleitungsziele">Einstellungen → Mail-Routing</a> den On-Prem-Server eintragen.</p>
+  {% endif %}
+  <div class="settings-row">
+    <button class="btn secondary" id="nb-onprem-probe-btn" onclick="nbOnpremProbe()">Weg prüfen</button>
+    <span id="nb-onprem-probe-msg"></span>
+  </div>
+  <p class="hint" style="margin:4px 0 0">„Weg prüfen“ verbindet sich wie die Zustellung und fragt bis zum
+    Empfänger (RCPT) — ohne etwas zu senden. Das Ergebnis zählt zur Bereitschaft.</p>
+</div>
+
 <!-- Direktversand-Probe -->
 <p class="hint" style="margin:-6px 0 18px">Ob der Weg nach außen trägt, prüft die tägliche Probe unter
   <a href="/settings/routing#direktversand-probe">Einstellungen → Mail-Routing</a>; ihr Ergebnis zählt zur Bereitschaft.</p>
@@ -678,6 +714,22 @@ async function nbEingangSpeichern() {
     NOTBETRIEB_EINGANG_MAX_MB: parseInt(feldWert('nb-eingang-mb'), 10) || 25,
     NOTBETRIEB_EINGANG_JE_STUNDE: parseInt(feldWert('nb-eingang-stunde'), 10) || 30,
   }, 'nb-eingang-result'));
+}
+
+// Auswahl ohne Begleitfeld → speichert sofort (Speichern-Linie Regel 4).
+async function nbOnpremZiel(el) {
+  const vorher = el.dataset.vorher;
+  if (await savePartial({NOTBETRIEB_ONPREM_ZIEL: el.value}, 'nb-onprem-ziel-msg')) el.dataset.vorher = el.value;
+  else el.value = vorher;
+}
+
+async function nbOnpremProbe() {
+  const d = await knopfAktion('nb-onprem-probe-btn', 'Prüfe…', () => postJSON('/api/notbetrieb/onprem-probe', {}),
+                              {anzeige: 'nb-onprem-probe-msg'});
+  showMsg('nb-onprem-probe-msg', d.ok ? 'Angenommen: ' + d.adresse + ' über ' + d.ziel + ' (' + d.antwort + ')'
+          : 'Nicht angenommen: ' + (d.fehler || d.antwort || errText(d)), !!d.ok);
+  if (d.stand) document.getElementById('nb-onprem-stand').textContent = d.stand.postfaecher
+    + ' Postfächer liegen on-prem, ' + d.stand.ohne_ziel + ' davon ohne Ziel.';
 }
 
 async function nbLdapSpeichern() {

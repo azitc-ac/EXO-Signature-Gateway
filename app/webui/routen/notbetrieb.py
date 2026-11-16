@@ -13,6 +13,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+import domain_routing
 import gruppen
 import aussenadresse
 import notbetrieb
@@ -72,6 +73,9 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "mess_tage": notbetrieb.MESS_TAGE,
             "ldap": notbetrieb_anmeldung.einstellungen(),
             "umfang": notbetrieb.umfang(),
+            "onprem": await asyncio.to_thread(notbetrieb.onprem_stand),
+            "onprem_ziel": str(settings_store.get("NOTBETRIEB_ONPREM_ZIEL") or ""),
+            "routing_ziele": sorted(domain_routing.ziele()),
         },
     )
 
@@ -84,6 +88,14 @@ async def api_notbetrieb_bereitschaft(_user: str = Depends(_require_admin)):
     erg = await asyncio.to_thread(notbetrieb_bereitschaft.pruefen, True)
     erg["mx"] = await asyncio.to_thread(notbetrieb_bereitschaft.mx_stand)
     return JSONResponse({"ok": True, **erg})
+
+
+@router.post("/api/notbetrieb/onprem-probe")
+async def api_notbetrieb_onprem_probe(user: str = Depends(_require_admin)):
+    """Weg zum On-Prem-Ziel prüfen: Verbindung bis RCPT, ohne DATA."""
+    erg = await asyncio.to_thread(notbetrieb.onprem_probe)
+    log.info("Notbetrieb: On-Prem-Probe durch %s: %s", user, erg)
+    return JSONResponse({**erg, "stand": await asyncio.to_thread(notbetrieb.onprem_stand)})
 
 
 @router.get("/api/notbetrieb/postfaecher")

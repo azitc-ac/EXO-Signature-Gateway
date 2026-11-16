@@ -207,10 +207,19 @@ def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betre
     if sum(len(d) for _, _, d in anhaenge) > MAX_GROESSE:
         raise SendeFehler("Anhänge zu groß (höchstens 15 MB).")
 
-    # Dieselbe Einordnung wie notbetrieb.zustellen (Aliase, Verteiler, Gruppen).
-    intern, extern = notbetrieb.aufloesen(alle)
-    if extern and not direktversand.aktiv() and notbetrieb.sendeweg(benutzer) == notbetrieb.WEG_NOTFALL:
-        raise SendeFehler("Versand nach außen ist im Notbetrieb nicht eingerichtet (Direktversand).")
+    # Dieselbe Einordnung wie notbetrieb.zustellen (Aliase, Verteiler, Gruppen,
+    # On-Prem-Postfächer). Direktversand braucht nur, was wirklich nach außen geht.
+    # Ein direkt angeschriebenes On-Prem-Postfach ohne Ziel: abweisen, damit der
+    # Absender es weiß. Steckt es nur in einem Verteiler, reiht zustellen() es
+    # ein — die übrigen Mitglieder sollen ihre Post bekommen.
+    intern, extern, _weiter, _unerreichbar = notbetrieb.aufloesen(alle)
+    if notbetrieb.sendeweg(benutzer) == notbetrieb.WEG_NOTFALL:
+        ohne_ziel = [a for a in alle if notbetrieb.ist_onprem(a) and not notbetrieb.onprem_ziel(a)]
+        if ohne_ziel:
+            raise SendeFehler("Im Notbetrieb nicht erreichbar (Postfach on-prem, kein Notfall-Ziel "
+                              "eingerichtet): " + ", ".join(ohne_ziel[:5]))
+        if extern and not direktversand.aktiv():
+            raise SendeFehler("Versand nach außen ist im Notbetrieb nicht eingerichtet (Direktversand).")
 
     _drossel(benutzer)
     sender = benutzer if recht == "auftrag" else None
@@ -280,9 +289,9 @@ def _zustellen(benutzer: str, postfach: str, recht: str, alle: list, zustellunge
                              schon_zurueck="exchange_kopie" if exchange_kopie else None)
     if ueber == notbetrieb.WEG_EXCHANGE and not exchange_kopie:
         notbetrieb.rueckspielen_bald()
-    intern, extern = notbetrieb.aufloesen(alle)
-    log.info("Notbetrieb-Senden (%s, %s): %s aus %s (%s) — %s intern, %s extern, %s", weg, ueber, benutzer,
-             postfach, recht, len(intern), len(extern), mid)
+    intern, extern, weiter, _ = notbetrieb.aufloesen(alle)
+    log.info("Notbetrieb-Senden (%s, %s): %s aus %s (%s) — %s intern, %s extern, %s on-prem, %s", weg, ueber,
+             benutzer, postfach, recht, len(intern), len(extern), sum(len(v) for v in weiter.values()), mid)
     return ueber
 
 

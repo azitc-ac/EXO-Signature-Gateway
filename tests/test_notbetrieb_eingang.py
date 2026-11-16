@@ -88,7 +88,7 @@ def test_alias_wird_intern_zugestellt_nicht_an_den_eigenen_mx(notfall, monkeypat
     raus = []
     monkeypatch.setattr(reinject, "_an_postfix", lambda *a: raus.append(a))
     erg = notbetrieb.zustellen("x@extern.de", ["anna.muster@firma.at"], b"Subject: x\r\n\r\nx\r\n")
-    assert erg == {"intern": 1, "extern": 0} and raus == []
+    assert erg == {"intern": 1, "extern": 0, "weiter": 0, "eingereiht": 0} and raus == []
 
 
 # ── Greylisting ─────────────────────────────────────────────────────────────
@@ -411,7 +411,9 @@ def test_gruppen_werden_flach_aufgeloest_mit_zyklenschutz():
     assert e["innen@firma.at"]["ziele"] == ["b@firma.at", "a@firma.at", "partner@anderswo.de"]
     assert e["projekt@firma.at"]["ziele"] == ["team@firma.at"]
     assert e["leer@firma.at"]["ziele"] == [] and e["ohne@firma.at"]["ziele"] == []
-    assert e["hybrid@firma.at"]["ziele"] == []
+    # On-Prem-Postfach: die eigene Adresse ist das Ziel (Weiterleitung entscheidet aufloesen).
+    assert e["hybrid@firma.at"]["ziele"] == ["hybrid@firma.at"] and e["hybrid@firma.at"]["onprem"]
+    assert not e["partner@firma.at"]["onprem"] and not e["lieferant@lieferant.de"]["onprem"]
     assert e["alle@firma.at"]["aliase"] == ["alle.leute@firma.at", "alle@firma.at"]
     assert e["partner@firma.at"]["aliase"] == ["partner@firma.at"]
     assert e["lieferant@lieferant.de"]["aliase"] == [] and e["lieferant@lieferant.de"]["ziele"] == ["lieferant@lieferant.de"]
@@ -419,7 +421,9 @@ def test_gruppen_werden_flach_aufgeloest_mit_zyklenschutz():
 
 
 def test_aufloesen_verteiler_alias_und_externer_benutzer(gal):
-    intern, extern = notbetrieb.aufloesen(["alle.leute@firma.at", "Partner@firma.at", "kunde@x.de", "a@firma.at"])
+    intern, extern, weiter, ohne = notbetrieb.aufloesen(["alle.leute@firma.at", "Partner@firma.at", "kunde@x.de",
+                                                         "a@firma.at"])
+    assert weiter == {} and ohne == []
     assert intern == ["a@firma.at", "b@firma.at"]
     assert extern == ["partner@anderswo.de", "kunde@x.de"]
 
@@ -434,7 +438,7 @@ def test_verteiler_wird_an_mitglieder_zugestellt_nicht_an_den_eigenen_mx(gal, mo
     monkeypatch.setattr(reinject, "_an_postfix", lambda von, empf, *a: raus.append(empf))
     erg = notbetrieb.zustellen("x@extern.de", ["alle@firma.at", "projekt@firma.at"], b"Subject: x\r\n\r\nx\r\n")
     assert raus == [["partner@anderswo.de"]]
-    assert erg == {"intern": 3, "extern": 1}
+    assert erg == {"intern": 3, "extern": 1, "weiter": 0, "eingereiht": 0}
     with notbetrieb._conn() as conn:
         bei = {z["postfach"] for z in conn.execute("SELECT postfach FROM mails WHERE herkunft='lokal'")}
     assert bei == {"a@firma.at", "b@firma.at", "team@firma.at"}
@@ -454,11 +458,175 @@ def test_eingang_nimmt_gruppen_an_und_achtet_nur_intern(gal):
     for fremd in ("partner@anderswo.de", "lieferant@lieferant.de"):
         assert _rcpt(NETZ_IP, fremd).startswith("550 5.1.1"), fremd
         assert ne.data_pruefen(ne.INTERNET, NETZ_IP, [fremd], 10).startswith("550 5.1.1"), fremd
-    assert notbetrieb.aufloesen(["lieferant@lieferant.de"]) == ([], ["lieferant@lieferant.de"])
+    assert notbetrieb.aufloesen(["lieferant@lieferant.de"]) == ([], ["lieferant@lieferant.de"], {}, [])
     # Ohne erreichbares Ziel: nicht annehmen (Post käme nirgends an), beim Senden wie bisher nach außen.
-    for leer in ("leer@firma.at", "hybrid@firma.at", "ohne@firma.at"):
+    for leer in ("leer@firma.at", "ohne@firma.at"):
         assert _rcpt(NETZ_IP, leer).startswith("550 5.1.1"), leer
-        assert notbetrieb.aufloesen([leer]) == ([], [leer]), leer
+        assert notbetrieb.aufloesen([leer]) == ([], [leer], {}, []), leer
+    # On-Prem-Postfach ohne Notfall-Ziel: abweisen, und NICHT nach außen (eigener MX).
+    assert _rcpt(NETZ_IP, "hybrid@firma.at").startswith("550 5.1.1")
+    assert notbetrieb.aufloesen(["hybrid@firma.at"]) == ([], [], {}, ["hybrid@firma.at"])
+
+
+# ── On-Prem-Postfächer (gemeinsamer Namensraum) ─────────────────────────────
+
+GAL_ONPREM = GAL | {"gruppen": GAL["gruppen"] + [
+    {"adresse": "mitonprem@firma.at", "aliase": ["mitonprem@firma.at"], "name": "Mit On-Prem", "art": "verteiler",
+     "versteckt": False, "nur_intern": False, "mitglieder": ["a@firma.at", "hybrid@firma.at"]}]}
+MID = b"Message-ID: <onprem-1@extern.de>\r\nSubject: x\r\n\r\nx\r\n"
+
+
+@pytest.fixture
+def onprem(notfall, monkeypatch):
+    """Abbild mit On-Prem-Postfach hybrid@ (auch im Verteiler mitonprem@),
+    Zielserver „onprem“; Weiterleitung, Warteschlange und Statistik abgefangen."""
+    import domain_routing
+    import reinject
+    import relay_stats
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(json.dumps(GAL_ONPREM)))
+    notfall["NOTBETRIEB_EINGANG_GREYLIST"] = False
+    notfall["RELAY_TARGETS"] = {"onprem": {"host": "192.0.2.25", "port": 25}}
+    monkeypatch.setattr(domain_routing, "_weitergeleitet", {})
+    lauf = {"weiter": [], "warteschlange": [], "statistik": []}
+    monkeypatch.setattr(reinject, "_relay_to_target", lambda zid, von, empf, inhalt, *a: lauf["weiter"].append((zid, empf)))
+    monkeypatch.setattr(reinject, "_fail_delivery",
+                        lambda von, empf, inhalt, grund, queue: lauf["warteschlange"].append((empf, grund)))
+    monkeypatch.setattr(relay_stats, "merke_routing", lambda zid, n, ok=True, **kw: lauf["statistik"].append((zid, ok)))
+    notfall["_lauf"] = lauf
+    return notfall
+
+
+def test_onprem_postfach_geht_an_das_notfall_ziel(onprem):
+    """(a) Ein On-Prem-Postfach mit Ziel wird weitergeleitet — nicht „extern“
+    an den eigenen MX, nicht abgewiesen."""
+    assert notbetrieb.aufloesen(["hybrid@firma.at"]) == ([], [], {}, ["hybrid@firma.at"])   # noch ohne Ziel
+    onprem["NOTBETRIEB_ONPREM_ZIEL"] = "onprem"
+    assert notbetrieb.aufloesen(["Hybrid@Firma.at", "kunde@x.de"]) == ([], ["kunde@x.de"],
+                                                                        {"onprem": ["hybrid@firma.at"]}, [])
+    assert notbetrieb.bekannt("hybrid@firma.at") and _rcpt(NETZ_IP, "hybrid@firma.at") is None
+    erg = notbetrieb.zustellen("x@extern.de", ["hybrid@firma.at"], MID)
+    assert onprem["_lauf"]["weiter"] == [("onprem", ["hybrid@firma.at"])]
+    assert erg == {"intern": 0, "extern": 0, "weiter": 1, "eingereiht": 0}
+    assert onprem["_lauf"]["statistik"] == [("onprem", True)]
+
+
+def test_domaenen_route_hat_vorrang_exo_und_direkt_nie(onprem, monkeypatch):
+    import direktversand
+    monkeypatch.setattr(direktversand, "aktiv", lambda: True)   # sonst verwirft route_fuer „direkt“ schon selbst
+    onprem["NOTBETRIEB_ONPREM_ZIEL"] = "onprem"
+    onprem["RELAY_TARGETS"]["standort"] = {"host": "192.0.2.26", "port": 25}
+    onprem["DOMAIN_ROUTES"] = {"firma.at": "standort"}
+    assert notbetrieb.onprem_ziel("hybrid@firma.at") == "standort"
+    # Route auf EXO oder Direktversand: im Notfall kein Weg zum On-Prem-Server → Notfall-Ziel.
+    for route in ("exo", "direkt"):
+        onprem["DOMAIN_ROUTES"] = {"firma.at": route}
+        assert notbetrieb.onprem_ziel("hybrid@firma.at") == "onprem", route
+    # Ein Notfall-Ziel, das es nicht (mehr) gibt, ist keines.
+    onprem["NOTBETRIEB_ONPREM_ZIEL"] = "geloescht"
+    assert notbetrieb.onprem_ziel("hybrid@firma.at") is None
+
+
+def test_verteiler_behaelt_onprem_mitglied(onprem):
+    """(b) Bis 11/2026 verlor ein Verteiler ein On-Prem-Mitglied still."""
+    e = {x["adresse"]: x for x in notbetrieb_rechte.parse(json.dumps(GAL_ONPREM))["empfaenger"]}
+    assert e["mitonprem@firma.at"]["ziele"] == ["a@firma.at", "hybrid@firma.at"]
+    onprem["NOTBETRIEB_ONPREM_ZIEL"] = "onprem"
+    erg = notbetrieb.zustellen("x@extern.de", ["mitonprem@firma.at"], MID)
+    assert erg == {"intern": 1, "extern": 0, "weiter": 1, "eingereiht": 0}
+    assert onprem["_lauf"]["weiter"] == [("onprem", ["hybrid@firma.at"])]
+
+
+def test_onprem_ohne_ziel_wird_abgewiesen_nie_an_den_eigenen_mx(onprem, monkeypatch):
+    """(c) Ohne Ziel: Eingang 550; ein Verteiler bleibt annehmbar, das
+    On-Prem-Mitglied geht in die Warteschlange — nie per Direktversand an den
+    eigenen MX (der gehört im Notfall zum ausgefallenen Exchange)."""
+    import direktversand
+    import reinject
+    raus = []
+    monkeypatch.setattr(direktversand, "aktiv", lambda: True)
+    monkeypatch.setattr(reinject, "_an_postfix", lambda von, empf, *a: raus.append(empf))
+    assert _rcpt(NETZ_IP, "hybrid@firma.at").startswith("550 5.1.1")
+    assert ne.data_pruefen(ne.INTERNET, NETZ_IP, ["hybrid@firma.at"], 10).startswith("550 5.1.1")
+    assert _rcpt(NETZ_IP, "mitonprem@firma.at") is None
+    erg = notbetrieb.zustellen("x@extern.de", ["mitonprem@firma.at", "hybrid@firma.at"], MID)
+    assert raus == [] and onprem["_lauf"]["weiter"] == []
+    assert onprem["_lauf"]["warteschlange"] == [(["hybrid@firma.at"], "notbetrieb: On-Prem-Postfach ohne Ziel")]
+    assert erg == {"intern": 1, "extern": 0, "weiter": 0, "eingereiht": 1}
+
+
+def test_unbekannte_adresse_der_onprem_domaene_wird_nicht_weitergeleitet(onprem):
+    """(d) Nur gelistete On-Prem-Postfächer — kein offenes Relay in die Domäne."""
+    onprem["NOTBETRIEB_ONPREM_ZIEL"] = "onprem"
+    onprem["DOMAIN_ROUTES"] = {"firma.at": "onprem"}
+    assert _rcpt(NETZ_IP, "gibtsnicht@firma.at").startswith("550 5.1.1")
+    assert not notbetrieb.bekannt("gibtsnicht@firma.at")
+    assert notbetrieb.aufloesen(["gibtsnicht@firma.at"]).weiter == {}
+
+
+def test_schleifenbremse_und_quelle_gleich_ziel(onprem):
+    """(e) Dieselbe Mail an dieselben Empfänger höchstens SCHLEIFE_MAX-mal;
+    was vom On-Prem-Ziel selbst kommt, geht nie dorthin zurück."""
+    import domain_routing
+    onprem["NOTBETRIEB_ONPREM_ZIEL"] = "onprem"
+    for _ in range(domain_routing.SCHLEIFE_MAX):
+        assert notbetrieb.zustellen("x@extern.de", ["hybrid@firma.at"], MID)["weiter"] == 1
+    erg = notbetrieb.zustellen("x@extern.de", ["hybrid@firma.at"], MID)
+    assert erg["weiter"] == 0 and erg["eingereiht"] == 1
+    assert "Schleife" in onprem["_lauf"]["warteschlange"][-1][1]
+    # Andere Mail, aber eingeliefert vom Ziel-Host selbst.
+    marke = notbetrieb.eingang_quelle.set("192.0.2.25")
+    try:
+        erg = notbetrieb.zustellen("x@extern.de", ["hybrid@firma.at"], MID.replace(b"onprem-1", b"onprem-2"))
+    finally:
+        notbetrieb.eingang_quelle.reset(marke)
+    assert erg["weiter"] == 0 and "kommt vom On-Prem-Ziel" in onprem["_lauf"]["warteschlange"][-1][1]
+    assert len(onprem["_lauf"]["weiter"]) == domain_routing.SCHLEIFE_MAX
+
+
+def test_ziel_aus_wird_eingereiht_und_gezaehlt(onprem, monkeypatch):
+    import reinject
+
+    def aus(*a):
+        raise ConnectionRefusedError("aus")
+    monkeypatch.setattr(reinject, "_relay_to_target", aus)
+    onprem["NOTBETRIEB_ONPREM_ZIEL"] = "onprem"
+    erg = notbetrieb.zustellen("x@extern.de", ["hybrid@firma.at", "a@firma.at"], MID)
+    assert erg == {"intern": 1, "extern": 0, "weiter": 0, "eingereiht": 1}
+    assert onprem["_lauf"]["statistik"] == [("onprem", False)]
+    assert onprem["_lauf"]["warteschlange"][0][0] == ["hybrid@firma.at"]
+
+
+def test_bereitschaft_zeigt_onprem_immer_mit_bezugsgroesse(onprem, monkeypatch):
+    import abnahme
+    import notbetrieb_bereitschaft as nbb
+    p = nbb._onprem()
+    assert p["zustand"] == abnahme.OFFEN and "1 Postfächer liegen on-prem, 1 davon ohne Ziel" in p["befund"]
+    assert "nicht erreichbar" in p["befund"] and "Ziel wählen" in p["zu_tun"]
+    onprem["NOTBETRIEB_ONPREM_ZIEL"] = "onprem"
+    p = nbb._onprem()
+    assert p["zustand"] == abnahme.OFFEN and "noch nie geprüft" in p["befund"]
+    # Probe: Verbindung wie die Zustellung, bis RCPT, ohne DATA.
+    import reinject
+    gesprochen = []
+
+    class _S:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def mail(self, von): gesprochen.append(("MAIL", von))
+        def rcpt(self, an): gesprochen.append(("RCPT", an)); return 250, b"2.1.5 Recipient OK"
+        def rset(self): gesprochen.append(("RSET",))
+        def sendmail(self, *a): raise AssertionError("Probe darf nichts senden")
+        def data(self, *a): raise AssertionError("Probe darf nichts senden")
+    monkeypatch.setattr(reinject, "_ziel_sitzung", lambda zid, cfg: _S())
+    erg = notbetrieb.onprem_probe()
+    assert erg["ok"] and erg["ziel"] == "onprem" and erg["adresse"] == "hybrid@firma.at"
+    assert gesprochen == [("MAIL", ""), ("RCPT", "hybrid@firma.at"), ("RSET",)]
+    p = nbb._onprem()
+    assert p["zustand"] == abnahme.OK and "1 Postfächer liegen on-prem, 0 davon ohne Ziel" in p["befund"]
+    # Ohne On-Prem-Postfächer: entfällt, aber die Zeile steht (mit 0).
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(ROH))
+    p = nbb._onprem()
+    assert p["zustand"] == abnahme.ENTFAELLT and p["befund"].startswith("0 Postfächer liegen on-prem")
 
 
 def test_stand_zaehlt_je_art(gal):

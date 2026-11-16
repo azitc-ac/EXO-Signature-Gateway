@@ -507,6 +507,29 @@ def test_ohne_direktversand_geht_nichts_raus_auch_nicht_intern(schatten, monkeyp
     assert _senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="x")["intern"] == 1
 
 
+def test_webmail_an_onprem_braucht_keinen_direktversand(schatten, monkeypatch):
+    """(f) Nur an ein On-Prem-Postfach: über das Notfall-Ziel, ohne
+    Direktversand. Ohne Ziel: klare Meldung statt „Direktversand fehlt“."""
+    import direktversand
+    import reinject
+    roh = json.loads(ROH) | {"extern": [{"adresse": "vor.ort@firma.at", "aliase": ["vor.ort@firma.at"],
+                                         "name": "Vor Ort", "art": "extern", "versteckt": False,
+                                         "ziel": "vor.ort@firma.at"}]}
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(json.dumps(roh)))
+    monkeypatch.setattr(direktversand, "aktiv", lambda: False)
+    monkeypatch.setattr(ns, "_gesendet", {})
+    weiter = []
+    monkeypatch.setattr(reinject, "_relay_to_target", lambda zid, von, empf, inhalt, *a: weiter.append((zid, empf)))
+    with pytest.raises(ns.SendeFehler, match="on-prem"):
+        _senden("a@firma.at", "a@firma.at", "vor.ort@firma.at", betreff="x")
+    assert weiter == [] and _lokal("a@firma.at", "sentitems") == []
+    schatten["RELAY_TARGETS"] = {"onprem": {"host": "192.0.2.25", "port": 25}}
+    schatten["NOTBETRIEB_ONPREM_ZIEL"] = "onprem"
+    _senden("a@firma.at", "a@firma.at", "vor.ort@firma.at", betreff="x")
+    assert weiter == [("onprem", ["vor.ort@firma.at"])]
+    assert len(_lokal("a@firma.at", "sentitems")) == 1
+
+
 def test_im_auftrag_setzt_sender(postfix):
     _senden("a@firma.at", "chef@firma.at", "kunde@extern.de", betreff="Termin")
     kopf = _email.message_from_bytes(postfix[0][2], policy=_policy.default)

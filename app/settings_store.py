@@ -54,6 +54,10 @@ DEFAULTS: dict = {
     "NOTBETRIEB_EINGANG_MAX_EMPF": 50,     # … höchstens Empfänger je Mail
     "NOTBETRIEB_EINGANG_MAX_MB": 25,       # … höchstens MB je Mail
     "NOTBETRIEB_EINGANG_JE_STUNDE": 30,    # … höchstens Mails je Absendernetz und Stunde
+    # On-Prem-Postfächer (gemeinsamer Namensraum): Routing-Ziel (RELAY_TARGETS)
+    # für den Notfall; eine Domänen-Route auf ein eigenes Ziel hat Vorrang.
+    # Leer = solche Post bleibt im Notfall in der Warteschlange.
+    "NOTBETRIEB_ONPREM_ZIEL": "",
     # Wie weit der Schatten reicht (Tage): Mail zurück, Kalender zurück/voraus.
     # Auflösung in notbetrieb.fenster_fuer(): erste passende Regel aus
     # NOTBETRIEB_REGELN ({ziel: "gruppe:<Name>"|"postfach:<Schlüssel>", mail,

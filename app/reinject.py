@@ -216,7 +216,7 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         # Freigabe sie dann regulär zu.
         import notbetrieb
         try:
-            notbetrieb.zustellen(mail_from, list(rcpt_tos), content_bytes)
+            notbetrieb.zustellen(mail_from, list(rcpt_tos), content_bytes, einreihen=queue_on_failure)
             log.info("NOTFALL: in die Kopie bzw. Direktversand: from=%s to=%s", mail_from, rcpt_tos)
         except Exception as exc:                                    # noqa: BLE001
             log.warning("NOTFALL: Zustellung im Notbetrieb fehlgeschlagen: %s", exc)
@@ -644,6 +644,29 @@ def _an_postfix(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
 ANTWORT_NACH_DATEN_S = 240
 
 
+def _ziel_sitzung(ziel_id: str, cfg: dict) -> smtplib.SMTP:
+    """Verbindung zu einem Routing-Ziel bis nach STARTTLS und Anmeldung — EIN
+    Weg für die Weiterleitung und die Probe (notbetrieb.onprem_probe), damit
+    die Probe genau das prüft, was die Zustellung benutzt."""
+    import tls_ausgehend
+    tls_ctx = tls_ausgehend.kontext(pruefen=cfg["tls_pruefen"], client_zert=True)
+    if cfg["starttls"] and not cfg["tls_pruefen"]:
+        log.info("Routing-Ziel %s: TLS ohne Zertifikatsprüfung (so eingestellt)", ziel_id)
+    import aussenadresse
+    smtp = smtplib.SMTP(cfg["host"], cfg["port"], timeout=30, local_hostname=aussenadresse.ehlo_hostname())
+    try:
+        smtp.ehlo()
+        if cfg["starttls"]:
+            smtp.starttls(context=tls_ctx)
+            smtp.ehlo()
+        if cfg["user"] and cfg["pass"]:
+            smtp.login(cfg["user"], cfg["pass"])
+    except Exception:
+        smtp.close()
+        raise
+    return smtp
+
+
 def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
                      content_bytes: bytes, antwort_s: float = 30) -> None:
     """Pass-through-Relay an ein konfiguriertes Next-Hop-Ziel (NICHT EXO).
@@ -678,20 +701,7 @@ def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
     # Das Zertifikat des ZIELS wird geprüft, ausser das Ziel ist ausdrücklich
     # anders eingestellt (tls_pruefen; Bestandsziele vor v1.10.112 übernommen
     # ohne Prüfung, bis sie bewusst gespeichert werden).
-    import tls_ausgehend
-    tls_ctx = tls_ausgehend.kontext(pruefen=cfg["tls_pruefen"], client_zert=True)
-    if cfg["starttls"] and not cfg["tls_pruefen"]:
-        log.info("Routing-Ziel %s: TLS ohne Zertifikatsprüfung (so eingestellt)", ziel_id)
-
-    import aussenadresse
-    with smtplib.SMTP(host, port, timeout=30,
-                      local_hostname=aussenadresse.ehlo_hostname()) as smtp:
-        smtp.ehlo()
-        if cfg["starttls"]:
-            smtp.starttls(context=tls_ctx)
-            smtp.ehlo()
-        if cfg["user"] and cfg["pass"]:
-            smtp.login(cfg["user"], cfg["pass"])
+    with _ziel_sitzung(ziel_id, cfg) as smtp:
         # Ab hier wartet das Ziel ggf. auf seinen eigenen Rückweg (ein zweites
         # Gateway verarbeitet und liefert erst ein, bevor es antwortet). Gibt die
         # äußere Stelle früher auf als die innere, liefert der Absender erneut

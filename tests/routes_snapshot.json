@@ -910,6 +910,13 @@
     "name": "api_notbetrieb_loeschen"
   },
   {
+    "pfad": "/api/notbetrieb/onprem-probe",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_onprem_probe"
+  },
+  {
     "pfad": "/api/notbetrieb/platz-messen",
     "methoden": [
       "GET"

@@ -68,6 +68,7 @@ import json
 import logging
 import shutil
 from collections import defaultdict
+from typing import NamedTuple
 import sqlite3
 import threading
 import uuid
@@ -202,39 +203,164 @@ def empfaenger_eintrag(adresse: str) -> dict | None:
             "nur_intern": bool(z["nur_intern"]), "ziele": json.loads(z["ziele"])}
 
 
+# ── On-Prem-Postfächer (gemeinsamer Namensraum) ────────────────────────────
+# Ein externer Benutzer, dessen externe Adresse eine eigene ist, hat sein
+# Postfach on-prem (notbetrieb_rechte: Spalte `onprem`). Exchange Online
+# leitet solche Post im Normalbetrieb dorthin; im Notfall tut es das Gateway —
+# über ein Ziel aus dem Mail-Routing. Nur diese gelisteten Adressen, nie eine
+# ganze Domäne: Eine unbekannte Adresse bleibt unbekannt (kein offenes Relay).
+
+def ist_onprem(adresse: str) -> bool:
+    a = (adresse or "").strip().lower()
+    if not a or not _db_pfad().exists():
+        return False
+    with _lock, _conn() as conn:
+        return conn.execute("SELECT 1 FROM empfaenger WHERE adresse=? AND annehmen=1 AND onprem=1",
+                            (a,)).fetchone() is not None
+
+
+def onprem_ziel(adresse: str) -> str | None:
+    """Routing-Ziel für ein On-Prem-Postfach im Notfall, sonst None.
+
+    Zuerst eine Domänen-Route (Einstellungen → Mail-Routing), sofern sie auf
+    ein eigenes Ziel zeigt — nie EXO (im Notfall ausgefallen) und nie der
+    Direktversand (der schickte an den eigenen MX). Sonst NOTBETRIEB_ONPREM_ZIEL,
+    das nur im Notfall gilt und den Normalbetrieb nicht berührt."""
+    import domain_routing
+    domain = (adresse or "").rsplit("@", 1)[-1].strip().lower()
+    route = domain_routing.route_fuer(domain)
+    if route not in (domain_routing.EXO, domain_routing.DIREKT) and route in domain_routing.ziele():
+        return route
+    ziel = str(settings_store.get("NOTBETRIEB_ONPREM_ZIEL") or "").strip()
+    return ziel if ziel and ziel in domain_routing.ziele() else None
+
+
+def onprem_stand() -> dict:
+    """{postfaecher, ohne_ziel, ziele: {ziel: anzahl}} — für die Bereitschaft.
+    Gezählt je On-Prem-Benutzer (Hauptadresse), nicht je Alias."""
+    if not _db_pfad().exists():
+        return {"postfaecher": 0, "ohne_ziel": 0, "ziele": {}}
+    with _lock, _conn() as conn:
+        haupt = [z["haupt"] for z in conn.execute(
+            "SELECT DISTINCT haupt FROM empfaenger WHERE onprem=1 AND annehmen=1")]
+    ziele: dict = {}
+    ohne = 0
+    for a in haupt:
+        z = onprem_ziel(a)
+        if z:
+            ziele[z] = ziele.get(z, 0) + 1
+        else:
+            ohne += 1
+    return {"postfaecher": len(haupt), "ohne_ziel": ohne, "ziele": ziele}
+
+
+def onprem_probe(adresse: str = "") -> dict:
+    """Trägt der Weg zum On-Prem-Ziel? Verbindung wie bei der Zustellung
+    (reinject._ziel_sitzung: STARTTLS, Anmeldung, Client-Zertifikat), dann
+    MAIL FROM:<> und RCPT TO für ein On-Prem-Postfach — ohne DATA, es wird
+    nichts zugestellt. Ohne `adresse` das erste On-Prem-Postfach. Das Ergebnis
+    steht danach in der Bereitschaft (meta `onprem_probe`): Ein Ziel, das erst
+    im Ernstfall zum ersten Mal benutzt wird, fällt im Ernstfall aus."""
+    import domain_routing
+    import reinject
+    a = (adresse or "").strip().lower()
+    if not a and _db_pfad().exists():
+        with _lock, _conn() as conn:
+            z = conn.execute("SELECT haupt FROM empfaenger WHERE onprem=1 AND annehmen=1 ORDER BY haupt").fetchone()
+        a = z["haupt"] if z else ""
+    if not a or not ist_onprem(a):
+        return {"ok": False, "fehler": "Kein On-Prem-Postfach im Abbild" + (f" für {a}" if a else "") + "."}
+    zid = onprem_ziel(a)
+    if not zid:
+        erg = {"ok": False, "adresse": a, "fehler": "Kein Ziel — Notfall-Ziel wählen oder Domänen-Route anlegen."}
+    else:
+        erg = {"adresse": a, "ziel": zid}
+        try:
+            with reinject._ziel_sitzung(zid, domain_routing.aufloesen(zid)) as smtp:
+                smtp.mail("")
+                code, text = smtp.rcpt(a)
+                smtp.rset()
+            antwort = f"{code} {text.decode(errors='replace') if isinstance(text, bytes) else text}"[:200]
+            erg |= {"ok": 200 <= code < 300, "antwort": antwort}
+        except Exception as exc:                                     # noqa: BLE001
+            erg |= {"ok": False, "fehler": f"{type(exc).__name__}: {exc}"[:200]}
+    erg["ts"] = datetime.now(timezone.utc).isoformat()
+    with _lock, _conn() as conn:
+        conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('onprem_probe', ?)", (json.dumps(erg),))
+    log.info("Notbetrieb: On-Prem-Probe %s", erg)
+    return erg
+
+
+def onprem_probe_stand() -> dict | None:
+    if not _db_pfad().exists():
+        return None
+    with _lock, _conn() as conn:
+        z = conn.execute("SELECT v FROM meta WHERE k='onprem_probe'").fetchone()
+    return json.loads(z["v"]) if z else None
+
+
 def bekannt(adresse: str) -> bool:
     """Nimmt das Gateway im Notfall Post für diese Adresse an — Postfach,
     Verteiler, Gruppe oder externer Benutzer des Tenants, sofern er jemanden
-    erreicht (sonst nähme der Eingang Post an, die nirgends ankommt)."""
+    erreicht (sonst nähme der Eingang Post an, die nirgends ankommt). Ein
+    On-Prem-Postfach nur, wenn es ein Ziel dafür gibt; ein Verteiler, solange
+    er überhaupt jemanden erreicht (unerreichbare Mitglieder reiht zustellen()
+    ein, statt die ganze Mail abzuweisen)."""
     if postfach_fuer(adresse):
         return True
     e = empfaenger_eintrag(adresse)
-    return bool(e and e["ziele"])
+    if not (e and e["ziele"]):
+        return False
+    intern, extern, weiter, _ = aufloesen([adresse])
+    return bool(intern or extern or weiter)
 
 
-def aufloesen(adressen: list) -> tuple[list[str], list[str]]:
-    """EINE Einordnung der Empfänger für Zustellung, Eingang und Webmail:
-    (interne Postfächer, externe Adressen), je einmal. Postfächer samt Aliasen
-    zuerst; Verteiler und Gruppen auf ihre Mitglieder, externe Benutzer auf ihre
-    externe Adresse; alles Übrige ist extern."""
+class Einordnung(NamedTuple):
+    intern: list          # Postfächer (Kopie)
+    extern: list          # Direktversand
+    weiter: dict          # {ziel_id: [adressen]} — On-Prem-Postfächer
+    unerreichbar: list    # On-Prem-Postfächer ohne Ziel
+
+
+def aufloesen(adressen: list) -> Einordnung:
+    """EINE Einordnung der Empfänger für Zustellung, Eingang und Webmail, je
+    Adresse einmal. Postfächer samt Aliasen zuerst; Verteiler und Gruppen auf
+    ihre Mitglieder, externe Benutzer auf ihre externe Adresse; On-Prem-Postfächer
+    auf ihr Routing-Ziel (oder unerreichbar); alles Übrige ist extern."""
     intern: list[str] = []
     extern: list[str] = []
-    for a in adressen:
-        pf = postfach_fuer(a)
+    weiter: dict[str, list[str]] = {}
+    unerreichbar: list[str] = []
+
+    def einordnen(z: str) -> None:
+        pf = postfach_fuer(z)
         if pf:
             intern.append(pf)
+        elif ist_onprem(z):
+            ziel = onprem_ziel(z)
+            if ziel:
+                weiter.setdefault(ziel, []).append(z.strip().lower())
+            else:
+                # Nicht an den eigenen MX: Der gehört im Notfall zum
+                # ausgefallenen Exchange oder zeigt aufs Gateway.
+                unerreichbar.append(z.strip().lower())
+        else:
+            extern.append(z.strip())
+
+    for a in adressen:
+        if postfach_fuer(a):
+            einordnen(a)
             continue
         e = empfaenger_eintrag(a)
         if e is None or not e["ziele"]:
-            # Unbekannt, oder ohne erreichbares Ziel: leere Gruppe; externer
-            # Benutzer, dessen externe Adresse er selbst ist (gemeinsamer
-            # Namensraum mit on-prem) — wie bisher nach außen.
+            # Unbekannt, oder ohne erreichbares Ziel (leere Gruppe, externer
+            # Benutzer ohne externe Adresse) — wie bisher nach außen.
             extern.append(a.strip())
             continue
         for z in e["ziele"]:
-            pf = postfach_fuer(z)
-            (intern if pf else extern).append(pf or z)
-    return list(dict.fromkeys(intern)), list(dict.fromkeys(extern))
+            einordnen(z)
+    return Einordnung(list(dict.fromkeys(intern)), list(dict.fromkeys(extern)),
+                      {k: list(dict.fromkeys(v)) for k, v in weiter.items()}, list(dict.fromkeys(unerreichbar)))
 
 
 # Zielordner für interne Empfänger: Posteingang, oder Junk-E-Mail, wenn die
@@ -243,31 +369,91 @@ def aufloesen(adressen: list) -> tuple[list[str], list[str]]:
 # Verbindung erbt die Entscheidung der ersten nicht.
 eingang_ordner: contextvars.ContextVar = contextvars.ContextVar("notbetrieb_eingang_ordner",
                                                                  default="inbox")
+# Absender-IP der laufenden Einlieferung (Handler, je Mail neu): Post, die vom
+# On-Prem-Ziel selbst kommt, geht nie dorthin zurück — sie käme sonst über
+# dessen Sendeconnector im Kreis (on-prem kennt den Empfänger nicht → schickt
+# an Exchange Online → im Notfall ans Gateway → zurück an on-prem).
+eingang_quelle: contextvars.ContextVar = contextvars.ContextVar("notbetrieb_eingang_quelle", default="")
+SCHLEIFE_KENNUNG = "notbetrieb-onprem"   # Schlüssel der Schleifenbremse (domain_routing)
 
 
-def zustellen(mail_from: str, rcpt_tos: list, inhalt: bytes) -> dict:
+def _host_adressen(host: str) -> set[str]:
+    import socket
+    try:
+        return {a[4][0] for a in socket.getaddrinfo(host, 25, proto=socket.IPPROTO_TCP)} | {host}
+    except OSError:
+        return {host}
+
+
+def _weiterleiten(mail_from: str, zid: str, empf: list, inhalt: bytes, einreihen: bool) -> int:
+    """An ein On-Prem-Ziel. Gibt die Zahl zugestellter Empfänger zurück; was
+    nicht geht, landet in der Warteschlange (reinject._fail_delivery)."""
+    import domain_routing
+    import reinject
+    import relay_stats
+    mid = ""
+    try:
+        mid = email.message_from_bytes(inhalt.split(b"\r\n\r\n", 1)[0] + b"\r\n\r\n",
+                                       policy=email.policy.compat32).get("Message-ID", "") or ""
+    except Exception:                                                # noqa: BLE001
+        pass
+    grund = ""
+    quelle = eingang_quelle.get()
+    if quelle and quelle in _host_adressen(domain_routing.aufloesen(zid)["host"]):
+        grund = f"kommt vom On-Prem-Ziel {zid} selbst — nicht zurück (Schleife)"
+    elif domain_routing.ist_schleife(SCHLEIFE_KENNUNG, mid, empf):
+        grund = f"Schleife: schon {domain_routing.SCHLEIFE_MAX}× an {zid} weitergeleitet"
+    if not grund:
+        try:
+            reinject._relay_to_target(zid, mail_from, empf, inhalt)
+        except Exception as exc:                                     # noqa: BLE001
+            grund = f"{type(exc).__name__}: {exc}"
+            relay_stats.merke_routing(zid, len(inhalt), ok=False, absender=mail_from, empfaenger=empf,
+                                      inhalt=inhalt, fehler_text=grund)
+        else:
+            relay_stats.merke_routing(zid, len(inhalt), ok=True, absender=mail_from, empfaenger=empf,
+                                      inhalt=inhalt)
+            domain_routing.merke_weiterleitung(SCHLEIFE_KENNUNG, mid, empf)
+            log.info("NOTFALL: an On-Prem-Ziel %s: %s", zid, empf)
+            return len(empf)
+    log.warning("NOTFALL: On-Prem-Weiterleitung an %s nicht möglich (%s): %s", zid, grund, empf)
+    reinject._fail_delivery(mail_from, empf, inhalt, f"notbetrieb on-prem→{zid}: {grund}", einreihen)
+    return 0
+
+
+def zustellen(mail_from: str, rcpt_tos: list, inhalt: bytes, einreihen: bool = True) -> dict:
     """EIN Zustellweg im Notbetrieb — für das Webmail und, solange der Notfall
     ausgerufen ist, für alles, was das Gateway an Exchange übergäbe:
     interne Empfänger (Postfach im Rechte-Abbild) in den Posteingang ihrer
-    Kopie, externe über den Direktversand. Erst nach außen, dann intern —
-    scheitert der Direktversand, ist noch nichts halb angekommen. Wirft bei
-    Fehler (der Aufrufer entscheidet über Warteschlange oder Meldung)."""
+    Kopie, externe über den Direktversand, On-Prem-Postfächer an ihr
+    Routing-Ziel. Erst nach außen, dann intern — scheitert der Direktversand,
+    ist noch nichts halb angekommen (wirft; der Aufrufer entscheidet über
+    Warteschlange oder Meldung). On-Prem-Empfänger, die nicht erreichbar sind
+    (kein Ziel, Ziel aus, Schleife), gehen einzeln in die Warteschlange
+    (`einreihen`; False = manueller Retry, wirft) — die Freigabe nach dem
+    Notfall stellt sie über Exchange zu."""
     # Aliase auf ihr Postfach: Ohne das hielte die Zustellung `vorname.nachname@`
     # für extern und schickte die Mail per Direktversand an den eigenen MX.
     # Verteiler, Gruppen und Adressen externer Benutzer auf ihre Ziele — sonst
     # gingen sie als „extern“ an den eigenen MX, der im Notfall nicht annimmt.
-    intern, extern = aufloesen(rcpt_tos)
+    intern, extern, weiter, unerreichbar = aufloesen(rcpt_tos)
+    import reinject
     if extern:
         import direktversand
         import domain_routing
-        import reinject
         if not direktversand.aktiv():
             raise RuntimeError("Direktversand nicht eingerichtet — externe Empfänger nicht erreichbar")
         ziel = domain_routing.aufloesen(domain_routing.DIREKT)
         reinject._an_postfix(mail_from, extern, inhalt, ziel["host"], ziel["port"])
+    weitergeleitet = sum(_weiterleiten(mail_from, zid, empf, inhalt, einreihen) for zid, empf in weiter.items())
+    if unerreichbar:
+        log.warning("NOTFALL: On-Prem-Postfächer ohne Notfall-Ziel: %s", unerreichbar)
+        reinject._fail_delivery(mail_from, unerreichbar, inhalt, "notbetrieb: On-Prem-Postfach ohne Ziel",
+                                einreihen)
     for e in dict.fromkeys(intern):
         lokal_ablegen(e, eingang_ordner.get(), inhalt)
-    return {"intern": len(intern), "extern": len(extern)}
+    return {"intern": len(intern), "extern": len(extern), "weiter": weitergeleitet,
+            "eingereiht": sum(len(v) for v in weiter.values()) - weitergeleitet + len(unerreichbar)}
 
 
 def sichtbar() -> bool:
@@ -434,7 +620,8 @@ def _schema_kern(conn) -> None:
             versteckt  INTEGER NOT NULL DEFAULT 0,
             nur_intern INTEGER NOT NULL DEFAULT 0,
             ziele      TEXT NOT NULL,
-            annehmen   INTEGER NOT NULL DEFAULT 1
+            annehmen   INTEGER NOT NULL DEFAULT 1,
+            onprem     INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS meta (
             k TEXT PRIMARY KEY,
@@ -468,6 +655,8 @@ def _schema_kern(conn) -> None:
         conn.execute("ALTER TABLE ordner ADD COLUMN wk TEXT")
     if "versteckt" not in {z[1] for z in conn.execute("PRAGMA table_info(konten)")}:
         conn.execute("ALTER TABLE konten ADD COLUMN versteckt INTEGER NOT NULL DEFAULT 0")
+    if "onprem" not in {z[1] for z in conn.execute("PRAGMA table_info(empfaenger)")}:
+        conn.execute("ALTER TABLE empfaenger ADD COLUMN onprem INTEGER NOT NULL DEFAULT 0")
     # Bei jeder Anfrage des Webmails (notbetrieb_rechte.zugriff): Konto auch
     # über den UPN, Rechte nach Nutzer — ohne Index las jede alle Zeilen.
     conn.execute("CREATE INDEX IF NOT EXISTS konten_upn ON konten (upn)")

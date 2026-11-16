@@ -7,6 +7,7 @@ Deshalb jederzeit abrufbar (Seite Notbetrieb, Abnahme):
 - Rechte-Abbild und Profile frisch (wer darf was; Signaturdaten ohne Graph)
 - Anmeldung: Domänencontroller verschlüsselt erreichbar
 - Versand nach außen: Direktversand eingerichtet
+- On-Prem-Postfächer: Ziel vorhanden, letzte Probe angenommen
 - TLS-Zertifikat gültig (Webmail und SMTP)
 
 Dazu der Stand des MX je eigener Domäne (`mx_stand`): zeigt er auf Exchange
@@ -117,6 +118,32 @@ def _versand() -> dict:
               "Einrichtung → Direktversand einrichten.")
 
 
+def _onprem() -> dict:
+    """On-Prem-Postfächer (gemeinsamer Namensraum): Gibt es ein Ziel, und kam
+    die letzte Probe an? Mit Bezugsgröße — die Zeile steht immer."""
+    import abnahme
+    import notbetrieb
+    st = notbetrieb.onprem_stand()
+    n, ohne = st["postfaecher"], st["ohne_ziel"]
+    befund = f"{n} Postfächer liegen on-prem, {ohne} davon ohne Ziel"
+    if not n:
+        return _p("On-Prem-Postfächer", abnahme.ENTFAELLT, befund + " — keine Weiterleitung nötig.")
+    if ohne:
+        return _p("On-Prem-Postfächer", abnahme.OFFEN, befund + " — im Notfall nicht erreichbar (Warteschlange).",
+                  "Notbetrieb → „On-Prem-Postfächer“: Ziel wählen (Zielserver unter Einstellungen → Mail-Routing).")
+    probe = notbetrieb.onprem_probe_stand() or {}
+    alter = _alter_h(probe.get("ts"))
+    if alter is None:
+        return _p("On-Prem-Postfächer", abnahme.OFFEN, befund + "; Weg noch nie geprüft.",
+                  "Notbetrieb → „On-Prem-Postfächer“ → „Weg prüfen“.")
+    if not probe.get("ok"):
+        return _p("On-Prem-Postfächer", abnahme.OFFEN,
+                  befund + f"; letzte Probe gescheitert: {probe.get('fehler') or probe.get('antwort', '')}.",
+                  "Zielserver und Empfangsconnector on-prem prüfen, dann „Weg prüfen“.")
+    return _p("On-Prem-Postfächer", abnahme.OK,
+              befund + f"; Probe an {probe.get('ziel')} vor {alter:.0f} h angenommen ({probe.get('antwort', '')}).")
+
+
 def _kontakte() -> dict:
     import abnahme
     import notbetrieb_pim
@@ -173,7 +200,7 @@ def pruefen(mit_netz: bool = True) -> dict:
     st = notbetrieb.status()
     punkte = []
     for f in (lambda: _kopie(st), _abbild, lambda: _profile(st), lambda: _anmeldung(mit_netz), _versand,
-              _kontakte, _zweitfaktor, lambda: _rueckweg(st), abnahme._tls):
+              _onprem, _kontakte, _zweitfaktor, lambda: _rueckweg(st), abnahme._tls):
         try:
             punkte.append(f())
         except Exception as exc:                                    # noqa: BLE001
