@@ -171,9 +171,30 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
             "ueber": ueber}
 
 
+def versand_hindernis(benutzer: str, alle: list) -> tuple:
+    """(Einordnung, Grund oder None) — EINE Vorprüfung für jeden Sendeweg des
+    Notbetriebs (Webmail, Mailprogramme). Dieselbe Einordnung wie
+    notbetrieb.zustellen (Aliase, Verteiler, Gruppen, On-Prem-Postfächer).
+    Nur auf dem Notfall-Weg: Der Exchange-Weg braucht weder Direktversand noch
+    On-Prem-Ziel. Direktversand nur für wirklich externe Empfänger. Ein direkt
+    angeschriebenes On-Prem-Postfach ohne Ziel ist ein Hindernis, damit der
+    Absender es weiß; steckt es nur in einem Verteiler, reiht zustellen() es ein
+    — die übrigen Mitglieder sollen ihre Post bekommen."""
+    import direktversand
+    einordnung = notbetrieb.aufloesen(alle)
+    if notbetrieb.sendeweg(benutzer) != notbetrieb.WEG_NOTFALL:
+        return einordnung, None
+    ohne_ziel = [a for a in alle if notbetrieb.ist_onprem(a) and not notbetrieb.onprem_ziel(a)]
+    if ohne_ziel:
+        return einordnung, ("Im Notbetrieb nicht erreichbar (Postfach on-prem, kein Notfall-Ziel "
+                            "eingerichtet): " + ", ".join(ohne_ziel[:5]))
+    if einordnung.extern and not direktversand.aktiv():
+        return einordnung, "Versand nach außen ist im Notbetrieb nicht eingerichtet (Direktversand)."
+    return einordnung, None
+
+
 def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betreff: str, text: str,
                  anhaenge: list | None, bezug_id: str, art: str) -> tuple:
-    import direktversand
     anhaenge = list(anhaenge or [])
     postfach = postfach.strip().lower()
     recht = senderecht(benutzer, postfach)
@@ -207,19 +228,10 @@ def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betre
     if sum(len(d) for _, _, d in anhaenge) > MAX_GROESSE:
         raise SendeFehler("Anhänge zu groß (höchstens 15 MB).")
 
-    # Dieselbe Einordnung wie notbetrieb.zustellen (Aliase, Verteiler, Gruppen,
-    # On-Prem-Postfächer). Direktversand braucht nur, was wirklich nach außen geht.
-    # Ein direkt angeschriebenes On-Prem-Postfach ohne Ziel: abweisen, damit der
-    # Absender es weiß. Steckt es nur in einem Verteiler, reiht zustellen() es
-    # ein — die übrigen Mitglieder sollen ihre Post bekommen.
-    intern, extern, _weiter, _unerreichbar = notbetrieb.aufloesen(alle)
-    if notbetrieb.sendeweg(benutzer) == notbetrieb.WEG_NOTFALL:
-        ohne_ziel = [a for a in alle if notbetrieb.ist_onprem(a) and not notbetrieb.onprem_ziel(a)]
-        if ohne_ziel:
-            raise SendeFehler("Im Notbetrieb nicht erreichbar (Postfach on-prem, kein Notfall-Ziel "
-                              "eingerichtet): " + ", ".join(ohne_ziel[:5]))
-        if extern and not direktversand.aktiv():
-            raise SendeFehler("Versand nach außen ist im Notbetrieb nicht eingerichtet (Direktversand).")
+    einordnung, hindernis = versand_hindernis(benutzer, alle)
+    if hindernis:
+        raise SendeFehler(hindernis)
+    intern, extern = einordnung.intern, einordnung.extern
 
     _drossel(benutzer)
     sender = benutzer if recht == "auftrag" else None
