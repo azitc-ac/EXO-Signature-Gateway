@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.49 — 2026-11-16 — Banner-Kampagnen respektieren Postfächer ohne Richtlinien
+
+Ein Postfach, bei dem „Vorlagen-Richtlinien“ abgeschaltet ist, bekam trotzdem
+den Banner jeder aktiven Kampagne, auch wenn dort kein Banner ausgewählt war.
+Die Kampagne stand vor der Postfach-Einstellung und fragte nicht danach, ob
+das Postfach Richtlinien übernimmt. Wer ein Postfach bewusst aus den
+Richtlinien nahm, konnte es so nicht vor Kampagnen schützen.
+
+Jetzt erreicht eine Kampagne solche Postfächer nur, wenn sie **Übernahme
+erzwingen** trägt (neuer Schalter unter *Signaturen → Kampagnen*). Ohne den
+Schalter behält das Postfach seinen eigenen Banner bzw. bleibt ohne. Für
+Postfächer mit Richtlinien-Übernahme ändert sich nichts. Die Vorschauen
+(Self-Service, Vorlagen) folgen derselben Regel.
+
+Die Protokollzeile „HTML-Auto-Signatur unterdrückt …“ nennt jetzt die
+tatsächlich angehängten Vorlagen (`angehängt: Banner …, Disclaimer …`). Bisher
+stand dort immer `(banner+disclaimer)`, auch wenn eines davon gar nicht
+zugewiesen war.
+
+**Zu tun:** nichts. Soll eine laufende Kampagne weiterhin auch Postfächer ohne
+Richtlinien-Übernahme erreichen, öffne sie unter *Signaturen → Kampagnen →
+Bearbeiten* und setze „Übernahme erzwingen“.
+
 ## v1.12.48 — 2026-11-16 — Antwort-Signatur nur, wenn die EIGENE Signatur im Zitat steht
 
 Ob eine Antwort die volle oder die Antwort-Signatur bekommt, hängt daran, ob

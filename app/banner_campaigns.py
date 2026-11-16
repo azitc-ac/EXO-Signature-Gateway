@@ -12,6 +12,11 @@ Zeitkonvention wie im übrigen Gateway: UTC-ISO8601 (`datetime.now(timezone.utc)
 `fromisoformat`), „Z"-Suffix wird akzeptiert. Leere Grenze = offen (Start leer:
 läuft schon; Ende leer: läuft weiter). Leere Gruppe = alle.
 
+Ein Postfach, das keine Richtlinien übernimmt (`use_policy` aus), bekommt eine
+Kampagne nur, wenn sie „Übernahme erzwingen“ (`erzwingen`) trägt. Bis v1.12.48
+galt jede Kampagne ungefragt für alle — auch für Postfächer, die bewusst aus den
+Richtlinien genommen waren.
+
 Reine Logik (`aktive_kampagne`) und Verwaltung (`liste/speichern/loeschen`) sind
 getrennt: Erstere läuft im Mailpfad (auch im Subprozess denkbar) und schreibt
 NIE; Letztere nutzt `settings_store.update` und gehört in den Web-Prozess.
@@ -63,16 +68,20 @@ def _passt_gruppe(camp: dict, sender_key: str | None, internal_groups: dict) -> 
 
 
 def aktive_kampagne(campaigns, now: datetime, sender_key: str | None,
-                    internal_groups: dict) -> str | None:
+                    internal_groups: dict, uebernimmt: bool = True) -> str | None:
     """Banner-Template der ERSTEN aktiven, passenden Kampagne — sonst None.
 
-    Reihenfolge = Listenreihenfolge (erste gewinnt). Rein; kein Seiteneffekt.
+    `uebernimmt` = das Postfach übernimmt Richtlinien; ist es aus, zählen nur
+    Kampagnen mit `erzwingen`. Reihenfolge = Listenreihenfolge (erste gewinnt).
+    Rein; kein Seiteneffekt.
     """
     for camp in campaigns or []:
         if not isinstance(camp, dict):
             continue
         banner = (camp.get("banner") or "").strip()
         if not banner:
+            continue
+        if not uebernimmt and not camp.get("erzwingen"):
             continue
         if _aktiv(camp, now) and _passt_gruppe(camp, sender_key, internal_groups):
             return banner
@@ -97,10 +106,12 @@ def banner_fuer(sender: str, regulaer: str, now: datetime | None = None) -> str:
         return regulaer
     import gruppen
     import mailbox_match
-    schluessel = mailbox_match.match_sender_key(
-        settings_store.get("MAILBOX_CONFIG") or {}, sender)
+    mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    schluessel = mailbox_match.match_sender_key(mailbox_cfg, sender)
+    # Dieselbe Lesart wie policies.aufloesen: fehlt der Eintrag, gilt "übernimmt".
+    uebernimmt = bool(mailbox_match.match_sender(mailbox_cfg, sender).get("use_policy", True))
     return aktive_kampagne(kampagnen, now or datetime.now(timezone.utc),
-                           schluessel, gruppen.interne_gruppen()) or regulaer
+                           schluessel, gruppen.interne_gruppen(), uebernimmt) or regulaer
 
 
 # ── Verwaltung (nur Web-Prozess) ──────────────────────────────────────────────
@@ -146,6 +157,7 @@ def speichern(daten: dict) -> dict:
         "end": (daten.get("end") or "").strip(),
         "group": (daten.get("group") or "").strip(),
         "enabled": bool(daten.get("enabled", True)),
+        "erzwingen": daten.get("erzwingen") is True,
     }
     campaigns = liste()
     if rec["id"] and _ID_RE.match(rec["id"]):

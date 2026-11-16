@@ -187,6 +187,56 @@ def test_banner_fuer_gruppe_ueber_postfachschluessel(store):
     assert bc.banner_fuer("b@x.de", "regulaer", NOW) == "regulaer"
 
 
+# ── Postfach ohne Richtlinien: Kampagne nur mit „Übernahme erzwingen“ ─────────
+# Anlass: Bis v1.12.48 bekam ein Postfach mit abgeschalteter Richtlinien-
+# Übernahme (und leerer Banner-Auswahl) trotzdem den Banner jeder Kampagne.
+
+def _ohne_richtlinien(store, **postfach):
+    store["MAILBOX_CONFIG"] = {"guid-k": {"primary": "k@x.de", "use_policy": False,
+                                          **postfach},
+                               "guid-a": {"primary": "a@x.de", "use_policy": True}}
+
+
+def test_postfach_ohne_richtlinien_bekommt_keine_kampagne(store):
+    _ohne_richtlinien(store)
+    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer")]
+    assert bc.banner_fuer("k@x.de", "", NOW) == ""
+    assert bc.banner_fuer("a@x.de", "", NOW) == "sommer"     # mit Übernahme wie bisher
+
+
+def test_eigener_banner_bleibt_ohne_erzwingen(store):
+    _ohne_richtlinien(store, banner_template="eigen")
+    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer")]
+    assert bc.banner_fuer("k@x.de", "eigen", NOW) == "eigen"
+
+
+def test_erzwungene_kampagne_gilt_auch_ohne_richtlinien(store):
+    _ohne_richtlinien(store)
+    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer", erzwingen=True)]
+    assert bc.banner_fuer("k@x.de", "", NOW) == "sommer"
+
+
+def test_erste_erzwungene_gewinnt_fuer_postfach_ohne_richtlinien(store):
+    _ohne_richtlinien(store)
+    store["BANNER_CAMPAIGNS"] = [_kmp(id="kmp_aaaaaa", banner="frei"),
+                                 _kmp(id="kmp_bbbbbb", banner="pflicht", erzwingen=True)]
+    assert bc.banner_fuer("k@x.de", "", NOW) == "pflicht"
+    assert bc.banner_fuer("a@x.de", "", NOW) == "frei"
+
+
+def test_unbekannter_absender_gilt_als_uebernehmend(store):
+    _ohne_richtlinien(store)
+    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer")]
+    assert bc.banner_fuer("fremd@x.de", "", NOW) == "sommer"
+
+
+def test_speichern_merkt_erzwingen(store):
+    assert bc.speichern({"name": "A", "banner": "b"})["erzwingen"] is False
+    assert bc.speichern({"name": "B", "banner": "b", "erzwingen": True})["erzwingen"] is True
+    # Nur ein echtes true zählt — "false" als Text wäre sonst wahr.
+    assert bc.speichern({"name": "C", "banner": "b", "erzwingen": "false"})["erzwingen"] is False
+
+
 # Jede Stelle, die den Banner eines Postfachs aus policies.aufloesen() liest,
 # muss über banner_fuer gehen. Ausnahmen nur mit Grund.
 _BANNER_OHNE_KAMPAGNE = {

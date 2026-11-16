@@ -9,7 +9,8 @@
   optional nur einer <strong>Zielgruppe</strong>. Ist zum Sendezeitpunkt eine
   passende Kampagne aktiv, gewinnt ihr Banner über das sonst zugewiesene. Ohne
   aktive Kampagne bleibt alles wie eingestellt — kein Eingriff in den Mailfluss,
-  nur der Banner-Teil der Signatur.
+  nur der Banner-Teil der Signatur. Postfächer, die keine Richtlinien
+  übernehmen, erreicht eine Kampagne nur mit <strong>Übernahme erzwingen</strong>.
 </p>
 
 <!-- ── Kampagnen-Liste ─────────────────────────────────────────────────────── -->
@@ -55,6 +56,9 @@
       </div>
       <div style="align-self:end;padding-bottom:6px">
         <label class="checkbox-label" style="margin:0"><input type="checkbox" id="k-enabled" checked> aktiviert</label>
+      </div>
+      <div style="align-self:end;padding-bottom:6px">
+        <label class="checkbox-label" style="margin:0" title="Auch Postfächer, die keine Richtlinien übernehmen, bekommen den Banner der Kampagne."><input type="checkbox" id="k-erzwingen"> Übernahme erzwingen</label>
       </div>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -119,7 +123,8 @@ function zeichneKampagnen(liste) {
       '<td>' + esc(k.name || '—') + '</td>'
       + '<td><code>' + esc(k.banner || '—') + '</code></td>'
       + '<td style="font-size:12px;color:#555;white-space:nowrap">' + zeitraumText(k) + '</td>'
-      + '<td style="font-size:12px">' + (k.group ? esc(k.group) : '<span style="color:#94a3b8">alle</span>') + '</td>'
+      + '<td style="font-size:12px">' + (k.group ? esc(k.group) : '<span style="color:#94a3b8">alle</span>')
+        + (k.erzwingen ? '<br><span class="hint">Übernahme erzwungen</span>' : '') + '</td>'
       + '<td style="font-weight:600;color:' + st.farbe + '">' + st.text + '</td>'
       + '<td style="white-space:nowrap">'
         + '<button class="btn secondary btn-sm" onclick="kampagneBearbeiten(' + escAttr(JSON.stringify(k)) + ')">Bearbeiten</button> '
@@ -175,6 +180,7 @@ function kampagneBearbeiten(k) {
   document.getElementById('k-start').value = isoZuLokalInput(k.start);
   document.getElementById('k-end').value = isoZuLokalInput(k.end);
   document.getElementById('k-enabled').checked = k.enabled !== false;
+  document.getElementById('k-erzwingen').checked = k.erzwingen === true;
   document.getElementById('form-titel').textContent = 'Kampagne bearbeiten';
   document.getElementById('k-abbrechen').style.display = '';
   document.getElementById('k-name').focus();
@@ -186,6 +192,7 @@ function kampagneFormLeeren() {
   });
   document.getElementById('k-group').value = '';
   document.getElementById('k-enabled').checked = true;
+  document.getElementById('k-erzwingen').checked = false;
   document.getElementById('form-titel').textContent = 'Neue Kampagne';
   document.getElementById('k-abbrechen').style.display = 'none';
 }
@@ -203,7 +210,8 @@ async function kampagneSpeichern(btn) {
     group: document.getElementById('k-group').value || '',
     start: lokalInputZuIso(document.getElementById('k-start').value),
     end: lokalInputZuIso(document.getElementById('k-end').value),
-    enabled: document.getElementById('k-enabled').checked
+    enabled: document.getElementById('k-enabled').checked,
+    erzwingen: document.getElementById('k-erzwingen').checked
   };
   const r = await knopfAktion(btn, null, () => postJSON('/api/campaigns', payload));
   if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
