@@ -583,6 +583,71 @@
     </script>
 
     <script>
+      // Sprung zu einem Anker (/setup#exo-auto-ausnahme, Links der Aufgaben):
+      // die KARTE ab ihrem Kopf zeigen, nicht nur die Zielzeile. Bis v1.12.45
+      // landete das Ziel unter der festen Navigation, und Kopf samt Schritt-
+      // Nummer lagen oberhalb — man sah zwei angeschnittene Knöpfe ohne Kontext.
+      //
+      // Zwei Teile: `scroll-padding-top` = Navhöhe (auch für scrollIntoView an
+      // anderen Stellen; per JS, weil die Navigation auf schmalen Schirmen
+      // umbricht), und für Anker die Kartenoberkante, solange das Ziel dann
+      // noch im Bild steht — sonst das Ziel selbst.
+      (function () {
+        var KARTE = '.wizard-step, .settings-card, .card';
+        function _navUnten() {
+          var nav = document.querySelector('nav');
+          return nav ? Math.ceil(nav.getBoundingClientRect().bottom) + 8 : 8;
+        }
+        function _polster() {
+          document.documentElement.style.scrollPaddingTop = _navUnten() + 'px';
+        }
+        function ankerZeigen(hash) {
+          if (!hash || hash.length < 2) return false;
+          var ziel;
+          try { ziel = document.getElementById(decodeURIComponent(hash.slice(1))); } catch (e) { return false; }
+          if (!ziel || !ziel.getClientRects().length) return false;   // fehlt oder unsichtbar
+          for (var d = ziel.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
+          var oben = _navUnten();
+          var zielY = ziel.getBoundingClientRect().top + window.scrollY;
+          var y = zielY - oben;
+          var karte = ziel.closest(KARTE);
+          if (karte && karte !== ziel) {
+            var karteY = karte.getBoundingClientRect().top + window.scrollY;
+            // Mindestens der Anfang des Ziels (bis 80px) muss unter dem Kartenkopf sichtbar bleiben.
+            var rest = window.innerHeight - oben;
+            if (zielY - karteY + Math.min(80, ziel.offsetHeight) <= rest) y = karteY - oben;
+          }
+          window.scrollTo(0, Math.max(0, y));
+          return true;
+        }
+        // Der Browser springt beim Laden selbst noch einmal zum Ziel (nach
+        // DOMContentLoaded), und Bilder oder spät gefüllte Bereiche verschieben
+        // die Karte. Deshalb beim `load` nachziehen — aber nicht mehr, sobald
+        // jemand selbst rollt.
+        var _selbst = false;
+        ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(function (art) {
+          window.addEventListener(art, function () { _selbst = true; }, {passive: true, once: true});
+        });
+        document.addEventListener('DOMContentLoaded', function () {
+          _polster();
+          ankerZeigen(location.hash);
+        });
+        window.addEventListener('load', function () {
+          _polster();
+          if (!_selbst) requestAnimationFrame(function () { ankerZeigen(location.hash); });
+        });
+        window.addEventListener('resize', _polster);
+        window.addEventListener('hashchange', function () { ankerZeigen(location.hash); });
+        // Klick auf denselben Anker löst kein hashchange aus.
+        document.addEventListener('click', function (e) {
+          var a = e.target.closest && e.target.closest('a[href*="#"]');
+          if (!a || a.hash !== location.hash || a.pathname !== location.pathname) return;
+          if (ankerZeigen(a.hash)) e.preventDefault();
+        });
+      })();
+    </script>
+
+    <script>
       // Reiterleisten: sichtbar machen, dass es seitlich weitergeht.
       //
       // Die Leiste rollt waagerecht, ihre Rollleiste ist aber absichtlich

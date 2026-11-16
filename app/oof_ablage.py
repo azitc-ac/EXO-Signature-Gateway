@@ -158,7 +158,8 @@ def _betreff(msg) -> str:
 def antwort_bauen(empfaenger: str, absender: str, msg, html: str, locale: str) -> bytes:
     praefix = "Automatische Antwort: " if (locale or "de").lower().startswith("de") \
         else "Automatic reply: "
-    a = EmailMessage(policy=email.policy.SMTP)
+    import mime_policy
+    a = EmailMessage(policy=mime_policy.SMTP_REINJECT)
     a["From"] = empfaenger
     a["To"] = absender
     a["Subject"] = praefix + _betreff(msg)

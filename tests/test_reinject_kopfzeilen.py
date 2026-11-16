@@ -78,3 +78,46 @@ def test_selbst_gesetzter_umlaut_betreff_bleibt_kodierbar():
     kopf = _kopf(handler._smtp_bytes(msg))
     assert "Subject: =?utf-8?" in kopf
     assert all(len(z) <= 998 for z in kopf.split("\r\n"))
+
+
+# ── Selbst gebaute Antworten mit fremder Message-ID (v1.12.47) ──────────────
+
+def test_acme_antwort_behaelt_die_exchange_kennung():
+    """Die ACME-Antwort setzt In-Reply-To/References auf die Exchange-ID der
+    Challenge-Mail und serialisierte mit email.policy.SMTP — 78er-Faltung."""
+    import acme_state
+    roh = acme_state._build_challenge_reply_mime(
+        "max.mustermann@firma.at", "acme@ca.example", "Re: ACME: abc", "digest", MID)
+    kopf = _kopf(roh)
+    assert f"In-Reply-To: {MID}" in kopf and f"References: {MID}" in kopf
+    assert "=?utf-8?" not in kopf
+    assert b"\n" not in roh.replace(b"\r\n", b"")              # CRLF bleibt
+
+
+def test_abwesenheitsantwort_behaelt_die_kennung():
+    import oof_ablage
+    original = email.message_from_bytes(RAW)
+    kopf = _kopf(oof_ablage.antwort_bauen("max.mustermann@firma.at", "erika@extern.example",
+                                          original, "<p>weg</p>", "de"))
+    assert f"In-Reply-To: {MID.replace('A1912', 'B1912')}" in kopf
+    assert "=?utf-8?q?=3C" not in kopf
+
+
+def test_serialisiert_wird_nur_ueber_mime_policy():
+    """Eine Policy für alle selbst gebauten oder neu serialisierten Mails —
+    `email.policy.SMTP` direkt faltete bei 78 und kodierte fremde Kennungen.
+    Sucht im Syntaxbaum (nicht im Text: Kommentare dürfen sie nennen)."""
+    import ast
+    from pathlib import Path
+    wurzel = Path(__file__).resolve().parent.parent / "app"
+    funde = []
+    for datei in wurzel.rglob("*.py"):
+        if datei.name == "mime_policy.py":
+            continue
+        for k in ast.walk(ast.parse(datei.read_text(encoding="utf-8"))):
+            if isinstance(k, ast.Attribute) and k.attr in ("SMTP", "SMTPUTF8") \
+                    and isinstance(k.value, (ast.Attribute, ast.Name)) \
+                    and (getattr(k.value, "attr", None) == "policy"
+                         or getattr(k.value, "id", None) in ("_ep", "policy")):
+                funde.append(f"{datei.relative_to(wurzel)}:{k.lineno}")
+    assert not funde, f"email.policy.SMTP direkt statt mime_policy.SMTP_REINJECT: {funde}"

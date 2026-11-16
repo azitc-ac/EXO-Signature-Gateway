@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.47 — 2026-11-16 — Lange Message-IDs auch in selbst gebauten Antworten unverändert
+
+Seit v1.9.136 bleiben lange Kopfzeilen auf dem Rückweg unverändert. Die
+Message-ID von Exchange Online hat 85 Zeichen ohne Leerzeichen, und die
+übliche Faltung bei 78 Zeichen hätte sie als RFC-2047-Wort kodiert
+(`=?utf-8?q?=3CAMBPR05…?=`). Zwei vom Gateway selbst gebaute Antworten setzen
+diese Kennung aber in `In-Reply-To` und `References` und serialisierten noch
+mit der 78er-Faltung: die Antwort auf eine ACME-Challenge (Zertifikatsbezug
+per Mail) und deren bereinigter Neubau auf dem Rückweg. Die Kennung kam dort
+kodiert an und war damit für das Threading unbrauchbar. Jetzt serialisieren
+alle Stellen über dieselbe Einstellung (CRLF, Faltung erst ab 998 Zeichen),
+auch Benachrichtigungen, Rückläufermeldungen, Direktversand-Probe und
+Abwesenheitsantwort.
+
+**Zu tun:** nichts.
+
+## v1.12.46 — 2026-11-16 — Ankerlinks zeigen die Karte ab ihrem Kopf
+
+Ein Link auf eine Stelle innerhalb einer Seite, etwa aus den offenen
+Aufgaben auf „Auto-Antwort-Ausnahme“ in der Einrichtung, scrollte das Ziel
+unter die feste Navigation. Kopf und Schritt-Nummer der Karte lagen oberhalb
+außer Sicht, sichtbar waren nur angeschnittene Knöpfe ohne Zusammenhang.
+Jetzt steht die Karte, in der das Ziel liegt, mit ihrem Kopf direkt unter der
+Navigation. Ist die Karte dafür zu hoch (etwa auf dem Telefon), steht das Ziel
+selbst oben. Eingeklappte Bereiche um das Ziel öffnen sich. Das gilt auf
+allen Seiten, auch für andere Sprünge, die nicht mehr unter die Navigation
+rutschen.
+
+**Zu tun:** nichts.
+
 ## v1.12.45 — 2026-11-16 — Teams-App per Knopf aktualisieren, Aufgaben mit Tätigkeitstitel, Test-Mail als HTML
 
 - **„Im Teams-Katalog aktualisieren“** (Einrichtung → Add-in, Abschnitt Teams-App).
