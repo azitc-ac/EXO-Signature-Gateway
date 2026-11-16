@@ -1720,3 +1720,44 @@ def test_selbst_zustellen_prueft_port25_vor_dem_speichern(browser, server, monke
         assert dialoge and "Port 25 ausgehend ist von hier gesperrt" in dialoge[0], dialoge
     else:
         assert not dialoge, dialoge
+
+
+# ── Baukasten: lange Eingaben (Freitext, HTML-Code) ──────────────────────────
+# Anlass: Beide Felder waren 60px hoch und standen neben einer 110px-Beschriftung
+# in einer rund 400px breiten Spalte — längere Texte waren kaum zu bearbeiten.
+
+@pytest.mark.parametrize("typ,feld", [("text", "text"), ("freetext", "html")])
+@pytest.mark.parametrize("breite", [1280, 393])
+def test_lange_eingabe_breit_hoch_und_gross_bearbeitbar(seite, typ, feld, breite):
+    pg = seite("/template", breite=breite)
+    pg.evaluate("t => addBlock(t)", typ)
+    pg.locator(".block-card").last.locator(".block-type-badge").click()
+    karte = pg.locator(".block-card").last
+    ta = karte.locator(f"textarea[name={feld}]")
+    mass = ta.evaluate("""el => {
+        const k = el.closest('.block-card-body').getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        return {anteil: r.width / k.width, hoehe: r.height};
+    }""")
+    assert mass["anteil"] > 0.85, f"Feld nutzt nur {mass['anteil']:.0%} der Kartenbreite"
+    assert mass["hoehe"] >= 100, f"Feld nur {mass['hoehe']:.0f}px hoch"
+
+    # Höhe wächst mit dem Inhalt
+    ta.fill("\n".join(f"Zeile {i}" for i in range(14)))
+    assert ta.evaluate("el => el.getBoundingClientRect().height") > mass["hoehe"] + 40
+
+    # Groß bearbeiten: deckt fast das Fenster, jede Eingabe landet sofort im Baustein
+    karte.get_by_role("button", name="Groß bearbeiten").click()
+    gross = pg.locator("#gross-feld")
+    assert gross.is_visible()
+    flaeche = gross.evaluate("el => el.getBoundingClientRect().width * el.getBoundingClientRect().height"
+                             " / (innerWidth * innerHeight)")
+    assert flaeche > 0.5, f"großes Feld deckt nur {flaeche:.0%} des Fensters"
+    gross.fill("Neu\nZweite Zeile")
+    # Die Kopfzeile der Karte wird aus dem Baustein-Objekt gebildet
+    # (blockSummary) — steht der neue Text dort, ist er im Baustein angekommen.
+    assert "Neu" in karte.locator(".block-card-header").inner_text()
+    pg.keyboard.press("Escape")
+    assert not gross.is_visible()
+    assert ta.input_value() == "Neu\nZweite Zeile"
+    pg.context.close()

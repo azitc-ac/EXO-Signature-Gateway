@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.50 — 2026-11-16 — Baukasten: mehr Platz für Freitext und HTML-Code
+
+Die Eingabefelder der Bausteine **Freitext** und **HTML-Code** waren 60 px
+hoch und standen neben einer 110 px breiten Beschriftung, in einer Spalte von
+rund 400 px. Längere Texte und Disclaimer ließen sich darin kaum bearbeiten.
+
+Jetzt steht die Beschriftung über dem Feld, das Feld nutzt die volle Breite
+der Karte und ist mindestens fünf (Freitext) bzw. acht Zeilen (HTML-Code)
+hoch. Beim Öffnen richtet sich die Höhe nach dem vorhandenen Text, beim
+Tippen wächst das Feld mit, bis 60 % der Fensterhöhe; danach rollt es. Der
+HTML-Code erscheint in Festbreitenschrift, ohne Rechtschreibprüfung.
+
+Neu ist **Groß bearbeiten** neben beiden Feldern: Die Eingabe öffnet sich fast
+bildschirmfüllend (auf dem Telefon ganz). Jede Änderung geht sofort in den
+Baustein; *Fertig*, Esc oder ein Klick daneben schließen. Die
+Variablen-Vorschläge (`user.`, `custom.`) funktionieren auch dort und bleiben
+im sichtbaren Bereich.
+
+**Zu tun:** nichts.
+
 ## v1.12.49 — 2026-11-16 — Banner-Kampagnen respektieren Postfächer ohne Richtlinien
 
 Ein Postfach, bei dem „Vorlagen-Richtlinien“ abgeschaltet ist, bekam trotzdem

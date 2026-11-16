@@ -435,6 +435,25 @@
   padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;width:100%;box-sizing:border-box
 }
 .prop-row textarea { min-height:60px;resize:vertical }
+/* Lange Eingaben (Freitext, HTML-Code): Beschriftung über dem Feld, damit es
+   die volle Kartenbreite bekommt; Höhe wächst mit dem Inhalt (langWachsen).
+   Bis v1.12.49 stand das Feld 60px hoch neben einer 110px-Beschriftung. */
+.prop-row.weit { grid-template-columns:1fr;gap:4px }
+.prop-row.weit .weit-kopf { display:flex;align-items:center;justify-content:space-between;gap:8px }
+.prop-row textarea.lang-eingabe { min-height:110px;max-height:60vh;line-height:1.45 }
+.prop-row textarea.code, #gross-editor textarea.code {
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2
+}
+/* Groß bearbeiten: dieselbe Eingabe über fast den ganzen Bildschirm. */
+#gross-editor { position:fixed;inset:0;z-index:2500;display:none;
+  background:rgba(15,23,42,.45);padding:4vh 4vw;box-sizing:border-box }
+#gross-editor.offen { display:flex }
+#gross-editor .gross-karte { flex:1;display:flex;flex-direction:column;gap:8px;
+  background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;min-width:0 }
+#gross-editor .gross-kopf { display:flex;align-items:center;gap:10px;flex-wrap:wrap }
+#gross-editor textarea { flex:1;width:100%;box-sizing:border-box;resize:none;padding:8px 10px;
+  border:1px solid #d1d5db;border-radius:4px;font-size:13px;line-height:1.5 }
+@media (max-width:600px) { #gross-editor { padding:0 } #gross-editor .gross-karte { border-radius:0 } }
 .prop-row input[type=checkbox] { width:auto }
 [data-theme="dark"] .block-card { background:#1e293b;border-color:#334155 }
 [data-theme="dark"] .block-card-header { background:#0f172a }
@@ -445,6 +464,8 @@
 [data-theme="dark"] .prop-row input[type=text],
 [data-theme="dark"] .prop-row select,
 [data-theme="dark"] .prop-row textarea { background:#0f172a;border-color:#334155;color:#e2e8f0 }
+[data-theme="dark"] #gross-editor .gross-karte { background:#1e293b;border-color:#334155 }
+[data-theme="dark"] #gross-editor textarea { background:#0f172a;border-color:#334155;color:#e2e8f0 }
 /* Variablen-Autocomplete (custom./user. in Textfeldern) */
 #var-ac { position:absolute;z-index:3000;display:none;min-width:180px;max-height:220px;
   overflow-y:auto;background:#fff;border:1px solid #d1d5db;border-radius:6px;
@@ -748,7 +769,9 @@ function colorSelect(val, name, bid, extra) {
       `<div class="var-ac-item" data-i="${i}">${esc(f)}</div>`).join('');
     const r = ta.getBoundingClientRect();
     b.style.left = (r.left + window.scrollX) + 'px';
-    b.style.top = (r.bottom + window.scrollY + 2) + 'px';
+    // Unter dem Feld, aber im Fenster: Beim großen Bearbeiten reicht das Feld
+    // fast bis zum unteren Rand, die Liste fiele sonst aus dem Bild.
+    b.style.top = (Math.min(r.bottom + 2, window.innerHeight - 230) + window.scrollY) + 'px';
     b.style.display = 'block';
     zeichnen();   // markiert den ersten Treffer (sel) — nicht via class="" (CSS-Check)
   }
@@ -930,8 +953,20 @@ function buildBlockForm(b) {
          onchange="blockPropChange(this)"
          style="flex:1;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">
      </span>`;
-  const ta = (name, val) =>
-    `<textarea name="${esc(name)}" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)">${esc(val||'')}</textarea>`;
+  // Lange Eingabe: volle Kartenbreite, Höhe nach Inhalt (rows hier, weil die
+  // Karte beim Aufbau zugeklappt ist und scrollHeight dann 0 liefert), danach
+  // wächst sie beim Tippen mit (langWachsen). `code` = HTML: Festbreitenschrift.
+  const ta = (name, val, code) => {
+    const zeilen = String(val || '').split('\n').length;
+    const rows = Math.max(code ? 8 : 5, Math.min(zeilen + 1, 24));
+    return `<textarea name="${esc(name)}" data-bid="${escAttr(b.id)}" rows="${rows}"
+      class="lang-eingabe${code ? ' code' : ''}"${code ? ' spellcheck="false"' : ''}
+      oninput="langWachsen(this)" onchange="blockPropChange(this)">${esc(val||'')}</textarea>`;
+  };
+  const rowWeit = (label, feld) =>
+    `<div class="prop-row weit"><div class="weit-kopf"><label>${esc(label)}</label>`
+    + `<button type="button" class="btn secondary btn-sm" onclick="grossBearbeiten(this)">Groß bearbeiten</button></div>`
+    + feld + `</div>`;
 
   // Die zwei Begriffe, die es gibt — und nur diese zwei. Vorher hiess
   // dasselbe je nach Baustein "Praefix", "Beschriftung" oder "Anzeigetext",
@@ -1041,7 +1076,7 @@ function buildBlockForm(b) {
     rows += anzeigeZeile('leer = Plattformname');
     rows += stilZeilen(true, 'link');
   } else if (t === 'text') {
-    rows += row('Text', ta('text', b.text));
+    rows += rowWeit('Text', ta('text', b.text));
     rows += row('Schriftfarbe', farbFeld('color', b.color || 'base', b.id));
     rows += row('Schriftgröße', txt('size', b.size, 'z.B. 9pt — leer = wie global'));
     rows += row('Schriftart', txt('font', b.font, 'leer = wie global'));
@@ -1060,7 +1095,7 @@ function buildBlockForm(b) {
       <code>&lt;b&gt;</code>. Für fertiges HTML den Baustein
       <strong>HTML-Code</strong> nehmen.</p>`;
   } else if (t === 'freetext') {
-    rows += row('HTML', ta('html', b.html));
+    rows += rowWeit('HTML', ta('html', b.html, true));
     rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">Rohes HTML — für Disclaimer, Rechtliches, etc. Keine Jinja2-Variablen möglich.<br>
       Für einfachen Text mit Fett/Farbe/Größe gibt es den Baustein <strong>Freitext</strong>.</p>`;
   } else if (t === 'two_col') {
@@ -1289,6 +1324,64 @@ window.blockFarbSync = function(el, name) {
   if (!feld) return;
   feld.value = el.value;
   blockPropChange(feld);
+};
+
+// Höhe einer langen Eingabe an den Inhalt anpassen (bis 60 % der Fensterhöhe,
+// darüber rollt sie). Manuelles Ziehen am Rand bleibt möglich.
+window.langWachsen = function(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight + 2, Math.round(window.innerHeight * 0.6)) + 'px';
+};
+
+// „Groß bearbeiten": dieselbe Eingabe fast bildschirmfüllend. Jede Änderung
+// geht SOFORT in das Feld des Bausteins (blockPropChange) — Schließen ohne
+// eigenen Speicherschritt kann also nichts verlieren.
+window.grossBearbeiten = function(knopf) {
+  const quelle = knopf.closest('.prop-row').querySelector('textarea');
+  if (!quelle) return;
+  let ov = document.getElementById('gross-editor');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'gross-editor';
+    ov.innerHTML = `<div class="gross-karte" role="dialog" aria-modal="true" aria-labelledby="gross-titel">
+      <div class="gross-kopf"><strong id="gross-titel"></strong>
+        <span class="hint" style="flex:1">Änderungen gelten sofort · Esc schließt</span>
+        <button type="button" class="btn secondary btn-sm" id="gross-fertig">Fertig</button></div>
+      <textarea id="gross-feld"></textarea></div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('mousedown', e => { if (e.target === ov) grossSchliessen(); });
+    document.getElementById('gross-fertig').onclick = grossSchliessen;
+    document.getElementById('gross-feld').addEventListener('input', function () {
+      const q = ov._quelle;
+      if (!q) return;
+      q.value = this.value;
+      blockPropChange(q);
+    });
+    // capture: läuft VOR dem Esc der Variablenliste — sonst hätte die sich
+    // schon geschlossen und ein Esc schlösse beides zugleich.
+    document.addEventListener('keydown', e => {
+      const vorschlag = document.getElementById('var-ac');
+      if (e.key === 'Escape' && ov.classList.contains('offen')
+          && !(vorschlag && vorschlag.style.display === 'block')) grossSchliessen();
+    }, true);
+  }
+  const feld = document.getElementById('gross-feld');
+  const titel = knopf.closest('.weit-kopf').querySelector('label');
+  document.getElementById('gross-titel').textContent = titel ? titel.textContent : '';
+  feld.className = quelle.classList.contains('code') ? 'code' : '';
+  feld.spellcheck = !quelle.classList.contains('code');
+  feld.value = quelle.value;
+  ov._quelle = quelle;
+  ov.classList.add('offen');
+  feld.focus();
+};
+window.grossSchliessen = function() {
+  const ov = document.getElementById('gross-editor');
+  if (!ov) return;
+  ov.classList.remove('offen');
+  const q = ov._quelle;
+  ov._quelle = null;
+  if (q) { langWachsen(q); q.focus(); }
 };
 
 window.blockPropChange = function(el) {
