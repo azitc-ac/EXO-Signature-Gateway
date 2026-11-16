@@ -204,8 +204,12 @@ def empfaenger_eintrag(adresse: str) -> dict | None:
 
 def bekannt(adresse: str) -> bool:
     """Nimmt das Gateway im Notfall Post für diese Adresse an — Postfach,
-    Verteiler, Gruppe oder externer Benutzer des Tenants."""
-    return bool(postfach_fuer(adresse) or empfaenger_eintrag(adresse))
+    Verteiler, Gruppe oder externer Benutzer des Tenants, sofern er jemanden
+    erreicht (sonst nähme der Eingang Post an, die nirgends ankommt)."""
+    if postfach_fuer(adresse):
+        return True
+    e = empfaenger_eintrag(adresse)
+    return bool(e and e["ziele"])
 
 
 def aufloesen(adressen: list) -> tuple[list[str], list[str]]:
@@ -221,11 +225,12 @@ def aufloesen(adressen: list) -> tuple[list[str], list[str]]:
             intern.append(pf)
             continue
         e = empfaenger_eintrag(a)
-        if e is None:
+        if e is None or not e["ziele"]:
+            # Unbekannt, oder ohne erreichbares Ziel: leere Gruppe; externer
+            # Benutzer, dessen externe Adresse er selbst ist (gemeinsamer
+            # Namensraum mit on-prem) — wie bisher nach außen.
             extern.append(a.strip())
             continue
-        if not e["ziele"]:
-            log.warning("Notbetrieb: %s (%s) hat keine erreichbaren Mitglieder", e["adresse"], e["art"])
         for z in e["ziele"]:
             pf = postfach_fuer(z)
             (intern if pf else extern).append(pf or z)

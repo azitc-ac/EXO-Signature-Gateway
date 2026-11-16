@@ -392,7 +392,10 @@ GAL = json.loads(ROH) | {
          "art": "extern", "versteckt": False, "ziel": "Partner@Anderswo.de"},
         {"adresse": "lieferant@lieferant.de", "aliase": ["lieferant@lieferant.de"], "name": "Lieferant",
          "art": "kontakt", "versteckt": False, "ziel": "lieferant@lieferant.de"},
-        {"adresse": "ohne@firma.at", "aliase": [], "name": "Ohne", "art": "extern", "versteckt": False, "ziel": ""}]}
+        {"adresse": "ohne@firma.at", "aliase": [], "name": "Ohne", "art": "extern", "versteckt": False, "ziel": ""},
+        # Gemeinsamer Namensraum mit on-prem (live gesehen): externe Adresse = eigene Adresse.
+        {"adresse": "hybrid@firma.at", "aliase": ["hybrid@firma.at"], "name": "Hybrid", "art": "extern",
+         "versteckt": False, "ziel": "hybrid@firma.at"}]}
 
 
 @pytest.fixture
@@ -408,6 +411,7 @@ def test_gruppen_werden_flach_aufgeloest_mit_zyklenschutz():
     assert e["innen@firma.at"]["ziele"] == ["b@firma.at", "a@firma.at", "partner@anderswo.de"]
     assert e["projekt@firma.at"]["ziele"] == ["team@firma.at"]
     assert e["leer@firma.at"]["ziele"] == [] and e["ohne@firma.at"]["ziele"] == []
+    assert e["hybrid@firma.at"]["ziele"] == []
     assert e["alle@firma.at"]["aliase"] == ["alle.leute@firma.at", "alle@firma.at"]
     assert e["partner@firma.at"]["aliase"] == ["partner@firma.at"]
     assert e["lieferant@lieferant.de"]["aliase"] == [] and e["lieferant@lieferant.de"]["ziele"] == ["lieferant@lieferant.de"]
@@ -451,10 +455,14 @@ def test_eingang_nimmt_gruppen_an_und_achtet_nur_intern(gal):
         assert _rcpt(NETZ_IP, fremd).startswith("550 5.1.1"), fremd
         assert ne.data_pruefen(ne.INTERNET, NETZ_IP, [fremd], 10).startswith("550 5.1.1"), fremd
     assert notbetrieb.aufloesen(["lieferant@lieferant.de"]) == ([], ["lieferant@lieferant.de"])
+    # Ohne erreichbares Ziel: nicht annehmen (Post käme nirgends an), beim Senden wie bisher nach außen.
+    for leer in ("leer@firma.at", "hybrid@firma.at", "ohne@firma.at"):
+        assert _rcpt(NETZ_IP, leer).startswith("550 5.1.1"), leer
+        assert notbetrieb.aufloesen([leer]) == ([], [leer]), leer
 
 
 def test_stand_zaehlt_je_art(gal):
-    assert notbetrieb_rechte.stand()["empfaenger"] == {"verteiler": 2, "gruppe": 2, "extern": 2, "kontakt": 1}
+    assert notbetrieb_rechte.stand()["empfaenger"] == {"verteiler": 2, "gruppe": 2, "extern": 3, "kontakt": 1}
 
 
 def test_rechte_skript_liest_gruppen_und_externe():
