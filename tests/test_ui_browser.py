@@ -1761,3 +1761,43 @@ def test_lange_eingabe_breit_hoch_und_gross_bearbeitbar(seite, typ, feld, breite
     assert not gross.is_visible()
     assert ta.input_value() == "Neu\nZweite Zeile"
     pg.context.close()
+
+
+# ── Kampagnen: „Übernahme erzwingen für“ kommt beim Speichern an ─────────────
+# Fehlt `fuer` in der Anfrage, greift still die Vorgabe (Postfächer mit
+# Banner) — ein gewähltes „ohne Banner“ ginge ohne Meldung verloren.
+
+def test_kampagne_speichert_die_gewaehlten_postfacharten(seite):
+    import settings_store
+    vorher = settings_store.get("BANNER_CAMPAIGNS")
+    settings_store.update({"BANNER_CAMPAIGNS": [
+        {"id": "kmp_alt001", "name": "Alt", "banner": "x", "start": "", "end": "",
+         "group": "", "enabled": True}]})
+    try:
+        pg = seite("/kampagnen", breite=1280)
+        pg.wait_for_selector("#kampagnen-body button")
+        # Altkampagne ohne `fuer`: zeigt die Lesart des Mailwegs
+        assert "Richtlinien-Banner, individueller Banner" in pg.inner_text("#kampagnen-body")
+        pg.get_by_role("button", name="Bearbeiten").click()
+        gesetzt = pg.eval_on_selector_all(".k-fuer", "l => l.filter(c => c.checked).map(c => c.value)")
+        assert gesetzt == ["richtlinie", "eigen"]
+        pg.locator(".k-fuer[value=richtlinie]").uncheck()
+        pg.locator(".k-fuer[value=eigen]").uncheck()
+        pg.locator(".k-fuer[value=ohne]").check()
+        if not pg.locator("#k-banner option[value=x]").count():
+            pg.evaluate("""() => { const o = document.createElement('option');
+                o.value = o.textContent = 'x'; document.getElementById('k-banner').appendChild(o);
+                document.getElementById('k-banner').value = 'x'; }""")
+        pg.get_by_role("button", name="Speichern").click()
+        pg.wait_for_function("() => /Gespeichert/.test(document.getElementById('k-result').innerText)")
+        gespeichert = settings_store.get("BANNER_CAMPAIGNS")
+        assert [c.get("fuer") for c in gespeichert] == [["ohne"]]
+        # keine Auswahl: abgelehnt, nichts geschrieben
+        pg.get_by_role("button", name="Bearbeiten").click()
+        pg.locator(".k-fuer[value=ohne]").uncheck()
+        pg.get_by_role("button", name="Speichern").click()
+        pg.wait_for_function("() => /mindestens eine/i.test(document.getElementById('k-result').innerText)")
+        assert [c.get("fuer") for c in settings_store.get("BANNER_CAMPAIGNS")] == [["ohne"]]
+        pg.context.close()
+    finally:
+        settings_store.update({"BANNER_CAMPAIGNS": vorher or []})

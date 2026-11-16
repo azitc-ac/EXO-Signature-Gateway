@@ -12,10 +12,13 @@ Zeitkonvention wie im übrigen Gateway: UTC-ISO8601 (`datetime.now(timezone.utc)
 `fromisoformat`), „Z"-Suffix wird akzeptiert. Leere Grenze = offen (Start leer:
 läuft schon; Ende leer: läuft weiter). Leere Gruppe = alle.
 
-Ein Postfach, das keine Richtlinien übernimmt (`use_policy` aus), bekommt eine
-Kampagne nur, wenn sie „Übernahme erzwingen“ (`erzwingen`) trägt. Bis v1.12.48
-galt jede Kampagne ungefragt für alle — auch für Postfächer, die bewusst aus den
-Richtlinien genommen waren.
+Welche Postfächer eine Kampagne erreicht, hängt zusätzlich an ihrem REGULÄREN
+Banner (dem ohne Kampagne): `fuer` nennt die Arten, die den Kampagnen-Banner
+bekommen — "richtlinie" (Banner aus der Richtlinie), "eigen" (eigener Banner
+am Postfach, Richtlinien-Übernahme aus) und "ohne" (kein Banner). So bleibt
+ein Postfach, für das bewusst kein Banner gilt, auch während einer Kampagne
+ohne. Bis v1.12.48 galt jede Kampagne ungefragt für alle; v1.12.49 kannte nur
+den Schalter `erzwingen` (für Postfächer ohne Richtlinien-Übernahme).
 
 Reine Logik (`aktive_kampagne`) und Verwaltung (`liste/speichern/loeschen`) sind
 getrennt: Erstere läuft im Mailpfad (auch im Subprozess denkbar) und schreibt
@@ -30,6 +33,24 @@ from datetime import datetime, timezone
 import settings_store
 
 KEY = "BANNER_CAMPAIGNS"
+
+ARTEN = ("richtlinie", "eigen", "ohne")
+
+
+def fuer(camp: dict) -> list[str]:
+    """Arten, die eine Kampagne erreicht. Ältere Kampagnen ohne `fuer`:
+    mit `erzwingen` (v1.12.49) alle, sonst alle mit einem Banner."""
+    roh = camp.get("fuer")
+    if isinstance(roh, list):
+        return [a for a in ARTEN if a in roh]
+    return list(ARTEN) if camp.get("erzwingen") is True else ["richtlinie", "eigen"]
+
+
+def art(regulaer: str, uebernimmt: bool) -> str:
+    """Art eines Postfachs nach seinem regulären Banner (siehe `fuer`)."""
+    if not (regulaer or "").strip():
+        return "ohne"
+    return "richtlinie" if uebernimmt else "eigen"
 
 
 # ── Zeit ──────────────────────────────────────────────────────────────────────
@@ -68,12 +89,12 @@ def _passt_gruppe(camp: dict, sender_key: str | None, internal_groups: dict) -> 
 
 
 def aktive_kampagne(campaigns, now: datetime, sender_key: str | None,
-                    internal_groups: dict, uebernimmt: bool = True) -> str | None:
+                    internal_groups: dict, postfach_art: str | None = None) -> str | None:
     """Banner-Template der ERSTEN aktiven, passenden Kampagne — sonst None.
 
-    `uebernimmt` = das Postfach übernimmt Richtlinien; ist es aus, zählen nur
-    Kampagnen mit `erzwingen`. Reihenfolge = Listenreihenfolge (erste gewinnt).
-    Rein; kein Seiteneffekt.
+    `postfach_art` (siehe `art`): nur Kampagnen, deren `fuer` sie enthält;
+    None = ohne diese Einschränkung. Reihenfolge = Listenreihenfolge (erste
+    gewinnt). Rein; kein Seiteneffekt.
     """
     for camp in campaigns or []:
         if not isinstance(camp, dict):
@@ -81,7 +102,7 @@ def aktive_kampagne(campaigns, now: datetime, sender_key: str | None,
         banner = (camp.get("banner") or "").strip()
         if not banner:
             continue
-        if not uebernimmt and not camp.get("erzwingen"):
+        if postfach_art is not None and postfach_art not in fuer(camp):
             continue
         if _aktiv(camp, now) and _passt_gruppe(camp, sender_key, internal_groups):
             return banner
@@ -111,7 +132,8 @@ def banner_fuer(sender: str, regulaer: str, now: datetime | None = None) -> str:
     # Dieselbe Lesart wie policies.aufloesen: fehlt der Eintrag, gilt "übernimmt".
     uebernimmt = bool(mailbox_match.match_sender(mailbox_cfg, sender).get("use_policy", True))
     return aktive_kampagne(kampagnen, now or datetime.now(timezone.utc),
-                           schluessel, gruppen.interne_gruppen(), uebernimmt) or regulaer
+                           schluessel, gruppen.interne_gruppen(),
+                           art(regulaer, uebernimmt)) or regulaer
 
 
 # ── Verwaltung (nur Web-Prozess) ──────────────────────────────────────────────
@@ -144,6 +166,15 @@ def _validiere(name: str, banner: str, start: str, end: str) -> tuple[str, str]:
     return name, banner
 
 
+def _fuer_aus(daten: dict) -> list[str]:
+    # Ohne Angabe dieselbe Lesart wie für gespeicherte Altkampagnen.
+    gewaehlt = fuer(daten)
+    if not gewaehlt:
+        raise ValueError("Mindestens eine Art von Postfächern wählen — sonst erreicht "
+                         "die Kampagne niemanden.")
+    return gewaehlt
+
+
 def speichern(daten: dict) -> dict:
     """Kampagne anlegen (ohne gültige id) oder ändern (mit id). Gibt den
     gespeicherten Datensatz zurück. NUR aus dem Web-Prozess (settings_store)."""
@@ -157,7 +188,7 @@ def speichern(daten: dict) -> dict:
         "end": (daten.get("end") or "").strip(),
         "group": (daten.get("group") or "").strip(),
         "enabled": bool(daten.get("enabled", True)),
-        "erzwingen": daten.get("erzwingen") is True,
+        "fuer": _fuer_aus(daten),
     }
     campaigns = liste()
     if rec["id"] and _ID_RE.match(rec["id"]):

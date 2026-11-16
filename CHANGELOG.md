@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.51 — 2026-11-16 — Kampagnen: wählbar, welche Postfächer den Banner bekommen
+
+Der Schalter „Übernahme erzwingen“ aus v1.12.49 unterschied nur, ob ein
+Postfach Richtlinien übernimmt. Er erfasste damit den eigentlichen Fall nicht:
+Ein Postfach oder eine Gruppe, für die bewusst kein Banner gilt, soll auch
+während einer Kampagne ohne bleiben, alle anderen sollen den Banner der
+Kampagne bekommen.
+
+Unter *Signaturen → Kampagnen* steht jetzt **Übernahme erzwingen für** mit
+drei Kästchen:
+
+- **alle mit Richtlinien-Banner**: Postfächer mit Richtlinien-Übernahme, deren
+  Richtlinie einen Banner hat
+- **alle mit individuellem Banner**: Postfächer ohne Richtlinien-Übernahme
+  mit eigenem Banner
+- **alle ohne Banner**: Postfächer, die ohne Kampagne keinen Banner hätten,
+  gleich ob über die Richtlinie oder einzeln
+
+Maßgeblich ist der Banner, den das Postfach ohne Kampagne bekäme. Vorgabe
+sind die ersten beiden, also alle Postfächer mit einem Banner. Mindestens ein
+Kästchen muss gewählt sein. Die Kampagnenliste zeigt die Auswahl je Kampagne.
+
+**Zu tun:** nichts. Bestehende Kampagnen gelten nach dem Update für alle
+Postfächer mit Banner; Postfächer ohne Banner erreichen sie nicht mehr. Hatte
+eine Kampagne in v1.12.49 „Übernahme erzwingen“ gesetzt, gilt sie weiter für
+alle. Soll eine Kampagne auch Postfächer ohne Banner erreichen, öffne sie unter
+*Signaturen → Kampagnen → Bearbeiten* und setze „alle ohne Banner“.
+
 ## v1.12.50 — 2026-11-16 — Baukasten: mehr Platz für Freitext und HTML-Code
 
 Die Eingabefelder der Bausteine **Freitext** und **HTML-Code** waren 60 px
