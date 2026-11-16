@@ -437,6 +437,37 @@ def test_eingabefeld_steht_neben_seiner_beschriftung(seite, pfad):
         "Erklärtext die Spaltenbreite bestimmt.")
 
 
+@pytest.mark.parametrize("pfad", [
+    "/advanced", "/settings", "/settings/smime", "/settings/signature", "/settings/routing",
+])
+def test_knopf_und_auswahl_in_der_feldspalte_nicht_gedehnt(seite, pfad):
+    """`.settings-control` ist eine Flex-Spalte; ohne eigene Regel dehnte sie
+    Speichern-Knöpfe und Auswahllisten auf die ganze Breite (Firewall-Feld,
+    Log-Level, Zeitzone, Exchange-Erkennung)."""
+    pg = seite(pfad, breite=1280)
+    pg.evaluate("""() => document.querySelectorAll('input[id^=adv-cb-]').forEach(cb => {
+        if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change', {bubbles:true})); }
+    })""")
+    pg.wait_for_timeout(300)
+    befund = pg.evaluate("""() => {
+      const r = {gemessen: 0, gedehnt: []};
+      document.querySelectorAll('.settings-control > .btn, .settings-control > select').forEach(el => {
+        const b = el.getBoundingClientRect(), s = el.parentElement.getBoundingClientRect();
+        if (!b.width || s.width < 400) return;
+        r.gemessen++;
+        // Volle Breite allein ist kein Befund: Eine Auswahl mit langen Optionen
+        // (Signaturbilder) braucht sie. Gedehnt ist, was sie über `stretch` bekommt.
+        const dehnt = !['flex-start', 'start', 'center', 'flex-end', 'end']
+          .includes(getComputedStyle(el).alignSelf);
+        if (b.width >= s.width - 2 && dehnt) r.gedehnt.push(el.id || el.textContent.trim().slice(0, 30));
+      });
+      return r;
+    }""")
+    if pfad == "/advanced":
+        assert befund["gemessen"] >= 2, befund                # der Suchlauf greift
+    assert not befund["gedehnt"], f"Über die ganze Spalte gedehnt: {befund['gedehnt']}"
+
+
 # ── Lizenzmenge: kostenpflichtig eingeben, Gesamtzahl senden ─────────────────
 
 def test_lizenzfeld_meint_kostenpflichtige_postfaecher(seite):

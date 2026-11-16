@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_zustimmung.html" import zustimmung_dialog %}
+{% from "_testmail.html" import testmail %}
 {% block content %}
 <h1>Einstellungen</h1>
 
@@ -828,25 +829,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   </div>
   <div class="step-body">
     <p class="hint" style="margin-bottom:12px">Sendet eine Mail durch den lokalen SMTP-Handler inkl. Signatur-Injektion an EXO.</p>
-    <div class="settings-row">
-      <label for="test-from">Absender</label>
-      <input type="email" id="test-from" placeholder="user@contoso.com">
-    </div>
-    <div class="settings-row">
-      <label for="test-to">Empfänger</label>
-      <input type="email" id="test-to" placeholder="empfaenger@domain.com">
-    </div>
-    <div class="settings-row">
-      <label for="test-type">Format</label>
-      <select id="test-type">
-        <option value="plain">Nur Text (plain text)</option>
-        <option value="html">HTML</option>
-      </select>
-    </div>
-    <div class="actions" style="margin-top:12px">
-      <button class="btn secondary" onclick="sendTestMail()">Test-Mail senden</button>
-    </div>
-    <div id="test-result" style="margin-top:10px;display:none"></div>
+    {{ testmail() }}
   </div>
 </div>
 
@@ -1814,27 +1797,6 @@ async function saveLogging() {
 </script>
 
 <script>
-async function sendTestMail() {
-  const from_email = feldWert('test-from');
-  const to_email = feldWert('test-to');
-  const mail_type = document.getElementById('test-type').value;
-  const result = document.getElementById('test-result');
-
-  if (!from_email || !to_email) {
-    showAlert(result, 'error', 'Bitte Absender und Empfänger angeben.');
-    return;
-  }
-
-  result.style.display = 'none';
-  const data = await postJSON('/api/test-mail', {from_email, to_email, mail_type});
-
-  if (data.ok) {
-    showAlert(result, 'success', 'Test-Mail gesendet – prüfe den Posteingang von ' + esc(to_email));
-  } else {
-    showAlert(result, 'error', 'Fehler: ' + esc(errText(data)));
-  }
-}
-
 async function restartService(btn) {
   if (!confirm('Prozess jetzt neu starten?')) return;
   // Gesperrt lassen: Der Pfeil dreht, bis die Seite neu lädt.

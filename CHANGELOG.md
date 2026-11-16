@@ -5,6 +5,40 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.45 — 2026-11-16 — Teams-App per Knopf aktualisieren, Aufgaben mit Tätigkeitstitel, Test-Mail als HTML
+
+- **„Im Teams-Katalog aktualisieren“** (Einrichtung → Add-in, Abschnitt Teams-App).
+  Steht im Teams-Katalog eine ältere Fassung als im Paket des Gateways, lädt
+  der Knopf das Paket als neue Fassung hoch. Das ist dasselbe Paket wie beim
+  Download. Microsoft erlaubt das nur mit der Anmeldung eines Admins
+  (Graph „Update teamsApp“, Berechtigung `AppCatalog.Submit`, ohne
+  Admin-Zustimmung). Das Konto braucht eine aktive Rolle Teams-Administrator
+  oder höher; bei PIM aktiviere sie vorher. Danach liest das Gateway den
+  Katalog neu. Erfolg meldet es nur, wenn die Fassung dort veröffentlicht ist.
+  Eine bloß zur Prüfung eingereichte Fassung meldet es mit dem Weg zur
+  Freigabe im Teams Admin Center. Das erste Hochladen bleibt bei *Integrierte
+  Apps*, weil Graph dafür nur eine Einreichung zur Prüfung kennt.
+- **Offene Aufgaben haben jetzt einen eigenen Titel, der sagt, was zu tun
+  ist.** Bisher stand dort der Name der Prüfung, und der beschreibt den
+  Sollzustand. Über einer offenen Aufgabe las sich „Bypass-Wächter aktuell“
+  deshalb wie eine Erfolgsmeldung. Jetzt heißt sie „Bypass-Wächter
+  aktualisieren“, entsprechend für alle Aufgaben.
+- **Test-Mail.** Einrichtung (Schritt Verbindungstest & Abnahme) und
+  Erweitert nutzen jetzt ein gemeinsames Formular mit Formatwahl: HTML
+  (Vorgabe), HTML mit Text-Alternative (multipart/alternative, so sendet
+  Outlook) oder Nur-Text. Bisher ging die Test-Mail aus der Einrichtung immer
+  als Nur-Text hinaus, also nicht in der Form, in der Outlook sendet. Ohne
+  Formatangabe sendet das Backend jetzt HTML; ein unbekanntes Format weist es
+  ab, statt still auf Nur-Text zu wechseln.
+- **Breite in Einstellungszeilen.** Speichern-Knöpfe und Auswahllisten in der
+  Feldspalte nehmen ihre eigene Breite, statt sich über die ganze Zeile zu
+  ziehen (etwa „Exchange Online erkennen an“, „Vorgeschaltete Firewall“,
+  Log-Level, Zeitzone). Lange Auswahllisten bleiben auf die Spaltenbreite
+  begrenzt.
+
+**Zu tun:** nichts. Steht die Teams-App bei dir im Katalog auf einer älteren
+Fassung, ist der Knopf unter Einrichtung → Add-in der kürzere Weg.
+
 ## v1.12.44 — 2026-11-16 — Bypass-Wächter: Azure-Anmeldung direkt am Wächter
 
 Fehlte beim „Code aktualisieren“ oder „Entfernen“ eines Azure-Wächters die

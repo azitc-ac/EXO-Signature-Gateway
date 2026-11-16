@@ -1,6 +1,7 @@
 {
  "min": 60,
  "tokens_in_kopien": {
+  "app/webui/templates/_testmail.html": 60,
   "app/webui/templates/abwesenheit.html": 275,
   "app/webui/templates/base.html": 144,
   "app/webui/templates/preview.html": 63,
@@ -11,9 +12,16 @@
   "app/webui/templates/settings_routing.html": 60,
   "app/webui/templates/settings_signature.html": 71,
   "app/webui/templates/settings_smime.html": 61,
-  "app/webui/templates/setup.html": 463,
+  "app/webui/templates/setup.html": 385,
   "app/webui/templates/smime.html": 138,
   "app/webui/templates/template_editor.html": 63
  },
- "begruendungen": []
+ "begruendungen": [
+  {
+   "datei": "app/webui/templates/_testmail.html",
+   "von": 0,
+   "auf": 60,
+   "grund": "sendTestMail aus setup.html und advanced.html in einen Baustein gezogen; die Ähnlichkeit zu renewCert (Pflichtfelder prüfen, hideAlert) stand vorher in setup.html und ist mitgewandert. setup.html sinkt dabei von 463 auf 385, Summe −18."
+  }
+ ]
 }

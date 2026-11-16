@@ -283,18 +283,26 @@ def _teams_manifest(base: str) -> dict:
     return m
 
 
-@router.get("/addin/teams-app.zip")
-async def addin_teams_app(request: Request):
-    """App-Paket für Integrierte Apps: manifest.json + color.png (192) + outline.png (32)."""
+def teams_app_paket(base: str) -> tuple[bytes, dict]:
+    """Das App-Paket (ZIP) und sein Manifest — EINE Quelle für den Download und
+    für „Im Teams-Katalog aktualisieren“ (anmeldung.nachlauf), damit in den
+    Katalog genau das geht, was der Download liefert."""
     import io, zipfile
-    from fastapi.responses import Response
-    m = _teams_manifest(_addin_base_url(request))
+    m = _teams_manifest(base)
     puffer = io.BytesIO()
     with zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("manifest.json", _json_mod.dumps(m, ensure_ascii=False, indent=2))
         z.writestr("color.png", _symbol_png(192))
         z.writestr("outline.png", _umriss_png(32))
-    return Response(content=puffer.getvalue(), media_type="application/zip",
+    return puffer.getvalue(), m
+
+
+@router.get("/addin/teams-app.zip")
+async def addin_teams_app(request: Request):
+    """App-Paket für Integrierte Apps: manifest.json + color.png (192) + outline.png (32)."""
+    from fastapi.responses import Response
+    paket, m = teams_app_paket(_addin_base_url(request))
+    return Response(content=paket, media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="signatur-app-{m["version"]}.zip"',
                              "Cache-Control": _NO_STORE})
 
