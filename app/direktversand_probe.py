@@ -37,7 +37,6 @@ Stand: _DIREKTVERSAND_PROBE["extern"] = {ts, mid, ergebnis: {adresse: {...}}}.
 """
 from __future__ import annotations
 
-import email.policy
 import email.utils
 import logging
 import re
@@ -47,6 +46,7 @@ from email.message import EmailMessage
 import httpx
 
 import graph_client
+import mime_policy
 import settings_store
 
 log = logging.getLogger(__name__)
@@ -143,7 +143,7 @@ def _probe_mail(von: str, an: list[str], text: str) -> tuple[str, bytes]:
     msg["Auto-Submitted"] = "auto-generated"
     msg["X-Direktversand-Probe"] = "1"
     msg.set_content(text)
-    return mid, loop_detector.mark_as_signed_bytes(msg.as_bytes(policy=email.policy.SMTP))
+    return mid, loop_detector.mark_as_signed_bytes(msg.as_bytes(policy=mime_policy.SMTP_REINJECT))
 
 
 def _extern_senden(von: str) -> dict:

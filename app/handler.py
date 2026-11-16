@@ -379,8 +379,8 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
     # trüge das NICHT: Graph sendMail verwirft den Kopf (gemessen 11.10.2026).
     msg["Auto-Submitted"] = "auto-replied"
     loop_detector.mark_as_signed(msg)
-    import email.policy as _ep
-    ndr_bytes = msg.as_bytes(policy=_ep.SMTP)
+    import mime_policy
+    ndr_bytes = msg.as_bytes(policy=mime_policy.SMTP_REINJECT)
 
     # Primär: Graph sendMail — Port 25 outbound ist z.B. in Azure blockiert,
     # der SMTP-Smarthost-Weg schlug dort mit "Network is unreachable" fehl.
@@ -882,8 +882,8 @@ class SignatureHandler:
                 # (550 5.6.11 SMTPSEND.BareLinefeedsAreIllegal).
                 clean = _rebuild_acme_reply(msg)
                 if clean is not None:
-                    import email.policy as _ep
-                    raw_out = clean.as_bytes(policy=_ep.SMTP)
+                    import mime_policy
+                    raw_out = clean.as_bytes(policy=mime_policy.SMTP_REINJECT)
                     log.info("ACME passthrough: rebuilt clean MIME (%d bytes)", len(raw_out))
                 else:
                     # Fallback: at least normalise CRLF in whatever Exchange sent

@@ -1271,7 +1271,8 @@ async def api_send_graph_acme(request: Request, user: str = Depends(_require_adm
     mime["X-ACME-Observatory"] = label
     mime.set_content(body_text, subtype="plain", charset="us-ascii")
     # SMTP policy ensures CRLF line endings — Exchange rejects bare-LF MIME on relay
-    raw_mime = mime.as_bytes(policy=email.policy.SMTP)
+    import mime_policy
+    raw_mime = mime.as_bytes(policy=mime_policy.SMTP_REINJECT)
 
     import asyncio as _asyncio
     ok = await _asyncio.get_event_loop().run_in_executor(

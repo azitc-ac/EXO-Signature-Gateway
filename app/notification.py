@@ -90,10 +90,10 @@ def _extern_umgeleitet(to: str) -> bool:
 def _mime_bauen(to: str, subject: str, html: str, reply_to: str, sender: str,
                 attachments: list[dict] | None) -> bytes:
     import base64
-    import email.policy
     import email.utils
     from email.message import EmailMessage
-    m = EmailMessage(policy=email.policy.SMTP)
+    import mime_policy
+    m = EmailMessage(policy=mime_policy.SMTP_REINJECT)
     m["From"] = sender
     m["To"] = to
     m["Subject"] = subject

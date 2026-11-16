@@ -235,7 +235,6 @@ def _build_challenge_reply_mime(
 ) -> bytes:
     """Return a CRLF-clean MIME bytes for the ACME email-reply-00 response."""
     import email.message
-    import email.policy
 
     body_text = (
         "-----BEGIN ACME RESPONSE-----\r\n"
@@ -256,9 +255,12 @@ def _build_challenge_reply_mime(
         mime["In-Reply-To"] = internet_message_id
         mime["References"] = internet_message_id
     mime.set_content(body_text, subtype="plain", charset="us-ascii")
-    # email.policy.SMTP → CRLF line endings; bare LF causes Exchange to reject
+    # SMTP-Policy → CRLF line endings; bare LF causes Exchange to reject
     # with 550 5.6.11 SMTPSEND.BareLinefeedsAreIllegal (no BDAT fallback).
-    return mime.as_bytes(policy=email.policy.SMTP)
+    # 998 statt 78: Die Exchange-Message-ID in In-Reply-To/References würde
+    # sonst als RFC-2047-Wort kodiert (mime_policy).
+    import mime_policy
+    return mime.as_bytes(policy=mime_policy.SMTP_REINJECT)
 
 
 # ── Direct SMTP to CA MX ──────────────────────────────────────────────────────

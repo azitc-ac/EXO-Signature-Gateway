@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.47 — 2026-11-16 — Lange Message-IDs auch in selbst gebauten Antworten unverändert
+
+Seit v1.9.136 bleiben lange Kopfzeilen auf dem Rückweg unverändert. Die
+Message-ID von Exchange Online hat 85 Zeichen ohne Leerzeichen, und die
+übliche Faltung bei 78 Zeichen hätte sie als RFC-2047-Wort kodiert
+(`=?utf-8?q?=3CAMBPR05…?=`). Zwei vom Gateway selbst gebaute Antworten setzen
+diese Kennung aber in `In-Reply-To` und `References` und serialisierten noch
+mit der 78er-Faltung: die Antwort auf eine ACME-Challenge (Zertifikatsbezug
+per Mail) und deren bereinigter Neubau auf dem Rückweg. Die Kennung kam dort
+kodiert an und war damit für das Threading unbrauchbar. Jetzt serialisieren
+alle Stellen über dieselbe Einstellung (CRLF, Faltung erst ab 998 Zeichen),
+auch Benachrichtigungen, Rückläufermeldungen, Direktversand-Probe und
+Abwesenheitsantwort.
+
+**Zu tun:** nichts.
+
 ## v1.12.46 — 2026-11-16 — Ankerlinks zeigen die Karte ab ihrem Kopf
 
 Ein Link auf eine Stelle innerhalb einer Seite, etwa aus den offenen
