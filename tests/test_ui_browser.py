@@ -1931,6 +1931,7 @@ def test_notfall_normalbetrieb_startet_beim_zugang(browser, server, monkeypatch)
     assert "/auth/login/microsoft?next=/notfall/einrichten" in pg.get_attribute("#ein-anmelden a", "href")
     # Anmeldung ausprobieren: ohne Sitzung zur Anmeldemaske, mit Weg zurück.
     pg.click("#ein-weiter")
+    pg.wait_for_selector("#anmeldung:not([hidden])", timeout=5000)     # weiter() fragt erst /api/ich
     assert _sichtbar(pg, "#anmeldung") and not _sichtbar(pg, "#einrichten")
     assert pg.inner_text("#anmeldung h1") == "Notfall-Anmeldung"
     assert _sichtbar(pg, "#zum-zugang")
