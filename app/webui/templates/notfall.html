@@ -19,13 +19,13 @@
 :root {
   --bg: #f1f5f9; --flaeche: #fff; --rand: #e2e8f0; --text: #1e293b; --leise: #64748b;
   --akzent: #0369a1; --akzent-text: #fff; --wahl: #e0f2fe; --warn-bg: #fef3c7; --warn: #92400e;
-  --fehler-bg: #fef2f2; --fehler: #991b1b; --kopf: #0f172a;
+  --fehler-bg: #fef2f2; --fehler: #991b1b; --kopf: #0f172a; --treffer: #fde68a; --treffer-text: #1e293b;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0f172a; --flaeche: #1e293b; --rand: #334155; --text: #e2e8f0; --leise: #94a3b8;
     --akzent: #38bdf8; --akzent-text: #0f172a; --wahl: #0c4a6e; --warn-bg: #422006; --warn: #fde68a;
-    --fehler-bg: #450a0a; --fehler: #fecaca; --kopf: #020617;
+    --fehler-bg: #450a0a; --fehler: #fecaca; --kopf: #020617; --treffer: #854d0e; --treffer-text: #fef9c3;
   }
 }
 * { box-sizing: border-box; }
@@ -53,6 +53,8 @@ input, select { background: var(--flaeche); border: 1px solid var(--rand); borde
 .anmeldung label { display: block; margin: 12px 0 4px; font-weight: 600; }
 .anmeldung input { width: 100%; }
 .leise { color: var(--leise); }
+/* Suchtreffer in Liste und Mail */
+mark { background: var(--treffer); color: var(--treffer-text); border-radius: 2px; }
 .qr svg { width: 200px; height: 200px; background: #fff; padding: 6px; border-radius: 6px; }
 .codes { font-size: 15px; line-height: 1.7; background: var(--bg); border: 1px solid var(--rand); border-radius: 6px;
          padding: 8px 12px; columns: 2; }
@@ -267,7 +269,7 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
     <select id="ordnerwahl" aria-label="Ordner" style="display:none;margin:8px;width:calc(100% - 16px)"
             onchange="ordnerWaehlen(this.value)"></select>
     <form class="suche" onsubmit="event.preventDefault(); listeLaden(0)">
-      <input id="suche" type="search" placeholder="Suchen in allen Ordnern" aria-label="Suchen">
+      <input id="suche" type="search" placeholder="Suchen in allen Ordnern" aria-label="Suchen" oninput="sucheGetippt()">
       <button type="submit">Suchen</button>
     </form>
     <div class="filter" role="group" aria-label="Filter">
@@ -854,13 +856,35 @@ async function adressVorschlag(feld) {
     + esc(adressArt(t) || 'Adressliste') + '</option>').join('');
 }
 
+// Suche beim Tippen: ab 3 Zeichen, erst nach einer Tipppause — sonst liefe
+// je Anschlag eine Suche über das ganze Postfach (großes Postfach ≈ 0,3 s, unter
+// der gemeinsamen Sperre). Leeren zeigt wieder den Ordner. Enter sucht sofort.
+const SUCHE_PAUSE_MS = 400;
+function sucheGetippt() {
+  clearTimeout(nb.suchTakt);
+  const n = feldWert('suche').length;
+  if (n && n < 3) return;
+  nb.suchTakt = setTimeout(() => listeLaden(0), n ? SUCHE_PAUSE_MS : 0);
+}
+// Suchwörter gelb markieren: Text in Stücke an den Treffern, jedes Stück maskiert.
+function markiert(text, woerter) {
+  text = String(text || '');
+  if (!woerter || !woerter.length) return esc(text);
+  const muster = new RegExp('(' + woerter.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+  return text.split(muster).map((t, i) => i % 2 ? '<mark>' + esc(t) + '</mark>' : esc(t)).join('');
+}
+
 async function listeLaden(seite) {
+  clearTimeout(nb.suchTakt);
   const suche = feldWert('suche');
+  const nr = nb.listeNr = (nb.listeNr || 0) + 1;
   const d = await getJSON('/notfall/api/liste?' + q({postfach: nb.postfach, ordner: suche ? '' : nb.ordner,
                                                      suche: suche, seite: seite,
                                                      ungelesen: document.getElementById('f-ungelesen').checked,
                                                      anhang: document.getElementById('f-anhang').checked,
                                                      unterhaltungen: document.getElementById('f-unterhaltungen').checked}));
+  if (nr !== nb.listeNr) return;   // inzwischen weitergetippt: veraltete Antwort
+  const w = nb.suchwoerter = suche.split(/\s+/).filter(Boolean).slice(0, 5);
   nb.weitere = Object.fromEntries(d.ok ? d.mails.map(m => [m.graph_id, m.weitere || []]) : []);
   // Suche über alle Ordner: zu jedem Treffer den Ordner nennen.
   const ordnerName = id => ((nb.ordnerliste || []).find(o => o.id === id || o.wk === id) || {}).name || '';
@@ -873,11 +897,11 @@ async function listeLaden(seite) {
   }
   el.innerHTML = d.mails.map(m => '<div class="eintrag" data-id="' + escAttr(m.graph_id) + '" data-ungelesen="'
     + (m.gelesen ? 0 : 1) + '" onclick="mailOeffnen(this.dataset.id)">'
-    + '<div class="kopf"><span class="von">' + esc(m.von || '') + '</span><span class="datum">' + datumKurz(m.empfangen) + '</span></div>'
-    + '<div class="betreff">' + (m.anhang ? '📎 ' : '') + esc(m.betreff || '(kein Betreff)')
+    + '<div class="kopf"><span class="von">' + markiert(m.von, w) + '</span><span class="datum">' + datumKurz(m.empfangen) + '</span></div>'
+    + '<div class="betreff">' + (m.anhang ? '📎 ' : '') + markiert(m.betreff || '(kein Betreff)', w)
     + (m.anzahl > 1 ? ' <span class="zahl" title="Mails in dieser Unterhaltung">' + m.anzahl + '</span>' : '') + '</div>'
     + (suche && ordnerName(m.ordner) ? '<div class="ort">in ' + esc(ordnerName(m.ordner)) + '</div>' : '')
-    + '<div class="vorschau">' + esc(m.vorschau || '') + '</div></div>').join('')
+    + '<div class="vorschau">' + markiert(m.vorschau, w) + '</div></div>').join('')
     + (d.gesamt > (seite + 1) * d.je_seite
        ? '<div style="padding:10px"><button onclick="listeLaden(' + (seite + 1) + ')">Ältere</button></div>' : '')
     + (seite ? '<div style="padding:0 10px 10px"><button onclick="listeLaden(' + (seite - 1) + ')">Neuere</button></div>' : '');
@@ -893,9 +917,10 @@ async function mailOeffnen(id) {
   const zeile = document.querySelector('#liste .eintrag[data-id="' + CSS.escape(id) + '"]');
   if (zeile && zeile.dataset.ungelesen === '1') { zeile.dataset.ungelesen = '0'; ordnerLaden(); }
   const p = q({postfach: nb.postfach, id: id});
+  const w = nb.suchwoerter || [];
   nb.mail = id;
   el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
-    + '<div class="kopfbereich"><h2 id="lesen-betreff" tabindex="-1">' + esc(d.betreff || '(kein Betreff)') + '</h2>'
+    + '<div class="kopfbereich"><h2 id="lesen-betreff" tabindex="-1">' + markiert(d.betreff || '(kein Betreff)', w) + '</h2>'
     + '<div><b>Von:</b> ' + esc(adressen(d.von)) + '</div>'
     + '<div><b>An:</b> ' + esc(adressen(d.an)) + '</div>'
     + (d.cc.length ? '<div><b>Cc:</b> ' + esc(adressen(d.cc)) + '</div>' : '')
@@ -930,8 +955,8 @@ async function mailOeffnen(id) {
     + (d.html
        // sandbox ohne Rechte: kein Skript, kein Formular, kein Zugriff auf diese Seite.
        // Zusätzlich liefert der Server den Inhalt mit durchgesetzter CSP.
-       ? '<iframe sandbox="" referrerpolicy="no-referrer" src="/notfall/inhalt?' + escAttr(p) + '" title="Nachricht"></iframe>'
-       : '<pre>' + esc(d.text) + '</pre>');
+       ? '<iframe sandbox="" referrerpolicy="no-referrer" src="/notfall/inhalt?' + escAttr(p + (w.length ? '&' + q({markieren: w.join(' ')}) : '')) + '" title="Nachricht"></iframe>'
+       : '<pre>' + markiert(d.text, w) + '</pre>');
   ansicht('lesen');
   document.getElementById('lesen-betreff').focus();   // Screenreader und Tastatur landen bei der Mail
 }

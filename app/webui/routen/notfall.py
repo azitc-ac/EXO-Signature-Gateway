@@ -463,10 +463,11 @@ async def notfall_mail(postfach: str, id: str, benutzer: str = Depends(_leser)):
 
 
 @router.get("/notfall/inhalt")
-async def notfall_inhalt(postfach: str, id: str, benutzer: str = Depends(_leser)):
-    """HTML der Mail — NUR mit durchgesetzter CSP (notbetrieb_lesen.INHALT_CSP)."""
+async def notfall_inhalt(postfach: str, id: str, markieren: str = "", benutzer: str = Depends(_leser)):
+    """HTML der Mail — NUR mit durchgesetzter CSP (notbetrieb_lesen.INHALT_CSP).
+    `markieren`: Suchwörter, die im Text gelb erscheinen."""
     pf = await _postfach(benutzer, postfach)
-    inhalt = await asyncio.to_thread(notbetrieb_lesen.inhalt_html, pf, id)
+    inhalt = await asyncio.to_thread(notbetrieb_lesen.inhalt_html, pf, id, markieren[:200])
     if inhalt is None:
         raise HTTPException(404)
     return HTMLResponse(inhalt, headers={"Content-Security-Policy": notbetrieb_lesen.INHALT_CSP,

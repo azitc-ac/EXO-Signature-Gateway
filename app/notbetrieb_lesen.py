@@ -205,6 +205,53 @@ def unterhaltung(betreff: str | None) -> str:
     return " ".join(_PRAEFIX.sub("", betreff or "").lower().split())
 
 
+def suchwoerter(suche: str) -> list[str]:
+    """Die Wörter einer Suche — dieselben für Treffer, Auszug und Markierung."""
+    return suche.split()[:5]
+
+
+def _auszug_sql(woerter: list[str]) -> tuple[str, list]:
+    """Vorschau bei einer Suche: der Text ab kurz vor dem ersten Treffer des
+    längsten Wortes, sonst sähe man den Treffer in der Liste oft gar nicht.
+    `fund` (1-basiert, 0 = nicht im Text) braucht liste() für das „…“ davor.
+    lower() von SQLite kennt nur ASCII — ein Wort mit Umlaut in anderer
+    Schreibung findet LIKE ebenso wenig; dann bleibt es beim Textanfang."""
+    if not woerter:
+        return "substr(text, 1, 160) AS vorschau, 0 AS fund", []
+    wort = max(woerter, key=len).lower()
+    return ("substr(text, max(1, instr(lower(text), ?) - 40), 160) AS vorschau, "
+            "instr(lower(text), ?) AS fund"), [wort, wort]
+
+
+def _mit_auszug(z) -> dict:
+    d = dict(z)
+    if d.pop("fund", 0) > 41:
+        d["vorschau"] = "…" + (d["vorschau"] or "")
+    return d
+
+
+def markieren_html(inhalt: str, woerter: list[str]) -> str:
+    """Suchwörter im HTML einer Mail mit <mark> hervorheben — nur im Text,
+    nie in Tags, Kommentaren, Entitäten oder in <head>/<style>/<script>/<title>.
+    Eingefügt wird nur das Element um bereits vorhandenen Text; die Suchwörter
+    selbst gelangen nie ins HTML. Ausgeliefert wird weiter mit INHALT_CSP."""
+    woerter = [w for w in woerter if w]
+    if not woerter:
+        return inhalt
+    muster = re.compile(r"(&#?\w+;)|(" + "|".join(re.escape(w) for w in woerter) + ")", re.IGNORECASE)
+    stumm = 0           # Tiefe in Bereichen ohne sichtbaren Text
+    teile = re.split(r"(<!--.*?-->|<[^>]*>)", inhalt, flags=re.DOTALL)
+    for i, t in enumerate(teile):
+        if i % 2:
+            kopf = re.match(r"<(/?)\s*(head|style|script|title|textarea)\b", t, re.IGNORECASE)
+            if kopf:
+                stumm = max(0, stumm + (-1 if kopf.group(1) else 1))
+        elif t and not stumm:
+            teile[i] = muster.sub(lambda m: m.group(1) or
+                                  f'<mark style="background:#fde68a;color:#1e293b">{m.group(2)}</mark>', t)
+    return "".join(teile)
+
+
 def liste(postfach: str, ordner_id: str = "", suche: str = "", seite: int = 0,
           ungelesen: bool = False, mit_anhang: bool = False, unterhaltungen: bool = False) -> dict:
     """Mails eines Ordners (oder bei `suche` aller Ordner), neueste zuerst.
@@ -227,8 +274,10 @@ def liste(postfach: str, ordner_id: str = "", suche: str = "", seite: int = 0,
     if fehlend:
         kopf_auffuellen(fehlend)
     with notbetrieb._lock, notbetrieb._conn() as conn:
-        if suche.strip():
-            for wort in suche.split()[:5]:
+        woerter = suchwoerter(suche)
+        auszug, auszug_werte = _auszug_sql(woerter)
+        if woerter:
+            for wort in woerter:
                 muster = "%" + wort.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
                 bed.append("(betreff LIKE ? ESCAPE '\\' OR von LIKE ? ESCAPE '\\' OR an LIKE ? ESCAPE '\\' "
                            "OR text LIKE ? ESCAPE '\\')")
@@ -241,10 +290,10 @@ def liste(postfach: str, ordner_id: str = "", suche: str = "", seite: int = 0,
         if unterhaltungen:
             alle = conn.execute(
                 f"SELECT graph_id, ordner, betreff, von, an, empfangen, gelesen, anhang, herkunft, "
-                f"substr(text, 1, 160) AS vorschau FROM mails WHERE {wo} ORDER BY empfangen DESC", werte).fetchall()
+                f"{auszug} FROM mails WHERE {wo} ORDER BY empfangen DESC", auszug_werte + werte).fetchall()
             gruppen: dict[str, list] = {}
             for z in alle:
-                gruppen.setdefault(unterhaltung(z["betreff"]) or z["graph_id"], []).append(dict(z))
+                gruppen.setdefault(unterhaltung(z["betreff"]) or z["graph_id"], []).append(_mit_auszug(z))
             kopf = []
             for mitglieder in gruppen.values():          # Reihenfolge = neueste Mail je Gruppe
                 k = dict(mitglieder[0])
@@ -258,9 +307,9 @@ def liste(postfach: str, ordner_id: str = "", suche: str = "", seite: int = 0,
         gesamt = conn.execute(f"SELECT COUNT(*) FROM mails WHERE {wo}", werte).fetchone()[0]
         zeilen = conn.execute(
             f"SELECT graph_id, ordner, betreff, von, an, empfangen, gelesen, anhang, herkunft, "
-            f"substr(text, 1, 160) AS vorschau FROM mails WHERE {wo} ORDER BY empfangen DESC LIMIT ? OFFSET ?",
-            werte + [SEITE, max(0, int(seite)) * SEITE]).fetchall()
-    return {"gesamt": gesamt, "seite": seite, "je_seite": SEITE, "mails": [dict(z) for z in zeilen]}
+            f"{auszug} FROM mails WHERE {wo} ORDER BY empfangen DESC LIMIT ? OFFSET ?",
+            auszug_werte + werte + [SEITE, max(0, int(seite)) * SEITE]).fetchall()
+    return {"gesamt": gesamt, "seite": seite, "je_seite": SEITE, "mails": [_mit_auszug(z) for z in zeilen]}
 
 
 def _zeile(postfach: str, graph_id: str):
@@ -336,7 +385,7 @@ def klartext(postfach: str, graph_id: str) -> str:
     return html.unescape(re.sub(r"<[^>]+>", "", inhalt)).strip()
 
 
-def inhalt_html(postfach: str, graph_id: str) -> str | None:
+def inhalt_html(postfach: str, graph_id: str, markieren: str = "") -> str | None:
     """HTML der Mail mit eingebetteten Bildern als data:-URI. Wird NUR mit
     INHALT_CSP ausgeliefert (siehe Modul-Docstring)."""
     z = _zeile(postfach, graph_id)
@@ -355,7 +404,7 @@ def inhalt_html(postfach: str, graph_id: str) -> str | None:
             cids[cid.lower()] = f"data:{t.get_content_type()};base64,{base64.b64encode(daten).decode()}"
     if cids:
         inhalt = re.sub(r"(?i)cid:([^\"'\s>)]+)", lambda m: cids.get(m.group(1).lower(), m.group(0)), inhalt)
-    return inhalt
+    return markieren_html(inhalt, suchwoerter(markieren))
 
 
 def anhang(postfach: str, graph_id: str, nr: int) -> tuple[bytes, str, str] | None:

@@ -227,6 +227,46 @@ def test_inhalt_mit_durchgesetzter_csp(client):
     assert r.headers["x-frame-options"] == "SAMEORIGIN"
 
 
+
+def test_inhalt_markiert_suchwoerter_nur_im_text(client):
+    _anmelden(client)
+    r = client.get("/notfall/inhalt", params={"postfach": "a@firma.at", "id": "g-html", "markieren": "xk42 welt"})
+    assert '<mark style="background:#fde68a;color:#1e293b">XK42</mark>' in r.text      # Schreibung der Mail
+    assert '<b><mark style="background:#fde68a;color:#1e293b">Welt</mark></b>' in r.text
+    assert "default-src 'none'" in r.headers["content-security-policy"]                  # weiter mit CSP
+    ohne = client.get("/notfall/inhalt", params={"postfach": "a@firma.at", "id": "g-html"}).text
+    assert "<mark" not in ohne
+
+
+@pytest.mark.parametrize("roh, wort, erwartet", [
+    # Tag-Namen, Attribute, Entitäten, Kommentare bleiben unberührt.
+    ('<a href="mark.html" title="Angebot">x</a>', "angebot", '<a href="mark.html" title="Angebot">x</a>'),
+    ('<p>A &amp; B</p>', "amp", '<p>A &amp; B</p>'),
+    ('<p>&#252;ber</p>', "252", '<p>&#252;ber</p>'),
+    ('<!-- Angebot --><p>x</p>', "angebot", '<!-- Angebot --><p>x</p>'),
+    # Kein sichtbarer Text: head, style, title.
+    ('<head><title>Angebot</title><style>.angebot{}</style></head><p>Angebot</p>', "angebot",
+     '<head><title>Angebot</title><style>.angebot{}</style></head><p><mark style="background:#fde68a;'
+     'color:#1e293b">Angebot</mark></p>'),
+    # Sonderzeichen im Suchwort sind Text, kein Muster.
+    ('<p>a.b axb</p>', "a.b", '<p><mark style="background:#fde68a;color:#1e293b">a.b</mark> axb</p>'),
+])
+def test_markieren_html_greift_nie_ins_markup(roh, wort, erwartet):
+    assert notbetrieb_lesen.markieren_html(roh, [wort]) == erwartet
+
+
+def test_suche_zeigt_den_treffer_in_der_vorschau(schatten):
+    lang = TEXT_MAIL.replace(b"Zeile eins", b"Vorrede " * 40 + b"Rabatt QW77 gilt bis Freitag")
+    _ablegen("g-lang", lang)
+    for gruppiert in (False, True):
+        m = next(z for z in notbetrieb_lesen.liste("a@firma.at", suche="qw77", unterhaltungen=gruppiert)["mails"]
+                 if z["graph_id"] == "g-lang")
+        assert m["vorschau"].startswith("…") and "QW77" in m["vorschau"], m["vorschau"]
+    # Ohne Suche: Textanfang wie bisher.
+    m = next(z for z in notbetrieb_lesen.liste("a@firma.at", "ord-x")["mails"] if z["graph_id"] == "g-lang")
+    assert m["vorschau"].startswith("Vorrede")
+
+
 PNG_1x1 = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f"
            b"\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82")
 

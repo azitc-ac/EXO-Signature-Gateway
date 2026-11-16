@@ -1688,3 +1688,23 @@ def test_notfall_mobil_ohne_trenner_und_zweizeilig(browser, server, monkeypatch)
     betreff = pg.eval_on_selector("#liste .eintrag .betreff", "e => Math.round(e.getBoundingClientRect().top)")
     assert betreff > kopf   # Betreff unter dem Absender, nicht daneben
     pg.context.close()
+
+
+def test_notfall_suche_beim_tippen_und_markiert(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300)
+    anfragen = []
+    pg.on("request", lambda r: anfragen.append(r.url) if "/notfall/api/liste" in r.url and "suche=" in r.url
+          and "suche=&" not in r.url else None)
+    pg.fill("#suche", "")
+    pg.type("#suche", "an", delay=30)           # zwei Zeichen: noch keine Suche
+    pg.wait_for_timeout(700)
+    assert anfragen == []
+    pg.type("#suche", "gebot", delay=30)        # zügig weitergetippt: EINE Suche nach der Pause
+    pg.wait_for_timeout(900)
+    assert len(anfragen) == 1 and "suche=angebot" in anfragen[0], anfragen
+    # Markiert, in der Schreibung der Mail, und nur das Wort.
+    assert pg.eval_on_selector("#liste .eintrag .betreff mark", "e => e.textContent") == "Angebot"
+    assert pg.eval_on_selector("#liste .eintrag .vorschau mark", "e => e.textContent") == "Angebot"
+    farbe = pg.eval_on_selector("#liste mark", "e => getComputedStyle(e).backgroundColor")
+    assert farbe == "rgb(253, 230, 138)", farbe
+    pg.context.close()
