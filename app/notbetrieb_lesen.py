@@ -391,20 +391,63 @@ def inhalt_html(postfach: str, graph_id: str, markieren: str = "") -> str | None
     z = _zeile(postfach, graph_id)
     if not z:
         return None
-    msg = _laden(z["datei"])
+    inhalt, bilder = _html_und_bilder(_laden(z["datei"]))
+    if inhalt is None:
+        return None
+    cids = {cid.lower(): f"data:{typ};base64,{base64.b64encode(daten).decode()}" for cid, typ, daten in bilder}
+    if cids:
+        inhalt = _CID.sub(lambda m: cids.get(m.group(1).lower(), m.group(0)), inhalt)
+    return markieren_html(inhalt, suchwoerter(markieren))
+
+
+_CID = re.compile(r"(?i)cid:([^\"'\s>)]+)")
+
+
+def _html_und_bilder(msg) -> tuple:
+    """(HTML-Rumpf oder None, [(Content-ID, Typ, Bytes)] der eingebetteten
+    Bilder) — EINE Stelle für Lesebereich (data:-URIs) und Zitat beim
+    Antworten (multipart/related, siehe notbetrieb_senden)."""
     teil = msg.get_body(preferencelist=("html",))
     if teil is None:
-        return None
-    inhalt = teil.get_content()
-    cids = {}
+        return None, []
+    bilder = []
     for t in msg.walk():
-        cid = (t.get("Content-ID") or "").strip("<> ")
+        cid = (t.get("Content-ID") or "").strip().strip("<>").strip()
         if cid and t.get_content_maintype() == "image":
-            daten = t.get_payload(decode=True) or b""
-            cids[cid.lower()] = f"data:{t.get_content_type()};base64,{base64.b64encode(daten).decode()}"
-    if cids:
-        inhalt = re.sub(r"(?i)cid:([^\"'\s>)]+)", lambda m: cids.get(m.group(1).lower(), m.group(0)), inhalt)
-    return markieren_html(inhalt, suchwoerter(markieren))
+            bilder.append((cid, t.get_content_type(), t.get_payload(decode=True) or b""))
+    return teil.get_content(), bilder
+
+
+def zitat(postfach: str, graph_id: str) -> dict | None:
+    """Was eine Antwort oder Weiterleitung vom Original braucht: Kopf (wie
+    `mail()`), HTML-Rumpf samt NUR der darin verwendeten cid-Bilder, Text und
+    die Anhänge als (Name, Typ, Bytes). `eml` = die Datei unverändert, für
+    Originale, die sich nicht zerlegen lassen (verschlüsselt, eingebettete Mails)."""
+    z = _zeile(postfach, graph_id)
+    m = mail(postfach, graph_id)
+    if not z or not m:
+        return None
+    msg = _laden(z["datei"])
+    inhalt, bilder = _html_und_bilder(msg)
+    benutzt = {c.lower() for c in _CID.findall(inhalt or "")}
+    teil = msg.get_body(preferencelist=("plain",))
+    try:
+        text = teil.get_content() if teil is not None else ""
+    except Exception:                                         # noqa: BLE001
+        text = ""
+    anhaenge, zerlegbar = [], not m["verschluesselt"]
+    for t in _anhaenge(msg):
+        if t.get_content_type() in _SMIME_HUELLE:
+            zerlegbar = False
+            continue
+        anhaenge.append((_dekodiert(t.get_filename()) or "anhang", t.get_content_type(),
+                         t.get_payload(decode=True) or b""))
+    if any(t.get_content_type() == "message/rfc822" for t in msg.walk()):
+        zerlegbar = False          # walk() flacht eingebettete Mails ab — dann lieber unverändert
+    with open(z["datei"], "rb") as f:
+        eml = f.read()
+    return {**m, "html_rumpf": inhalt, "bilder": [b for b in bilder if b[0].lower() in benutzt],
+            "text": text, "anhaenge_daten": anhaenge, "zerlegbar": zerlegbar, "eml": eml}
 
 
 def anhang(postfach: str, graph_id: str, nr: int) -> tuple[bytes, str, str] | None:

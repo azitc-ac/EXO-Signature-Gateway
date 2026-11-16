@@ -542,7 +542,7 @@ async def notfall_senden(request: Request, benutzer: str = Depends(_sender)):
             benutzer, str(body.get("postfach") or ""), str(body.get("an") or ""),
             str(body.get("cc") or ""), str(body.get("bcc") or ""), str(body.get("betreff") or "")[:500],
             str(body.get("text") or "")[:500000], anhaenge, str(body.get("bezug") or ""),
-            str(body.get("art") or "neu"))
+            str(body.get("art") or "neu"), str(body.get("bezug_postfach") or ""))
     except notbetrieb_senden.SendeFehler as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     if body.get("entwurf"):

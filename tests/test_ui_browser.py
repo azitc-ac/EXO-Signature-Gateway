@@ -1653,7 +1653,7 @@ def test_selbst_zustellen_prueft_port25_vor_dem_speichern(browser, server, monke
 
 # ── Webmail im Notbetrieb: verschiebbare Spalten, einzeilige breite Liste ────
 
-def _notfall_seite(browser, server, monkeypatch, breite, speicher=None):
+def _notfall_seite(browser, server, monkeypatch, breite, speicher=None, zusatz=None):
     """Webmail mit nachgespielter API: angemeldet, ein Postfach, zwei Mails."""
     import json as _json
     import notbetrieb
@@ -1673,13 +1673,16 @@ def _notfall_seite(browser, server, monkeypatch, breite, speicher=None):
         "mail": {"ok": True, "betreff": "Termin", "von": [{"name": "Hans Beispiel", "adresse": "hans@firma.at"}],
                  "an": [{"name": "Vertrieb", "adresse": "vertrieb@firma.at"}], "cc": [], "anhaenge": [],
                  "datum": "2026-11-16T08:00:00Z", "html": False, "text": "Passt Donnerstag?"},
-    }
+    } | (zusatz or {})
+    gesendet = []
     ctx = browser.new_context(viewport={"width": breite, "height": 900})
     if speicher:
         ctx.add_init_script("localStorage.setItem('nf-spalten', %s)" % _json.dumps(_json.dumps(speicher)))
 
     def api(route):
         teil = route.request.url.split("/notfall/api/")[1].split("?")[0]
+        if route.request.method == "POST":
+            gesendet.append((teil, route.request.post_data_json))
         route.fulfill(status=200, content_type="application/json",
                       body=_json.dumps(antworten.get(teil, {"ok": True})))
 
@@ -1687,6 +1690,7 @@ def _notfall_seite(browser, server, monkeypatch, breite, speicher=None):
     pg = ctx.new_page()
     pg.goto(f"{server}/notfall", wait_until="domcontentloaded", timeout=30000)
     pg.wait_for_selector("#liste .eintrag", timeout=10000)
+    pg.gesendet = gesendet
     return pg
 
 
@@ -1780,4 +1784,36 @@ def test_notfall_suche_markiert_absender_und_empfaenger(browser, server, monkeyp
     pg.wait_for_timeout(300)
     marken = pg.eval_on_selector_all("#lesen .kopfbereich mark", "es => es.map(e => e.textContent)")
     assert "Hans" in marken and "hans" in marken, marken      # Name und Adresse
+    pg.context.close()
+
+
+def test_notfall_antwort_zeigt_zitat_statt_textzitat(browser, server, monkeypatch):
+    """Das Original steht nicht mehr als „> “-Text im Feld; es ist eingeklappt
+    darunter zu sehen, und beim Senden geht der Bezug samt Postfach mit."""
+    zusatz = {
+        "ich": {"ok": True, "benutzer": "max@firma.at", "senden": True, "sendeweg": "notfall",
+                "zugriff": [{"postfach": "max@firma.at", "eigen": True}],
+                "absender": [{"postfach": "max@firma.at", "recht": "eigen"}]},
+        "vorlage": {"ok": True, "an": "hans@firma.at", "cc": "", "betreff": "AW: Termin", "text": "",
+                    "zitat": {"kopf": [{"feld": "Von", "wert": "Hans Beispiel <hans@firma.at>"},
+                                       {"feld": "Betreff", "wert": "Termin"}],
+                              "html": False, "text": "Passt Donnerstag?"}},
+        "senden": {"ok": True, "ueber": "notfall"},
+    }
+    pg = _notfall_seite(browser, server, monkeypatch, 393, zusatz=zusatz)
+    pg.click('#liste .eintrag[data-id="m2"]')
+    pg.wait_for_selector("#lesen-betreff")
+    pg.evaluate("verfassen('antwort')")
+    pg.wait_for_selector("#verfassen .zitat")
+    assert pg.input_value("#vf-text") == ""
+    assert "unten angefügt" in pg.inner_text("#verfassen .zitat summary")
+    pg.click("#verfassen .zitat summary")
+    assert pg.inner_text("#verfassen .zitat pre") == "Passt Donnerstag?"
+    assert "Hans Beispiel <hans@firma.at>" in pg.inner_text("#verfassen .zitat .kopf")
+    assert pg.evaluate("document.documentElement.scrollWidth") <= 393
+    pg.fill("#vf-text", "Ja, passt.")
+    pg.click("#vf-senden")
+    pg.wait_for_selector("#lesen .ok")
+    teil, rumpf = next(x for x in pg.gesendet if x[0] == "senden")
+    assert (rumpf["bezug"], rumpf["art"], rumpf["bezug_postfach"]) == ("m2", "antwort", "max@firma.at")
     pg.context.close()

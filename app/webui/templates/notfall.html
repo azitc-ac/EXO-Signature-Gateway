@@ -130,6 +130,12 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
 #verfassen { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
 #verfassen .zeile { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; }
 #verfassen input, #verfassen select, #verfassen textarea { width: 100%; }
+/* Antworten/Weiterleiten: das Original hängt der Server an — hier nur zum Nachsehen. */
+#verfassen .zitat summary { cursor: pointer; color: var(--leise); }
+#verfassen .zitat .kopf { font-size: 12px; color: var(--leise); margin: 6px 0; overflow-wrap: anywhere; }
+#verfassen .zitat iframe { width: 100%; min-height: 260px; border: 1px solid var(--rand); border-radius: 6px; background: #fff; }
+#verfassen .zitat pre { white-space: pre-wrap; margin: 0; font: inherit; max-height: 50vh; overflow: auto;
+                         border: 1px solid var(--rand); border-radius: 6px; padding: 8px; }
 #verfassen textarea { min-height: 260px; font: inherit; background: var(--flaeche); color: var(--text);
   border: 1px solid var(--rand); border-radius: 6px; padding: 8px; }
 .ok { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--wahl); }
@@ -1057,12 +1063,17 @@ async function verfassen(art, entwurf) {
   let v = {an: '', cc: '', bcc: '', betreff: '', text: ''};
   // Bezug fest am Formular — nicht nb.mail, das sich beim Weiterlesen ändert.
   let bezug = art ? nb.mail : '', bezugPf = art ? nb.postfach : '';
+  let zitat = null;
   if (entwurf) {
     v = entwurf; bezug = entwurf.bezug; bezugPf = entwurf.bezug_postfach;
-  } else if (art) {
-    const d = await getJSON('/notfall/api/vorlage?' + q({postfach: nb.postfach, id: nb.mail, art: art}));
+  }
+  if (art && bezug) {
+    const d = await getJSON('/notfall/api/vorlage?' + q({postfach: bezugPf || nb.postfach, id: bezug, art: art}));
     if (!d.ok) { alert(errText(d)); return; }
-    v = d;
+    if (!entwurf) v = d;
+    // Ältere Entwürfe tragen das Zitat noch als „> “-Text: dann hängt der
+    // Server es nicht noch einmal an (notbetrieb_senden._ALTES_ZITAT).
+    if (!/^Am .+ schrieb .+:\n> /m.test(v.text || '')) zitat = d.zitat;
   }
   if (!nb.absender.length) { alert('Du darfst aus keinem Postfach senden.'); return; }
   // Vorbelegter Absender: das gerade geöffnete Postfach, wenn es ein Senderecht hat.
@@ -1080,7 +1091,7 @@ async function verfassen(art, entwurf) {
     + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-bcc" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">Bcc</button><input id="vf-bcc" aria-label="Bcc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.bcc || '') + '"><datalist id="vf-vorschlaege"></datalist></div>'
     + '<div class="zeile"><label for="vf-betreff">Betreff</label><input id="vf-betreff" value="' + escAttr(v.betreff) + '"></div>'
     + '<textarea id="vf-text" aria-label="Text">' + esc(v.text) + '</textarea>'
-    + (art === 'weiterleiten' ? '<div class="leise">Die Nachricht wird als Anhang weitergeleitet.</div>' : '')
+    + (zitat ? zitatVorschau(zitat, art, bezugPf || nb.postfach, bezug) : '')
     + '<div class="zeile"><label for="vf-dateien">Anhänge</label><input id="vf-dateien" type="file" multiple></div>'
     + '<div class="aktionen"><button class="haupt" id="vf-senden" type="submit">Senden</button>'
     + '<button type="button" onclick="verwerfen(this)">Verwerfen</button>'
@@ -1091,6 +1102,20 @@ async function verfassen(art, entwurf) {
   nb.entwurf = {id: entwurf ? entwurf.id : '', bezug: bezug || '', bezugPf: bezugPf || '', takt: null};
   ansicht('lesen');
   document.getElementById(art ? 'vf-text' : 'vf-an').focus();
+}
+
+// Das Original unter dem Textfeld, eingeklappt: Der Server hängt es beim
+// Senden als HTML an (Outlook-Aufbau) — es steht nicht mehr als „> “-Text im Feld.
+function zitatVorschau(z, art, postfach, id) {
+  return '<details class="zitat"><summary>' + (art === 'weiterleiten'
+      ? 'Die weitergeleitete Nachricht wird unten angefügt, mit ihren Anhängen'
+      : 'Die ursprüngliche Nachricht wird unten angefügt') + '</summary>'
+    + '<div class="kopf">' + z.kopf.map(k => '<b>' + esc(k.feld) + ':</b> ' + esc(k.wert)).join('<br>') + '</div>'
+    + (z.html
+       ? '<iframe sandbox="" referrerpolicy="no-referrer" title="Ursprüngliche Nachricht" loading="lazy" src="/notfall/inhalt?'
+         + escAttr(q({postfach: postfach, id: id})) + '"></iframe>'
+       : '<pre>' + esc(z.text || '') + '</pre>')
+    + '</details>';
 }
 
 function dateiLesen(datei) {
@@ -1116,7 +1141,7 @@ async function absenden(ev) {
     postfach: document.getElementById('vf-von').value, an: feldWert('vf-an'), cc: feldWert('vf-cc'),
     bcc: feldWert('vf-bcc'), betreff: feldWert('vf-betreff'), text: document.getElementById('vf-text').value,
     anhaenge: await Promise.all(dateien.map(dateiLesen)), bezug: art ? nb.entwurf.bezug : '', art: art || 'neu',
-    entwurf: nb.entwurf.id});
+    bezug_postfach: art ? nb.entwurf.bezugPf : '', entwurf: nb.entwurf.id});
   });
   if (!d.ok) { meldung.textContent = errText(d); meldung.hidden = false; return; }
   clearTimeout(nb.entwurf.takt);

@@ -43,7 +43,7 @@ import html
 import logging
 import threading
 import time
-from email.message import EmailMessage
+from email.message import EmailMessage, MIMEPart
 from email.policy import SMTP
 import email
 import email.policy
@@ -51,6 +51,7 @@ import re
 from email.utils import format_datetime, getaddresses, make_msgid
 from datetime import datetime, timezone
 
+import mime_policy
 import notbetrieb
 import notbetrieb_lesen
 import notbetrieb_rechte
@@ -117,14 +118,115 @@ def _drossel(benutzer: str) -> None:
         _gesendet[benutzer] = liste
 
 
-def _als_html(text: str) -> str:
-    """Textfassung als HTML — damit der Handler die HTML-Signatur einsetzen kann."""
-    return ('<html><body><div style="font-family:Calibri,Arial,sans-serif;font-size:11pt;'
-            'white-space:pre-wrap">' + html.escape(text) + "</div></body></html>")
+# Ausgabe mit der Policy des Rückwegs (mime_policy.SMTP_REINJECT: CRLF, falten
+# erst ab 998). Mit policy.SMTP kodierte Pythons Falter eine lange Message-ID
+# ohne Leerzeichen als RFC-2047-Wort — In-Reply-To und References kamen als
+# „=?utf-8?q?=3CAMBPR…?=“ an, die Antwort fiel aus der Unterhaltung. Der Rumpf
+# ist davon nicht betroffen: Seine Kodierung legt set_content() beim Bauen fest.
+AUSGABE = mime_policy.SMTP_REINJECT
+
+_SCHRIFT = "font-family:Calibri,Arial,sans-serif;font-size:11pt"
+_WOCHENTAGE = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
+_MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September",
+           "Oktober", "November", "Dezember")
+
+
+def _zeilen_html(text: str) -> str:
+    """Text als HTML: je Zeile ein <div> (leer: <div><br></div>), maskiert,
+    Leerzeichenfolgen erhalten. NICHT white-space:pre-wrap — Outlook (Word als
+    Darstellung) kennt es nicht und zog alle Zeilen zu EINEM Absatz zusammen."""
+    out = []
+    for zeile in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        z = html.escape(zeile.replace("\t", "    "))
+        z = re.sub(r"  +", lambda m: " " + "&nbsp;" * (len(m.group(0)) - 1), z)
+        out.append("<div>" + (z or "<br>") + "</div>")
+    return "".join(out)
+
+
+def _gesendet_am(iso: str) -> str:
+    """„Montag, 16. November 2026 16:13“ in der Anzeige-Zeitzone — wie Outlook."""
+    from zoneinfo import ZoneInfo
+    import settings_store
+    try:
+        d = datetime.fromisoformat(iso)
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        d = d.astimezone(ZoneInfo(settings_store.get("LOG_TIMEZONE") or "Europe/Berlin"))
+    except (TypeError, ValueError, KeyError):
+        return str(iso or "")
+    return f"{_WOCHENTAGE[d.weekday()]}, {d.day}. {_MONATE[d.month - 1]} {d.year} {d:%H:%M}"
+
+
+def _adresszeile(liste: list) -> str:
+    return "; ".join(f"{a['name']} <{a['adresse']}>" if a.get("name") else a["adresse"] for a in liste)
+
+
+def _zitat_kopf(z: dict) -> list[tuple[str, str]]:
+    zeilen = [("Von", _adresszeile(z["von"])), ("Gesendet", _gesendet_am(z["datum"])),
+              ("An", _adresszeile(z["an"]))]
+    if z["cc"]:
+        zeilen.append(("Cc", _adresszeile(z["cc"])))
+    zeilen.append(("Betreff", z["betreff"] or ""))
+    return zeilen
+
+
+def _rumpf_und_stile(dokument: str) -> tuple[str, str]:
+    """(Inhalt von <body>, <style>-Blöcke aus <head>) — ohne Skripte. Outlook
+    hält die Formate des Originals in <head><style> (MsoNormal …); ohne sie
+    verlöre das Zitat Abstände und Schriften."""
+    dokument = re.sub(r"(?is)<script\b.*?</script\s*>", "", dokument)
+    kopf = re.search(r"(?is)<head\b[^>]*>(.*?)</head\s*>", dokument)
+    stile = "".join(re.findall(r"(?is)<style\b[^>]*>.*?</style\s*>", kopf.group(1))) if kopf else ""
+    rumpf = re.search(r"(?is)<body\b[^>]*>(.*?)(?:</body\s*>|$)", dokument)
+    if rumpf:
+        return rumpf.group(1), stile
+    dokument = re.sub(r"(?is)<head\b.*?</head\s*>|</?html\b[^>]*>|<!doctype[^>]*>", "", dokument)
+    return dokument, stile
+
+
+def html_zu_text(dokument: str) -> str:
+    """Grobe Textfassung eines HTML-Rumpfs für den Textteil des Zitats."""
+    t = re.sub(r"(?is)<(script|style|head)\b.*?</\1\s*>", "", dokument)
+    t = re.sub(r"(?i)<br\s*/?>|</(p|div|tr|li|h\d|table)\s*>", "\n", t)
+    t = html.unescape(re.sub(r"<[^>]+>", "", t)).replace("\xa0", " ")
+    t = "\n".join(z.strip() for z in t.splitlines())
+    return re.sub(r"\n{3,}", "\n\n", t).strip()
+
+
+def _als_html(text: str, zitat: dict | None = None) -> str:
+    """Eigener Text als HTML, darunter das Original wie bei Outlook: Trennlinie
+    `border:none;border-top:solid #E1E1E1 1.0pt` mit Kopfblock — genau das Muster,
+    an dem `mail_processor._append_html_sig` die Antwortstelle erkennt. Die
+    Signatur landet so zwischen eigenem Text und Zitat, und die Antwort-Signatur
+    (Kette: eigene Signatur im Zitat) wirkt wie bei einer Antwort aus Outlook."""
+    stile, unten = "", ""
+    if zitat is not None:
+        kopf = "<br>".join(f"<b>{k}:</b> {html.escape(v)}" for k, v in _zitat_kopf(zitat))
+        if zitat.get("html_rumpf"):
+            rumpf, stile = _rumpf_und_stile(zitat["html_rumpf"])
+        else:
+            rumpf = f'<div style="{_SCHRIFT}">{_zeilen_html(zitat.get("text") or "")}</div>'
+        unten = ('<div style="border:none;border-top:solid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm">'
+                 f'<p style="margin:0;{_SCHRIFT}">{kopf}</p></div><div><br></div>{rumpf}')
+    return ('<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' + stile
+            + f'</head><body><div style="{_SCHRIFT}">{_zeilen_html(text)}</div>' + unten + "</body></html>")
+
+
+def _als_text(text: str, zitat: dict | None = None) -> str:
+    if zitat is None:
+        return text
+    original = zitat.get("text") or html_zu_text(zitat.get("html_rumpf") or "")
+    return (text.rstrip("\n") + "\n\n" + "_" * 32 + "\n"
+            + "\n".join(f"{k}: {v}" for k, v in _zitat_kopf(zitat)) + "\n\n" + original)
+
+
+# Entwurf aus der Zeit, als das Zitat als „> “-Text ins Feld kam: nicht noch
+# einmal anfügen (sonst stünde das Original doppelt da).
+_ALTES_ZITAT = re.compile(r"(?m)^Am .+ schrieb .+:\n> ")
 
 
 def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text: str,
-           anhaenge: list, bezug: dict | None) -> EmailMessage:
+           anhaenge: list, bezug: dict | None, zitat: dict | None = None) -> EmailMessage:
     msg = EmailMessage(policy=SMTP)
     msg["From"] = von
     if sender:
@@ -139,8 +241,26 @@ def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text:
     if bezug and bezug.get("message_id") and bezug.get("art") in ("antwort", "allen"):
         msg["In-Reply-To"] = bezug["message_id"]
         msg["References"] = " ".join(x for x in (bezug.get("references", ""), bezug["message_id"]) if x)
-    msg.set_content(text or "")
-    msg.add_alternative(_als_html(text or ""), subtype="html")
+    if zitat and zitat.get("bilder"):
+        # Aufbau wie Outlook: related[alternative[text, html], Bilder] — keine
+        # data:-URIs, die zeigt Outlook nicht. Von Hand: EmailMessage.make_related()
+        # wandelt alternative nicht in related um (nur umgekehrt).
+        koerper = MIMEPart(policy=SMTP)
+        koerper.set_content(_als_text(text or "", zitat))
+        koerper.add_alternative(_als_html(text or "", zitat), subtype="html")
+        teile = [koerper]
+        for cid, typ, daten in zitat["bilder"]:
+            haupt, _, unter = typ.partition("/")
+            bild = MIMEPart(policy=SMTP)
+            bild.set_content(daten, maintype=haupt, subtype=unter or "octet-stream", cid=f"<{cid}>",
+                             disposition="inline")
+            teile.append(bild)
+        msg["MIME-Version"] = "1.0"
+        msg["Content-Type"] = 'multipart/related; type="multipart/alternative"'
+        msg.set_payload(teile)
+    else:
+        msg.set_content(_als_text(text or "", zitat))
+        msg.add_alternative(_als_html(text or "", zitat), subtype="html")
     for name, typ, daten in anhaenge:
         name = _dateiname(name)
         if typ == "message/rfc822":
@@ -156,7 +276,8 @@ def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text:
 
 
 async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str = "", betreff: str = "",
-           text: str = "", anhaenge: list | None = None, bezug_id: str = "", art: str = "neu") -> dict:
+           text: str = "", anhaenge: list | None = None, bezug_id: str = "", art: str = "neu",
+           bezug_postfach: str = "") -> dict:
     """Senden. Gibt {ok, message_id, intern, extern} zurück oder wirft SendeFehler.
 
     Prüfen, Bauen und Zustellen lesen die Kopie unter ihrer Sperre bzw.
@@ -164,8 +285,9 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
     Webmails (sonst stünden alle anderen Anfragen still, solange gesendet
     wird; tests/test_notbetrieb_last.py)."""
     recht, alle, msg, bcc_l, intern, extern = await asyncio.to_thread(
-        _vorbereiten, benutzer, postfach, an, cc, bcc, betreff, text, anhaenge, bezug_id, art)
-    ueber = await _hinaus(benutzer, postfach.strip().lower(), recht, alle, msg.as_bytes(), msg["Message-ID"],
+        _vorbereiten, benutzer, postfach, an, cc, bcc, betreff, text, anhaenge, bezug_id, art, bezug_postfach)
+    ueber = await _hinaus(benutzer, postfach.strip().lower(), recht, alle, msg.as_bytes(policy=AUSGABE),
+                          msg["Message-ID"],
                           bcc_l, "Webmail")
     return {"ok": True, "message_id": msg["Message-ID"], "intern": len(intern), "extern": len(extern),
             "ueber": ueber}
@@ -194,7 +316,7 @@ def versand_hindernis(benutzer: str, alle: list) -> tuple:
 
 
 def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betreff: str, text: str,
-                 anhaenge: list | None, bezug_id: str, art: str) -> tuple:
+                 anhaenge: list | None, bezug_id: str, art: str, bezug_postfach: str = "") -> tuple:
     anhaenge = list(anhaenge or [])
     postfach = postfach.strip().lower()
     recht = senderecht(benutzer, postfach)
@@ -209,24 +331,33 @@ def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betre
     if any(ch in (betreff or "") for ch in "\r\n"):
         raise SendeFehler("Ungültiger Betreff.")
 
-    bezug = None
+    bezug = zitat = None
+    bezug_postfach = (bezug_postfach or postfach).strip().lower()
     if bezug_id:
         if art not in ("antwort", "allen", "weiterleiten"):
             raise SendeFehler("Unbekannte Art.")
-        if not notbetrieb_lesen.darf_lesen(benutzer, postfach):
+        if not notbetrieb_lesen.darf_lesen(benutzer, bezug_postfach):
             raise SendeFehler("Bezugsmail nicht lesbar.")
-        m = notbetrieb_lesen.mail(postfach, bezug_id)
-        if not m:
+        zitat = notbetrieb_lesen.zitat(bezug_postfach, bezug_id)
+        if not zitat:
             raise SendeFehler("Bezugsmail nicht gefunden.")
-        bezug = {"art": art, "message_id": m["message_id"], "references": m.get("references", "")}
+        bezug = {"art": art, "message_id": zitat["message_id"], "references": zitat.get("references", "")}
         if art == "weiterleiten":
-            zeile = notbetrieb_lesen._zeile(postfach, bezug_id)
-            with open(zeile["datei"], "rb") as f:
-                anhaenge.append(((m["betreff"] or "Nachricht")[:80].replace('"', "'") + ".eml",
-                                 "message/rfc822", f.read()))
+            if zitat["zerlegbar"]:
+                # Wie Outlook: Original im Text, seine Anhänge als Anhänge.
+                anhaenge += zitat["anhaenge_daten"]
+            else:
+                # Verschlüsselt oder mit eingebetteten Mails: unverändert als .eml.
+                anhaenge.append(((zitat["betreff"] or "Nachricht")[:80].replace('"', "'") + ".eml",
+                                 "message/rfc822", zitat["eml"]))
+        if _ALTES_ZITAT.search(text or ""):
+            zitat = None
 
-    if sum(len(d) for _, _, d in anhaenge) > MAX_GROESSE:
+    groesse = sum(len(d) for _, _, d in anhaenge)
+    if groesse > MAX_GROESSE:
         raise SendeFehler("Anhänge zu groß (höchstens 15 MB).")
+    if zitat and groesse + sum(len(b[2]) for b in zitat["bilder"]) > MAX_GROESSE:
+        zitat = {**zitat, "bilder": []}       # Zitat dann ohne Bilder, statt gar nicht zu senden
 
     einordnung, hindernis = versand_hindernis(benutzer, alle)
     if hindernis:
@@ -235,7 +366,7 @@ def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betre
 
     _drossel(benutzer)
     sender = benutzer if recht == "auftrag" else None
-    msg = _bauen(postfach, sender, an_l, cc_l, betreff or "", text or "", anhaenge, bezug)
+    msg = _bauen(postfach, sender, an_l, cc_l, betreff or "", text or "", anhaenge, bezug, zitat)
     return recht, alle, msg, bcc_l, intern, extern
 
 
@@ -297,7 +428,8 @@ def _zustellen(benutzer: str, postfach: str, recht: str, alle: list, zustellunge
     del kopie["Bcc"]
     if bcc_l:
         kopie["Bcc"] = ", ".join(bcc_l)
-    notbetrieb.lokal_ablegen(postfach, "sentitems", kopie.as_bytes(), gelesen=True,
+    # AUSGABE: Neu gefaltet würde eine lange In-Reply-To-Zeile sonst wieder kodiert.
+    notbetrieb.lokal_ablegen(postfach, "sentitems", kopie.as_bytes(policy=AUSGABE), gelesen=True,
                              schon_zurueck="exchange_kopie" if exchange_kopie else None)
     if ueber == notbetrieb.WEG_EXCHANGE and not exchange_kopie:
         notbetrieb.rueckspielen_bald()
@@ -350,21 +482,11 @@ def vorlage(benutzer: str, postfach: str, bezug_id: str, art: str) -> dict:
     if art == "allen":
         an += [a["adresse"] for a in m["an"] if a["adresse"].lower() not in eigen]
         cc = [a["adresse"] for a in m["cc"] if a["adresse"].lower() not in eigen]
-    text = ""
-    if art != "weiterleiten":
-        alt = m["text"] or notbetrieb_lesen.klartext(postfach, bezug_id)
-        von = ", ".join(a["adresse"] for a in m["von"])
-        text = "\n\n\nAm " + _datum(m["datum"]) + " schrieb " + von + ":\n" + \
-               "\n".join("> " + z for z in alt.splitlines())
+    # Das Original steht NICHT im Textfeld: Beim Senden hängt _bauen() es als
+    # HTML an (wie Outlook). Hier nur, was das Formular als Vorschau zeigt.
     return {"an": ", ".join(dict.fromkeys(an)), "cc": ", ".join(dict.fromkeys(cc)), "betreff": betreff,
-            "text": text}
-
-
-def _datum(iso: str) -> str:
-    try:
-        return datetime.fromisoformat(iso).strftime("%d.%m.%Y %H:%M")
-    except ValueError:
-        return iso
+            "text": "", "zitat": {"kopf": [{"feld": k, "wert": v} for k, v in _zitat_kopf(m)],
+                                  "html": m["html"], "text": m["text"]}}
 
 
 def absender(benutzer: str) -> list[dict]:

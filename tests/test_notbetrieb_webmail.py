@@ -554,16 +554,122 @@ def test_ungueltiges_wird_abgewiesen(postfix, an, betreff):
 def test_antwort_und_weiterleiten(postfix):
     v = ns.vorlage("a@firma.at", "a@firma.at", "g-html", "allen")
     assert v["betreff"] == "AW: Angebot für Sie" and v["an"] == "kunde@extern.de"
-    assert v["cc"] == "team@firma.at" and "> Hallo Welt Rabattcode XK42" in v["text"]
-    _senden("a@firma.at", "a@firma.at", v["an"], v["cc"], betreff=v["betreff"], text=v["text"],
-              bezug_id="g-html", art="antwort")
+    # Das Original steht nicht mehr als „> “-Text im Feld, sondern kommt beim Senden als HTML dazu.
+    assert v["cc"] == "team@firma.at" and v["text"] == ""
+    assert v["zitat"]["html"] is True and {"feld": "Betreff", "wert": "Angebot für Sie"} in v["zitat"]["kopf"]
+    _senden("a@firma.at", "a@firma.at", v["an"], v["cc"], betreff=v["betreff"], text="Danke!",
+            bezug_id="g-html", art="antwort")
     antwort = _email.message_from_bytes(postfix[-1][2], policy=_policy.default)
     assert antwort["In-Reply-To"] == "<h1@extern.de>"
     _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="WG: x", bezug_id="g-html", art="weiterleiten")
     wg = _email.message_from_bytes(postfix[-1][2], policy=_policy.default)
-    teile = [t.get_content_type() for t in wg.iter_attachments()]
-    assert "message/rfc822" in teile
+    # Wie Outlook: Original im Text, seine Anhänge als Anhänge — keine .eml mehr.
+    namen = [t.get_filename() for t in wg.iter_attachments()]
+    assert "boese.html" in namen and not any((n or "").endswith(".eml") for n in namen), namen
+    assert "Rabattcode XK42" in wg.get_body(preferencelist=("html",)).get_content()
     assert wg["In-Reply-To"] is None
+
+
+# ── Antworten wie aus Outlook ───────────────────────────────────────────────
+
+def _roh_kopf(inhalt: bytes) -> str:
+    return inhalt.split(b"\r\n\r\n", 1)[0].decode()
+
+
+def test_antwort_hat_html_zitat_mit_signatur_darueber_und_bildern(postfix):
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="AW: Angebot", text="Danke!\nBis bald",
+            bezug_id="g-html", art="antwort")
+    m = _email.message_from_bytes(postfix[-1][2], policy=_policy.default)
+    html = m.get_body(preferencelist=("html",)).get_content()
+    trenner = html.index("border-top:solid #E1E1E1 1.0pt")
+    sig, eigen, original = html.index("SIG Anna Muster"), html.index("Danke!"), html.index("Rabattcode XK42")
+    assert eigen < sig < trenner < original, (eigen, sig, trenner, original)
+    assert "<div>Danke!</div><div>Bis bald</div>" in html and "pre-wrap" not in html
+    kopf = html[trenner:original]
+    assert "<b>Von:</b> Müller &lt;kunde@extern.de&gt;" in kopf and "<b>Betreff:</b> Angebot für Sie" in kopf
+    assert "<b>Gesendet:</b> Freitag, 13. November 2026 10:00" in kopf     # 10:00 +0100 = Berliner Zeit
+    assert "alert(1)" not in html                                            # Skript des Originals entfernt
+    # cid-Bild des Originals als eigener Teil (related), nicht als data:-URI.
+    assert 'src="cid:logo@x"' in html and "data:image" not in html
+    bilder = [t for t in m.walk() if t.get("Content-ID") == "<logo@x>"]
+    assert len(bilder) == 1 and bilder[0].get_content_type() == "image/png"
+    text = m.get_body(preferencelist=("plain",)).get_content()
+    assert text.index("Danke!") < text.index("SIG Anna Muster") < text.index("Von: Müller <kunde@extern.de>")
+    assert "Hallo Welt Rabattcode XK42" in text
+
+
+def test_antwort_auf_textmail_zitiert_zeilenweise(postfix):
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="AW", text="", bezug_id="g-text", art="antwort")
+    html = _email.message_from_bytes(postfix[-1][2], policy=_policy.default).get_body(
+        preferencelist=("html",)).get_content()
+    assert "<div>Zeile eins</div><div>Zeile zwei</div>" in html
+    assert "<div><br></div>" in html                                     # leerer eigener Text bleibt eine Zeile
+
+
+def test_eigener_text_als_zeilen_mit_entitaeten_und_leerraum():
+    html = ns._als_html("a < b & c\n\n  eingerückt\tTab\n" + "x" * 3000)
+    assert "<div>a &lt; b &amp; c</div><div><br></div>" in html
+    assert "<div> &nbsp;eingerückt &nbsp;&nbsp;&nbsp;Tab</div>" in html      # Leerraum bleibt sichtbar
+    assert "x" * 3000 in html and "pre-wrap" not in html
+
+
+LANGE_MID = "<AMBPR05MB120503758CB41BBC5EE32B6A5A17C2@AMBPR05MB12050.eurprd05.prod.outlook.com>"
+
+
+def test_lange_message_id_bleibt_unkodiert(postfix, schatten):
+    _ablegen("g-lang-mid", TEXT_MAIL.replace(b"<t1@firma.at>", LANGE_MID.encode()))
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="AW", text="x", bezug_id="g-lang-mid",
+            art="antwort")
+    for roh in (postfix[-1][2], Path(_lokal("a@firma.at", "sentitems")[-1]["datei"]).read_bytes()):
+        kopf = _roh_kopf(roh)
+        assert f"In-Reply-To: {LANGE_MID}\r\n" in kopf, kopf
+        assert f"References: {LANGE_MID}\r\n" in kopf
+        assert "=?utf-8?q?=3C" not in kopf
+
+
+def test_weiterleiten_verschluesselt_bleibt_eml(postfix, schatten):
+    huelle = (b"From: kunde@extern.de\r\nTo: a@firma.at\r\nSubject: Geheim\r\nMessage-ID: <v1@extern.de>\r\n"
+              b"MIME-Version: 1.0\r\nContent-Type: application/pkcs7-mime; smime-type=enveloped-data; "
+              b"name=smime.p7m\r\nContent-Transfer-Encoding: base64\r\n\r\nMIAGCSqGSIb3DQEHA6CAMIA=\r\n")
+    _ablegen("g-verschl", huelle)
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="WG", bezug_id="g-verschl", art="weiterleiten")
+    wg = _email.message_from_bytes(postfix[-1][2], policy=_policy.default)
+    assert [t.get_content_type() for t in wg.iter_attachments()] == ["message/rfc822"]
+
+
+def test_alter_entwurf_mit_textzitat_bekommt_kein_zweites(postfix):
+    alt = "Danke\n\n\nAm 13.11.2026 09:00 schrieb kunde@extern.de:\n> Hallo Welt"
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="AW", text=alt, bezug_id="g-html", art="antwort")
+    html = _email.message_from_bytes(postfix[-1][2], policy=_policy.default).get_body(
+        preferencelist=("html",)).get_content()
+    assert "border-top:solid #E1E1E1" not in html and "&gt; Hallo Welt" in html
+
+
+def test_antwort_aus_geteiltem_postfach_mit_eigenem_absender(postfix):
+    """Bezug liegt in team@ (Vollzugriff), gesendet wird aus dem eigenen Postfach."""
+    with pytest.raises(ns.SendeFehler, match="nicht gefunden"):
+        _senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="AW", bezug_id="g-team", art="antwort")
+    _senden("a@firma.at", "a@firma.at", "b@firma.at", betreff="AW", bezug_id="g-team", art="antwort",
+            bezug_postfach="team@firma.at")
+    gesendet = _mime(_lokal("a@firma.at", "sentitems")[-1])
+    assert "Zeile eins" in gesendet.get_body(preferencelist=("html",)).get_content()
+
+
+def test_zitat_traegt_die_antwort_signatur_logik():
+    """Steht die eigene Signatur im Zitat, erkennt der Handler die Kette
+    (mail_processor.sender_already_in_thread) — wie bei einer Antwort aus Outlook."""
+    import mail_processor
+    zitat = {"von": [{"name": "", "adresse": "kunde@extern.de"}], "an": [{"name": "", "adresse": "a@firma.at"}],
+             "cc": [], "datum": "2026-11-13T09:00:00+00:00", "betreff": "x", "bilder": [],
+             "html_rumpf": "<html><body><p>Frage</p><p>Anna Muster Vertrieb<br>Musterweg 1 Musterstadt</p>"
+                           "</body></html>"}
+    msg = ns._bauen("a@firma.at", None, ["kunde@extern.de"], [], "AW: x", "Antwort", [], None, zitat)
+    zeilen = [["Anna Muster Vertrieb", "Musterweg 1 Musterstadt"]]
+    assert mail_processor.sender_already_in_thread(_email.message_from_bytes(msg.as_bytes()), {"a@firma.at"}, zeilen)
+    ohne = ns._bauen("a@firma.at", None, ["kunde@extern.de"], [], "x", "Anna Muster Vertrieb\n"
+                     "Musterweg 1 Musterstadt", [], None, None)
+    assert not mail_processor.sender_already_in_thread(_email.message_from_bytes(ohne.as_bytes()), {"a@firma.at"},
+                                                       zeilen)
 
 
 def test_weiterleiten_nur_aus_lesbarem_postfach(postfix):
