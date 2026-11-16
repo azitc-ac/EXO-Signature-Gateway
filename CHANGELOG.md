@@ -5,12 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.12.53 — 2026-11-17 — Tests zu v1.12.52 berichtigt
+## v1.12.54 — 2026-11-17 — Tests zu v1.12.52 berichtigt
 
 Zwei Browsertests zu v1.12.52 bedienten die globale Schriftauswahl in einem
 zugeklappten Bereich und lasen die Vorschau aus einem eingebetteten Rahmen per
-`innerText`. Sie prüfen jetzt aufgeklappt und an der Anfrage. Am Produkt ändert
-sich nichts.
+`innerText`. Sie prüfen jetzt aufgeklappt und an der Anfrage; der Schrifttest
+lädt dazu eine gespeicherte Baukasten-Vorlage und prüft, was beim Speichern
+gesendet wird. Am Produkt ändert sich nichts.
 
 **Zu tun:** nichts.
 

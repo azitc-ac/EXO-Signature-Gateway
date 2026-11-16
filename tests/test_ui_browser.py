@@ -1805,38 +1805,68 @@ def test_kampagne_speichert_die_gewaehlten_postfacharten(seite):
 
 # ── Baukasten: Schriftart-Auswahl, bearbeiter.-Vorschläge, Vorschau „Schreibt“ ──
 
-def test_schriftart_auswahl_mit_freitext(seite):
-    pg = seite("/template", breite=1280)
-    # global: Vorgabe gewählt, Freitext verborgen
-    wahl, feld = pg.locator("#g-font-wahl"), pg.locator("#g-font")
+def test_schriftart_auswahl_mit_freitext(seite, monkeypatch, tmp_path):
+    """Gespeicherte Werte erscheinen richtig (Ladeweg), die Auswahl landet beim
+    Speichern im Baustein und in den globalen Einstellungen (Speicherweg)."""
+    import json
+    import config
+    import signature_engine
+    (tmp_path / "schrift.html").write_text("<p>x</p>", encoding="utf-8")
+    (tmp_path / "schrift.meta.json").write_text(json.dumps({
+        "version": 1, "kind": "signatur",
+        "global": {"font_family": "Lato, sans-serif"},
+        "blocks": [{"id": "1", "type": "text", "text": "eins", "font": "verdana,geneva , sans-serif"},
+                   {"id": "2", "type": "text", "text": "zwei", "font": ""}],
+    }), encoding="utf-8")
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    signature_engine._reload_env()
+
+    pg = seite("/template?name=schrift", breite=1280)
+    gesendet = []
+
+    def speichern(route):
+        if route.request.method == "POST":
+            gesendet.append(json.loads(route.request.post_data))
+            route.fulfill(json={"ok": True})
+        else:
+            route.continue_()
+    pg.route("**/api/templates/schrift/meta", speichern)
+    pg.wait_for_selector(".block-card")
+
+    # global: gespeicherter Wert ohne Vorgabe → „Eigene …“ mit dem Wert
     pg.evaluate("() => document.getElementById('g-font-wahl').closest('details').open = true")
-    assert wahl.input_value() == "Calibri, Arial, sans-serif"
-    assert not feld.is_visible()
-    wahl.select_option("Georgia, serif")
-    assert feld.input_value() == "Georgia, serif"
-    # gespeicherter Wert ohne Vorgabe → „Eigene …“, Feld sichtbar mit dem Wert
-    pg.evaluate("() => applyGlobal({font_family: 'Lato, sans-serif'})")
+    wahl, feld = pg.locator("#g-font-wahl"), pg.locator("#g-font")
     assert wahl.input_value() == "__eigen" and feld.is_visible()
     assert feld.input_value() == "Lato, sans-serif"
-    # Schreibweise egal: trifft die Vorgabe
-    pg.evaluate("() => applyGlobal({font_family: 'verdana,geneva , sans-serif'})")
-    assert wahl.input_value() == "Verdana, Geneva, sans-serif" and not feld.is_visible()
+    wahl.select_option("Georgia, serif")
+    assert not feld.is_visible() and feld.input_value() == "Georgia, serif"
 
-    # Baustein: leer = wie global; Auswahl und Freitext landen im Baustein
-    pg.evaluate("() => addBlock('text')")
-    pg.locator(".block-card").last.locator(".block-type-badge").click()
-    karte = pg.locator(".block-card").last
-    bwahl = karte.locator(".schrift-wahl select")
-    bfeld = karte.locator("input[name=font]")
-    assert bwahl.input_value() == "" and not bfeld.is_visible()
-    bwahl.select_option("Tahoma, Geneva, sans-serif")
-    assert pg.evaluate("() => blocks.at(-1).font") == "Tahoma, Geneva, sans-serif"
-    bwahl.select_option("__eigen")
-    assert bfeld.is_visible()
-    bfeld.fill("Lato, Arial, sans-serif")
-    bfeld.dispatch_event("change")
-    assert pg.evaluate("() => blocks.at(-1).font") == "Lato, Arial, sans-serif"
+    # Baustein 1: Schreibweise egal, trifft die Vorgabe; Baustein 2: leer = wie global
+    karten = pg.locator(".block-card")
+    karten.nth(0).locator(".block-type-badge").click()
+    karten.nth(1).locator(".block-type-badge").click()
+    w1, f1 = karten.nth(0).locator(".schrift-wahl select"), karten.nth(0).locator("input[name=font]")
+    w2, f2 = karten.nth(1).locator(".schrift-wahl select"), karten.nth(1).locator("input[name=font]")
+    assert w1.input_value() == "Verdana, Geneva, sans-serif" and not f1.is_visible()
+    assert w2.input_value() == "" and not f2.is_visible()
+    w1.select_option("Tahoma, Geneva, sans-serif")
+    w2.select_option("__eigen")
+    assert f2.is_visible()
+    f2.fill("Lato, Arial, sans-serif")
+    f2.dispatch_event("change")
+
+    pg.locator("#save-builder-btn").click()
+    for _ in range(50):
+        if gesendet:
+            break
+        pg.wait_for_timeout(100)
+    assert gesendet, "nichts gespeichert"
+    meta = gesendet[-1]
+    assert meta["global"]["font_family"] == "Georgia, serif"
+    assert [b.get("font") for b in meta["blocks"]] == ["Tahoma, Geneva, sans-serif",
+                                                       "Lato, Arial, sans-serif"]
     pg.context.close()
+    signature_engine._reload_env()
 
 
 def test_vorschlag_kennt_bearbeiter(seite):
