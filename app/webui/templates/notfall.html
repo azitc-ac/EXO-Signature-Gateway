@@ -99,6 +99,9 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
   #liste .eintrag { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 2fr) minmax(0, 3fr) auto auto;
                     gap: 12px; align-items: baseline; padding: 4px 12px; }
   #liste .kopf { display: contents; }
+  /* Alle Zellen in Zeile 1: Das Datum (Spalte 5) steht im Markup vor dem Betreff
+     (Spalte 2) — ohne feste Zeile setzt das Gitter alles danach in eine neue Zeile. */
+  #liste .kopf > *, #liste .eintrag > :not(.kopf) { grid-row: 1; }
   #liste .von { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 13px; }
   #liste .betreff { grid-column: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #liste .vorschau { grid-column: 3; }
