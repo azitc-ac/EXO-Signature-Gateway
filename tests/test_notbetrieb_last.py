@@ -140,6 +140,9 @@ def test_stand_folgt_dem_schema_code_und_seinen_konstanten(monkeypatch):
 def test_jedes_schema_der_kopie_ist_angemeldet():
     """Wer im Notbetrieb eine Tabelle anlegt, meldet sie mit @schema_teil an —
     ein CREATE TABLE ausserhalb liefe sonst wieder bei jedem Öffnen oder gar nicht."""
+    import importlib
+    for datei in (WURZEL / "app").glob("notbetrieb*.py"):
+        importlib.import_module(datei.stem)                    # meldet seine Tabellen an
     angemeldet = {f"{f.__module__}.{f.__qualname__}" for f in notbetrieb._SCHEMA_TEILE.values()}
     fehlt = []
     for datei in sorted((WURZEL / "app").glob("notbetrieb*.py")):
