@@ -11,9 +11,10 @@ import asyncio
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 import domain_routing
+import graph_client
 import gruppen
 import aussenadresse
 import notbetrieb
@@ -34,6 +35,40 @@ def edge_richtlinie(webmail_url: str) -> str:
     `default_launch_container` „window“, `create_desktop_shortcut`."""
     return json.dumps([{"url": webmail_url, "default_launch_container": "window",
                         "create_desktop_shortcut": True}])
+
+
+async def teams_notfall_stand() -> dict | None:
+    """Teams-App „Notfall-Mail“: Fassung des Pakets und — wenn lesbar — die im
+    Teams-Katalog (wie die Self-Service-App auf der Einrichtung). Ohne
+    Außenadresse kein Paket: Der Reiter bräuchte eine erreichbare Adresse."""
+    basis = aussenadresse.basis()
+    if not basis:
+        return None
+    from webui.routen.addin import _notfall_teams_manifest, _versionstupel
+    try:
+        m = _notfall_teams_manifest(basis)
+        stand = {"version": m["version"],
+                 "seit": (settings_store.get("_TEAMS_NOTFALL_STAND") or {}).get("seit", ""),
+                 "katalog": await graph_client.teams_katalog(m["id"])}
+        v = stand["katalog"].get("version")
+        stand["katalog"]["aktuell"] = bool(v) and _versionstupel(v) >= _versionstupel(m["version"])
+        return stand
+    except Exception as exc:                                   # noqa: BLE001
+        log.warning("Notbetrieb: Teams-App „Notfall-Mail“ nicht ermittelt: %s", exc)
+        return None
+
+
+@router.get("/notbetrieb/notfall-teams-app.zip")
+async def notfall_teams_app(_user: str = Depends(_require_admin)):
+    """Paket der Teams-App „Notfall-Mail“ für Integrierte Apps / Teams Admin Center."""
+    basis = aussenadresse.basis()
+    if not basis:
+        raise HTTPException(409, "Keine Außenadresse eingestellt — der Reiter bräuchte eine erreichbare Adresse.")
+    from webui.routen.addin import notfall_teams_paket
+    paket, m = notfall_teams_paket(basis)
+    return Response(content=paket, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="notfall-mail-{m["version"]}.zip"',
+                             "Cache-Control": "no-store"})
 
 
 @router.get("/notbetrieb", response_class=HTMLResponse)
@@ -58,6 +93,7 @@ async def notbetrieb_page(request: Request, _user: str = Depends(_require_admin)
             "senden_alle": settings_store.get("NOTBETRIEB_SENDEN_ALLE") is True,
             "webmail_url": webmail_url,
             "edge_richtlinie": edge_richtlinie(webmail_url),
+            "teams_notfall": await teams_notfall_stand(),
             "faktor_abdeckung": faktor_abdeckung,
             "zweitfaktor": {"pflicht": notbetrieb_faktor.pflicht(), "notfall_ohne": notbetrieb_faktor.im_notfall_ohne()},
             "imap_host": aussenadresse.ehlo_hostname() or "",

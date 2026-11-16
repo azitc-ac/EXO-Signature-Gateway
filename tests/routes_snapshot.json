@@ -2345,6 +2345,13 @@
     "name": "notbetrieb_page"
   },
   {
+    "pfad": "/notbetrieb/notfall-teams-app.zip",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_teams_app"
+  },
+  {
     "pfad": "/notfall",
     "methoden": [
       "GET"

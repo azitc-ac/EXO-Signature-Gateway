@@ -1313,3 +1313,133 @@ def test_notbetrieb_seite_zeigt_richtlinie_zum_kopieren_und_faktor_abdeckung():
     assert "{{ faktor_abdeckung.eingerichtet }} von {{ faktor_abdeckung.nutzer }}" in html
     # Nicht aus dem EHLO-Hostnamen gebaut (der darf ein anderer Name sein).
     assert "{{ webmail_url }}/einrichten" in html and "}}/notfall/einrichten" not in html
+
+
+# ── Roter Faden: Zugang, Teams-Reiter, Teams-App „Notfall-Mail“ ──────────────
+
+def test_anmeldung_im_teams_reiter_bekommt_partitioniertes_cookie(client):
+    """Im fremden Rahmen ginge ein SameSite=Strict-Cookie nie mit — dort
+    SameSite=None + Partitioned, sonst unverändert Strict."""
+    r = client.post("/notfall/anmelden", json={"benutzer": "a.ad@firma.local", "passwort": "richtig",
+                                               "rahmen": True})
+    kopf = r.headers["set-cookie"].lower()
+    for teil in ("httponly", "secure", "samesite=none", "partitioned", "path=/notfall"):
+        assert teil in kopf, kopf
+    # Nur ein echtes true schaltet um — kein „true“ als Text, kein Fehlen.
+    for rahmen in ("true", 1, None):
+        kopf = client.post("/notfall/anmelden", json={"benutzer": "a", "passwort": "richtig",
+                                                      "rahmen": rahmen}).headers["set-cookie"].lower()
+        assert "samesite=strict" in kopf and "partitioned" not in kopf, (rahmen, kopf)
+
+
+def test_abmelden_loescht_auch_das_cookie_des_reiters(client):
+    koepfe = [v.lower() for k, v in client.post("/notfall/abmelden", json={}).headers.multi_items()
+              if k.lower() == "set-cookie"]
+    assert any("partitioned" in k and "max-age=0" in k for k in koepfe), koepfe
+    assert any("partitioned" not in k for k in koepfe), koepfe
+
+
+def test_notfall_nur_von_microsoft_365_einrahmbar(client):
+    """Teams-Reiter: X-Frame-Options DENY wäre das Aus; stattdessen eine
+    DURCHGESETZTE frame-ancestors-Liste — nur Microsoft-365-Hosts."""
+    r = client.get("/notfall")
+    assert "x-frame-options" not in r.headers
+    csp = r.headers["content-security-policy"]
+    assert csp.startswith("frame-ancestors 'self' ") and "https://teams.microsoft.com" in csp
+    assert "*" not in csp.replace("https://*.", "")              # kein Platzhalter für beliebige Seiten
+    # Andere Seiten bleiben gesperrt.
+    assert client.get("/auth/login").headers.get("x-frame-options") == "DENY"
+    # Inhalt der Mail: eigene CSP behält Sandbox UND kennt die Kette bis Teams.
+    _anmelden(client)
+    inhalt = client.get("/notfall/inhalt", params={"postfach": "a@firma.at", "id": "g-html"})
+    csp = inhalt.headers["content-security-policy"]
+    assert "sandbox" in csp and "default-src 'none'" in csp and "https://teams.microsoft.com" in csp
+
+
+def test_berichtende_csp_nutzt_dieselbe_liste():
+    from webui import hilfen
+    for host in hilfen.M365_RAHMEN:
+        assert host in hilfen.frame_ancestors()
+
+
+def test_seite_kennt_lage_und_teams(client, schatten):
+    normal = client.get("/notfall").text
+    assert "const AUSGERUFEN = false" in normal and "Notfall-Anmeldung" in normal
+    assert "Dein Notfall-Zugang" in normal and "MicrosoftTeams.min.js" not in normal
+    schatten["NOTBETRIEB_AUSGERUFEN"] = True
+    notfall = client.get("/notfall").text
+    assert "const AUSGERUFEN = true" in notfall and "Exchange Online ist gestört" in notfall
+    teams = client.get("/notfall", params={"host": "teams"}).text
+    assert "const IM_TEAMS = true" in teams and 'integrity="sha384-' in teams
+    # Im Reiter führen Einrichten und Konto in den Browser.
+    assert 'id="konto-link" href="/notfall/einrichten" target="_blank" rel="noopener" data-extern' in teams
+    assert "Im Browser einrichten" in teams
+
+
+def _einrichten(client, postfach):
+    from webui.routen import notfall
+    client.cookies.set(notfall.EINRICHTEN_COOKIE, notfall._einrichten_signierer().dumps({"u": postfach}),
+                       path="/notfall")
+
+
+def test_zugang_nennt_den_weg_ins_webmail(client):
+    _einrichten(client, "a@firma.at")                       # Probegruppe → darf lesen
+    assert client.get("/notfall/api/faktor").json()["webmail"] is True
+    client.cookies.clear()
+    _einrichten(client, "b@firma.at")
+    assert client.get("/notfall/api/faktor").json()["webmail"] is False
+
+
+def test_ohne_faktor_im_notfall_eigene_meldung(client, schatten):
+    schatten["NOTBETRIEB_ZWEITFAKTOR"] = True
+    normal = client.post("/notfall/anmelden", json={"benutzer": "a", "passwort": "richtig"}).json()
+    assert normal["einrichten"] and "einmalig" in normal["error"]
+    schatten["NOTBETRIEB_AUSGERUFEN"] = True
+    notfall = client.post("/notfall/anmelden", json={"benutzer": "a", "passwort": "richtig"}).json()
+    assert notfall["einrichten"] and "IT" in notfall["error"] and "einmalig" not in notfall["error"]
+
+
+def test_zugang_fuer_self_service(schatten):
+    import notbetrieb_faktor
+    assert notbetrieb_faktor.zugang("niemand@firma.at") is None
+    assert notbetrieb_faktor.zugang("a@firma.at") == {"bereit": False, "gesperrt": False, "passkeys": 0,
+                                                       "totp": False}
+    schatten["NOTBETRIEB_AKTIV"] = False
+    assert notbetrieb_faktor.zugang("a@firma.at") is None
+
+
+def test_teams_app_notfall_mail(schatten):
+    import io, zipfile
+    from webui.routen import addin
+    paket, m = addin.notfall_teams_paket("https://gw.firma.at")
+    tab = m["staticTabs"][0]
+    assert tab["contentUrl"] == "https://gw.firma.at/notfall?host=teams"
+    assert tab["websiteUrl"] == "https://gw.firma.at/notfall" and tab["scopes"] == ["personal"]
+    assert m["validDomains"] == ["gw.firma.at"] and m["manifestVersion"] == "1.17"
+    assert m["name"]["short"] == "Notfall-Mail" and len(m["version"].split(".")) == 3
+    # Eigene, stabile Kennung — nicht die der Self-Service-App.
+    assert m["id"] == addin.notfall_teams_id("gw.firma.at")
+    assert m["id"] != addin._teams_manifest("https://gw.firma.at")["id"]
+    assert set(zipfile.ZipFile(io.BytesIO(paket)).namelist()) == {"manifest.json", "color.png", "outline.png"}
+    # Fassung steigt nur bei inhaltlicher Änderung.
+    assert addin.notfall_teams_paket("https://gw.firma.at")[1]["version"] == m["version"]
+    assert "_TEAMS_NOTFALL_STAND" in settings_store.INTERNAL_KEYS
+
+
+def test_katalog_laedt_das_gewaehlte_paket(schatten, monkeypatch):
+    import graph_client
+    from webui.routen import addin, anmeldung
+    gesehen = {}
+
+    async def fake(token, externe_id, paket):
+        gesehen["id"] = externe_id
+        return {"ok": True, "msg": "", "version": "1.0.0"}
+    monkeypatch.setattr(graph_client, "teams_katalog_aktualisieren", fake)
+    asyncio.run(anmeldung.nachlauf("teams_katalog", {"extra": {"base": "https://gw.firma.at",
+                                                               "app": "notfall"}}, "T"))
+    assert gesehen["id"] == addin.notfall_teams_id("gw.firma.at")
+    asyncio.run(anmeldung.nachlauf("teams_katalog", {"extra": {"base": "https://gw.firma.at"}}, "T"))
+    assert gesehen["id"] == addin._teams_manifest("https://gw.firma.at")["id"]     # ohne app: wie bisher
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException):
+        asyncio.run(anmeldung.setup_teams_katalog_aktualisieren(request=None, app="fremd", _="admin"))

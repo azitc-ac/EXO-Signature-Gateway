@@ -287,15 +287,26 @@ def _teams_katalog_callback_page(ok: bool, msg: str = "", version: str | None = 
 
 
 @router.get("/api/setup/teams-katalog/aktualisieren")
-async def setup_teams_katalog_aktualisieren(request: Request, _: str = Depends(_require_admin)):
+async def setup_teams_katalog_aktualisieren(request: Request, app: str = "signatur",
+                                            _: str = Depends(_require_admin)):
     """Startet die Admin-Anmeldung (Popup) mit AppCatalog.ReadWrite.All; nach der
     Rückkehr lädt nachlauf() das App-Paket als neue Fassung in den Teams-Katalog.
+    `app`: welches Paket (addin.TEAMS_PAKETE) — Self-Service oder Notfall-Mail.
     Liefert die Login-URL."""
     from webui.hilfen import _addin_base_url
+    from webui.routen.addin import TEAMS_PAKETE
+    if app not in TEAMS_PAKETE:
+        raise HTTPException(400, "Unbekannte App.")
+    if app == "notfall":
+        # Dieselbe Adresse wie Edge-Richtlinie und Download (Notbetrieb-Seite).
+        import aussenadresse
+        base = aussenadresse.basis()
+    else:
+        base = _addin_base_url(request)
     redirect_uri = _setup_redirect_uri()
     _state, auth_url = pkce_mod.create_session(
         redirect_uri, flow="teams_katalog", scopes=pkce_mod.TEAMS_KATALOG_SCOPES,
-        extra={"base": _addin_base_url(request)})
+        extra={"base": base, "app": app})
     return JSONResponse({"auth_url": auth_url, "einfuegen": _endet_lokal(redirect_uri)})
 
 
@@ -343,8 +354,9 @@ async def nachlauf(flow: str, session_obj: dict, access_token: str) -> dict:
     if flow == "teams_katalog":
         # Paket aus derselben Quelle wie der Download, mit der Adresse, die die
         # Seite beim Klick hatte (der Rückweg kennt keine Anfrage mehr).
-        from webui.routen.addin import teams_app_paket
-        paket, m = teams_app_paket((session_obj.get("extra") or {}).get("base", ""))
+        from webui.routen.addin import TEAMS_PAKETE
+        extra = session_obj.get("extra") or {}
+        paket, m = TEAMS_PAKETE[extra.get("app") or "signatur"](extra.get("base", ""))
         res = await graph_client.teams_katalog_aktualisieren(access_token, m["id"], paket)
         if res["ok"]:
             log.info("Teams-Katalog aktualisiert: Fassung %s", res["version"])

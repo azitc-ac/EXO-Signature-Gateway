@@ -445,6 +445,41 @@
                                   : { type: art + '-fail', msg: errText(d) }, window.location.origin);
         });
       }
+      // Neue Fassung einer Teams-App in den Katalog des Tenants — EIN Ablauf für
+      // alle Pakete (addin.TEAMS_PAKETE: Self-Service auf der Einrichtung,
+      // Notfall-Mail auf der Notbetrieb-Seite). Admin-Anmeldung im Fenster
+      // (AppCatalog.ReadWrite.All, delegiert), danach lädt das Gateway das Paket
+      // hoch und liest die Fassung neu; die Seite lädt mit `anker` neu.
+      var _teamsKatalogWartet = null;
+      async function teamsKatalogAktualisieren(btn, app, ergebnis, einfuegenId, anker) {
+        var einfuegen = false;
+        var r = await knopfAktion(btn, 'Öffne Login…', function () { return anmeldeFenster(async function () {
+          var d = await getJSON('/api/setup/teams-katalog/aktualisieren?app=' + encodeURIComponent(app));
+          if (!d.ok) throw new Error(errText(d));
+          einfuegen = !!d.einfuegen;
+          return d.auth_url;
+        }, 'teams-katalog-login', true); });
+        if (!r.ok) { showMsg(ergebnis, '✗ ' + r.fehler, false); return; }
+        _teamsKatalogWartet = {ergebnis: ergebnis, anker: anker};
+        showMsg(ergebnis, 'Admin-Anmeldung im neuen Fenster…', true);
+        if (einfuegen) anmeldeAdresseEinfuegen(einfuegenId, 'teams-katalog');
+      }
+      window.addEventListener('message', function (ev) {
+        var w = _teamsKatalogWartet;
+        if (ev.origin !== window.location.origin || !ev.data || !w) return;
+        if (ev.data.type === 'teams-katalog-done') {
+          _teamsKatalogWartet = null;
+          showMsg(w.ergebnis, '✓ Im Katalog aktualisiert — die Seite lädt neu', true);
+          location.hash = w.anker;
+          setTimeout(function () { location.reload(); }, 1500);
+        } else if (ev.data.type === 'teams-katalog-fail') {
+          _teamsKatalogWartet = null;
+          showMsg(w.ergebnis, '✗ ' + (ev.data.msg || 'Aktualisieren fehlgeschlagen'), false);
+        } else if (ev.data.type === 'anmeldung-abgelaufen') {
+          _teamsKatalogWartet = null;
+          showMsg(w.ergebnis, '✗ Anmeldung abgelaufen, nichts hochgeladen — bitte erneut', false);
+        }
+      });
       // Wert als Zeichenkette in einem Inline-Handler: onclick="f(\'' + escJsAttr(x) + '\')".
       // Zwei Ebenen: erst für den JS-String (\ und '), dann fürs Attribut — der
       // Browser dekodiert das Attribut (&#39; → ') BEVOR er das Skript liest;

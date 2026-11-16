@@ -156,6 +156,21 @@ def stand(postfach: str) -> dict:
             "codes_uebrig": len(e.get("codes") or []), "gesperrt": bool(e.get("gesperrt"))}
 
 
+def zugang(adresse: str) -> dict | None:
+    """Kurzstand des Notfall-Zugangs für die Self-Service-Seite (Teams-Reiter,
+    Outlook-Add-in): eingerichtet ja/nein. None, wenn der Notbetrieb aus ist
+    oder die Adresse kein Postfach der Kopie hat — dann erscheint dort nichts."""
+    import notbetrieb
+    if not notbetrieb.funktion_aktiv():
+        return None
+    postfach = notbetrieb.postfach_fuer(adresse)
+    if not postfach:
+        return None
+    st = stand(postfach)
+    return {"bereit": st["aktiv"] and not st["gesperrt"], "gesperrt": st["gesperrt"],
+            "passkeys": len(st["passkeys"]), "totp": st["totp"]}
+
+
 def abdeckung() -> dict:
     """Wie viele Benutzerpostfächer könnten sich mit zweitem Faktor anmelden?
     EINE Zählung für Bereitschaft und Notbetrieb-Seite, mit Bezugsgröße —

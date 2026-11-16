@@ -108,7 +108,7 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 # bzw. Uebersichtsseite) — waeren sie mitgewandert, holte `app.py` sie aus einem
 # Routenmodul zurueck, also genau die verkehrte Richtung.
 from webui.hilfen import (                                   # noqa: E402
-    _cert_expiry, _build_redirect_uri, _password_change_required,
+    _cert_expiry, _build_redirect_uri, _password_change_required, frame_ancestors,
 )
 
 # ── Routenmodule ─────────────────────────────────────────────────────────────
@@ -223,6 +223,10 @@ def _rahmen_erlaubt(pfad: str) -> bool:
     return pfad.startswith(_ADDIN_FRAME_FREI) or pfad == "/self"
 
 
+def _notfall_pfad(pfad: str) -> bool:
+    return pfad == "/notfall" or pfad.startswith("/notfall/")
+
+
 @app.middleware("http")
 async def _sicherheits_header(request: Request, call_next):
     response = await call_next(request)
@@ -233,7 +237,12 @@ async def _sicherheits_header(request: Request, call_next):
     # ab, sieht das noindex also nie — schon erfasste Adressen (Google führte
     # /auth/login?next=/) blieben dann im Index stehen.
     response.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
-    if not _rahmen_erlaubt(request.url.path):
+    if _notfall_pfad(request.url.path):
+        # Notfall-Mail als Teams-Reiter: einrahmen NUR durch Microsoft 365 —
+        # durchgesetzt (nicht nur berichtend), anstelle von X-Frame-Options
+        # DENY. Inhalt und Vorschau setzen ihre eigene CSP samt derselben Liste.
+        response.headers.setdefault("Content-Security-Policy", frame_ancestors())
+    elif not _rahmen_erlaubt(request.url.path):
         response.headers.setdefault("X-Frame-Options", "DENY")
     if _webui_scheme() == "https":
         response.headers.setdefault(
@@ -246,11 +255,8 @@ async def _sicherheits_header(request: Request, call_next):
         "default-src 'self'; script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
         "object-src 'none'; base-uri 'self'; "
-        "frame-ancestors 'self' https://outlook.office.com "
-        "https://outlook.office365.com https://*.office.com "
-        # Microsoft-365-Hosts für Tabs (Doku „Extend Personal Tab to Microsoft 365"):
-        "https://*.cloud.microsoft https://teams.microsoft.com "
-        "https://*.teams.microsoft.com https://*.microsoft365.com; "
+        # Microsoft-365-Hosts (Outlook, Teams-Reiter) — Liste in hilfen.M365_RAHMEN:
+        + frame_ancestors() + "; "
         # Ohne Berichtsadresse meldet der Browser nichts — „keine Berichte"
         # war dann keine Aussage (csp_berichte.py).
         "report-uri /api/csp-bericht")

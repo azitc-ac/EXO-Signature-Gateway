@@ -8,6 +8,20 @@ neu aus dem Rechte-Abbild bestimmt (notbetrieb_lesen.darf_lesen).
 Schreibende Aufrufe sind JSON-POSTs: Ein fremdes Formular kann keinen
 JSON-Rumpf ohne CORS-Vorabfrage senden, und das Cookie geht wegen
 SameSite=Strict nicht mit — das ersetzt hier ein eigenes CSRF-Token.
+
+ALS TEAMS-REITER (Teams-App „Notfall-Mail“, contentUrl `/notfall?host=teams`)
+liegt die Seite in einem fremden Rahmen; ein SameSite=Strict-Cookie geht dort
+nie mit. Wer sich IM RAHMEN anmeldet (`rahmen: true` im Rumpf), bekommt das
+Cookie deshalb als SameSite=None + Partitioned (CHIPS): Es gilt nur, solange
+Teams/Microsoft 365 die oberste Seite ist, und ist für jede andere Seite
+unsichtbar. Gegen CSRF tragen dort weiter der JSON-Rumpf (Vorabfrage, die
+niemand beantwortet) und die Herkunftsprüfung in app.py. Einrahmen dürfen nur
+Microsoft-365-Hosts (frame-ancestors, hilfen.M365_RAHMEN).
+
+DER ROTE FADEN: `/notfall` weiss selbst, was dran ist — im Normalbetrieb die
+Seite „Dein Notfall-Zugang“ (Microsoft-Anmeldung → Faktor einrichten/Stand),
+im ausgerufenen Notfall zuerst die Notfall-Anmeldung. `/notfall/einrichten`
+zeigt immer den Zugang (alte Links, Konto-Menü des Webmails).
 """
 from __future__ import annotations
 
@@ -27,6 +41,7 @@ import notbetrieb_rechte
 import settings_store
 import notbetrieb_senden
 from webui.deps import templates, log, _gateway_name
+from webui.hilfen import frame_ancestors
 
 router = APIRouter()
 
@@ -86,14 +101,25 @@ async def _postfach(benutzer: str, postfach: str) -> str:
     return postfach
 
 
-@router.get("/notfall", response_class=HTMLResponse)
-async def notfall_seite(request: Request):
+def _seite(request: Request, einrichten: bool) -> HTMLResponse:
+    """Die EINE Seite der Notfall-Mail — Webmail, Anmeldung und Zugang.
+    `host=teams`: als Reiter der Teams-App (Microsoft-Anmeldung und Passkey-
+    Einrichtung dann im Browser, siehe Modul-Docstring)."""
     if not notbetrieb.funktion_aktiv():
         raise HTTPException(404)
-    return templates.TemplateResponse(request=request, name="notfall.html",
-                                      context={"gateway_name": _gateway_name(), "einrichten": False,
-                                               "eingerichtet": notbetrieb_anmeldung.eingerichtet(),
-                                               "frisch_min": FRISCH_S // 60})
+    from webui.routen.addin import TEAMSJS_SRI, TEAMSJS_URL
+    return templates.TemplateResponse(request=request, name="notfall.html", context={
+        "gateway_name": _gateway_name(), "einrichten": einrichten,
+        "eingerichtet": notbetrieb_anmeldung.eingerichtet(),
+        "ausgerufen": notbetrieb.ausgerufen(),
+        "im_teams": request.query_params.get("host") == "teams",
+        "teamsjs_url": TEAMSJS_URL, "teamsjs_sri": TEAMSJS_SRI,
+        "frisch_min": FRISCH_S // 60})
+
+
+@router.get("/notfall", response_class=HTMLResponse)
+async def notfall_seite(request: Request):
+    return _seite(request, einrichten=False)
 
 
 @router.get("/notfall/app.webmanifest")
@@ -152,10 +178,14 @@ async def notfall_anmelden(request: Request):
     if notbetrieb_faktor.pflicht() and not (notbetrieb.ausgerufen() and notbetrieb_faktor.im_notfall_ohne()):
         log.info("Notbetrieb-Webmail: %s ohne zweiten Faktor abgewiesen (von %s)", postfach, quelle)
         return JSONResponse({"ok": False, "einrichten": True,
-                             "error": "Für den Notfall-Zugang brauchst du einen zweiten Faktor. Richte ihn "
-                                      "einmalig ein — mit deiner Microsoft-Anmeldung, solange sie geht."},
+                             "error": ("Du hast noch keinen zweiten Faktor eingerichtet — ohne ihn ist "
+                                       "die Notfall-Anmeldung gesperrt. Geht die Microsoft-Anmeldung noch, "
+                                       "richte ihn jetzt ein; sonst wende dich an die IT."
+                                       if notbetrieb.ausgerufen() else
+                                       "Für den Notfall-Zugang brauchst du einen zweiten Faktor. Richte ihn "
+                                       "einmalig ein — mit deiner Microsoft-Anmeldung, solange sie geht.")},
                             status_code=403)
-    return _anmeldung_fertig(postfach, erg.get("benutzer"), quelle, "ohne Faktor")
+    return _anmeldung_fertig(postfach, erg.get("benutzer"), quelle, "ohne Faktor", _im_rahmen(body))
 
 
 def _seiten_host(request: Request) -> str:
@@ -183,11 +213,23 @@ def _vorgang_signierer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(sso._get_secret(), salt="notbetrieb-faktor-vorgang")
 
 
-def _anmeldung_fertig(postfach: str, anmeldename, quelle: str, wie: str) -> JSONResponse:
+def _im_rahmen(body: dict) -> bool:
+    return body.get("rahmen") is True
+
+
+def _anmeldung_fertig(postfach: str, anmeldename, quelle: str, wie: str,
+                      rahmen: bool = False) -> JSONResponse:
     antwort = JSONResponse({"ok": True})
-    antwort.set_cookie(COOKIE, _signierer().dumps({"b": postfach}), max_age=TTL_S,
-                       path="/notfall", httponly=True, secure=True, samesite="strict")
-    log.info("Notbetrieb-Webmail: Anmeldung %s → %s von %s (%s)", anmeldename, postfach, quelle, wie)
+    wert = _signierer().dumps({"b": postfach})
+    if rahmen:
+        # Teams-Reiter: nur so geht das Cookie im fremden Rahmen mit (Modul-Docstring).
+        antwort.set_cookie(COOKIE, wert, max_age=TTL_S, path="/notfall", httponly=True, secure=True,
+                           samesite="none", partitioned=True)
+    else:
+        antwort.set_cookie(COOKIE, wert, max_age=TTL_S, path="/notfall", httponly=True, secure=True,
+                           samesite="strict")
+    log.info("Notbetrieb-Webmail: Anmeldung %s → %s von %s (%s%s)", anmeldename, postfach, quelle, wie,
+             ", Teams-Reiter" if rahmen else "")
     return antwort
 
 
@@ -207,7 +249,7 @@ async def notfall_anmelden_faktor(request: Request):
     ok, meldung = await asyncio.to_thread(notbetrieb_faktor.pruefen, postfach, str(body.get("code") or ""), quelle)
     if not ok:
         return JSONResponse({"ok": False, "error": meldung}, status_code=401)
-    return _anmeldung_fertig(postfach, postfach, quelle, "mit Code")
+    return _anmeldung_fertig(postfach, postfach, quelle, "mit Code", _im_rahmen(body))
 
 
 @router.post("/notfall/anmelden/passkey/optionen")
@@ -246,7 +288,7 @@ async def notfall_anmelden_passkey(request: Request):
     ok, meldung = await asyncio.to_thread(notbetrieb_faktor.passkey_pruefen, postfach, antwort, quelle)
     if not ok:
         return JSONResponse({"ok": False, "error": meldung}, status_code=401)
-    return _anmeldung_fertig(postfach, postfach, quelle, "mit Passkey")
+    return _anmeldung_fertig(postfach, postfach, quelle, "mit Passkey", _im_rahmen(body))
 
 
 # ── Zweiten Faktor einrichten (nach frischer Entra-Anmeldung) ───────────────
@@ -293,17 +335,17 @@ def _entra_postfach(request: Request) -> str:
 
 @router.get("/notfall/einrichten", response_class=HTMLResponse)
 async def notfall_einrichten_seite(request: Request):
-    if not notbetrieb.funktion_aktiv():
-        raise HTTPException(404)
-    return templates.TemplateResponse(request=request, name="notfall.html",
-                                      context={"gateway_name": _gateway_name(), "einrichten": True,
-                                               "eingerichtet": notbetrieb_anmeldung.eingerichtet(),
-                                               "frisch_min": FRISCH_S // 60})
+    return _seite(request, einrichten=True)
 
 
 @router.get("/notfall/api/faktor")
 async def notfall_faktor_stand(postfach: str = Depends(_entra_postfach)):
     return JSONResponse({"ok": True, "postfach": postfach,
+                         # Darf das Postfach jetzt schon lesen (Probegruppe,
+                         # Lesen für alle, Notfall)? Dann führt die Seite weiter
+                         # ins Webmail — angemeldet wird dort wie immer mit
+                         # Windows-Kennwort und Faktor.
+                         "webmail": notbetrieb.inhalte_erlaubt(postfach),
                          **await asyncio.to_thread(notbetrieb_faktor.stand, postfach)})
 
 
@@ -373,6 +415,11 @@ async def notfall_faktor_codes(postfach: str = Depends(_entra_postfach)):
 async def notfall_abmelden():
     antwort = JSONResponse({"ok": True})
     antwort.delete_cookie(COOKIE, path="/notfall")
+    # Die Variante des Teams-Reiters lebt in ihrer eigenen Partition; löschen
+    # geht nur mit denselben Merkmalen. Beide Löschköpfe gehen mit — der
+    # Browser wendet jeden auf das passende Cookie an.
+    antwort.set_cookie(COOKIE, "", max_age=0, path="/notfall", httponly=True, secure=True,
+                       samesite="none", partitioned=True)
     return antwort
 
 
@@ -470,7 +517,10 @@ async def notfall_inhalt(postfach: str, id: str, markieren: str = "", benutzer: 
     inhalt = await asyncio.to_thread(notbetrieb_lesen.inhalt_html, pf, id, markieren[:200])
     if inhalt is None:
         raise HTTPException(404)
-    return HTMLResponse(inhalt, headers={"Content-Security-Policy": notbetrieb_lesen.INHALT_CSP,
+    # frame-ancestors: Im Teams-Reiter ist Microsoft 365 die oberste Seite;
+    # geprüft wird die GANZE Kette, „self“ allein schlösse den Reiter aus.
+    return HTMLResponse(inhalt, headers={"Content-Security-Policy": notbetrieb_lesen.INHALT_CSP + "; "
+                                         + frame_ancestors(),
                                          "X-Frame-Options": "SAMEORIGIN",
                                          "Cache-Control": "no-store"})
 
@@ -505,7 +555,8 @@ async def notfall_anhang_ansehen(postfach: str, id: str, nr: int, benutzer: str 
         raise HTTPException(415, "Für diesen Anhang gibt es keine Vorschau.")
     return Response(daten, media_type=typ, headers={
         "Content-Disposition": f"inline; filename*=UTF-8''{quote(name)}",
-        "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'",
+        "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; "
+                                   + frame_ancestors(),
         "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
 
 

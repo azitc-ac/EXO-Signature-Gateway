@@ -2409,7 +2409,7 @@ async function saveKeyvault() {
           {% elif k.zustand == 'ok' %}
             <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">⚠ Im Teams-Katalog: Fassung {{ k.version }}, das Paket hat {{ teams_app.version }}.</span>
             <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
-              <button type="button" class="btn secondary btn-sm" id="teams-katalog-btn" onclick="teamsKatalogAktualisieren(this)">Im Teams-Katalog aktualisieren</button>
+              <button type="button" class="btn secondary btn-sm" id="teams-katalog-btn" onclick="teamsKatalogAktualisieren(this, 'signatur', 'teams-katalog-result', 'teams-katalog-einfuegen', 'teams-app-schalter')">Im Teams-Katalog aktualisieren</button>
               <span class="hint">Anmeldung mit einem Konto mit aktiver Rolle Teams-Administrator oder höher (bei PIM vorher aktivieren). Beim ersten Mal fragt Microsoft die Zustimmung zu „Read and write to all app catalogs“ ab.</span>
             </span>
             <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="teams-katalog-result" hidden></span>
@@ -2613,37 +2613,6 @@ async function autoAusnahmeErgaenzen(btn) {
   setTimeout(function () { location.reload(); }, 1200);
 }
 
-// Neue Fassung der Teams-App in den Katalog: Admin-Anmeldung (AppCatalog.ReadWrite.All,
-// delegiert), danach lädt das Gateway das Paket hoch und liest die Fassung neu.
-var _teamsKatalogWartet = false;
-async function teamsKatalogAktualisieren(btn) {
-  var einfuegen = false;
-  var r = await knopfAktion(btn, 'Öffne Login…', () => anmeldeFenster(async function () {
-    var d = await getJSON('/api/setup/teams-katalog/aktualisieren');
-    if (!d.ok) throw new Error(errText(d));
-    einfuegen = !!d.einfuegen;
-    return d.auth_url;
-  }, 'teams-katalog-login', true));
-  if (!r.ok) { showMsg('teams-katalog-result', '✗ ' + r.fehler, false); return; }
-  _teamsKatalogWartet = true;
-  showMsg('teams-katalog-result', 'Admin-Anmeldung im neuen Fenster…', true);
-  if (einfuegen) anmeldeAdresseEinfuegen('teams-katalog-einfuegen', 'teams-katalog');
-}
-window.addEventListener('message', function (ev) {
-  if (ev.origin !== window.location.origin || !ev.data || !_teamsKatalogWartet) return;
-  if (ev.data.type === 'teams-katalog-done') {
-    _teamsKatalogWartet = false;
-    showMsg('teams-katalog-result', '✓ Im Katalog aktualisiert — die Seite lädt neu', true);
-    location.hash = 'teams-app-schalter';
-    setTimeout(function () { location.reload(); }, 1500);
-  } else if (ev.data.type === 'teams-katalog-fail') {
-    _teamsKatalogWartet = false;
-    showMsg('teams-katalog-result', '✗ ' + (ev.data.msg || 'Aktualisieren fehlgeschlagen'), false);
-  } else if (ev.data.type === 'anmeldung-abgelaufen') {
-    _teamsKatalogWartet = false;
-    showMsg('teams-katalog-result', '✗ Anmeldung abgelaufen, nichts hochgeladen — bitte erneut', false);
-  }
-});
 
 function copyManifestUrl(url, okId) {
   navigator.clipboard.writeText(url).then(function() {

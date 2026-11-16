@@ -287,14 +287,82 @@ def teams_app_paket(base: str) -> tuple[bytes, dict]:
     """Das App-Paket (ZIP) und sein Manifest — EINE Quelle für den Download und
     für „Im Teams-Katalog aktualisieren“ (anmeldung.nachlauf), damit in den
     Katalog genau das geht, was der Download liefert."""
-    import io, zipfile
     m = _teams_manifest(base)
+    return _paket(m), m
+
+
+def _notfall_teams_manifest(base: str) -> dict:
+    """Teams-App „Notfall-Mail“ (Schema 1.17): ein persönlicher Reiter auf
+    /notfall — die Alternative zur Edge-App (WebAppInstallForceList), eigene
+    Kennung und eigenes Paket, unabhängig von der Self-Service-App.
+
+    Ehrlich begrenzt: Sie braucht Teams und damit die Microsoft-Anmeldung.
+    Bei einem breiten Ausfall von Microsoft 365/Entra startet sie nicht —
+    die Edge-App hängt an nichts davon (Text auf der Notbetrieb-Seite).
+
+    Fassung wie beim Self-Service-Paket: steigt nur bei inhaltlicher Änderung
+    (_manifest_version, eigener Stand `_TEAMS_NOTFALL_STAND`)."""
+    import html as _html
+    hostname = base.split("://")[-1].split(":")[0].split("/")[0]
+    anbieter = _html.unescape(_manifest_texte()["anbieter"])
+    m = {
+        "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+        "manifestVersion": "1.17",
+        "version": "__VERSION__",
+        "id": notfall_teams_id(hostname),
+        "developer": {"name": anbieter[:32], "websiteUrl": base,
+                      "privacyUrl": rechtstext_url("SELF_DATENSCHUTZ_URL", base, "datenschutz"),
+                      "termsOfUseUrl": rechtstext_url("SELF_NUTZUNGSBEDINGUNGEN_URL", base, "nutzung")},
+        "name": {"short": "Notfall-Mail", "full": f"Notfall-Mail – {anbieter}"[:100]},
+        "description": {"short": "Deine Post, wenn Exchange Online ausfällt",
+                        "full": ("Fällt Exchange Online aus, liest und schreibst du hier weiter — mit "
+                                 "deinem Windows-Kennwort und einem zweiten Faktor. Im Normalbetrieb "
+                                 "richtest du hier deinen Notfall-Zugang ein. Bereitgestellt von "
+                                 f"{anbieter}.")[:4000]},
+        "icons": {"color": "color.png", "outline": "outline.png"},
+        "accentColor": "#0F172A",
+        "staticTabs": [{
+            "entityId": "notfallmail",
+            "name": "Notfall-Mail",
+            "contentUrl": f"{base}/notfall?host=teams",
+            "websiteUrl": f"{base}/notfall",
+            "scopes": ["personal"],
+        }],
+        "validDomains": [hostname],
+    }
+    roh = _json_mod.dumps(m, ensure_ascii=False, sort_keys=True)
+    m["version"] = _manifest_version(_ohne_adresse(roh, base, hostname, m["id"]),
+                                     "_TEAMS_NOTFALL_STAND", stellen=3, ohne_abdruck_veraltet=True)
+    return m
+
+
+def notfall_teams_id(hostname: str) -> str:
+    """Kennung der Teams-App „Notfall-Mail“ — aus dem Hostnamen, stabil über
+    Neustarts, verschieden von der Self-Service-App."""
+    return str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"exo-notfall-mail.{hostname}"))
+
+
+def _paket(m: dict) -> bytes:
+    import io, zipfile
     puffer = io.BytesIO()
     with zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("manifest.json", _json_mod.dumps(m, ensure_ascii=False, indent=2))
         z.writestr("color.png", _symbol_png(192))
         z.writestr("outline.png", _umriss_png(32))
-    return puffer.getvalue(), m
+    return puffer.getvalue()
+
+
+def notfall_teams_paket(base: str) -> tuple[bytes, dict]:
+    """Paket der Teams-App „Notfall-Mail“ — EINE Quelle für Download und Katalog."""
+    m = _notfall_teams_manifest(base)
+    return _paket(m), m
+
+
+# Die Teams-Pakete, die „Im Teams-Katalog aktualisieren“ hochladen kann —
+# anmeldung.nachlauf wählt per Schlüssel, damit es EINEN Ablauf gibt. Als
+# lambda: spät gebunden, ein Test kann die Funktionen ersetzen.
+TEAMS_PAKETE = {"signatur": lambda base: teams_app_paket(base),
+                "notfall": lambda base: notfall_teams_paket(base)}
 
 
 @router.get("/addin/teams-app.zip")

@@ -1888,3 +1888,99 @@ def test_notfall_antwort_zeigt_zitat_statt_textzitat(browser, server, monkeypatc
     teil, rumpf = next(x for x in pg.gesendet if x[0] == "senden")
     assert (rumpf["bezug"], rumpf["art"], rumpf["bezug_postfach"]) == ("m2", "antwort", "max@firma.at")
     pg.context.close()
+
+
+# ── Roter Faden: „Dein Notfall-Zugang“ statt Anmeldemaske ────────────────────
+
+_FAKTOR_NUR_APP = {"ok": True, "postfach": "max@firma.at", "aktiv": True, "totp": True, "seit": "2026-11-01",
+                   "passkeys": [], "codes_uebrig": 8, "gesperrt": False, "webmail": False}
+
+
+def _notfall_start(browser, server, monkeypatch, faktor, ausgerufen=False, pfad="/notfall", breite=1100):
+    """Nicht angemeldet (/api/ich 401); `faktor` = Antwort von /api/faktor
+    (None = keine frische Microsoft-Anmeldung, 401)."""
+    import json as _json
+    import notbetrieb
+
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    monkeypatch.setattr(notbetrieb, "ausgerufen", lambda: ausgerufen)
+    ctx = browser.new_context(viewport={"width": breite, "height": 900})
+
+    def api(route):
+        teil = route.request.url.split("/notfall/api/")[1].split("?")[0]
+        if teil == "faktor" and faktor is not None:
+            route.fulfill(status=200, content_type="application/json", body=_json.dumps(faktor))
+            return
+        route.fulfill(status=401, content_type="application/json", body='{"detail": "Nicht angemeldet."}')
+
+    ctx.route("**/notfall/api/**", api)
+    pg = ctx.new_page()
+    pg.goto(f"{server}{pfad}", wait_until="domcontentloaded", timeout=30000)
+    pg.wait_for_timeout(600)
+    return pg
+
+
+def _sichtbar(pg, sel):
+    return pg.eval_on_selector(sel, "e => !e.closest('[hidden]') && e.offsetParent !== null")
+
+
+def test_notfall_normalbetrieb_startet_beim_zugang(browser, server, monkeypatch):
+    pg = _notfall_start(browser, server, monkeypatch, faktor=None)
+    assert _sichtbar(pg, "#einrichten") and not _sichtbar(pg, "#anmeldung")
+    assert pg.inner_text("#einrichten h1") == "Dein Notfall-Zugang"
+    assert "/auth/login/microsoft?next=/notfall/einrichten" in pg.get_attribute("#ein-anmelden a", "href")
+    # Anmeldung ausprobieren: ohne Sitzung zur Anmeldemaske, mit Weg zurück.
+    pg.click("#ein-weiter")
+    assert _sichtbar(pg, "#anmeldung") and not _sichtbar(pg, "#einrichten")
+    assert pg.inner_text("#anmeldung h1") == "Notfall-Anmeldung"
+    assert _sichtbar(pg, "#zum-zugang")
+    pg.context.close()
+
+
+def test_notfall_zugang_nur_app_schlaegt_passkey_vor(browser, server, monkeypatch):
+    pg = _notfall_start(browser, server, monkeypatch, faktor=_FAKTOR_NUR_APP)
+    stand = pg.locator("#ein-zustand")
+    assert stand.inner_text().startswith("Bereit ✓") and stand.get_attribute("data-zustand") == "bereit"
+    assert "Authenticator-App" in stand.inner_text() and "8 Wiederherstellungscodes" in stand.inner_text()
+    assert _sichtbar(pg, "#ein-pk-hinweis") and pg.inner_text("#ein-pk-hinweis").startswith("Tipp")
+    assert pg.inner_text("#ein-weiter") == "Notfall-Anmeldung ausprobieren"
+    pg.context.close()
+
+
+def test_notfall_zugang_offen_und_weiter_zur_post(browser, server, monkeypatch):
+    offen = _FAKTOR_NUR_APP | {"aktiv": False, "totp": False, "codes_uebrig": 0, "webmail": True}
+    pg = _notfall_start(browser, server, monkeypatch, faktor=offen, breite=393)
+    assert pg.get_attribute("#ein-zustand", "data-zustand") == "offen"
+    assert pg.inner_text("#ein-zustand").startswith("Noch nicht eingerichtet")
+    assert not _sichtbar(pg, "#ein-pk-hinweis")            # kein „Tipp“ ohne Faktor
+    assert pg.inner_text("#ein-weiter") == "Weiter zur Post"
+    assert pg.evaluate("document.documentElement.scrollWidth") <= 393
+    pg.context.close()
+
+
+def test_notfall_ausgerufen_startet_bei_der_anmeldung(browser, server, monkeypatch):
+    pg = _notfall_start(browser, server, monkeypatch, faktor=None, ausgerufen=True)
+    assert _sichtbar(pg, "#anmeldung") and not _sichtbar(pg, "#einrichten")
+    assert pg.inner_text("#anmeldung h1") == "Anmelden"
+    # /notfall/einrichten zeigt auch im Notfall den Zugang (alte Links, Konto-Menü).
+    pg.goto(pg.url.split("/notfall")[0] + "/notfall/einrichten", wait_until="domcontentloaded")
+    pg.wait_for_timeout(600)
+    assert _sichtbar(pg, "#einrichten")
+    pg.context.close()
+
+
+def test_notfall_im_teams_reiter_richtet_im_browser_ein(browser, server, monkeypatch):
+    pg = _notfall_start(browser, server, monkeypatch, faktor=None, pfad="/notfall?host=teams")
+    link = pg.locator("#ein-anmelden a")
+    assert link.inner_text() == "Im Browser einrichten"
+    assert link.get_attribute("target") == "_blank" and link.get_attribute("data-extern") is not None
+    assert "login.microsoftonline" not in (link.get_attribute("href") or "")
+    pg.context.close()
+
+
+def test_webmail_hat_konto_menue(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300)
+    assert _sichtbar(pg, "#konto-link")
+    assert pg.get_attribute("#konto-link", "href") == "/notfall/einrichten"
+    assert pg.inner_text("#konto-link") == "Anmeldung & Sicherheit"
+    pg.context.close()

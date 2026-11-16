@@ -321,15 +321,16 @@
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Webmail auf die Geräte bringen</h2>
   <p class="hint" style="margin-top:0">
-    Im Notfall installiert niemand mehr etwas — bring die Notfall-Mail vorher auf die Geräte. Verteile immer
-    diesen Link, Passkeys gelten nur für den Namen, unter dem sie eingerichtet wurden:
-    <code>{{ webmail_url }}</code>. Sie öffnet sich dann als eigene App ohne Browserleiste und hängt nicht an
-    Microsoft 365.
+    Im Notfall installiert niemand mehr etwas — bring die Notfall-Mail vorher auf die Geräte.
+    <strong>Die Nutzer öffnen die App und werden geführt:</strong> Im Normalbetrieb zeigt sie „Dein
+    Notfall-Zugang“ — Microsoft-Anmeldung, dann Passkey oder Authenticator-App einrichten. Im ausgerufenen
+    Notfall zeigt sie zuerst die Anmeldung. Niemand braucht eine Adresse. Verteile immer diese, Passkeys gelten
+    nur für den Namen, unter dem sie eingerichtet wurden: <code>{{ webmail_url }}</code>.
   </p>
   <p class="hint" id="nb-faktor-abdeckung">
     Zweiter Faktor: <strong>{{ faktor_abdeckung.eingerichtet }} von {{ faktor_abdeckung.nutzer }}</strong>
     Benutzerpostfächern eingerichtet{% if faktor_abdeckung.nutzer and faktor_abdeckung.eingerichtet < faktor_abdeckung.nutzer %}
-    — die übrigen richten ihn unter <code>{{ webmail_url }}/einrichten</code> ein, solange die Microsoft-Anmeldung
+    — die übrigen öffnen die App und werden zur Einrichtung geführt, solange die Microsoft-Anmeldung
     geht{% endif %}.{% if not zweitfaktor.pflicht %} Er ist derzeit nicht vorgeschrieben.{% endif %}
   </p>
 
@@ -355,7 +356,47 @@
     Intune: <em>Geräte → Konfiguration → Erstellen → Einstellungskatalog</em>, Kategorie <em>Microsoft Edge</em>,
     Einstellung <em>Configure list of force-installed Web Apps</em>, Wert wie oben.
     Ohne Richtlinie: In Edge auf das App-Symbol in der Adressleiste → „Installieren“.
+    Die Edge-App hängt an nichts von Microsoft 365 — sie ist der robuste Weg.
   </p>
+
+  <h3 id="nb-teams-app">Teams (Alternative zur Edge-App)</h3>
+  <p class="hint" style="margin-top:0">
+    Die Teams-App „Notfall-Mail“ zeigt dieselbe Seite als Reiter in Teams — bequem im Alltag und bei einem
+    Ausfall nur von Exchange Online. Sie braucht aber Teams und damit die Microsoft-Anmeldung: Fällt
+    Microsoft 365 oder Entra breiter aus, startet sie nicht. Verteile deshalb beide. Den zweiten Faktor
+    richten die Nutzer aus dem Reiter heraus im Browser ein — die Microsoft-Anmeldung lässt sich in Teams nicht
+    einbetten.
+  </p>
+  {% if teams_notfall %}
+  <p class="hint">
+    <a class="btn secondary btn-sm" href="/notbetrieb/notfall-teams-app.zip">Paket herunterladen</a>
+    Fassung {{ teams_notfall.version }}{% if teams_notfall.seit %} · seit {{ teams_notfall.seit }}{% endif %}.
+    Erstes Hochladen: Teams Admin Center → <em>Teams-Apps → Apps verwalten → Hochladen</em> oder
+    <em>Integrierte Apps</em>, dann zuweisen.
+  </p>
+  {% set k = teams_notfall.katalog %}
+  <p style="margin:0 0 8px;font-size:12.5px">
+  {% if k.zustand == 'ok' and k.aktuell %}
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fertig" id="nb-teams-katalog-stand">✓ Im Teams-Katalog: Fassung {{ k.version }}, aktuell</span>
+  {% elif k.zustand == 'ok' %}
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="nb-teams-katalog-stand">⚠ Im Teams-Katalog: Fassung {{ k.version }}, das Paket hat {{ teams_notfall.version }}.</span>
+    <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <button type="button" class="btn secondary btn-sm" id="nb-teams-katalog-btn" onclick="teamsKatalogAktualisieren(this, 'notfall', 'nb-teams-katalog-result', 'nb-teams-katalog-einfuegen', 'nb-teams-app')">Im Teams-Katalog aktualisieren</button>
+      <span class="hint">Anmeldung mit einem Konto mit aktiver Rolle Teams-Administrator oder höher (bei PIM vorher aktivieren).</span>
+    </span>
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="nb-teams-katalog-result" hidden></span>
+    <span id="nb-teams-katalog-einfuegen" style="display:block" hidden></span>
+  {% elif k.zustand == 'nicht_gefunden' %}
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="nb-teams-katalog-stand">Noch nicht im Teams-Katalog.</span>
+  {% elif k.zustand == 'recht_fehlt' %}
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="nb-teams-katalog-stand">Fassung im Teams-Katalog nicht lesbar: <code>AppCatalog.Read.All</code> fehlt — unter Einrichtung erteilen.</span>
+  {% else %}
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fehler" id="nb-teams-katalog-stand">✗ Teams-Katalog nicht abgefragt (Graph-Fehler, siehe Protokoll).</span>
+  {% endif %}
+  </p>
+  {% else %}
+  <p class="hint">Für das Paket fehlt die Außenadresse des Gateways (Einrichtung → Außenadresse).</p>
+  {% endif %}
 
   <h3>Handys und Tablets</h3>
   <p class="hint" style="margin-top:0">

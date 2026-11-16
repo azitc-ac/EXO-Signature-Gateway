@@ -13,6 +13,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Notfall-Mail">
 <script src="/static/common.js?v={{ version }}"></script>
+{% if im_teams %}
+<script src="{{ teamsjs_url }}" integrity="{{ teamsjs_sri }}" crossorigin="anonymous"></script>
+{% endif %}
 <style>
 /* Eigenständige Seite für alle Mitarbeiter (nicht die Admin-Oberfläche):
    eigene Farbvariablen, Dunkelmodus über prefers-color-scheme. */
@@ -42,6 +45,13 @@ header .rechts { margin-left: auto; display: flex; gap: 10px; align-items: cente
 header button, header select { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); }
 header select option { color: #1e293b; background: #fff; }
 header .wer { color: #e2e8f0; }
+header a.konto { color: #fff; border: 1px solid rgba(255,255,255,.45); border-radius: 6px; padding: 5px 12px;
+                 text-decoration: none; }
+/* „Dein Notfall-Zugang“: Stand in einem Satz, der Zustand trägt die Farbe. */
+.stand { margin: 0 0 10px; padding: 8px 10px; border-radius: 6px; background: var(--bg); }
+.stand[data-zustand="bereit"] { background: var(--wahl); }
+.stand[data-zustand="offen"] { background: var(--warn-bg); color: var(--warn); }
+.weiter { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--rand); }
 /* Vorschau im Normalbetrieb: eigene Zeile im Kopf, damit niemand die Kopie für das Postfach hält. */
 header .vorschau { flex-basis: 100%; font-size: 12px; color: #e2e8f0; }
 button, select, input { font: inherit; color: inherit; }
@@ -62,8 +72,9 @@ mark { background: var(--treffer); color: var(--treffer-text); border-radius: 2p
 .passkeys { margin: 6px 0; }
 .passkey { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0;
            border-bottom: 1px solid var(--rand); font-size: 13px; }
-a.knopf { display: inline-block; text-decoration: none; border-radius: 6px; padding: 6px 14px; }
-a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
+a.knopf { display: inline-block; text-decoration: none; border-radius: 6px; padding: 5px 12px;
+          border: 1px solid var(--rand); color: var(--text); background: var(--flaeche); }
+a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); border-color: var(--akzent); }
 .meldung { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--fehler-bg); color: var(--fehler); }
 .meldung[hidden] { display: none; }
 /* Ordner- und Listenbreite verschiebbar (Trenner dazwischen), gemerkt je Browser. */
@@ -187,15 +198,22 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
     <span id="ich" class="wer"></span>
     <button id="glocke" onclick="hinweiseErlauben()" title="Bei neuer Post benachrichtigen"
             aria-label="Bei neuer Post benachrichtigen" hidden>🔔</button>
+    <a class="konto" id="konto-link" href="/notfall/einrichten"{% if im_teams %} target="_blank" rel="noopener" data-extern{% endif %}>Anmeldung &amp; Sicherheit</a>
     <button onclick="abmelden()">Abmelden</button>
   </span>
   <span class="vorschau" id="vorschau" hidden></span>
 </header>
 
 <section class="anmeldung" id="anmeldung" hidden>
+  {% if ausgerufen %}
   <h1>Anmelden</h1>
   <p class="leise" style="margin:0">Exchange Online ist gestört. Hier liest du deine Post der letzten Tage weiter —
     mit deinem gewohnten Windows-Kennwort.</p>
+  {% else %}
+  <h1>Notfall-Anmeldung</h1>
+  <p class="leise" style="margin:0">So meldest du dich an, wenn Exchange Online ausfällt: mit deinem gewohnten
+    Windows-Kennwort und deinem zweiten Faktor.</p>
+  {% endif %}
   {% if not eingerichtet %}
   <div class="meldung">Die Anmeldung ist noch nicht eingerichtet. Wende dich an die IT.</div>
   {% endif %}
@@ -207,6 +225,11 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
     <div style="margin-top:14px"><button class="haupt" id="anmelde-knopf" type="submit">Anmelden</button></div>
   </form>
   <div class="meldung" id="anmelde-meldung" hidden></div>
+  {% if ausgerufen %}
+  <p class="leise" style="margin:14px 0 0"><a href="/notfall/einrichten" id="zum-zugang"{% if im_teams %} target="_blank" rel="noopener" data-extern{% endif %}>Zweiten Faktor einrichten (braucht die Microsoft-Anmeldung)</a></p>
+  {% else %}
+  <p class="leise" style="margin:14px 0 0"><a href="/notfall{% if im_teams %}?host=teams{% endif %}" id="zum-zugang">← Dein Notfall-Zugang</a></p>
+  {% endif %}
 </section>
 
 <section class="anmeldung" id="faktor" hidden>
@@ -227,17 +250,25 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
 </section>
 
 <section class="anmeldung" id="einrichten" hidden>
-  <h1>Zweiter Faktor für den Notfall-Zugang</h1>
-  <p class="leise" style="margin:0 0 10px">Im Notfall meldest du dich hier mit deinem Windows-Kennwort an und
-    bestätigst mit einem Passkey (Fingerabdruck, Gesicht, Windows Hello) oder einem Code aus einer
-    Authenticator-App. Eingerichtet wird jetzt, solange die Microsoft-Anmeldung funktioniert.</p>
+  <h1>Dein Notfall-Zugang</h1>
+  <p class="leise" style="margin:0 0 10px">Fällt Exchange Online aus, liest und schreibst du hier weiter. Du meldest
+    dich dann mit deinem Windows-Kennwort an und bestätigst mit einem Passkey (Fingerabdruck, Gesicht,
+    Windows Hello) oder einem Code aus einer Authenticator-App. Eingerichtet wird jetzt, solange die
+    Microsoft-Anmeldung funktioniert.</p>
   <div id="ein-anmelden" hidden>
-    <p style="margin:0 0 10px">Bestätige dafür zuerst mit deiner Microsoft-Anmeldung, dass du es bist
+    {% if im_teams %}
+    <p style="margin:0 0 10px">Einrichten geht im Browser: Die Microsoft-Anmeldung lässt sich in Teams nicht
+      einbetten.</p>
+    <a class="knopf haupt" href="/notfall/einrichten" target="_blank" rel="noopener" data-extern>Im Browser einrichten</a>
+    {% else %}
+    <p style="margin:0 0 10px">Melde dich dafür mit deinem Microsoft-Konto an — meist geht das ohne Eingabe
       (gilt {{ frisch_min }} Minuten).</p>
     <a class="knopf haupt" href="/auth/login/microsoft?next=/notfall/einrichten">Mit Microsoft anmelden</a>
+    {% endif %}
   </div>
   <div id="ein-stand" hidden>
-    <p style="margin:0 0 10px">Angemeldet als <strong id="ein-wer"></strong>. <span id="ein-zustand"></span></p>
+    <p class="stand" id="ein-zustand"></p>
+    <p class="leise" style="margin:0 0 10px">Angemeldet als <strong id="ein-wer"></strong>.</p>
     <div id="ein-passkeys"></div>
     <div class="knoepfe">
       <button class="haupt" id="ein-pk" onclick="passkeyEinrichten()" hidden>Passkey auf diesem Gerät einrichten</button>
@@ -258,9 +289,13 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
   <div id="ein-fertig" hidden>
     <div class="ok" style="margin:10px 0" id="ein-fertig-text"></div>
     <pre id="ein-liste" class="codes"></pre>
-    <p class="leise">Testen kannst du die Anmeldung unter <a href="/notfall">/notfall</a>.</p>
   </div>
   <div class="meldung" id="ein-meldung" hidden></div>
+  <div class="weiter">
+    <p class="leise" style="margin:0 0 8px" id="ein-weiter-text">Ist alles eingerichtet, probier die
+      Notfall-Anmeldung einmal aus.</p>
+    <button id="ein-weiter" onclick="weiter()">Notfall-Anmeldung ausprobieren</button>
+  </div>
 </section>
 
 <section class="anmeldung" id="bereit" hidden>
@@ -268,7 +303,10 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
   <p style="margin:0 0 8px">Dein Notfall-Zugang ist eingerichtet. Solange Exchange Online läuft, arbeitest du wie
     gewohnt — fällt es aus, findest du hier deine Post der letzten Tage, Termine und Kontakte.</p>
   <p class="leise" id="bereit-stand" style="margin:0 0 12px"></p>
-  <button onclick="abmelden()">Abmelden</button>
+  <div class="knoepfe">
+    <a class="knopf" href="/notfall/einrichten"{% if im_teams %} target="_blank" rel="noopener" data-extern{% endif %}>Anmeldung &amp; Sicherheit</a>
+    <button onclick="abmelden()">Abmelden</button>
+  </div>
 </section>
 
 <main id="app" hidden data-ansicht="liste">
@@ -310,6 +348,22 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
 
 <script>
 let nb = {postfach: '', ordner: '', zugriff: [], absender: [], mail: null};
+// Lage der Seite (vom Server): Notfall ausgerufen? Als Teams-Reiter geöffnet?
+const AUSGERUFEN = {{ 'true' if ausgerufen else 'false' }};
+const IM_TEAMS = {{ 'true' if im_teams else 'false' }};
+
+// Teams-Reiter: Links mit data-extern (Einrichten, Konto) gehen über Teams in
+// den Browser — die Microsoft-Anmeldung lässt sich im Reiter nicht einbetten.
+// Antwortet TeamsJS nicht, bleibt es beim gewöhnlichen Link (target=_blank).
+if (IM_TEAMS && window.microsoftTeams) {
+  microsoftTeams.app.initialize().then(() => { nb.teamsOk = true; }, () => { nb.teamsOk = false; });
+}
+document.addEventListener('click', ev => {
+  const a = ev.target.closest ? ev.target.closest('a[data-extern]') : null;
+  if (!a || !nb.teamsOk) return;
+  ev.preventDefault();
+  microsoftTeams.app.openLink(a.href).catch(() => { location.href = a.href; });
+});
 
 // ── Barrierefreiheit an EINER Stelle ───────────────────────────────────────
 // Einträge (Mails, Ordner, Postfächer, Termine, Kontakte, Entwürfe) werden an
@@ -339,9 +393,11 @@ function datumKurz(iso) {
 }
 function q(params) { return Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&'); }
 
+// Der rote Faden: Wer nicht angemeldet ist, landet im Normalbetrieb bei
+// „Dein Notfall-Zugang“, im ausgerufenen Notfall bei der Anmeldung.
 async function start() {
   const d = await getJSON('/notfall/api/ich');
-  if (!d.ok) { document.getElementById('anmeldung').hidden = false; return; }
+  if (!d.ok) { if (AUSGERUFEN) anmeldungZeigen(); else einrichtenStart(); return; }
   if (d.bereit_modus) {
     document.getElementById('bereit-stand').textContent = d.letzter_abgleich
       ? 'Kopie zuletzt aktualisiert: ' + new Date(d.letzter_abgleich).toLocaleString('de-DE') : '';
@@ -366,11 +422,25 @@ async function start() {
   postfachWaehlen(d.zugriff[0].postfach);
 }
 
+function anmeldungZeigen() {
+  document.getElementById('einrichten').hidden = true;
+  document.getElementById('anmeldung').hidden = false;
+  document.getElementById('name').focus();
+}
+
+// Vom Zugang weiter: Läuft schon eine Sitzung, direkt zur Post, sonst anmelden.
+async function weiter() {
+  const d = await getJSON('/notfall/api/ich');
+  if (!d.ok) { anmeldungZeigen(); return; }
+  document.getElementById('einrichten').hidden = true;
+  start().then(kopfhoeheMerken);
+}
+
 async function anmelden(ev) {
   ev.preventDefault();
   const kw = document.getElementById('kennwort');
   const d = await knopfAktion('anmelde-knopf', 'Prüfe…', () =>
-    postJSON('/notfall/anmelden', {benutzer: feldWert('name'), passwort: kw.value}));
+    postJSON('/notfall/anmelden', {benutzer: feldWert('name'), passwort: kw.value, rahmen: IM_TEAMS}));
   kw.value = '';
   if (d.ok && d.faktor) {
     nb.vorgang = d.vorgang;
@@ -388,7 +458,8 @@ async function anmelden(ev) {
   if (d.ok) { document.getElementById('anmeldung').hidden = true; start().then(kopfhoeheMerken); return; }
   const m = document.getElementById('anmelde-meldung');
   m.innerHTML = esc(errText(d)) + (d.einrichten
-    ? ' <a href="/notfall/einrichten">Jetzt einrichten</a>' : '');
+    ? ' <a href="/notfall/einrichten"' + (IM_TEAMS ? ' target="_blank" rel="noopener" data-extern' : '')
+      + '>Jetzt einrichten</a>' : '');
   m.hidden = false;
 }
 
@@ -397,7 +468,7 @@ async function faktorSenden(ev) {
   if (nb.pkAbbruch) nb.pkAbbruch.abort();
   const feld = document.getElementById('faktor-code');
   const d = await knopfAktion('faktor-knopf', 'Prüfe…', () =>
-    postJSON('/notfall/anmelden/faktor', {vorgang: nb.vorgang, code: feld.value}));
+    postJSON('/notfall/anmelden/faktor', {vorgang: nb.vorgang, code: feld.value, rahmen: IM_TEAMS}));
   feld.value = '';
   if (d.ok) { document.getElementById('faktor').hidden = true; start().then(kopfhoeheMerken); return; }
   if (d.neu) { location.reload(); return; }
@@ -454,7 +525,7 @@ async function passkeyAnmelden() {
     nb.pkAbbruch = new AbortController();
     try { c = await navigator.credentials.get({publicKey: pkOptionen(o.optionen), signal: nb.pkAbbruch.signal}); }
     catch (e) { return {ok: false, still: pkAbgebrochen(e), error: 'Passkey nicht verfügbar: ' + e.message}; }
-    return postJSON('/notfall/anmelden/passkey', {vorgang: nb.vorgang, antwort: pkAntwort(c)});
+    return postJSON('/notfall/anmelden/passkey', {vorgang: nb.vorgang, antwort: pkAntwort(c), rahmen: IM_TEAMS});
   });
   if (d.ok) { document.getElementById('faktor').hidden = true; start().then(kopfhoeheMerken); return; }
   if (d.neu) { location.reload(); return; }
@@ -475,11 +546,14 @@ async function einrichtenStart() {
     einMeldung(errText(d)); return;
   }
   document.getElementById('ein-wer').textContent = d.postfach;
-  document.getElementById('ein-zustand').textContent = d.gesperrt
-    ? 'Dein zweiter Faktor ist nach Fehlversuchen gesperrt — richte ihn neu ein.'
-    : d.aktiv ? (d.totp ? 'Authenticator-App eingerichtet seit ' + new Date(d.seit).toLocaleDateString('de-DE') + '. '
-                        : 'Keine Authenticator-App. ')
-      + 'Noch ' + d.codes_uebrig + ' Wiederherstellungscodes.' : 'Noch kein zweiter Faktor eingerichtet.';
+  const stand = document.getElementById('ein-zustand');
+  stand.textContent = zugangStand(d);
+  stand.dataset.zustand = d.aktiv && !d.gesperrt ? 'bereit' : 'offen';
+  // Weiter: Wer schon lesen darf (Probegruppe, Lesen für alle), kommt zur Post.
+  document.getElementById('ein-weiter').textContent = d.webmail ? 'Weiter zur Post' : 'Notfall-Anmeldung ausprobieren';
+  document.getElementById('ein-weiter-text').textContent = d.webmail
+    ? 'Die Kopie deiner Post kannst du schon jetzt lesen — angemeldet wird mit Windows-Kennwort und Faktor.'
+    : 'Ist alles eingerichtet, probier die Notfall-Anmeldung einmal aus.';
   // Als Blöcke, nicht als Tabelle: Die Karte ist schmal (~380 px), eine
   // Tabelle schnitt „Entfernen“ selbst am Desktop ab (Klicktest). Der Name
   // des Gateways steht nur, wenn er von dieser Seite abweicht.
@@ -492,11 +566,26 @@ async function einrichtenStart() {
         .join('') + '</div>' : '';
   const pk = document.getElementById('ein-pk'), hinweis = document.getElementById('ein-pk-hinweis');
   pk.hidden = !pkMoeglich();
-  hinweis.hidden = pkMoeglich();
-  hinweis.textContent = 'Dieser Browser kann keine Passkeys — nimm die Authenticator-App.';
+  pk.textContent = d.passkeys.length ? 'Weiteren Passkey auf diesem Gerät' : 'Passkey auf diesem Gerät einrichten';
+  // Nur die App: Passkey vorschlagen — er ist schneller (kein Code abtippen).
+  const nurApp = d.aktiv && d.totp && !d.passkeys.length;
+  hinweis.hidden = pkMoeglich() && !nurApp;
+  hinweis.textContent = !pkMoeglich() ? 'Dieser Browser kann keine Passkeys — nimm die Authenticator-App.'
+    : 'Tipp: Füge einen Passkey hinzu — die Anmeldung geht damit schneller, ohne Code abzutippen.';
   document.getElementById('ein-beginnen').textContent = d.totp ? 'Neues Telefon für die App' : 'Authenticator-App einrichten';
   document.getElementById('ein-codes').hidden = !d.aktiv || d.gesperrt;
   document.getElementById('ein-stand').hidden = false;
+}
+
+// Stand in einem Satz: was eingerichtet ist und was fehlt.
+function zugangStand(d) {
+  if (d.gesperrt) return 'Gesperrt nach Fehlversuchen — richte deinen zweiten Faktor neu ein.';
+  if (!d.aktiv) return 'Noch nicht eingerichtet — richte jetzt einen Passkey ein, oder die Authenticator-App.';
+  const teile = [];
+  if (d.passkeys.length) teile.push(d.passkeys.length === 1 ? '1 Passkey' : d.passkeys.length + ' Passkeys');
+  if (d.totp) teile.push('Authenticator-App');
+  teile.push(d.codes_uebrig === 1 ? '1 Wiederherstellungscode' : d.codes_uebrig + ' Wiederherstellungscodes');
+  return 'Bereit ✓ — ' + teile.join(', ') + '.';
 }
 
 function geraeteName() {
