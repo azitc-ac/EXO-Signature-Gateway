@@ -1890,6 +1890,81 @@ def test_notfall_antwort_zeigt_zitat_statt_textzitat(browser, server, monkeypatc
     pg.context.close()
 
 
+# ── Webmail-Layout: Befehlsleiste, Gruppen, Initialen ───────────────────────
+
+_SENDER = {"ich": {"ok": True, "benutzer": "max@firma.at", "senden": True, "sendeweg": "notfall",
+                   "zugriff": [{"postfach": "max@firma.at", "eigen": True}],
+                   "absender": [{"postfach": "max@firma.at", "recht": "eigen"}]}}
+
+
+def test_notfall_befehlsleiste_loescht_nur_die_geoeffnete_mail(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300, zusatz=_SENDER)
+    assert _sichtbar(pg, "#befehle")
+    # Ohne geöffnete Mail gibt es nichts zu löschen oder zu verschieben.
+    assert pg.is_disabled("#b-loeschen") and pg.is_disabled("#b-verschieben")
+    pg.click('#liste .eintrag[data-id="m2"]')
+    pg.wait_for_selector("#lesen .mailansicht")
+    assert not pg.is_disabled("#b-loeschen") and not pg.is_disabled("#b-verschieben")
+    # Die Antwort-Symbole sitzen am Absender der Mail.
+    assert pg.locator('#lesen .symbole button[title="Antworten"]').count() == 1
+    pg.click("#b-loeschen")
+    pg.wait_for_function("() => !document.querySelector('#lesen .mailansicht')")
+    teil, rumpf = next(x for x in pg.gesendet if x[0] == "verschieben")
+    assert (rumpf["id"], rumpf["ziel"]) == ("m2", "deleteditems")
+    # Mail weg: wieder gesperrt.
+    pg.wait_for_function("() => document.getElementById('b-loeschen').disabled")
+    pg.context.close()
+
+
+def test_notfall_ohne_senderecht_keine_befehlsleiste(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300)
+    assert not _sichtbar(pg, "#befehle")
+    pg.context.close()
+
+
+def test_notfall_liste_gruppen_initialen_und_ordnerzahl(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300)
+    # Vor der ersten Mail steht ihre Datumsgruppe.
+    assert pg.evaluate("document.querySelector('#liste').firstElementChild.className") == "gruppe"
+    assert pg.inner_text('#liste .eintrag[data-id="m1"] .avatar') == "EM"
+    assert pg.inner_text('#liste .eintrag[data-id="m2"] .avatar') == "HB"
+    gruppen = pg.evaluate("""() => { const t = n => new Date(Date.now() - n * 864e5).toISOString();
+        return [datumGruppe(t(0)), datumGruppe(t(1)), datumGruppe(t(60))]; }""")
+    assert gruppen[:2] == ["Heute", "Gestern"] and gruppen[2] not in ("Heute", "Gestern", "Diese Woche", "Letzte Woche")
+    initialen = pg.evaluate("""() => ['Mustermann, Max', 'max.mustermann@firma.at', '"Erika Musterfrau" <e@x.at>']
+        .map(n => avatar(n).match(/>([^<]*)</)[1])""")
+    assert initialen == ["MM", "MM", "EM"], initialen
+    # Gleicher Name, gleiche Farbe — die Farbe kommt als Attribut, nie als Stil.
+    farben = pg.evaluate("() => [avatar('Hans Beispiel'), avatar('Hans Beispiel')].map(h => h.match(/data-farbe=\"(\\d)\"/)[1])")
+    assert farben[0] == farben[1]
+    assert "style" not in pg.evaluate("avatar('Hans Beispiel')")
+    # Ordner zeigen sichtbar nur die ungelesenen (1 von 2), die Gesamtzahl im Tooltip.
+    assert pg.inner_text('#ordner .eintrag[data-id="e"] .zahl') == "1"
+    assert "1 ungelesen von 2" in pg.get_attribute('#ordner .eintrag[data-id="e"]', "title")
+    pg.context.close()
+
+
+def test_notfall_termine_ohne_leere_kreisspalte(browser, server, monkeypatch):
+    """Kalender und Entwürfe haben keinen Absender — ihre Zeilen dürfen die
+    Spalte für die Initialen nicht freilassen."""
+    zusatz = {"kalender": {"ok": True, "termine": [
+        {"betreff": "Jour fixe", "beginn": "2026-11-16T09:00:00Z", "ende": "2026-11-16T10:00:00Z",
+         "ort": "Raum 1", "teilnehmer": [], "ganztag": False}]},
+        "kontakte": {"ok": True, "kontakte": [{"name": "Erika Musterfrau", "mails": ["erika@firma.at"],
+                                               "telefon": [], "firma": ""}]}}
+    pg = _notfall_seite(browser, server, monkeypatch, 1300, zusatz=zusatz)
+    links = pg.eval_on_selector("#liste", "e => e.getBoundingClientRect().left")
+    pg.evaluate("ordnerWaehlen('__kalender')")
+    pg.wait_for_selector("#liste .eintrag .betreff")
+    abstand = pg.eval_on_selector("#liste .eintrag .betreff", "e => e.getBoundingClientRect().left") - links
+    assert abstand < 30, abstand
+    assert pg.inner_text("#listentitel") == "Kalender"
+    pg.evaluate("ordnerWaehlen('__kontakte')")
+    pg.wait_for_selector("#liste .eintrag .avatar")
+    assert pg.inner_text("#liste .eintrag .avatar") == "EM"
+    pg.context.close()
+
+
 # ── Roter Faden: „Dein Notfall-Zugang“ statt Anmeldemaske ────────────────────
 
 _FAKTOR_NUR_APP = {"ok": True, "postfach": "max@firma.at", "aktiv": True, "totp": True, "seit": "2026-11-01",

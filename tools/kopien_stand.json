@@ -4,6 +4,7 @@
   "app/webui/templates/_testmail.html": 60,
   "app/webui/templates/abwesenheit.html": 275,
   "app/webui/templates/base.html": 144,
+  "app/webui/templates/notfall.html": 75,
   "app/webui/templates/preview.html": 63,
   "app/webui/templates/relay.html": 186,
   "app/webui/templates/self.html": 275,
@@ -14,7 +15,7 @@
   "app/webui/templates/settings_smime.html": 61,
   "app/webui/templates/setup.html": 385,
   "app/webui/templates/smime.html": 138,
-  "app/webui/templates/template_editor.html": 63
+  "app/webui/templates/template_editor.html": 146
  },
  "begruendungen": [
   {
@@ -22,6 +23,18 @@
    "von": 0,
    "auf": 60,
    "grund": "sendTestMail aus setup.html und advanced.html in einen Baustein gezogen; die Ähnlichkeit zu renewCert (Pflichtfelder prüfen, hideAlert) stand vorher in setup.html und ist mitgewandert. setup.html sinkt dabei von 463 auf 385, Summe −18."
+  },
+  {
+   "datei": "app/webui/templates/notfall.html",
+   "von": 0,
+   "auf": 75,
+   "grund": "Symboltabelle IKON (Schlüssel → SVG-Pfad als Zeichenkette) des Webmails. Kein kopierter Code: die Tokenfolge einer Objekt-Literal-Tabelle aus Zeichenketten gleicht der von TYPE_LABELS im Vorlagen-Editor."
+  },
+  {
+   "datei": "app/webui/templates/template_editor.html",
+   "von": 63,
+   "auf": 146,
+   "grund": "Gegenstück zu notfall.html: TYPE_LABELS gleicht in der Form der neuen Symboltabelle IKON des Webmails; an template_editor.html selbst hat sich nichts geändert."
   }
  ]
 }

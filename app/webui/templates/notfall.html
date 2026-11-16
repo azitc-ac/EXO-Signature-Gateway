@@ -18,17 +18,22 @@
 {% endif %}
 <style>
 /* Eigenständige Seite für alle Mitarbeiter (nicht die Admin-Oberfläche):
-   eigene Farbvariablen, Dunkelmodus über prefers-color-scheme. */
+   eigene Farbvariablen, Dunkelmodus über prefers-color-scheme. Angelehnt an
+   die Gateway-Oberfläche: blaue Kopfleiste, helle Arbeitsfläche, Karten. */
 :root {
-  --bg: #f1f5f9; --flaeche: #fff; --rand: #e2e8f0; --text: #1e293b; --leise: #64748b;
-  --akzent: #0369a1; --akzent-text: #fff; --wahl: #e0f2fe; --warn-bg: #fef3c7; --warn: #92400e;
-  --fehler-bg: #fef2f2; --fehler: #991b1b; --kopf: #0f172a; --treffer: #fde68a; --treffer-text: #1e293b;
+  --bg: #f4f6f9; --flaeche: #fff; --rand: #e2e8f0; --text: #1e293b; --leise: #64748b;
+  --akzent: #0078d4; --akzent-text: #fff; --wahl: #e0f2fe; --hover: #f1f5f9; --warn-bg: #fef3c7; --warn: #92400e;
+  --fehler-bg: #fef2f2; --fehler: #991b1b; --kopf: #0078d4; --treffer: #fde68a; --treffer-text: #1e293b;
+  --schatten: 0 1px 3px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .04);
+  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f172a; --flaeche: #1e293b; --rand: #334155; --text: #e2e8f0; --leise: #94a3b8;
-    --akzent: #38bdf8; --akzent-text: #0f172a; --wahl: #0c4a6e; --warn-bg: #422006; --warn: #fde68a;
-    --fehler-bg: #450a0a; --fehler: #fecaca; --kopf: #020617; --treffer: #854d0e; --treffer-text: #fef9c3;
+    --bg: #0f1117; --flaeche: #1c2030; --rand: #2d3448; --text: #e2e8f0; --leise: #94a3b8;
+    --akzent: #5b9bd5; --akzent-text: #0f1117; --wahl: #1e3a5f; --hover: #252b3d; --warn-bg: #422006; --warn: #fde68a;
+    --fehler-bg: #450a0a; --fehler: #fecaca; --kopf: #0e1c2e; --treffer: #854d0e; --treffer-text: #fef9c3;
+    --schatten: 0 1px 3px rgba(0, 0, 0, .4);
+    color-scheme: dark;
   }
 }
 * { box-sizing: border-box; }
@@ -36,13 +41,15 @@
    Postfachwahl und „Abmelden“ schon auf der Anmeldeseite. */
 [hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, "Segoe UI", sans-serif; }
-header { background: var(--kopf); color: #fff; padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-header .titel { font-weight: 700; }
+header { background: var(--kopf); color: #fff; padding: 8px 16px; min-height: 48px; display: flex; gap: 12px;
+         align-items: center; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0, 0, 0, .15); position: relative; z-index: 2; }
+header .titel { font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; }
 header .band { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
 header .rechts { margin-left: auto; display: flex; gap: 10px; align-items: center; font-size: 13px; flex-wrap: wrap; }
-/* Kopfzeile ist in beiden Modi dunkel: eigene Farben, nicht die der Fläche
+/* Kopfzeile ist in beiden Modi farbig: eigene Farben, nicht die der Fläche
    (sonst weiß auf weiß im hellen Modus). */
 header button, header select { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); }
+header button:hover, header a.konto:hover { background: rgba(255,255,255,.15); }
 header select option { color: #1e293b; background: #fff; }
 header .wer { color: #e2e8f0; }
 header a.konto { color: #fff; border: 1px solid rgba(255,255,255,.45); border-radius: 6px; padding: 5px 12px;
@@ -56,13 +63,20 @@ header a.konto { color: #fff; border: 1px solid rgba(255,255,255,.45); border-ra
 header .vorschau { flex-basis: 100%; font-size: 12px; color: #e2e8f0; }
 button, select, input { font: inherit; color: inherit; }
 button { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
-button.haupt { background: var(--akzent); color: var(--akzent-text); border-color: var(--akzent); }
+button:hover { background: var(--hover); }
+button.haupt { background: var(--akzent); color: var(--akzent-text); border-color: var(--akzent); font-weight: 500; }
+button.haupt:hover { filter: brightness(1.08); }
+button:disabled { opacity: .45; cursor: default; }
 input, select { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 6px; padding: 6px 8px; }
-.anmeldung { max-width: 380px; margin: 60px auto; background: var(--flaeche); border: 1px solid var(--rand); border-radius: 10px; padding: 22px; }
+.anmeldung { max-width: 400px; margin: 60px auto; background: var(--flaeche); border: 1px solid var(--rand); border-radius: 12px;
+             padding: 24px; box-shadow: var(--schatten); }
 .anmeldung h1 { font-size: 20px; margin: 0 0 6px; }
 .anmeldung label { display: block; margin: 12px 0 4px; font-weight: 600; }
 .anmeldung input { width: 100%; }
 .leise { color: var(--leise); }
+/* Symbole: eine Strichstärke, Farbe aus dem Text. */
+.ikon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7;
+        stroke-linecap: round; stroke-linejoin: round; vertical-align: -4px; }
 /* Suchtreffer in Liste und Mail */
 mark { background: var(--treffer); color: var(--treffer-text); border-radius: 2px; }
 .qr svg { width: 200px; height: 200px; background: #fff; padding: 6px; border-radius: 6px; }
@@ -77,66 +91,149 @@ a.knopf { display: inline-block; text-decoration: none; border-radius: 6px; padd
 a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); border-color: var(--akzent); }
 .meldung { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--fehler-bg); color: var(--fehler); }
 .meldung[hidden] { display: none; }
-/* Ordner- und Listenbreite verschiebbar (Trenner dazwischen), gemerkt je Browser. */
+/* Ordner- und Listenbreite verschiebbar (Trenner dazwischen), gemerkt je Browser.
+   Liste und Lesebereich liegen als Karten auf der Arbeitsfläche, die Ordner direkt darauf. */
 #app { display: grid; grid-template-columns: var(--b-ordner, 240px) 5px var(--b-liste, 360px) 5px minmax(0, 1fr);
+       grid-template-rows: auto minmax(0, 1fr); padding: 0 8px 8px 0;
        height: calc(100vh - var(--kopfhoehe, 48px)); }
-.trenner { cursor: col-resize; background: var(--rand); touch-action: none; }
-.trenner:hover, .trenner:focus-visible, #app[data-ziehen] .trenner[data-aktiv] { background: var(--akzent); outline: 0; }
+.trenner { cursor: col-resize; touch-action: none; border-radius: 2px; grid-row: 2; }
+.trenner:hover, .trenner:focus-visible, #app[data-ziehen] .trenner[data-aktiv] {
+  background: linear-gradient(var(--akzent), var(--akzent)) center / 3px 100% no-repeat; outline: 0; }
 /* Beim Ziehen über der Mail: Der Rahmen schluckt sonst die Mausereignisse. */
 #app[data-ziehen] { cursor: col-resize; user-select: none; }
 #app[data-ziehen] iframe { pointer-events: none; }
-#listenspalte { container-type: inline-size; }
 #app[hidden] { display: none; }
-.spalte { border-right: 1px solid var(--rand); overflow: auto; background: var(--flaeche); }
-#ordner .eintrag, #liste .eintrag { padding: 7px 12px; cursor: pointer; border-bottom: 1px solid var(--rand); }
-#ordner .eintrag[aria-current="true"], #liste .eintrag[aria-current="true"] { background: var(--wahl); }
+#ordnerspalte, #listenspalte, #lesen { grid-row: 2; }
+/* Befehlsleiste über allen Spalten */
+#befehle { grid-column: 1 / -1; display: flex; gap: 4px; align-items: center; padding: 8px 0 8px 10px; flex-wrap: wrap; }
+#befehle button { display: inline-flex; align-items: center; gap: 6px; }
+#befehle .befehl { background: transparent; border-color: transparent; }
+#befehle .befehl:hover:not(:disabled) { background: var(--flaeche); border-color: var(--rand); }
+#befehle select { max-width: 200px; }
+#befehle .strich { width: 1px; align-self: stretch; background: var(--rand); margin: 4px 6px; }
+.spalte { overflow: auto; }
+#ordnerspalte { padding: 2px 4px 8px 8px; }
+#listenspalte, #lesen { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 10px; box-shadow: var(--schatten); }
+#listenspalte { container-type: inline-size; display: flex; flex-direction: column; overflow: hidden; }
+#liste { flex: 1; overflow: auto; }
+/* Ordner: Zeilen mit Symbol, Auswahl mit Akzentstrich */
+#ordner .eintrag { display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin: 1px 0; border-radius: 6px;
+                   cursor: pointer; white-space: nowrap; }
+#ordner .eintrag .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#ordner .eintrag .ikon { color: var(--leise); }
+#ordner .eintrag:hover { background: var(--hover); }
+#ordner .eintrag[aria-current="true"] { background: var(--wahl); font-weight: 600; box-shadow: inset 3px 0 0 var(--akzent); }
+#ordner .eintrag[aria-current="true"] .ikon { color: var(--akzent); }
+#ordner .zahl { color: var(--akzent); font-size: 12px; font-weight: 700; }
 /* Tastatur: sichtbarer Fokus auf allen bedienbaren Elementen. */
 [role="button"]:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
-textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); outline-offset: 1px; }
-#ordner .zahl { float: right; color: var(--leise); font-size: 12px; }
+textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--akzent); outline-offset: 1px; }
 /* Je Postfach eine Kopfzeile; das geöffnete zeigt darunter seine Ordner. Die
    Auswahlliste oben braucht es nur auf dem Handy (Spalte ausgeblendet). */
-#ordner .postfach { padding: 8px 10px; cursor: pointer; font-weight: 600; border-bottom: 1px solid var(--rand);
+#ordner .postfach { display: flex; align-items: center; gap: 6px; padding: 12px 8px 4px; cursor: pointer; font-weight: 600;
                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#ordner .postfach[aria-expanded="true"] { background: var(--wahl); }
+#ordner .postfach .pfeil { transition: transform .15s; color: var(--leise); }
+#ordner .postfach[aria-expanded="true"] .pfeil { transform: rotate(90deg); }
 #ordner .postfach .art { font-weight: 400; color: var(--leise); font-size: 12px; }
 #postfachwahl { display: none; }
-#liste .eintrag[data-ungelesen="1"] .betreff { font-weight: 700; }
-#liste .kopf { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--leise); }
+/* Liste: Kopf mit Ordnername, Suche, Filter als Schaltflächen */
+.listenkopf { padding: 12px 14px 4px; }
+.listenkopf h1 { font-size: 17px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suche { padding: 6px 12px; display: flex; gap: 6px; }
+.suche input { flex: 1; min-width: 0; background: var(--bg); border-color: transparent; border-radius: 999px; padding: 6px 14px; }
+.suche input:focus { background: var(--flaeche); border-color: var(--akzent); outline: 0; }
+.suche button { border-radius: 999px; }
+.filter { padding: 2px 12px 8px; display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; border-bottom: 1px solid var(--rand); }
+.filter label { border: 1px solid var(--rand); border-radius: 999px; padding: 2px 10px; cursor: pointer; user-select: none; }
+.filter label:hover { background: var(--hover); }
+.filter label:has(:checked) { background: var(--wahl); border-color: var(--akzent); color: var(--akzent); font-weight: 600; }
+.filter label:has(:focus-visible) { outline: 2px solid var(--akzent); }
+.filter input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+#liste .gruppe { padding: 10px 14px 4px; font-size: 12px; font-weight: 600; color: var(--leise); }
+#liste .eintrag { display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 10px; padding: 8px 12px 8px 9px;
+                  cursor: pointer; border-left: 3px solid transparent; border-bottom: 1px solid var(--rand); }
+#liste .eintrag > :not(.avatar) { grid-column: 2; }
+/* Termine und Entwürfe: ohne Kreis, zweizeilig in jeder Breite. */
+#liste .eintrag.ohne { display: block; padding-left: 14px; }
+#liste .eintrag.ohne .kopf { display: flex; font-size: 12px; color: var(--leise); }
+#liste .eintrag:hover { background: var(--hover); }
+#liste .eintrag[aria-current="true"] { background: var(--wahl); }
+#liste .eintrag[data-ungelesen="1"] { border-left-color: var(--akzent); }
+#liste .eintrag[data-ungelesen="1"] .von { font-weight: 700; }
+#liste .eintrag[data-ungelesen="1"] .betreff { font-weight: 600; color: var(--akzent); }
+#liste .kopf { display: flex; justify-content: space-between; gap: 8px; }
+#liste .von { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#liste .datum { font-size: 12px; color: var(--leise); white-space: nowrap; }
+#liste .betreff { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#liste .betreff .ikon { width: 14px; height: 14px; vertical-align: -2px; color: var(--leise); margin-right: 3px; }
+#liste .zahl { font-size: 11px; border-radius: 999px; padding: 0 6px; background: var(--bg); color: var(--leise); font-weight: 600; }
 #liste .vorschau { font-size: 12px; color: var(--leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Bei einer Suche mit Fund nur im Empfänger: An-Zeile vor der Vorschau, etwas kräftiger. */
 #liste .vorschau .an { color: var(--text); }
+/* Kreis mit Initialen; Farbe aus dem Namen (data-farbe 0–7), weiße Schrift in beiden Modi. */
+.avatar { grid-column: 1; grid-row: 1 / span 4; width: 32px; height: 32px; border-radius: 50%; display: grid;
+          place-items: center; font-size: 12px; font-weight: 600; color: #fff; background: #64748b; letter-spacing: .3px; }
+.avatar[data-farbe="0"] { background: #0078d4; } .avatar[data-farbe="1"] { background: #8764b8; }
+.avatar[data-farbe="2"] { background: #038387; } .avatar[data-farbe="3"] { background: #ca5010; }
+.avatar[data-farbe="4"] { background: #498205; } .avatar[data-farbe="5"] { background: #c239b3; }
+.avatar[data-farbe="6"] { background: #986f0b; } .avatar[data-farbe="7"] { background: #4f6bed; }
+.avatar.gross { width: 42px; height: 42px; font-size: 15px; }
 /* Breite Liste (großer Bildschirm, Trenner nach rechts gezogen): je Mail EINE
    Zeile wie in Outlook — Von │ Betreff │ Vorschau │ Datum. */
 @container (min-width: 620px) {
-  #liste .eintrag { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 2fr) minmax(0, 3fr) auto auto;
-                    gap: 12px; align-items: baseline; padding: 4px 12px; }
+  #liste .eintrag { grid-template-columns: 24px minmax(0, 11rem) minmax(0, 2fr) minmax(0, 3fr) auto auto;
+                    gap: 12px; align-items: center; padding: 5px 12px 5px 9px; }
   #liste .kopf { display: contents; }
-  /* Alle Zellen in Zeile 1: Das Datum (Spalte 5) steht im Markup vor dem Betreff
-     (Spalte 2) — ohne feste Zeile setzt das Gitter alles danach in eine neue Zeile. */
+  /* Alle Zellen in Zeile 1: Das Datum (Spalte 6) steht im Markup vor dem Betreff
+     (Spalte 3) — ohne feste Zeile setzt das Gitter alles danach in eine neue Zeile. */
   #liste .kopf > *, #liste .eintrag > :not(.kopf) { grid-row: 1; }
-  #liste .von { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 13px; }
-  #liste .betreff { grid-column: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #liste .vorschau { grid-column: 3; }
-  #liste .ort { grid-column: 4; white-space: nowrap; }
-  #liste .datum { grid-column: 5; white-space: nowrap; }
-  #liste .eintrag[data-ungelesen="1"] .von { font-weight: 700; }
+  #liste .avatar { grid-column: 1; width: 24px; height: 24px; font-size: 10px; }
+  #liste .von { grid-column: 2; font-size: 13px; }
+  #liste .eintrag > .betreff { grid-column: 3; }
+  #liste .eintrag > .vorschau { grid-column: 4; }
+  #liste .eintrag > .ort { grid-column: 5; white-space: nowrap; }
+  #liste .datum { grid-column: 6; }
+  #liste .kontakt > .betreff { grid-column: 2; }
+  #liste .kontakt > .vorschau { grid-column: 3 / -1; }
 }
-.suche { padding: 8px; border-bottom: 1px solid var(--rand); display: flex; gap: 6px; }
-.suche input { flex: 1; min-width: 0; }
-.filter { padding: 4px 10px 6px; border-bottom: 1px solid var(--rand); display: flex; gap: 14px; font-size: 13px; }
 .eintrag .ort { color: var(--leise); font-size: 12px; }
-.unterhaltung { margin-top: 8px; font-size: 13px; }
+.unterhaltung { margin-top: 10px; font-size: 13px; }
 .unterhaltung .eintrag { padding: 4px 0; cursor: pointer; color: var(--akzent); }
-#lesen { padding: 0; overflow: auto; display: flex; flex-direction: column; background: var(--flaeche); }
-#lesen .kopfbereich { padding: 14px 18px; border-bottom: 1px solid var(--rand); }
-#lesen h2 { font-size: 18px; margin: 0 0 6px; }
-#lesen iframe { flex: 1; border: 0; width: 100%; min-height: 400px; background: #fff; }
-#lesen pre { white-space: pre-wrap; padding: 14px 18px; margin: 0; font: inherit; }
-.anhaenge .anhang { display: inline-block; margin: 6px 12px 0 0; }
-.anhaenge a { color: var(--akzent); }
+#lesen { padding: 0; overflow: auto; display: flex; flex-direction: column; container-type: inline-size; }
+/* Schmaler Lesebereich (Handy, Liste breit gezogen): Absender über die volle
+   Breite, Symbole und Datum darunter in einer Zeile. */
+@container (max-width: 560px) {
+  .absender { flex-wrap: wrap; }
+  .absender .rechts { flex-basis: 100%; flex-direction: row-reverse; justify-content: space-between; align-items: center; }
+}
+.mailansicht { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+#lesen h2 { font-size: 19px; font-weight: 600; }
+.mailansicht h2 { margin: 0; padding: 16px 20px 6px; }
+#lesen .kopfbereich { padding: 6px 20px 14px; border-bottom: 1px solid var(--rand); }
+.absender { display: flex; gap: 12px; align-items: flex-start; }
+.absender .avatar { flex: none; }
+.absender .wer { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.absender .name { font-weight: 600; }
+.absender .adresse, .absender .empf { color: var(--leise); font-size: 13px; }
+.absender .rechts { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.absender .datum { font-size: 12px; color: var(--leise); white-space: nowrap; }
+.symbole { display: flex; gap: 2px; }
+.symbole button { background: transparent; border-color: transparent; padding: 5px 7px; color: var(--akzent); }
+.symbole button:hover { background: var(--hover); border-color: var(--rand); }
+.hinweis { font-size: 12px; color: var(--leise); margin-top: 8px; }
+.anhaenge { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.anhaenge .anhang { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rand); border-radius: 8px;
+                    padding: 6px 10px; max-width: 100%; font-size: 13px; }
+.anhaenge .anhang .ikon { color: var(--leise); }
+.anhaenge .groesse { color: var(--leise); font-size: 12px; }
+.anhaenge a { color: var(--akzent); text-decoration: none; }
+.anhaenge a:hover { text-decoration: underline; }
 .bilder { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .bilder img { max-width: min(240px, 100%); max-height: 180px; border: 1px solid var(--rand); border-radius: 6px; }
+#lesen iframe { flex: 1; border: 0; width: 100%; min-height: 400px; background: #fff; border-radius: 0 0 10px 10px; }
+#lesen pre { white-space: pre-wrap; padding: 16px 20px; margin: 0; font: inherit; }
+.leer { flex: 1; display: grid; place-items: center; align-content: center; gap: 8px; color: var(--leise); padding: 24px; }
+.leer .ikon { width: 56px; height: 56px; stroke-width: 1; opacity: .6; }
 .aktionen { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 #verfassen { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
 #verfassen .zeile { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; }
@@ -172,9 +269,14 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
      heran — „Neue Mail“ setzt den Fokus sofort ins Feld „An“, danach lag die
      linke Spalte (An, Cc, Bcc) außerhalb des Bildes. */
   input, select, textarea { font-size: 16px; }
-  #app { grid-template-columns: 1fr; height: auto; }
+  #app { grid-template-columns: 1fr; height: auto; padding: 0; }
   .trenner { display: none; }
-  #app .spalte { border-right: 0; }
+  #app #listenspalte, #app #lesen { grid-row: auto; border-radius: 0; border-width: 1px 0 0; box-shadow: none; }
+  #listenspalte { overflow: visible; }
+  #befehle { padding: 6px 8px; }
+  /* Auf dem Handy nur Symbole — außer „Neue E-Mail“. */
+  #befehle .befehl .text { display: none; }
+  #app[data-ansicht="liste"] #befehle .nur-mail { display: none; }
   #app[data-ansicht="liste"] #lesen, #app[data-ansicht="lesen"] #ordnerspalte,
   #app[data-ansicht="lesen"] #listenspalte { display: none; }
   /* Auf dem Handy ersetzt eine Auswahlliste den Ordnerbaum — er belegte
@@ -182,16 +284,19 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
   #app #ordnerspalte { display: none; }
   #ordnerwahl { display: block !important; }
   #postfachwahl { display: inline-block; }
+  .listenkopf { display: none; }
+  #befehle .strich { display: none; }
+  #befehle select { max-width: 150px; }
   /* Lesebereich bildschirmhoch: EIN Rollbalken im Mailrahmen statt Rahmen
      fester Höhe mit Leerraum darunter. */
-  #app[data-ansicht="lesen"] #lesen { height: calc(100dvh - var(--kopfhoehe, 48px)); }
-  .zurueck { display: inline-block; margin: 10px 18px 0; }
+  #app[data-ansicht="lesen"] #lesen { height: calc(100dvh - var(--kopfhoehe, 48px) - var(--befehlhoehe, 0px)); }
+  .zurueck { display: inline-block; margin: 10px 18px 0; align-self: flex-start; }
 }
 </style>
 </head>
 <body>
 <header>
-  <span class="titel">{{ gateway_name }}</span>
+  <span class="titel"><span data-ikon="post"></span>{{ gateway_name }}</span>
   <span class="band" id="band">Notfall-Mail</span>
   <span class="rechts" id="kopf-rechts" hidden>
     <select id="postfachwahl" aria-label="Postfach" onchange="postfachWaehlen(this.value)"></select>
@@ -310,11 +415,19 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
 </section>
 
 <main id="app" hidden data-ansicht="liste">
+  <div id="befehle" role="toolbar" aria-label="Befehle" hidden>
+    <button class="haupt" onclick="verfassen()" data-ikon="neu">Neue E-Mail</button>
+    <span class="strich nur-mail"></span>
+    <button class="befehl nur-mail" id="b-loeschen" onclick="mailVerschieben('deleteditems', this)" title="Löschen"
+            data-ikon="papierkorb" disabled><span class="text">Löschen</span></button>
+    <select class="nur-mail" id="b-verschieben" aria-label="Verschieben nach" disabled
+            onchange="if (this.value) mailVerschieben(this.value, this)"></select>
+  </div>
   <nav class="spalte" id="ordnerspalte"><div id="ordner"></div></nav>
   <div class="trenner" data-spalte="ordner" role="separator" aria-orientation="vertical" tabindex="0"
        aria-label="Breite der Ordner ändern (Pfeiltasten, Doppelklick setzt zurück)"></div>
   <section class="spalte" id="listenspalte">
-    <div style="padding:8px 8px 0" id="neu-zeile"><button class="haupt" onclick="verfassen()">Neue Mail</button></div>
+    <div class="listenkopf"><h1 id="listentitel">Posteingang</h1></div>
     <select id="ordnerwahl" aria-label="Ordner" style="display:none;margin:8px;width:calc(100% - 16px)"
             onchange="ordnerWaehlen(this.value)"></select>
     <form class="suche" onsubmit="event.preventDefault(); listeLaden(0)">
@@ -332,7 +445,7 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
        aria-label="Breite der Liste ändern (Pfeiltasten, Doppelklick setzt zurück)"></div>
   <article id="lesen">
     <button class="zurueck" onclick="ansicht('liste')">← Zurück</button>
-    <p class="leise" style="padding:18px">Wähle eine Nachricht.</p>
+    <div class="leer"><span data-ikon="post"></span>Wähle eine Nachricht zum Lesen.</div>
   </article>
 </main>
 
@@ -379,6 +492,8 @@ function zugaenglichMachen(wurzel) {
 }
 new MutationObserver(liste => liste.forEach(m => m.target.nodeType === 1 && zugaenglichMachen(m.target)))
   .observe(document.body, {childList: true, subtree: true});
+// Was immer den Lesebereich ersetzt (Mail, Verfassen, Kalender …): Leiste nachziehen.
+new MutationObserver(befehleSetzen).observe(document.getElementById('lesen'), {childList: true});
 document.addEventListener('keydown', ev => {
   const e = ev.target;
   if ((ev.key === 'Enter' || ev.key === ' ') && e.matches && e.matches('[role="button"][tabindex]')) {
@@ -387,6 +502,79 @@ document.addEventListener('keydown', ev => {
 });
 
 function ansicht(a) { document.getElementById('app').dataset.ansicht = a; }
+
+// ── Symbole, Initialen, Datum ────────────────────────────────────────────
+// Eine Strichzeichnung je Zweck (24er-Raster, Farbe aus dem Text).
+const IKON = {
+  post: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6 8.5-6"/>',
+  neu: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/>',
+  eingang: '<path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.5 5h13l2.5 8v6H3v-6z"/>',
+  gesendet: '<path d="M3 11.5 21 3l-6 18-3.5-7.5z"/><path d="M11.5 13.5 21 3"/>',
+  papierkorb: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  archiv: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9M10 13h4"/>',
+  ordner: '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/>',
+  junk: '<circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/>',
+  entwurf: '<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+  kalender: '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  kontakte: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.8 3.6-5.5 7-5.5s6.2 1.7 7 5.5"/>',
+  antworten: '<path d="M10 6 4 12l6 6"/><path d="M4 12h9a7 7 0 0 1 7 7"/>',
+  allen: '<path d="M12 6 6 12l6 6"/><path d="M8 6 2 12l6 6"/><path d="M6 12h8a7 7 0 0 1 7 7"/>',
+  weiter: '<path d="m14 6 6 6-6 6"/><path d="M20 12h-9a7 7 0 0 0-7 7"/>',
+  anhang: '<path d="m20 11.5-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.2a1.7 1.7 0 0 1-2.4-2.4L15 7"/>',
+  pfeil: '<path d="m9 6 6 6-6 6"/>',
+};
+function ikon(name) {
+  return '<svg class="ikon" viewBox="0 0 24 24" aria-hidden="true">' + (IKON[name] || IKON.ordner) + '</svg>';
+}
+// Statisches Markup trägt nur data-ikon; das Symbol kommt von hier.
+function ikonenSetzen(wurzel) {
+  wurzel.querySelectorAll('[data-ikon]:not([data-ikon-da])').forEach(e => {
+    e.insertAdjacentHTML('afterbegin', ikon(e.dataset.ikon)); e.dataset.ikonDa = '1';
+  });
+}
+const ORDNER_IKON = {inbox: 'eingang', sentitems: 'gesendet', outbox: 'gesendet', deleteditems: 'papierkorb',
+                     archive: 'archiv', junkemail: 'junk', drafts: 'entwurf'};
+// Initialen und eine von acht Farben, fest je Name.
+function avatar(name, gross) {
+  const n = String(name || '?').replace(/<[^>]*>/g, '').replace(/["']/g, '').trim() || '?';
+  const teile = (n.includes('@') && !n.includes(' ') ? n.split('@')[0].split(/[._-]/) : n.split(/[\s,]+/)).filter(Boolean);
+  const kurz = ((teile[0] || '?')[0] + (teile.length > 1 ? teile[teile.length - 1][0] : '')).toUpperCase();
+  let h = 0; for (const z of n.toLowerCase()) h = (h * 31 + z.codePointAt(0)) >>> 0;
+  return '<span class="avatar' + (gross ? ' gross' : '') + '" data-farbe="' + (h % 8) + '" aria-hidden="true">' + esc(kurz) + '</span>';
+}
+function tagBeginn(d) { const t = new Date(d); t.setHours(0, 0, 0, 0); return t; }
+// Liste wie in Outlook: heute die Uhrzeit, diese Woche Wochentag, sonst Datum.
+function datumListe(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const tage = Math.round((tagBeginn(new Date()) - tagBeginn(d)) / 864e5);
+  if (tage <= 0) return d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+  if (tage < 7) return d.toLocaleDateString('de-DE', {weekday: 'short'}) + ' ' + d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+  return d.toLocaleDateString('de-DE', d.getFullYear() === new Date().getFullYear()
+    ? {day: '2-digit', month: '2-digit'} : {day: '2-digit', month: '2-digit', year: 'numeric'});
+}
+function datumGruppe(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const heute = tagBeginn(new Date()), tage = Math.round((heute - tagBeginn(d)) / 864e5);
+  const wochentag = (heute.getDay() + 6) % 7;            // Montag = 0
+  if (tage <= 0) return 'Heute';
+  if (tage === 1) return 'Gestern';
+  if (tage <= wochentag) return 'Diese Woche';
+  if (tage <= wochentag + 7) return 'Letzte Woche';
+  return d.toLocaleDateString('de-DE', {month: 'long', year: 'numeric'});
+}
+// Löschen/Verschieben gelten der geöffneten Mail — ohne sie gesperrt.
+function befehleSetzen() {
+  const offen = !!document.querySelector('#lesen .mailansicht');
+  document.getElementById('b-loeschen').disabled = !offen;
+  const v = document.getElementById('b-verschieben');
+  v.disabled = !offen;
+  v.innerHTML = '<option value="">Verschieben…</option>' + (nb.ordnerliste || []).filter(o => o.id !== nb.ordner)
+    .map(o => '<option value="' + escAttr(o.id) + '">' + esc(o.name) + '</option>').join('');
+}
+function listentitel(text) { document.getElementById('listentitel').textContent = text; }
+ikonenSetzen(document.body);
 function datumKurz(iso) {
   const d = new Date(iso);
   return isNaN(d) ? '' : d.toLocaleString('de-DE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
@@ -409,7 +597,7 @@ async function start() {
   nb.senden = !!d.senden;
   nb.sendeweg = d.sendeweg;
   nb.vorschau = d.vorschau;
-  document.getElementById('neu-zeile').hidden = !nb.senden;
+  document.getElementById('befehle').hidden = !nb.senden;
   document.getElementById('band').textContent = d.vorschau ? 'Vorschau' : 'Notfall';
   document.getElementById('ich').textContent = d.benutzer;
   document.getElementById('postfachwahl').innerHTML = d.zugriff.map(p =>
@@ -740,23 +928,21 @@ async function ordnerLaden() {
   const nachId = Object.fromEntries(d.ordner.map(o => [o.id, o]));
   const t = o => { let n = 0, e = o.eltern; while (nachId[e] && n < 8) { n++; e = nachId[e].eltern; } return n; };
   const zahl = o => (o.ungelesen ? o.ungelesen + ' / ' : '') + o.anzahl;
-  const ordnerHtml = d.ordner.map(o => '<div class="eintrag" data-id="' + escAttr(o.id) + '" style="padding-left:'
-    + (12 + 14 * t(o)) + 'px" onclick="ordnerWaehlen(this.dataset.id)"'
-    + (o.id === nb.ordner ? ' aria-current="true"' : '') + '>' + esc(o.name)
-    + '<span class="zahl">' + zahl(o) + '</span></div>').join('');
+  // Wie in Outlook: nur die ungelesenen zählen sichtbar, die Gesamtzahl steht im Tooltip.
+  const eintrag = (id, name, symbol, tiefe, o) => '<div class="eintrag" data-id="' + escAttr(id) + '" style="padding-left:'
+    + (10 + 16 * tiefe) + 'px" onclick="ordnerWaehlen(this.dataset.id)"'
+    + (o ? ' title="' + escAttr(o.name + ': ' + (o.ungelesen ? o.ungelesen + ' ungelesen von ' : '') + o.anzahl) + '"' : '')
+    + (id === nb.ordner ? ' aria-current="true"' : '') + '>' + ikon(symbol) + '<span class="name">' + esc(name) + '</span>'
+    + (o && o.ungelesen ? '<span class="zahl">' + o.ungelesen + '</span>' : '') + '</div>';
+  const ordnerHtml = d.ordner.map(o => eintrag(o.id, o.name, ORDNER_IKON[o.wk] || 'ordner', t(o), o)).join('');
   // Alle erreichbaren Postfächer untereinander; nur das geöffnete klappt auf.
-  el.innerHTML = (nb.senden ? '<div class="eintrag" data-id="__entwuerfe" onclick="ordnerWaehlen(this.dataset.id)"'
-      + (nb.ordner === '__entwuerfe' ? ' aria-current="true"' : '') + '>Meine Entwürfe</div>' : '')
+  el.innerHTML = (nb.senden ? eintrag('__entwuerfe', 'Meine Entwürfe', 'entwurf', 0) : '')
     + nb.zugriff.map(p => {
     const offen = p.postfach === nb.postfach;
     return '<div class="postfach" data-pf="' + escAttr(p.postfach) + '" aria-expanded="' + offen
       + '" onclick="postfachWaehlen(this.dataset.pf)" title="' + escAttr(p.postfach) + '">'
-      + (offen ? '▾ ' : '▸ ') + esc(p.postfach) + (p.eigen ? '' : ' <span class="art">geteilt</span>') + '</div>'
-      + (offen ? ordnerHtml
-         + '<div class="eintrag" data-id="__kalender" onclick="ordnerWaehlen(this.dataset.id)"'
-         + (nb.ordner === '__kalender' ? ' aria-current="true"' : '') + ' style="padding-left:12px">Kalender</div>'
-         + '<div class="eintrag" data-id="__kontakte" onclick="ordnerWaehlen(this.dataset.id)"'
-         + (nb.ordner === '__kontakte' ? ' aria-current="true"' : '') + ' style="padding-left:12px">Kontakte</div>' : '');
+      + '<span class="pfeil">' + ikon('pfeil') + '</span>' + esc(p.postfach) + (p.eigen ? '' : ' <span class="art">geteilt</span>') + '</div>'
+      + (offen ? ordnerHtml + eintrag('__kalender', 'Kalender', 'kalender', 0) + eintrag('__kontakte', 'Kontakte', 'kontakte', 0) : '');
   }).join('');
   document.getElementById('postfachwahl').value = nb.postfach;
   const wahl = document.getElementById('ordnerwahl');
@@ -773,6 +959,9 @@ function ordnerWaehlen(id) {
   document.getElementById('suche').value = '';
   document.querySelectorAll('#ordner .eintrag').forEach(e => e.setAttribute('aria-current', e.dataset.id === id));
   document.getElementById('ordnerwahl').value = id;
+  befehleSetzen();
+  listentitel({__kalender: 'Kalender', __kontakte: 'Kontakte', __entwuerfe: 'Meine Entwürfe'}[id]
+    || ((nb.ordnerliste || []).find(o => o.id === id) || {}).name || '');
   if (id === '__kalender') return kalenderZeigen();
   if (id === '__kontakte') return kontakteZeigen();
   if (id === '__entwuerfe') return entwuerfeZeigen();
@@ -784,7 +973,7 @@ async function entwuerfeZeigen() {
   const d = await getJSON('/notfall/api/entwuerfe');
   const el = document.getElementById('liste');
   if (!d.ok) { el.textContent = errText(d); return; }
-  el.innerHTML = d.entwuerfe.length ? d.entwuerfe.map(e => '<div class="eintrag" data-id="' + escAttr(e.id)
+  el.innerHTML = d.entwuerfe.length ? d.entwuerfe.map(e => '<div class="eintrag ohne" data-id="' + escAttr(e.id)
       + '" onclick="entwurfOeffnen(this.dataset.id)"><div class="betreff">' + esc(e.betreff || '(ohne Betreff)') + '</div>'
       + '<div class="vorschau">' + esc([e.an ? 'An: ' + e.an : '', datumKurz(e.ts)].filter(Boolean).join(' · '))
       + '</div></div>').join('')
@@ -817,8 +1006,8 @@ async function kalenderZeigen() {
   let tag = '';
   el.innerHTML = d.termine.map((t, i) => {
     const neu = tagText(t.beginn) !== tag; tag = tagText(t.beginn);
-    return (neu ? '<div class="leise" style="padding:8px 12px 2px;font-weight:600">' + esc(tag) + '</div>' : '')
-      + '<div class="eintrag" data-i="' + i + '" onclick="terminZeigen(+this.dataset.i)">'
+    return (neu ? '<div class="gruppe">' + esc(tag) + '</div>' : '')
+      + '<div class="eintrag ohne" data-i="' + i + '" onclick="terminZeigen(+this.dataset.i)">'
       + '<div class="kopf"><span>' + (t.ganztag ? 'ganztägig' : esc(uhrzeit(t.beginn) + '–' + uhrzeit(t.ende)))
       + '</span><span>' + esc(t.ort || '') + '</span></div>'
       + '<div class="betreff">' + (t.abgesagt ? '<s>' : '') + esc(t.betreff || '(ohne Betreff)') + (t.abgesagt ? '</s>' : '')
@@ -859,7 +1048,8 @@ async function kontakteZeigen() {
       : 'Keine Kontakte in der Kopie.') + ' Beim Verfassen schlägt die Adresshilfe trotzdem Kolleginnen und Kollegen vor.</p>';
     return;
   }
-  el.innerHTML = d.kontakte.map((k, i) => '<div class="eintrag" data-i="' + i + '" onclick="kontaktZeigen(+this.dataset.i)">'
+  el.innerHTML = d.kontakte.map((k, i) => '<div class="eintrag kontakt" data-i="' + i + '" onclick="kontaktZeigen(+this.dataset.i)">'
+    + avatar(k.name || k.mails[0])
     + '<div class="betreff">' + esc(k.name || k.mails[0] || '') + '</div>'
     + '<div class="vorschau">' + esc([k.firma, k.mails[0]].filter(Boolean).join(' · ')) + '</div></div>').join('');
 }
@@ -992,16 +1182,22 @@ async function listeLaden(seite) {
   // Suche über alle Ordner: zu jedem Treffer den Ordner nennen.
   const ordnerName = id => ((nb.ordnerliste || []).find(o => o.id === id || o.wk === id) || {}).name || '';
   const el = document.getElementById('liste');
+  listentitel(suche ? 'Suchergebnisse' : ordnerName(nb.ordner));
   if (!d.ok) { el.textContent = errText(d); return; }
   if (!d.mails.length) {
     el.innerHTML = '<p class="leise" style="padding:12px">' + (suche ? 'Nichts gefunden — gesucht wird in Betreff, '
       + 'Absender, Empfängern und Text der Post in der Kopie.' : 'Keine Nachrichten.') + '</p>';
     return;
   }
-  el.innerHTML = d.mails.map(m => '<div class="eintrag" data-id="' + escAttr(m.graph_id) + '" data-ungelesen="'
-    + (m.gelesen ? 0 : 1) + '" onclick="mailOeffnen(this.dataset.id)">'
-    + '<div class="kopf"><span class="von">' + markiert(m.von, w) + '</span><span class="datum">' + datumKurz(m.empfangen) + '</span></div>'
-    + '<div class="betreff">' + (m.anhang ? '📎 ' : '') + markiert(m.betreff || '(kein Betreff)', w)
+  // Gruppen nach Datum (Heute, Gestern, …) — Kopf nur, wenn sie wechselt.
+  let gruppe = null;
+  el.innerHTML = d.mails.map(m => (datumGruppe(m.empfangen) !== gruppe
+      ? '<div class="gruppe">' + esc(gruppe = datumGruppe(m.empfangen)) + '</div>' : '')
+    + '<div class="eintrag" data-id="' + escAttr(m.graph_id) + '" data-ungelesen="'
+    + (m.gelesen ? 0 : 1) + '" onclick="mailOeffnen(this.dataset.id)">' + avatar(m.von)
+    + '<div class="kopf"><span class="von">' + markiert(m.von, w) + '</span><span class="datum" title="'
+    + escAttr(datumKurz(m.empfangen)) + '">' + esc(datumListe(m.empfangen)) + '</span></div>'
+    + '<div class="betreff">' + (m.anhang ? '<span role="img" aria-label="Mit Anhang">' + ikon('anhang') + '</span>' : '') + markiert(m.betreff || '(kein Betreff)', w)
     + (m.anzahl > 1 ? ' <span class="zahl" title="Mails in dieser Unterhaltung">' + m.anzahl + '</span>' : '') + '</div>'
     + (suche && ordnerName(m.ordner) ? '<div class="ort">in ' + esc(ordnerName(m.ordner)) + '</div>' : '')
     // Treffer nur beim Empfänger: Die Liste zeigt sonst kein An — ohne diese
@@ -1026,33 +1222,41 @@ async function mailOeffnen(id) {
   const p = q({postfach: nb.postfach, id: id});
   const w = nb.suchwoerter || [];
   nb.mail = id;
+  const von = d.von[0] || {name: '', adresse: ''};
+  const datum = new Date(d.datum);
+  const anhangLink = a => '/notfall/anhang?' + escAttr(p) + '&nr=' + a.nr;
+  const ansehenLink = a => '/notfall/anhang/ansehen?' + escAttr(p) + '&nr=' + a.nr;
   el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
-    + '<div class="kopfbereich"><h2 id="lesen-betreff" tabindex="-1">' + markiert(d.betreff || '(kein Betreff)', w) + '</h2>'
-    + '<div><b>Von:</b> ' + markiert(adressen(d.von), w) + '</div>'
-    + '<div><b>An:</b> ' + markiert(adressen(d.an), w) + '</div>'
-    + (d.cc.length ? '<div><b>Cc:</b> ' + markiert(adressen(d.cc), w) + '</div>' : '')
-    + '<div class="leise">' + esc(new Date(d.datum).toLocaleString('de-DE'))
+    + '<div class="mailansicht"><h2 id="lesen-betreff" tabindex="-1">' + markiert(d.betreff || '(kein Betreff)', w) + '</h2>'
+    + '<div class="kopfbereich"><div class="absender">' + avatar(von.name || von.adresse, true)
+    + '<div class="wer"><div><span class="name">' + markiert(von.name || von.adresse, w) + '</span>'
+    + (von.name ? ' <span class="adresse">&lt;' + markiert(von.adresse, w) + '&gt;</span>' : '')
+    + (d.von.length > 1 ? ' <span class="adresse">' + markiert(adressen(d.von.slice(1)), w) + '</span>' : '') + '</div>'
+    + '<div class="empf">An: ' + markiert(adressen(d.an), w) + '</div>'
+    + (d.cc.length ? '<div class="empf">Cc: ' + markiert(adressen(d.cc), w) + '</div>' : '') + '</div>'
+    + '<div class="rechts">'
+    + (nb.senden ? '<div class="symbole">'
+      + '<button onclick="verfassen(\'antwort\')" title="Antworten" aria-label="Antworten">' + ikon('antworten') + '</button>'
+      + '<button onclick="verfassen(\'allen\')" title="Allen antworten" aria-label="Allen antworten">' + ikon('allen') + '</button>'
+      + '<button onclick="verfassen(\'weiterleiten\')" title="Weiterleiten" aria-label="Weiterleiten">' + ikon('weiter') + '</button></div>' : '')
+    + '<div class="datum">' + esc(isNaN(datum) ? '' : datum.toLocaleString('de-DE', {weekday: 'short', day: '2-digit',
+        month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})) + '</div></div></div>'
     // Die Signatur wird hier NICHT geprüft — nur angezeigt, dass eine da ist.
-    + (d.signiert ? ' · S/MIME-signiert (Signatur im Notbetrieb nicht geprüft)' : '')
-    + (d.verschluesselt ? ' · verschlüsselt — im Notbetrieb nicht lesbar' : '') + '</div>'
-    + (d.echtheit === 'unbestaetigt' ? '<div class="meldung" style="margin:6px 0 0">Absender nicht bestätigt '
+    + (d.signiert || d.verschluesselt ? '<div class="hinweis">'
+       + [d.signiert ? 'S/MIME-signiert (Signatur im Notbetrieb nicht geprüft)' : '',
+          d.verschluesselt ? 'verschlüsselt — im Notbetrieb nicht lesbar' : ''].filter(Boolean).join(' · ') + '</div>' : '')
+    + (d.echtheit === 'unbestaetigt' ? '<div class="meldung" style="margin:10px 0 0">Absender nicht bestätigt '
        + '(SPF/DKIM/DMARC) — Vorsicht bei Links, Anhängen und Zahlungsaufforderungen.</div>' : '')
-    + (d.anhaenge.length ? '<div class="anhaenge">' + d.anhaenge.map(a => '<span class="anhang"><a href="/notfall/anhang?' + escAttr(p)
-        + '&nr=' + a.nr + '" title="Herunterladen">📎 ' + esc(a.name) + ' (' + Math.max(1, Math.round(a.groesse / 1024)) + ' KB)</a>'
+    + (d.anhaenge.length ? '<div class="anhaenge">' + d.anhaenge.map(a => '<span class="anhang">' + ikon('anhang')
+        + '<span><a href="' + anhangLink(a) + '" title="Herunterladen">' + esc(a.name) + '</a> <span class="groesse">'
+        + Math.max(1, Math.round(a.groesse / 1024)) + ' KB</span>'
         // Vorschau nur, wo das Gateway den Typ an den Bytes erkannt hat (Bild, PDF).
-        + (a.vorschau ? ' <a href="/notfall/anhang/ansehen?' + escAttr(p) + '&nr=' + a.nr
-           + '" target="_blank" rel="noopener noreferrer">Ansehen</a>' : '') + '</span>').join('') + '</div>'
+        + (a.vorschau ? ' · <a href="' + ansehenLink(a) + '" target="_blank" rel="noopener noreferrer">Ansehen</a>' : '')
+        + '</span></span>').join('') + '</div>'
       + (d.anhaenge.some(a => a.vorschau.startsWith('image/')) ? '<div class="bilder">' + d.anhaenge
-          .filter(a => a.vorschau.startsWith('image/')).map(a => '<a href="/notfall/anhang/ansehen?' + escAttr(p)
-          + '&nr=' + a.nr + '" target="_blank" rel="noopener noreferrer"><img loading="lazy" alt="' + escAttr(a.name)
-          + '" src="/notfall/anhang/ansehen?' + escAttr(p) + '&nr=' + a.nr + '"></a>').join('') + '</div>' : '') : '')
-    + (nb.senden ? '<div class="aktionen"><button onclick="verfassen(\'antwort\')">Antworten</button>'
-      + '<button onclick="verfassen(\'allen\')">Allen antworten</button>'
-      + '<button onclick="verfassen(\'weiterleiten\')">Weiterleiten</button>'
-      + '<button onclick="mailVerschieben(\'deleteditems\', this)">Löschen</button>'
-      + '<select aria-label="Verschieben nach" onchange="if (this.value) mailVerschieben(this.value, this)">'
-      + '<option value="">Verschieben nach…</option>' + (nb.ordnerliste || []).filter(o => o.id !== nb.ordner)
-        .map(o => '<option value="' + escAttr(o.id) + '">' + esc(o.name) + '</option>').join('') + '</select></div>' : '')
+          .filter(a => a.vorschau.startsWith('image/')).map(a => '<a href="' + ansehenLink(a)
+          + '" target="_blank" rel="noopener noreferrer"><img loading="lazy" alt="' + escAttr(a.name)
+          + '" src="' + ansehenLink(a) + '"></a>').join('') + '</div>' : '') : '')
     // Option „Unterhaltungen“: die übrigen Mails derselben Unterhaltung.
     + ((nb.weitere || {})[id] && nb.weitere[id].length ? '<div class="unterhaltung"><b>In dieser Unterhaltung:</b>'
        + nb.weitere[id].map(w => '<div class="eintrag" data-id="' + escAttr(w.graph_id) + '" data-ungelesen="'
@@ -1063,7 +1267,7 @@ async function mailOeffnen(id) {
        // sandbox ohne Rechte: kein Skript, kein Formular, kein Zugriff auf diese Seite.
        // Zusätzlich liefert der Server den Inhalt mit durchgesetzter CSP.
        ? '<iframe sandbox="" referrerpolicy="no-referrer" src="/notfall/inhalt?' + escAttr(p + (w.length ? '&' + q({markieren: w.join(' ')}) : '')) + '" title="Nachricht"></iframe>'
-       : '<pre>' + markiert(d.text, w) + '</pre>');
+       : '<pre>' + markiert(d.text, w) + '</pre>') + '</div>';
   ansicht('lesen');
   document.getElementById('lesen-betreff').focus();   // Screenreader und Tastatur landen bei der Mail
 }
@@ -1077,7 +1281,8 @@ try { Object.assign(spaltenBreite, JSON.parse(localStorage.getItem('nf-spalten')
 catch (e) { /* ohne Speicher: Vorgabe */ }
 function spaltenSetzen(merken) {
   const app = document.getElementById('app');
-  const platz = (app.clientWidth || window.innerWidth) - 10 - LESEN_MIN;
+  const st = getComputedStyle(app), rand = (parseFloat(st.paddingLeft) || 0) + (parseFloat(st.paddingRight) || 0);
+  const platz = (app.clientWidth || window.innerWidth) - rand - 10 - LESEN_MIN;
   const b = {};
   b.ordner = Math.max(SPALTE_MIN.ordner, Math.min(+spaltenBreite.ordner || SPALTE_VORGABE.ordner, platz - SPALTE_MIN.liste));
   b.liste = Math.max(SPALTE_MIN.liste, Math.min(+spaltenBreite.liste || SPALTE_VORGABE.liste, platz - b.ordner));
@@ -1120,6 +1325,7 @@ spaltenSetzen(false);
 // Kopfzeile ist mobil oft zweizeilig: ihre echte Höhe für den Lesebereich.
 function kopfhoeheMerken() {
   document.documentElement.style.setProperty('--kopfhoehe', document.querySelector('header').offsetHeight + 'px');
+  document.documentElement.style.setProperty('--befehlhoehe', document.getElementById('befehle').offsetHeight + 'px');
 }
 window.addEventListener('resize', kopfhoeheMerken);
 kopfhoeheMerken();
