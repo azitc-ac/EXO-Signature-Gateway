@@ -1316,6 +1316,20 @@
     "name": "api_setup_notification_dg"
   },
   {
+    "pfad": "/api/setup/regel/auto-ausnahme",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_regel_auto_ausnahme"
+  },
+  {
+    "pfad": "/api/setup/regel/auto-ausnahme-ergaenzen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_regel_auto_ausnahme_ergaenzen"
+  },
+  {
     "pfad": "/api/setup/regel/empfaengerbedingung",
     "methoden": [
       "GET"

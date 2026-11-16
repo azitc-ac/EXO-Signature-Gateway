@@ -479,6 +479,7 @@ INTERNAL_KEYS = frozenset({
     "_DIREKTVERSAND_PROBE",       # direktversand_probe.py — Stand der letzten Probe
     "_SMIME_REGELN_STAND",        # setup_wizard.py — angewendeter Stand des S/MIME-Regel-Solls
     "_ADDIN_VERTEILUNG",          # addin_verteilung.py — je Add-in: Soll-Fassung + erstes Sichten
+    "_REGEL_AUTO_AUSNAHME",       # regel_auto_ausnahme.py — letzter Live-Befund der Auto-Antwort-Ausnahme
 })
 
 # Schlüssel aus entfernten Funktionen. Sie blieben in settings.json stehen, weil

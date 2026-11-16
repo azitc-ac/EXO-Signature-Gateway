@@ -1120,6 +1120,10 @@ def run_exo_connector_setup(
             log.info("EXO connector setup succeeded")
             import waechter_regel
             waechter_regel.regel_umgeschaltet()
+            # Die Einrichtung setzt die Auto-Antwort-Ausnahme — Befund nachlesen,
+            # sonst stünde die Aufgabe bis zum nächsten Start weiter da.
+            import regel_auto_ausnahme
+            regel_auto_ausnahme.pruefen()
             return {"ok": True, "output": output}
         else:
             log.error("EXO connector setup failed rc=%d: %s", proc.returncode, output)

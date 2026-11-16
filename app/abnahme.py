@@ -731,6 +731,35 @@ def _regel_kennung() -> dict:
     return _punkt(name, OK, f"{len(p['regeln'])} Regel(n) mit Kennung {p['soll']}")
 
 
+def _regel_auto_ausnahme() -> dict:
+    """Nehmen die Routing-Regeln Auto-Antworten aus? Sonst laufen die
+    Abwesenheitsnotizen der Postfächer (MAIL FROM:<>) übers Gateway und
+    scheitern auf dem Rückweg an externe Empfänger (5.7.64/4.4.4). Die
+    Ausnahme kam mit v1.9.88 nur an neu angelegte Regeln.
+
+    Liest nur den gemerkten Live-Befund (regel_auto_ausnahme.gemerkt) — lokal,
+    damit er auch als Aufgabe taugt. Frisch wird er beim Start jeder neuen
+    Fassung, nach der Connector-Einrichtung und nach „Ausnahme ergänzen“."""
+    import regel_auto_ausnahme as raa
+    import settings_store
+    name = "Routing-Regeln nehmen Abwesenheitsnotizen aus"
+    if not settings_store.get("EXO_CONNECTOR_CREATED"):
+        return _punkt(name, ENTFAELLT, "Exchange-Connector noch nicht eingerichtet.")
+    g = raa.gemerkt()
+    weg = "Einrichtung → Schritt 6 „EXO Outbound Connector + Transport Rule“ → „Ausnahme ergänzen“."
+    if not g or g.get("zustand") == raa.UNBEKANNT:
+        return _punkt(name, UNBEKANNT, "Die Regeln wurden noch nicht gelesen.",
+                      "Einrichtung → Schritt 6 „EXO Outbound Connector + Transport Rule“ → „Regeln prüfen“.")
+    if g["zustand"] == raa.KEINE:
+        return _punkt(name, ENTFAELLT, "Keine Gateway-Routing-Regel gefunden.")
+    if g["zustand"] == raa.FEHLT:
+        return _punkt(name, OFFEN,
+                      f"Ohne Ausnahme für Auto-Antworten: {', '.join(g.get('fehlt') or [])}. "
+                      "Abwesenheitsnotizen laufen übers Gateway und erreichen externe "
+                      "Empfänger nicht (sie bleiben in der Warteschlange).", weg)
+    return _punkt(name, OK, f"Ausnahme vorhanden (geprüft {g.get('geprueft', '')}).")
+
+
 def _addin_rollen() -> dict:
     """Dürfen normale Nutzer Add-ins benutzen? Fehlen die Benutzerrollen in der
     Standard-Rollenzuweisungsrichtlinie, laufen die Add-ins nur bei Admins —
@@ -866,6 +895,7 @@ def _key_vault_zugriff() -> dict:
 
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
+              _regel_auto_ausnahme,
               _addin_rollen, _addin_fassung, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,

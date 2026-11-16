@@ -44,6 +44,7 @@ from fastapi.security import HTTPBasicCredentials
 import config
 import graph_client
 import pkce as pkce_mod
+import regel_auto_ausnahme
 import settings_store
 
 from webui.deps import (
@@ -184,6 +185,7 @@ async def setup_wizard(
                                 **{k: (settings_store.get("_ADDIN_VERFASSEN_STAND") or {}).get(k, "")
                                    for k in ("version", "seit")}},
             "webui_port": config.WEBUI_PORT,
+            "auto_ausnahme": regel_auto_ausnahme.gemerkt(),
         },
     )
 
@@ -937,6 +939,20 @@ async def api_regel_schleifenkennung(user: str = Depends(_require_admin)):
 async def api_regel_schleifenkennung_angleichen(user: str = Depends(_require_admin)):
     import regel_kennung
     return JSONResponse(await asyncio.to_thread(regel_kennung.angleichen, user))
+
+
+# ── Auto-Antwort-Ausnahme an den Routing-Regeln (regel_auto_ausnahme.py) ─────
+
+@router.get("/api/setup/regel/auto-ausnahme")
+async def api_regel_auto_ausnahme(user: str = Depends(_require_admin)):
+    import regel_auto_ausnahme
+    return JSONResponse({"ok": True, **await asyncio.to_thread(regel_auto_ausnahme.pruefen)})
+
+
+@router.post("/api/setup/regel/auto-ausnahme-ergaenzen")
+async def api_regel_auto_ausnahme_ergaenzen(user: str = Depends(_require_admin)):
+    import regel_auto_ausnahme
+    return JSONResponse(await asyncio.to_thread(regel_auto_ausnahme.ergaenzen, user))
 
 
 # ── App-Pool API ──────────────────────────────────────────────────────────────

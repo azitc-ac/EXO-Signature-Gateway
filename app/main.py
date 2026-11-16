@@ -978,6 +978,13 @@ def main() -> None:
             log.debug("Domänen-Vorwärmung übersprungen: %s", exc)
     threading.Thread(target=_warm_domaenen, daemon=True).start()
 
+    # Einmal je Fassung: Fehlt den Routing-Regeln die Auto-Antwort-Ausnahme?
+    # Der Befund speist die Aufgabe oben rechts (regel_auto_ausnahme.py).
+    def _auto_ausnahme_pruefen() -> None:
+        import regel_auto_ausnahme
+        regel_auto_ausnahme.nach_update()
+    threading.Thread(target=_auto_ausnahme_pruefen, daemon=True).start()
+
     asyncio.run(_run_smtp())
 
 

@@ -1032,6 +1032,28 @@
       Mail-Flow: Outlook &rarr; EXO &rarr; Transport Rule &rarr; Gateway &rarr; Graph sendMail &rarr; EXO Delivery
       {% endif %}
     </p>
+    {% set aa = auto_ausnahme %}
+    <div id="exo-auto-ausnahme" style="margin-top:8px">
+      <p style="margin:0 0 6px;font-size:12.5px">
+        {% if aa and aa.zustand == 'ok' %}
+        <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fertig" id="auto-ausnahme-stand">✓ Routing-Regeln nehmen Abwesenheitsnotizen aus (geprüft {{ aa.geprueft }})</span>
+        {% elif aa and aa.zustand == 'fehlt' %}
+        <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="auto-ausnahme-stand">⚠ Ohne Ausnahme für Abwesenheitsnotizen: {{ aa.fehlt | join(', ') }}. Sie laufen dann übers Gateway und erreichen externe Empfänger nicht.</span>
+        {% elif aa and aa.zustand == 'keine' %}
+        <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="auto-ausnahme-stand">Keine Gateway-Routing-Regel gefunden.</span>
+        {% else %}
+        <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="auto-ausnahme-stand">Ausnahme für Abwesenheitsnotizen noch nicht geprüft.</span>
+        {% endif %}
+      </p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn secondary btn-sm" onclick="autoAusnahmePruefen(this)">Regeln prüfen</button>
+        {% if aa and aa.zustand == 'fehlt' %}
+        <button type="button" class="btn secondary btn-sm" id="auto-ausnahme-btn" onclick="autoAusnahmeErgaenzen(this)">Ausnahme ergänzen</button>
+        {% endif %}
+        <span class="hint">Ergänzt nur die Ausnahme <code>Auto-Submitted</code> enthält <code>auto</code>; Gate und übrige Bedingungen bleiben.</span>
+      </div>
+      <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="auto-ausnahme-result" hidden></span>
+    </div>
     <details style="margin-top:10px">
       <summary style="cursor:pointer;font-size:13px;color:#0369a1">Angelegte Objekte anzeigen</summary>
       <ul style="margin:8px 0 0 16px;line-height:1.9;font-size:13px;color:#334155">
@@ -2233,6 +2255,7 @@ async function saveKeyvault() {
             <a href="{{ addin_manifest_url }}" target="_blank" class="btn secondary btn-sm">Öffnen</a>
             <a href="{{ addin_manifest_url }}" download="exo-signatur-addin.xml" class="btn secondary btn-sm">Herunterladen</a>
             <button class="btn secondary btn-sm" onclick="validateAddinManifest(this, '{{ addin_manifest_url }}', 'addin-validate-result')">Erreichbarkeit prüfen</button>
+            <a href="https://admin.microsoft.com/Adminportal/Home#/Settings/IntegratedApps" target="_blank" rel="noopener" class="btn secondary btn-sm" title="Neue Fassung: Add-in wählen → Aktualisieren">Integrierte Apps öffnen</a>
             <span id="addin-validate-result" hidden></span>
           </div>
           <span id="addin-copy-ok" style="font-size:11px;color:#16a34a;display:none">Kopiert ✓</span>
@@ -2302,6 +2325,7 @@ async function saveKeyvault() {
           <a href="{{ av.url }}" target="_blank" class="btn secondary btn-sm">Öffnen</a>
           <a href="{{ av.url }}" download="exo-signatur-verfassen.xml" class="btn secondary btn-sm">Herunterladen</a>
           <button class="btn secondary btn-sm" onclick="validateAddinManifest(this, '{{ av.url }}', 'addin-verfassen-validate-result')">Erreichbarkeit prüfen</button>
+          <a href="https://admin.microsoft.com/Adminportal/Home#/Settings/IntegratedApps" target="_blank" rel="noopener" class="btn secondary btn-sm" title="Neue Fassung: Add-in wählen → Aktualisieren">Integrierte Apps öffnen</a>
           <span id="addin-verfassen-validate-result" hidden></span>
         </div>
         <span id="addin-verfassen-copy-ok" style="font-size:11px;color:#16a34a;display:none">Kopiert ✓</span>
@@ -2567,6 +2591,21 @@ async function teamsAppAktivUmschalten(cb) {
     cb.checked = !cb.checked;
     document.getElementById('teams-app-setup').style.display = cb.checked ? '' : 'none';
   }
+}
+
+// Auto-Antwort-Ausnahme an den Routing-Regeln (regel_auto_ausnahme.py).
+async function autoAusnahmePruefen(btn) {
+  var d = await knopfAktion(btn, 'Prüfe…', () => getJSON('/api/setup/regel/auto-ausnahme'));
+  if (!d.ok || d.zustand === 'unbekannt') { showMsg('auto-ausnahme-result', '✗ Regeln nicht lesbar' + (d.ok ? '' : ': ' + errText(d)), false); return; }
+  location.hash = 'exo-auto-ausnahme';
+  location.reload();
+}
+async function autoAusnahmeErgaenzen(btn) {
+  var d = await knopfAktion(btn, 'Ergänze…', () => postJSON('/api/setup/regel/auto-ausnahme-ergaenzen', {}));
+  if (!d.ok) { showMsg('auto-ausnahme-result', '✗ ' + (d.error || errText(d) || 'nicht ergänzt'), false); return; }
+  showMsg('auto-ausnahme-result', '✓ Ergänzt an ' + (d.regeln || []).length + ' Regel(n) — die Seite lädt neu', true);
+  location.hash = 'exo-auto-ausnahme';
+  setTimeout(function () { location.reload(); }, 1200);
 }
 
 function copyManifestUrl(url, okId) {

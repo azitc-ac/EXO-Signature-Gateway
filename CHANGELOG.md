@@ -5,6 +5,46 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.39 — 2026-11-16 — Abwesenheitsnotizen: fehlende Regel-Ausnahme erkennen und nachziehen
+
+Die Routing-Regel leitet den gesamten Ausgang der aktivierten Postfächer ans
+Gateway, auch die Abwesenheitsnotizen, die Exchange selbst verschickt. Diese
+haben nach RFC 3834 einen leeren Umschlag-Absender. Auf dem Rückweg über den
+Smarthost ordnet Exchange eine solche Mail dem Tenant nur über die Domäne des
+Gateway-Zertifikats zu. Liegt die nicht unter einer Domäne des Tenants, lehnt
+Exchange die Zustellung an externe Empfänger ab (`550 5.7.64 TenantAttribution`
+oder `451 4.4.4`). Die Notiz bleibt in der Warteschlange, und auch „Freigeben“
+scheitert dann.
+
+Seit v1.9.88 nehmen die Regeln automatische Antworten aus (Kopfzeile
+`Auto-Submitted` enthält `auto`), und Exchange verschickt sie selbst. Diese
+Ausnahme bekamen aber nur neu angelegte Regeln. Ältere Regeln behielten den
+alten Stand, und keine Prüfung im Gateway zeigte das. Eine schon vorhandene
+getrennte S/MIME-Regel bekam die Ausnahme auf keinem Weg.
+
+Neu:
+
+- Das Gateway liest die Ausnahme an seinen Routing-Regeln (Signatur, ggf.
+  S/MIME) einmal nach jedem Update und nach jeder Connector-Einrichtung. Fehlt
+  sie, erscheint eine Aufgabe oben rechts, und die Abnahme meldet den Punkt
+  „Routing-Regeln nehmen Abwesenheitsnotizen aus“.
+- Einrichtung → Schritt 6 „EXO Outbound Connector + Transport Rule“ zeigt den
+  Befund, mit „Regeln prüfen“ und „Ausnahme ergänzen“. Ergänzt wird nur diese
+  eine Ausnahme; Gate, Connector und die übrigen Bedingungen bleiben. Ob es
+  gewirkt hat, liest das Gateway danach aus Exchange nach.
+- Die Regeltrennung (S/MIME-Weg) ergänzt die Ausnahme jetzt auch an einer schon
+  vorhandenen S/MIME-Regel.
+- Neben den Manifest-Adressen beider Outlook-Add-ins führt „Integrierte Apps
+  öffnen“ direkt zur Liste im Microsoft 365 Admin Center. Die Aufgabe zur
+  Add-in-Fassung verweist auf diese Stelle.
+
+Eine Abwesenheitsnotiz, die schon in der Warteschlange liegt, lässt sich nicht
+nachträglich zustellen. Lösche sie dort.
+
+**Zu tun:** Erscheint nach dem Update die Aufgabe „Routing-Regeln nehmen
+Abwesenheitsnotizen aus“: Einrichtung → Schritt 6 → „Ausnahme ergänzen“. Die
+Regel wirkt nach etwa 15 Minuten.
+
 ## v1.12.38 — 2026-11-15 — Direktversand-Probe auch an externe Empfänger (Empfehlung)
 
 Die tägliche Probe des Direktversands misst bisher nur, ob Post im eigenen
