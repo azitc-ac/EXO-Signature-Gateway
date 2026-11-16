@@ -45,6 +45,7 @@ import threading
 import time
 
 import settings_store
+import notbetrieb
 
 log = logging.getLogger(__name__)
 
@@ -212,7 +213,6 @@ def _grau_durch(ip: str, mail_from: str, rcpt: str, jetzt: float | None = None) 
     n = netz(ip)
     schluessel = f"{n}|{(mail_from or '').lower()}|{rcpt.lower()}"
     with notbetrieb._lock, notbetrieb._conn() as conn:
-        _tabellen(conn)
         bekannt = conn.execute("SELECT bis FROM grau_netz WHERE netz=?", (n,)).fetchone()
         if bekannt and bekannt["bis"] > jetzt:
             return True
@@ -228,6 +228,7 @@ def _grau_durch(ip: str, mail_from: str, rcpt: str, jetzt: float | None = None) 
         return True
 
 
+@notbetrieb.schema_teil
 def _tabellen(conn) -> None:
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS grau (schluessel TEXT PRIMARY KEY, erst REAL NOT NULL);

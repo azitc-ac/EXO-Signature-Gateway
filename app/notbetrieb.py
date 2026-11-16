@@ -326,13 +326,75 @@ def fenster_fuer(config_key: str, upn: str = "", regeln: list | None = None,
 
 # ── Ablage ──────────────────────────────────────────────────────────────────
 
+# Schema der Kopie — angelegt bzw. nachgezogen, wenn die Datei es noch nicht
+# trägt, nicht bei jedem Öffnen. Gemessen 16.11.2026 (Lasttest, 1000 Nutzer):
+# _conn() kostete rund 1 ms, fast alles CREATE/PRAGMA, und das unter der
+# Sperre — jede Anfrage öffnet zwei, drei Verbindungen. Der Stand steht in
+# der Datei selbst (PRAGMA user_version): Er überlebt Löschen, Neuanlage und
+# Wiederherstellen, wo ein Merker im Prozess auf eine falsche Datei zeigen
+# könnte. Jeder Teil (auch die Tabellen anderer Module) meldet sich mit
+# @schema_teil an; der Stand ist eine Prüfsumme über ihren Code und die
+# Konstanten, die er liest (z. B. _MAIL_ZUSATZ) — wer ein Schema ändert,
+# ändert damit den Stand, und jede Bestandsdatei zieht beim nächsten Öffnen nach.
+_SCHEMA_TEILE: dict = {}
+_schema_stand: int | None = None        # erst beim ersten Öffnen: Konstanten stehen weiter unten
+
+
+def _code_merkmal(code, umgebung: dict, aus: list) -> None:
+    for k in code.co_consts:
+        if hasattr(k, "co_consts"):
+            _code_merkmal(k, umgebung, aus)
+        else:
+            aus.append(repr(k))
+    for name in code.co_names:
+        wert = umgebung.get(name)
+        if isinstance(wert, (str, int, tuple, frozenset)):
+            aus.append(f"{name}={wert!r}")
+
+
+def _stand_berechnen() -> int:
+    import zlib
+    aus: list = []
+    for name in sorted(_SCHEMA_TEILE):
+        f = _SCHEMA_TEILE[name]
+        aus.append(name)
+        _code_merkmal(f.__code__, f.__globals__, aus)
+    return (zlib.crc32("\n".join(aus).encode()) & 0x7FFFFFFF) or 1
+
+
+def schema_teil(anlegen):
+    """Tabellen eines Moduls in der Kopie anmelden (Decorator). `anlegen(conn)`
+    muss wiederholbar sein (IF NOT EXISTS, Spalten nur ergänzen, wenn sie fehlen)."""
+    global _schema_stand
+    _SCHEMA_TEILE[f"{anlegen.__module__}.{anlegen.__qualname__}"] = anlegen
+    _schema_stand = None
+    return anlegen
+
+
 def _conn() -> sqlite3.Connection:
-    secure_io.ensure_dir(_wurzel())
+    global _schema_stand
+    if _schema_stand is None:
+        _schema_stand = _stand_berechnen()
+    stand = _schema_stand
+    if not _wurzel().is_dir():
+        secure_io.ensure_dir(_wurzel())
     conn = sqlite3.connect(str(_db_pfad()), check_same_thread=False)
-    # Wie mail_audit: sqlite legt mit der umask an; zur Laufzeit entstehende
-    # Datei sofort härten, nicht erst beim nächsten Start.
-    secure_io.harden_file(_db_pfad())
     conn.row_factory = sqlite3.Row
+    if conn.execute("PRAGMA user_version").fetchone()[0] != stand:
+        # Neue Datei oder älteres Schema. Wie mail_audit: sqlite legt mit der
+        # umask an; zur Laufzeit entstehende Datei sofort härten, nicht erst
+        # beim nächsten Start — samt Verzeichnis, das die Ablage der Mails
+        # (mkdir mit Eltern) schon vorher mit der umask angelegt haben kann.
+        secure_io.ensure_dir(_wurzel())
+        secure_io.harden_file(_db_pfad())
+        for anlegen in list(_SCHEMA_TEILE.values()):
+            anlegen(conn)
+        conn.execute(f"PRAGMA user_version = {int(stand)}")
+    return conn
+
+
+@schema_teil
+def _schema_kern(conn) -> None:
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS mails (
             postfach  TEXT NOT NULL,
@@ -406,7 +468,10 @@ def _conn() -> sqlite3.Connection:
         conn.execute("ALTER TABLE ordner ADD COLUMN wk TEXT")
     if "versteckt" not in {z[1] for z in conn.execute("PRAGMA table_info(konten)")}:
         conn.execute("ALTER TABLE konten ADD COLUMN versteckt INTEGER NOT NULL DEFAULT 0")
-    return conn
+    # Bei jeder Anfrage des Webmails (notbetrieb_rechte.zugriff): Konto auch
+    # über den UPN, Rechte nach Nutzer — ohne Index las jede alle Zeilen.
+    conn.execute("CREATE INDEX IF NOT EXISTS konten_upn ON konten (upn)")
+    conn.execute("CREATE INDEX IF NOT EXISTS rechte_nutzer ON rechte (nutzer)")
 
 
 # Kopfdaten für die Liste im Webmail — gleich nach dem Ablegen aus dem MIME
@@ -1066,6 +1131,12 @@ def _bestand() -> dict:
         stand = conn.execute("SELECT v FROM meta WHERE k='profile_stand'").fetchone()
     return {"mails": mails, "lokal_offen": offen, "lokal_stau": stau, "postfaecher_im_schatten": pf,
             "profile": profile, "profile_stand": stand["v"] if stand else None}
+
+
+def letzter_abgleich() -> str | None:
+    """Zeitpunkt des letzten Abgleichs — ohne die Zählungen von status(), die
+    die ganze Kopie durchgehen (Webmail: bei jedem Öffnen)."""
+    return (settings_store.get(_LAST_KEY) or {}).get("ts")
 
 
 def status() -> dict:

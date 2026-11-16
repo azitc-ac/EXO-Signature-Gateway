@@ -76,9 +76,12 @@ def _sender(benutzer: str = Depends(_leser)) -> str:
     return benutzer
 
 
-def _postfach(benutzer: str, postfach: str) -> str:
+async def _postfach(benutzer: str, postfach: str) -> str:
+    """Zugriffsprüfung je Anfrage — im Thread: Sie liest das Rechte-Abbild
+    unter der Sperre der Kopie. Direkt in der Event-Loop wartete jede andere
+    Anfrage mit, solange ein Abruf die Sperre hielt (Lasttest 16.11.2026)."""
     postfach = (postfach or "").strip().lower()
-    if not notbetrieb_lesen.darf_lesen(benutzer, postfach):
+    if not await asyncio.to_thread(notbetrieb_lesen.darf_lesen, benutzer, postfach):
         raise HTTPException(403, "Kein Zugriff auf dieses Postfach.")
     return postfach
 
@@ -368,7 +371,7 @@ async def notfall_abmelden():
 async def notfall_ich(benutzer: str = Depends(_benutzer)):
     if not inhalte_erlaubt(benutzer):
         # Bereitschaftsmodus: Anmeldung klappt, Inhalte erst im Notfall.
-        letzter = (notbetrieb.status().get("letzter_lauf") or {}).get("ts")
+        letzter = notbetrieb.letzter_abgleich()
         return JSONResponse({"ok": True, "benutzer": benutzer, "bereit_modus": True,
                              "letzter_abgleich": letzter, "zugriff": [], "absender": []})
     zugriff = [p for p in await asyncio.to_thread(notbetrieb_rechte.zugriff, benutzer) if p["voll"]]
@@ -383,14 +386,14 @@ async def notfall_ich(benutzer: str = Depends(_benutzer)):
 def _vorschau(postfaecher: list[str]) -> dict:
     """Für den Hinweis im Normalbetrieb: Stand der Kopie und je Postfach, wie
     viele Tage Post sie hält — damit niemand die Kopie für das Postfach hält."""
-    stand = (notbetrieb.status().get("letzter_lauf") or {}).get("ts")
+    stand = notbetrieb.letzter_abgleich()
     tage = {p["postfach"].lower(): p["mail"] for p in notbetrieb.postfach_uebersicht()}
     return {"stand": stand, "tage": {pf: tage.get(pf.lower()) for pf in postfaecher}}
 
 
 @router.get("/notfall/api/ordner")
 async def notfall_ordner(postfach: str, benutzer: str = Depends(_leser)):
-    pf = _postfach(benutzer, postfach)
+    pf = await _postfach(benutzer, postfach)
     return JSONResponse({"ok": True, "ordner": await asyncio.to_thread(notbetrieb_lesen.ordner, pf)})
 
 
@@ -398,7 +401,7 @@ async def notfall_ordner(postfach: str, benutzer: str = Depends(_leser)):
 async def notfall_kalender(postfach: str, von: str, bis: str, benutzer: str = Depends(_leser)):
     """Termine (nur lesend). Private Termine eines fremden Postfachs nur als Zeitblock."""
     import notbetrieb_pim
-    pf = _postfach(benutzer, postfach)
+    pf = await _postfach(benutzer, postfach)
     eigen = any(p["postfach"] == pf and p["eigen"] for p in await asyncio.to_thread(notbetrieb_rechte.zugriff, benutzer))
     return JSONResponse({"ok": True, "termine": await asyncio.to_thread(
         notbetrieb_pim.termine, pf, von[:25], bis[:25], eigen)})
@@ -407,7 +410,7 @@ async def notfall_kalender(postfach: str, von: str, bis: str, benutzer: str = De
 @router.get("/notfall/api/kontakte")
 async def notfall_kontakte(postfach: str, benutzer: str = Depends(_leser)):
     import notbetrieb_pim
-    pf = _postfach(benutzer, postfach)
+    pf = await _postfach(benutzer, postfach)
     return JSONResponse({"ok": True, "kontakte": await asyncio.to_thread(notbetrieb_pim.kontakte, pf),
                          "recht_fehlt": await asyncio.to_thread(notbetrieb_pim.kontakte_recht_fehlt)})
 
@@ -435,14 +438,14 @@ async def notfall_adressbuch(q: str = "", benutzer: str = Depends(_leser)):
 async def notfall_liste(postfach: str, ordner: str = "", suche: str = "", seite: int = 0,
                         ungelesen: bool = False, anhang: bool = False, unterhaltungen: bool = False,
                         benutzer: str = Depends(_leser)):
-    pf = _postfach(benutzer, postfach)
+    pf = await _postfach(benutzer, postfach)
     return JSONResponse({"ok": True, **await asyncio.to_thread(notbetrieb_lesen.liste, pf, ordner, suche[:200],
                                                                seite, ungelesen, anhang, unterhaltungen)})
 
 
 @router.get("/notfall/api/mail")
 async def notfall_mail(postfach: str, id: str, benutzer: str = Depends(_leser)):
-    pf = _postfach(benutzer, postfach)
+    pf = await _postfach(benutzer, postfach)
     m = await asyncio.to_thread(notbetrieb_lesen.mail, pf, id)
     if not m:
         raise HTTPException(404)
@@ -453,7 +456,7 @@ async def notfall_mail(postfach: str, id: str, benutzer: str = Depends(_leser)):
 @router.get("/notfall/inhalt")
 async def notfall_inhalt(postfach: str, id: str, benutzer: str = Depends(_leser)):
     """HTML der Mail — NUR mit durchgesetzter CSP (notbetrieb_lesen.INHALT_CSP)."""
-    pf = _postfach(benutzer, postfach)
+    pf = await _postfach(benutzer, postfach)
     inhalt = await asyncio.to_thread(notbetrieb_lesen.inhalt_html, pf, id)
     if inhalt is None:
         raise HTTPException(404)
@@ -464,7 +467,7 @@ async def notfall_inhalt(postfach: str, id: str, benutzer: str = Depends(_leser)
 
 @router.get("/notfall/anhang")
 async def notfall_anhang(postfach: str, id: str, nr: int, benutzer: str = Depends(_leser)):
-    pf = _postfach(benutzer, postfach)
+    pf = await _postfach(benutzer, postfach)
     a = await asyncio.to_thread(notbetrieb_lesen.anhang, pf, id, nr)
     if not a:
         raise HTTPException(404)
@@ -482,7 +485,7 @@ async def notfall_anhang_ansehen(postfach: str, id: str, nr: int, benutzer: str 
     sonst 415 — die Oberfläche bietet dann nur den Download an. Inhalt in
     eigener Sandbox (CSP sandbox, nosniff): Ein präpariertes PDF oder Bild
     erreicht weder Cookies noch die Seite."""
-    pf = _postfach(benutzer, postfach)
+    pf = await _postfach(benutzer, postfach)
     a = await asyncio.to_thread(notbetrieb_lesen.anhang, pf, id, nr)
     if not a:
         raise HTTPException(404)
@@ -499,7 +502,7 @@ async def notfall_anhang_ansehen(postfach: str, id: str, nr: int, benutzer: str 
 @router.get("/notfall/api/vorlage")
 async def notfall_vorlage(postfach: str, id: str, art: str, benutzer: str = Depends(_leser)):
     """Vorbelegung für Antworten / Allen antworten / Weiterleiten."""
-    pf = _postfach(benutzer, postfach)
+    pf = await _postfach(benutzer, postfach)
     try:
         return JSONResponse({"ok": True, **await asyncio.to_thread(notbetrieb_senden.vorlage, benutzer, pf, id, art)})
     except notbetrieb_senden.SendeFehler as exc:
@@ -549,7 +552,7 @@ async def notfall_verschieben(request: Request, benutzer: str = Depends(_sender)
         body = await request.json()
     except Exception:                                               # noqa: BLE001
         raise HTTPException(400, "Ungültige Anfrage")
-    pf = _postfach(benutzer, str(body.get("postfach") or ""))
+    pf = await _postfach(benutzer, str(body.get("postfach") or ""))
     ziel = await asyncio.to_thread(notbetrieb_lesen.ordner_kennung, pf, str(body.get("ziel") or ""))
     if not ziel:
         return JSONResponse({"ok": False, "error": "Diesen Ordner gibt es nicht."}, status_code=400)

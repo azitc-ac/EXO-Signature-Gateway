@@ -38,6 +38,7 @@ Bcc steht nur in der Kopie unter „Gesendet“, nie in der übertragenen Mail.
 """
 from __future__ import annotations
 
+import asyncio
 import html
 import logging
 import threading
@@ -156,7 +157,22 @@ def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text:
 
 async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str = "", betreff: str = "",
            text: str = "", anhaenge: list | None = None, bezug_id: str = "", art: str = "neu") -> dict:
-    """Senden. Gibt {ok, message_id, intern, extern} zurück oder wirft SendeFehler."""
+    """Senden. Gibt {ok, message_id, intern, extern} zurück oder wirft SendeFehler.
+
+    Prüfen, Bauen und Zustellen lesen die Kopie unter ihrer Sperre bzw.
+    sprechen mit Postfix — das läuft im Thread, nicht in der Event-Loop des
+    Webmails (sonst stünden alle anderen Anfragen still, solange gesendet
+    wird; tests/test_notbetrieb_last.py)."""
+    recht, alle, msg, bcc_l, intern, extern = await asyncio.to_thread(
+        _vorbereiten, benutzer, postfach, an, cc, bcc, betreff, text, anhaenge, bezug_id, art)
+    ueber = await _hinaus(benutzer, postfach.strip().lower(), recht, alle, msg.as_bytes(), msg["Message-ID"],
+                          bcc_l, "Webmail")
+    return {"ok": True, "message_id": msg["Message-ID"], "intern": len(intern), "extern": len(extern),
+            "ueber": ueber}
+
+
+def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betreff: str, text: str,
+                 anhaenge: list | None, bezug_id: str, art: str) -> tuple:
     import direktversand
     anhaenge = list(anhaenge or [])
     postfach = postfach.strip().lower()
@@ -199,9 +215,7 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
     _drossel(benutzer)
     sender = benutzer if recht == "auftrag" else None
     msg = _bauen(postfach, sender, an_l, cc_l, betreff or "", text or "", anhaenge, bezug)
-    ueber = await _hinaus(benutzer, postfach, recht, alle, msg.as_bytes(), msg["Message-ID"], bcc_l, "Webmail")
-    return {"ok": True, "message_id": msg["Message-ID"], "intern": len(intern), "extern": len(extern),
-            "ueber": ueber}
+    return recht, alle, msg, bcc_l, intern, extern
 
 
 async def _hinaus(benutzer: str, postfach: str, recht: str, alle: list, inhalt: bytes, mid: str,
@@ -228,7 +242,14 @@ async def _hinaus(benutzer: str, postfach: str, recht: str, alle: list, inhalt: 
         # ohne Zertifikat) — seine Rückmeldung an den Absender erklärt, warum.
         meldung = next((_klartext(z[2]) for z in zustellungen), "")
         raise SendeFehler("Nicht gesendet." + (f" {meldung}" if meldung else ""))
+    return await asyncio.to_thread(_zustellen, benutzer, postfach, recht, alle, zustellungen, haupt, mid,
+                                   bcc_l, weg)
 
+
+def _zustellen(benutzer: str, postfach: str, recht: str, alle: list, zustellungen: list, haupt: tuple,
+               mid: str, bcc_l: list, weg: str) -> str:
+    """Zustellen und Gesendet-Kopie ablegen — im Thread (Kopie, Postfix)."""
+    import reinject
     ueber = notbetrieb.sendeweg(benutzer) or notbetrieb.WEG_NOTFALL
     exchange_kopie = False
     for von, empf, roh in zustellungen:

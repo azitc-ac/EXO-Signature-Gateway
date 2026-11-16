@@ -332,7 +332,12 @@ def zugriff(anmeldung: str) -> list[dict]:
         fremd: dict[str, set] = {}
         for z in conn.execute("SELECT postfach, recht FROM rechte WHERE nutzer=?", (eigen,)):
             fremd.setdefault(z["postfach"], set()).add(z["recht"])
-        typen = {z["primary_adr"]: z["typ"] for z in conn.execute("SELECT primary_adr, typ FROM konten")}
+        # Nur die Typen der eigenen Postfächer: Das läuft bei JEDER Anfrage
+        # des Webmails (darf_lesen) — alle Konten zu lesen kostete im Lasttest
+        # vom 16.11.2026 rund ein Achtel der Rechenzeit.
+        pfe = [eigen, *fremd]
+        typen = {z["primary_adr"]: z["typ"] for z in conn.execute(
+            f"SELECT primary_adr, typ FROM konten WHERE primary_adr IN ({','.join('?' * len(pfe))})", pfe)}
     out = [{"postfach": eigen, "eigen": True, "typ": typen.get(eigen, ""), "voll": True, "als": True, "auftrag": False}]
     for pf in sorted(fremd):
         out.append({"postfach": pf, "eigen": False, "typ": typen.get(pf, ""),

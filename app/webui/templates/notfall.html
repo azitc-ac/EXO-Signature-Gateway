@@ -541,17 +541,29 @@ const TITEL = document.title;
 function titelSetzen() {
   document.title = (nb.ungelesen ? '(' + nb.ungelesen + ') ' : '') + TITEL;
 }
-async function neuePostPruefen() {
+// Verborgener Tab (anderer Reiter, Fenster minimiert): nur alle 5 min — bei
+// Hunderten offener Webmails ist der Minutentakt der größte Teil der Last.
+// Wer Hinweise erlaubt hat, wartet auf sie: dann weiter jede Minute. Beim
+// Zurückkehren sofort, wenn der letzte Blick älter als der Takt ist.
+const NEUE_POST_VERBORGEN_MS = 300000;
+function hinweiseAn() { return !!(window.Notification && Notification.permission === 'granted'); }
+async function neuePostPruefen(sofort) {
   if (!nb.postfach) return;
+  const seit = Date.now() - (nb.zuletztGeprueft || 0);
+  if (!sofort && document.hidden && !hinweiseAn() && seit < NEUE_POST_VERBORGEN_MS - 5000) return;
+  nb.zuletztGeprueft = Date.now();
   const vorher = nb.ungelesen || 0;
   await ordnerLaden();
   if (nb.ungelesen <= vorher) return;
   const imEingang = (nb.ordnerliste || []).some(o => o.id === nb.ordner && o.wk === 'inbox');
   if (imEingang && document.getElementById('app').dataset.ansicht === 'liste') listeLaden(0);
-  if (document.hidden && window.Notification && Notification.permission === 'granted') {
+  if (document.hidden && hinweiseAn()) {
     new Notification('Neue Mail', {body: (nb.ungelesen - vorher) + ' neu in ' + nb.postfach, tag: 'notfall-mail'});
   }
 }
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && nb.takt && Date.now() - (nb.zuletztGeprueft || 0) > NEUE_POST_MS) neuePostPruefen(true);
+});
 async function hinweiseErlauben() {
   const antwort = await Notification.requestPermission();
   document.getElementById('glocke').hidden = antwort !== 'default';

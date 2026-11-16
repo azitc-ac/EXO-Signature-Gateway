@@ -38,6 +38,7 @@ MAX_TREFFER = 10
 ADRESSBUCH_MAX = 300                   # Tipp auf An/Cc/Bcc — darüber hilft nur die Suche
 
 
+@notbetrieb.schema_teil
 def _tabellen(conn) -> None:
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS termine (
@@ -100,7 +101,6 @@ def kalender_abgleichen(client, token: str, postfach: str, zurueck: int, vor: in
         }
         zeilen.append((postfach, t.get("id") or "", daten["beginn"], daten["ende"], json.dumps(daten)))
     with notbetrieb._lock, notbetrieb._conn() as conn:
-        _tabellen(conn)
         conn.execute("DELETE FROM termine WHERE postfach=?", (postfach,))
         conn.executemany("INSERT OR REPLACE INTO termine VALUES (?,?,?,?,?)", zeilen)
     return len(zeilen)
@@ -111,7 +111,6 @@ def kontakte_abgleichen(client, token: str, postfach: str, jetzt: float | None =
     jetzt = time.time() if jetzt is None else jetzt
     schluessel = f"kontakte_stand:{postfach}"
     with notbetrieb._lock, notbetrieb._conn() as conn:
-        _tabellen(conn)
         z = conn.execute("SELECT v FROM meta WHERE k=?", (schluessel,)).fetchone()
     if z and jetzt - float(z["v"]) < KONTAKTE_ALLE_H * 3600:
         return None
@@ -151,7 +150,6 @@ def termine(postfach: str, von: str, bis: str, eigen: bool) -> list[dict]:
     if not notbetrieb._db_pfad().exists():
         return []
     with notbetrieb._lock, notbetrieb._conn() as conn:
-        _tabellen(conn)
         zeilen = conn.execute("SELECT id, daten FROM termine WHERE postfach=? AND ende > ? AND beginn < ? "
                               "ORDER BY beginn", (postfach, von, bis)).fetchall()
     out = []
@@ -167,7 +165,6 @@ def kontakte(postfach: str) -> list[dict]:
     if not notbetrieb._db_pfad().exists():
         return []
     with notbetrieb._lock, notbetrieb._conn() as conn:
-        _tabellen(conn)
         zeilen = conn.execute("SELECT daten FROM kontakte WHERE postfach=? ORDER BY name COLLATE NOCASE",
                               (postfach,)).fetchall()
     return [json.loads(z["daten"]) for z in zeilen]

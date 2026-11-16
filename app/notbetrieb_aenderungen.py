@@ -57,6 +57,7 @@ _bald_lock = threading.Lock()
 _bald: threading.Timer | None = None
 
 
+@notbetrieb.schema_teil
 def _tabelle(conn) -> None:
     conn.execute("""CREATE TABLE IF NOT EXISTS aenderungen (
         nr       INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,7 +89,6 @@ def merken(benutzer: str, postfach: str, graph_id: str, art: str, wert: str) -> 
     if art not in (GELESEN, VERSCHIEBEN):
         raise ValueError(art)
     with notbetrieb._lock, notbetrieb._conn() as conn:
-        _tabelle(conn)
         alt = conn.execute("SELECT gelesen, ordner FROM mails WHERE postfach=? AND graph_id=?",
                            (postfach, graph_id)).fetchone()
         if art == GELESEN:
@@ -138,7 +138,6 @@ def offen() -> dict:
     if not notbetrieb._db_pfad().exists():
         return {"offen": 0, "mit_fehler": 0}
     with notbetrieb._lock, notbetrieb._conn() as conn:
-        _tabelle(conn)
         z = conn.execute("SELECT COUNT(*), SUM(fehler>0) FROM aenderungen").fetchone()
     return {"offen": z[0] or 0, "mit_fehler": z[1] or 0}
 
@@ -147,7 +146,6 @@ def wartet(postfach: str, graph_id: str) -> bool:
     """Steht für diese Mail noch eine Änderung aus? (Der Abgleich überschreibt
     sie dann nicht mit dem älteren Stand aus Exchange.)"""
     with notbetrieb._lock, notbetrieb._conn() as conn:
-        _tabelle(conn)
         return conn.execute("SELECT 1 FROM aenderungen WHERE postfach=? AND graph_id=?",
                             (postfach.lower(), graph_id)).fetchone() is not None
 
@@ -174,7 +172,6 @@ def zurueckschreiben() -> dict:
     if not notbetrieb._db_pfad().exists():
         return z
     with notbetrieb._lock, notbetrieb._conn() as conn:
-        _tabelle(conn)
         alle = conn.execute("SELECT * FROM aenderungen ORDER BY nr").fetchall()
     if not alle:
         return z
