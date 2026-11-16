@@ -1136,6 +1136,9 @@ def test_notbetrieb_seite_zeigt_richtlinie_zum_kopieren_und_faktor_abdeckung():
     # Wert im Codeblock, Kopierknopf liest ihn über data-copy-target (base.html).
     assert '<pre id="nb-edge-richtlinie" class="code-block">{{ edge_richtlinie }}</pre>' in html
     assert 'data-copy-target="nb-edge-richtlinie"' in html
+    # Gemessen 16.11.2026 (vm-ej7, Edge 157): Richtlinie entfernt → Edge
+    # deinstalliert die App von selbst. Wer das nicht weiß, räumt sie weg.
+    assert "Lass die Richtlinie dauerhaft stehen" in html
     assert '"edge_richtlinie": edge_richtlinie(webmail_url)' in route
     # Zweiter Faktor mit Bezugsgröße und Weg zum Einrichten unter demselben Link.
     assert "{{ faktor_abdeckung.eingerichtet }} von {{ faktor_abdeckung.nutzer }}" in html
