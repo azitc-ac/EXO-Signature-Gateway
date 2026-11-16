@@ -134,7 +134,11 @@ def test_alle_pruefstellen_nutzen_die_eine_erkennung():
     for alt in ("'id=\"x_exo-sig-s\"' in", "\"id='x_exo-sig-s'\" in",
                 "html.find('id=\"x_exo-sig-s\"')", "f'class=\"{_SIG_CLASS}\"' in"):
         assert alt not in quelle, alt
-    for fn in ("_has_own_sig_in_compose_area", "_has_sig_in_thread", "marker_im_zitat"):
+    for fn in ("_has_own_sig_in_compose_area", "_has_sig_in_thread"):
         rumpf = quelle.split(f"def {fn}(", 1)[1].split("\ndef ", 1)[0]
         assert "hat_kennung(" in rumpf, fn
+    # Die Blöcke im Zitat (marker_im_zitat) sucht dieselbe Erkennung.
+    rumpf = quelle.split("def _kennung_bloecke(", 1)[1].split("\ndef ", 1)[0]
+    assert "_KENNUNG_RE.finditer(" in rumpf
+    assert "_kennung_bloecke(" in quelle.split("def marker_im_zitat(", 1)[1].split("\ndef ", 1)[0]
     assert re.search(r"_ADDIN_DIV_RE = re\.compile\(.*\[\"']\?", quelle)

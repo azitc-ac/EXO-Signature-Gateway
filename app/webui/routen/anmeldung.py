@@ -288,7 +288,7 @@ def _teams_katalog_callback_page(ok: bool, msg: str = "", version: str | None = 
 
 @router.get("/api/setup/teams-katalog/aktualisieren")
 async def setup_teams_katalog_aktualisieren(request: Request, _: str = Depends(_require_admin)):
-    """Startet die Admin-Anmeldung (Popup) mit AppCatalog.Submit; nach der
+    """Startet die Admin-Anmeldung (Popup) mit AppCatalog.ReadWrite.All; nach der
     Rückkehr lädt nachlauf() das App-Paket als neue Fassung in den Teams-Katalog.
     Liefert die Login-URL."""
     from webui.hilfen import _addin_base_url

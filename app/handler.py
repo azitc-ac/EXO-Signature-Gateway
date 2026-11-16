@@ -1410,10 +1410,20 @@ class SignatureHandler:
             # mit: Bis v1.9.180 galt der Kopf als Kette, und eine Fehl-
             # entscheidung des Add-ins nahm so auch dem Gateway die Signatur.
             _addin_wahl = sig_thread.addin_wahl(msg)
-            _in_kette = (sig_thread.kennt(_sig_absender, sig_thread.beantwortete(msg))
-                         or mail_processor.sender_already_in_thread(
-                             msg, {_sig_absender.lower()},
-                             signature_engine.erkennungs_zeilen(user_data, _vorlagen)))
+            # Woran die Kette erkannt wurde — im Protokoll trennbar: "Kennung"
+            # (diese Mail ist deine signierte, sig_thread), "Kennung im Zitat"
+            # (markierter Block, der DIR gehört) oder "Text" (Zeilen deiner
+            # Signatur im Zitat). Bis v1.12.47 zählte jede markierte Signatur im
+            # Zitat, auch die eines Kollegen oder eines anderen Gateways.
+            if sig_thread.kennt(_sig_absender, sig_thread.beantwortete(msg)):
+                _kette_grund = "Kennung der beantworteten Mail"
+            else:
+                _kette_grund = {"kennung": "Kennung im Zitat", "text": "Text der Signatur im Zitat"}.get(
+                    mail_processor.kette_grund(
+                        msg, {_sig_absender.lower()},
+                        signature_engine.erkennungs_zeilen(user_data, _vorlagen),
+                        signature_engine.erkennungs_merkmale(user_data, _sig_absender)), "")
+            _in_kette = bool(_kette_grund)
 
             # Bezugsgröße für die Kennzahl: ausgehende Mails, die überhaupt in
             # einer Kette stehen. Ohne sie wäre die Wirkungszahl unten nicht zu
@@ -1530,11 +1540,11 @@ class SignatureHandler:
                     template_name = _min_tpl
                     _force_sig = True
                     log.info("SIG-KETTE: bereits in dieser Kette signiert — Antwort-Signatur %r "
-                             "statt vollem Block für %s", _min_tpl, sender)
+                             "statt vollem Block für %s (erkannt: %s)", _min_tpl, sender, _kette_grund)
                 else:
                     suppress_html_sig = True
                     log.info("SIG-KETTE: bereits in dieser Kette signiert — keine weitere "
-                             "Signatur für %s", sender)
+                             "Signatur für %s (erkannt: %s)", sender, _kette_grund)
 
             if not suppress_html_sig and not _force_sig:
                 template_name = _vorlagen["sig"]
@@ -1614,7 +1624,8 @@ class SignatureHandler:
                          msg.get_content_type(),
                          f", Bearbeiter {_bearbeiter}" if _bearbeiter else "")
                 modified = mail_processor.inject(msg, sig_html, sig_txt,
-                                                  use_cid_images=_use_cid, force=_force_sig)
+                                                  use_cid_images=_use_cid, force=_force_sig,
+                                                  kette_geprueft=True)
                 outbound = _smtp_bytes(modified)
 
             # ── S/MIME signing ─────────────────────────────────────────────────

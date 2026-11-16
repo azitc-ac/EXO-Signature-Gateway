@@ -5,6 +5,49 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.48 — 2026-11-16 — Antwort-Signatur nur, wenn die EIGENE Signatur im Zitat steht
+
+Ob eine Antwort die volle oder die Antwort-Signatur bekommt, hängt daran, ob
+deine Signatur schon in der beantworteten Mail steht. Gezählt hat dabei aber
+jede Kennung des Gateways im Zitat (`exo-sig-start`, `id="exo-sig-s"`,
+`class="exo-gateway-sig"`), und die ist für alle Absender gleich. Folgen:
+
+- Wer zum ersten Mal auf die signierte Mail eines Kollegen oder eines anderen
+  Gateways antwortete, bekam nur die Antwort-Signatur. Das galt im Versand
+  und im Verfassen-Add-in.
+- War „Signatur-Stacking in Antwort-Ketten verhindern“ eingeschaltet (die
+  Vorgabe), entfiel die Signatur in diesem Fall sogar ganz.
+
+Jetzt zählt ein markierter Block nur, wenn er dir gehört: Trägt deine
+Signatur Name oder Adresse des Postfachs, muss der Block sie tragen. Sonst
+müssen mindestens die Hälfte ihrer Zeilen darin stehen. Firma, Anschrift und
+Zentrale teilen Kollegen, Name und Adresse nicht. Ein geteiltes Postfach gilt
+dabei als ein Absender: Antwortet eine zweite Person als info@ auf eine
+Mail, die eine Kollegin als info@ signiert hat, bleibt es bei der
+Antwort-Signatur. Die Protokollzeile `SIG-KETTE:` nennt jetzt, woran die
+Kette erkannt wurde: Kennung der beantworteten Mail, Kennung im Zitat oder
+Text der Signatur.
+
+**Teams-Katalog-Knopf (aus v1.12.45) korrigiert.** Der Knopf fragte die
+Berechtigung `AppCatalog.Submit` an. Sie erlaubt nur, ein Paket zur Prüfung
+einzureichen, nicht es zu veröffentlichen. Microsoft lehnte den Upload deshalb
+mit 403 ab, auch mit einem Global Admin. Jetzt fragt die Anmeldung
+`AppCatalog.ReadWrite.All` an („Read and write to all app catalogs“). Diese
+Berechtigung braucht eine Admin-Zustimmung; der Anmeldedialog bietet sie beim
+ersten Mal an. Sie ist delegiert, das Token kann also nie mehr als das
+angemeldete Konto selbst. Die Fehlermeldung bei 403 nennt jetzt beide
+möglichen Ursachen (Rolle und Zustimmung) und gibt den Text von Microsoft
+mit.
+
+**Ankerlinks (aus v1.12.46).** Auf einem langsamen Gerät sprang der Browser
+zum Ziel, bevor das Skript das Polster unter der Navigation setzte, und das
+Ziel lag kurz unter der Navigation. Das Polster steht jetzt schon beim Laden
+der Seite.
+
+**Zu tun:** nichts. Beim ersten Klick auf „Im Teams-Katalog aktualisieren“
+erscheint die Zustimmungsabfrage für „Read and write to all app catalogs“;
+stimme als Admin zu.
+
 ## v1.12.47 — 2026-11-16 — Lange Message-IDs auch in selbst gebauten Antworten unverändert
 
 Seit v1.9.136 bleiben lange Kopfzeilen auf dem Rückweg unverändert. Die
@@ -41,8 +84,8 @@ rutschen.
   Steht im Teams-Katalog eine ältere Fassung als im Paket des Gateways, lädt
   der Knopf das Paket als neue Fassung hoch. Das ist dasselbe Paket wie beim
   Download. Microsoft erlaubt das nur mit der Anmeldung eines Admins
-  (Graph „Update teamsApp“, Berechtigung `AppCatalog.Submit`, ohne
-  Admin-Zustimmung). Das Konto braucht eine aktive Rolle Teams-Administrator
+  (Graph „Update teamsApp“). Die hier angefragte Berechtigung
+  `AppCatalog.Submit` reichte dafür nicht, korrigiert in v1.12.48. Das Konto braucht eine aktive Rolle Teams-Administrator
   oder höher; bei PIM aktiviere sie vorher. Danach liest das Gateway den
   Katalog neu. Erfolg meldet es nur, wenn die Fassung dort veröffentlicht ist.
   Eine bloß zur Prüfung eingereichte Fassung meldet es mit dem Weg zur

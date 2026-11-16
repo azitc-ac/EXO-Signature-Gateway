@@ -107,6 +107,17 @@ def erkennungs_zeilen(user: UserData, vorlagen: dict) -> list[list[str]]:
     return listen
 
 
+def erkennungs_merkmale(user: UserData, *adressen: str) -> list[str]:
+    """Das Persönliche einer Signatur: Anzeigename und Adressen des Postfachs.
+    Daran ordnet `mail_processor.marker_im_zitat` einen markierten Block
+    seinem Absender zu — Firma, Anschrift und Zentrale teilen Kollegen.
+    Bei einem geteilten Postfach sind es dessen Name und Adresse, nicht die
+    der Person, die gerade schreibt."""
+    werte = [getattr(user, "displayName", "") or "", getattr(user, "mail", "") or ""]
+    werte += [a for a in adressen if a]
+    return list(dict.fromkeys(w.strip() for w in werte if w and w.strip()))
+
+
 def _kontext(user: UserData, extra: dict | None) -> dict:
     """Die Variablen jeder Signaturvorlage — EINE Stelle für Versand und Prüfung.
     Bis v1.12.1 baute `render_fehler` den Kontext selbst nach und ließ
