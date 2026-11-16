@@ -707,6 +707,7 @@ async def api_preview_data(
     disclaimer: str = "",
     oof: str = "",
     explizit: bool = False,
+    bearbeiter: str = "",
     user: str = Depends(_check_auth),
 ):
     """Render a signature template for a given email address (Graph lookup).
@@ -758,6 +759,18 @@ async def api_preview_data(
             user_data = await _gc.get_user(email)
         except Exception as exc:
             error = str(exc)
+    # Wer schreibt (`bearbeiter`): wie im Betrieb (handler, Verfassen-Add-in)
+    # eine andere Person als der Inhaber bei „im Auftrag von“. Ohne Angabe ist
+    # es der Inhaber selbst — signature_engine._kontext setzt das so.
+    # Nur für die Signatur: Banner und Disclaimer rendert der handler ohne
+    # `extra`, dort steht im Betrieb immer der Inhaber — die Vorschau ebenso.
+    vorlage_extra = None
+    if bearbeiter and bearbeiter.strip().lower() != (email or "").strip().lower():
+        try:
+            vorlage_extra = {"bearbeiter": await _gc.get_user(bearbeiter)}
+        except Exception as exc:                                # noqa: BLE001
+            vorlage_extra = {"bearbeiter": _gc.UserData(mail=bearbeiter)}
+            error = error or str(exc)
 
     # ⚠️ Die Live-Vorschau im Baukasten schickt JEDE Vorlage als `template` —
     # auch Abwesenheit, Banner und Disclaimer. Bis v1.9.132 wurden die wie eine
@@ -781,7 +794,7 @@ async def api_preview_data(
     if explizit and not template:
         sig_html, sig_txt = "", ""
     else:
-        sig_html, sig_txt = signature_engine.render(user_data, template_name=template)
+        sig_html, sig_txt = signature_engine.render(user_data, template_name=template, extra=vorlage_extra)
     # Resolve banner and disclaimer: explicit param > was das Postfach im Betrieb
     # bekäme (policies.aufloesen — Richtlinie bzw. Postfach-Ausnahme). Bis v1.9.112
     # stand hier das rohe Postfach-Feld; bei use_policy=true fehlte der Banner der

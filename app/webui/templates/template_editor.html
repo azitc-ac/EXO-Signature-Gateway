@@ -187,8 +187,13 @@
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
           <label style="font-size:12px;color:#555">
             Schriftart<br>
-            <input id="g-font" type="text" value="Calibri, Arial, sans-serif"
-              style="width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;margin-top:2px">
+            <span class="schrift-wahl" style="margin-top:2px">
+              <select id="g-font-wahl" onchange="schriftGewaehlt(this)"
+                style="width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px"></select>
+              <input id="g-font" type="text" value="Calibri, Arial, sans-serif" hidden
+                placeholder="z.B. Lato, Arial, sans-serif"
+                style="width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">
+            </span>
           </label>
           <label style="font-size:12px;color:#555">
             Schriftgröße<br>
@@ -302,10 +307,18 @@
                 onclick="vorschauBreiteSetzen('schmal')">Mobil</button>
       </div>
     </div>
-    <div id="preview-email-wrap" style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
+    <div id="preview-email-wrap" style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select id="preview-email-sel" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px"
         onchange="vorschauPostfachMerken(this.value); refreshPreview()">
         <option value="">— Postfach für Vorschau —</option>
+      </select>
+      <!-- Wer schreibt: bei „im Auftrag von“ eines geteilten Postfachs eine andere
+           Person als der Inhaber — füllt bearbeiter.* und die Bedingung
+           „nur wenn jemand für das Postfach schreibt“ wie im Betrieb. -->
+      <select id="preview-bearbeiter-sel" title="Wer schreibt — für bearbeiter.* und „im Auftrag von“"
+        style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px"
+        onchange="refreshPreview()">
+        <option value="">— schreibt: Inhaber selbst —</option>
       </select>
       <span id="preview-loading" style="font-size:12px;color:#888;display:none">Lädt…</span>
     </div>
@@ -435,6 +448,8 @@
   padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;width:100%;box-sizing:border-box
 }
 .prop-row textarea { min-height:60px;resize:vertical }
+/* Schriftart: Auswahl, darunter bei „Eigene …“ das Freitextfeld. */
+.schrift-wahl { display:flex;flex-direction:column;gap:4px }
 /* Lange Eingaben (Freitext, HTML-Code): Beschriftung über dem Feld, damit es
    die volle Kartenbreite bekommt; Höhe wächst mit dem Inhalt (langWachsen).
    Bis v1.12.49 stand das Feld 60px hoch neben einer 110px-Beschriftung. */
@@ -728,8 +743,65 @@ function colorSelect(val, name, bid, extra) {
   return `<select name="${esc(name)}" data-bid="${escAttr(bid)}" onchange="blockPropChange(this)">${base_opts}${extra_opts}</select>`;
 }
 
+// ── Schriftart: gängige Schriften zur Auswahl, alles andere als Freitext ─────
+// Gespeichert wird weiter der Text im Eingabefeld (font_family bzw. `font` des
+// Bausteins); die Auswahl schreibt nur hinein. Jede Schrift mit Ersatzschriften,
+// denn beim Empfänger zählt, was installiert ist. Steht ein Wert in keiner
+// Vorgabe, gilt „Eigene …“ und das Feld bleibt sichtbar — nichts geht verloren.
+const SCHRIFTEN = [
+  'Calibri, Arial, sans-serif',
+  'Aptos, Calibri, Arial, sans-serif',
+  'Arial, Helvetica, sans-serif',
+  'Segoe UI, Arial, sans-serif',
+  'Verdana, Geneva, sans-serif',
+  'Tahoma, Geneva, sans-serif',
+  'Trebuchet MS, Arial, sans-serif',
+  'Georgia, serif',
+  'Cambria, Georgia, serif',
+  'Times New Roman, Times, serif',
+  'Courier New, Courier, monospace',
+];
+const SCHRIFT_EIGEN = '__eigen';
+const schriftNorm = v => String(v || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean).join(',');
+function schriftVorgabe(val) {
+  const n = schriftNorm(val);
+  return SCHRIFTEN.find(s => schriftNorm(s) === n);
+}
+// Leer ist bei einem Baustein „wie global“ und damit ebenfalls eine Vorgabe.
+function schriftIstVorgabe(val, leerErlaubt) {
+  return (leerErlaubt && !String(val || '').trim()) || !!schriftVorgabe(val);
+}
+function schriftOptionen(val, leerText) {
+  const treffer = schriftVorgabe(val);
+  const leer = !String(val || '').trim();
+  let h = leerText !== undefined
+    ? `<option value=""${leer ? ' selected' : ''}>${esc(leerText)}</option>` : '';
+  h += SCHRIFTEN.map(s => `<option value="${escAttr(s)}" style="font-family:${escAttr(s)}"`
+    + `${s === treffer ? ' selected' : ''}>${esc(s.split(',')[0])}</option>`).join('');
+  const eigen = !treffer && !(leer && leerText !== undefined);
+  return h + `<option value="${SCHRIFT_EIGEN}"${eigen ? ' selected' : ''}>Eigene …</option>`;
+}
+// Globale Auswahl nach dem Laden auf den gespeicherten Text stellen.
+function schriftAbgleichen(sel) {
+  const feld = sel.parentNode.querySelector('input');
+  sel.innerHTML = schriftOptionen(feld.value);
+  feld.hidden = sel.value !== SCHRIFT_EIGEN;
+}
+window.schriftGewaehlt = function(sel) {
+  const feld = sel.parentNode.querySelector('input');
+  if (sel.value === SCHRIFT_EIGEN) { feld.hidden = false; feld.focus(); return; }
+  feld.hidden = true;
+  feld.value = sel.value;
+  feld.dispatchEvent(new Event('input', {bubbles: true}));
+  feld.dispatchEvent(new Event('change', {bubbles: true}));
+};
+document.addEventListener('DOMContentLoaded', () => {
+  const g = document.getElementById('g-font-wahl');
+  if (g) schriftAbgleichen(g);
+});
+
 // ── Variablen-Autocomplete ──────────────────────────────────────────────────
-// Tippt man in einem Textfeld „custom." oder „user.", erscheint eine Vorschlagsliste
+// Tippt man in einem Textfeld „custom.“, „user.“ oder „bearbeiter.“, erscheint eine Vorschlagsliste
 // der bekannten Variablen (wie IntelliSense). Verhindert Tippfehler/Namens-
 // Mismatches. Wirkt in allen <textarea> des Editors (Bausteine + Roh-HTML/-Text)
 // und in den einzeiligen Textfeldern der Bausteine (Link des Logos, Präfix,
@@ -742,9 +814,16 @@ function colorSelect(val, name, bid, extra) {
   const OOF_FIELDS = (TEMPLATE_KIND === 'oof')
     ? ['oof.name', 'oof.zeitraum', 'oof.period', 'oof.abwesend_ab', 'oof.abwesend_bis',
        'oof.ankuendigung', 'oof.announcement'] : [];
+  // bearbeiter.* wie in der Feldauswahl (fieldSelect) — bis v1.12.51 fehlte es
+  // hier, obwohl Hinweistext und Auswahl es anboten.
   const FELDER = USER_FIELDS.map(f => 'user.' + f)
     .concat(CUSTOM_VARS.map(c => 'custom.' + c))
+    .concat(USER_FIELDS.map(f => 'bearbeiter.' + f))
     .concat(OOF_FIELDS);
+  // Die erkannten Präfixe kommen aus FELDER selbst: Eine neue Gruppe dort ist
+  // damit auch beim Tippen da und kann nicht wieder an der Erkennung scheitern.
+  const PRAEFIX_RE = new RegExp('(' + Array.from(new Set(FELDER.map(f => f.split('.')[0]))).join('|')
+    + ')\\.(\\w*)$');
   let box = null, ziel = null, start = -1, treffer = [], sel = 0;
   function kasten() {
     if (!box) { box = document.createElement('div'); box.id = 'var-ac'; document.body.appendChild(box); }
@@ -757,7 +836,7 @@ function colorSelect(val, name, bid, extra) {
   }
   function zeigen(ta) {
     const pos = ta.selectionStart;
-    const m = ta.value.slice(0, pos).match(/(user|custom|oof)\.(\w*)$/);
+    const m = ta.value.slice(0, pos).match(PRAEFIX_RE);
     if (!m) { zu(); return; }
     const praefix = (m[1] + '.' + m[2]).toLowerCase();
     treffer = FELDER.filter(f => f.toLowerCase().startsWith(praefix));
@@ -1079,7 +1158,11 @@ function buildBlockForm(b) {
     rows += rowWeit('Text', ta('text', b.text));
     rows += row('Schriftfarbe', farbFeld('color', b.color || 'base', b.id));
     rows += row('Schriftgröße', txt('size', b.size, 'z.B. 9pt — leer = wie global'));
-    rows += row('Schriftart', txt('font', b.font, 'leer = wie global'));
+    rows += row('Schriftart', `<span class="schrift-wahl">
+      <select onchange="schriftGewaehlt(this)">${schriftOptionen(b.font, 'wie global')}</select>
+      <input type="text" name="font" value="${escAttr(b.font||'')}" placeholder="z.B. Lato, Arial, sans-serif"
+        data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)"${schriftIstVorgabe(b.font, true) ? ' hidden' : ''}>
+    </span>`);
     rows += schnittZeilen();
     rows += row('Ausrichtung', `<select name="align" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)">`
       + [['','links (Vorgabe)'],['center','zentriert'],['right','rechts']]
@@ -1606,6 +1689,7 @@ function getGlobal() {
 
 function applyGlobal(g) {
   document.getElementById('g-font').value = g.font_family || 'Calibri, Arial, sans-serif';
+  schriftAbgleichen(document.getElementById('g-font-wahl'));
   document.getElementById('g-size').value = g.font_size || '11pt';
   const setColor = (prefix, val) => {
     document.getElementById(prefix+'-color').value = val || '';
@@ -1749,13 +1833,19 @@ window.refreshPreview = async function() {
   const email = document.getElementById('preview-email-sel').value;
   const box = document.getElementById('preview-box');
   const loading = document.getElementById('preview-loading');
+  // Nur Signaturen kennen einen Bearbeiter — Banner und Disclaimer rendert der
+  // Mailweg mit dem Inhaber, Abwesenheit und Nachrichten an Inhaber ohne ihn.
+  document.getElementById('preview-bearbeiter-sel').hidden =
+    ['banner', 'disclaimer', 'oof', 'usermail'].includes(TEMPLATE_KIND);
   if (!email) {
     box.innerHTML = '<span style="color:#9ca3af;font-size:12px">Postfach wählen und Speichern für Live-Vorschau</span>';
     return;
   }
   loading.style.display = '';
   try {
-    const d = await getJSON(`/api/preview-data?email=${encodeURIComponent(email)}&template=${encodeURIComponent(TEMPLATE_NAME)}`);
+    const bearbeiter = feldWert('preview-bearbeiter-sel');
+    const d = await getJSON(`/api/preview-data?email=${encodeURIComponent(email)}&template=${encodeURIComponent(TEMPLATE_NAME)}`
+      + (bearbeiter ? `&bearbeiter=${encodeURIComponent(bearbeiter)}` : ''));
     if (!d.ok) throw new Error(errText(d));
     // Bei einer Nachricht an Postfachinhaber gehört der Betreff dazu — er ist
     // Teil dessen, was der Empfänger sieht, und wird mit denselben Platzhaltern
@@ -1781,6 +1871,7 @@ async function loadMailboxes() {
     // Verwaltung vorbehalten.
     const d = await getJSON('/api/mailboxes/namen');
     const sel = document.getElementById('preview-email-sel');
+    const schreibt = document.getElementById('preview-bearbeiter-sel');
     const adressen = [];
     (d.mailboxes || []).forEach(m => {
       const o = document.createElement('option');
@@ -1789,6 +1880,8 @@ async function loadMailboxes() {
       sel.appendChild(o);
       adressen.push(m.email);
     });
+    // „Schreibt“ bietet dieselben Postfächer an (ohne die Leerzeile).
+    Array.from(sel.options).slice(1).forEach(o => schreibt.appendChild(o.cloneNode(true)));
     // Zuletzt gewähltes Postfach, sonst das erste — statt einer leeren Fläche.
     if (vorschauPostfachWaehlen(sel, adressen)) refreshPreview();
   } catch(e) { /* non-fatal */ }

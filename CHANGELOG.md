@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.52 — 2026-11-17 — Baukasten: Schriftauswahl, bearbeiter.-Vorschläge, Vorschau „Schreibt“
+
+**Schriftart als Auswahl.** In den globalen Einstellungen und im Baustein
+Freitext steht die Schriftart jetzt als Auswahl gängiger Schriften (Calibri,
+Aptos, Arial, Segoe UI, Verdana, Tahoma, Trebuchet MS, Georgia, Cambria,
+Times New Roman, Courier New), jeweils mit Ersatzschriften für Empfänger, bei
+denen sie fehlt. Unter **Eigene …** bleibt das Freitextfeld wie bisher.
+Gespeichert wird unverändert der Text; eine gespeicherte Schrift, die in
+keiner Vorgabe steht, erscheint als „Eigene …“ mit ihrem Wert.
+
+**Vorschläge für `bearbeiter.`** Die Vorschlagsliste beim Tippen kannte nur
+`user.`, `custom.` und `oof.`, obwohl Hinweistext und Feldauswahl
+`bearbeiter.*` anboten. Die erkannten Präfixe ergeben sich jetzt aus der
+Liste der Felder selbst.
+
+**Vorschau mit getrennter Person.** Live-Vorschau im Baukasten und die Seite
+*Vorschau* haben eine Auswahl **Schreibt**. Mit einer anderen Person als dem
+Inhaber zeigt die Vorschau, was beim Schreiben „im Auftrag von“ eines
+geteilten Postfachs entsteht: `bearbeiter.*` aus dieser Person und die
+Bedingung „nur wenn jemand für das Postfach schreibt“ erfüllt. Banner und
+Disclaimer bleiben beim Inhaber, wie im Mailweg. Bisher setzte die Vorschau
+immer den Inhaber ein. Die Auswahl erscheint nur bei Signaturvorlagen.
+
+**Zu tun:** nichts.
+
 ## v1.12.51 — 2026-11-16 — Kampagnen: wählbar, welche Postfächer den Banner bekommen
 
 Der Schalter „Übernahme erzwingen“ aus v1.12.49 unterschied nur, ob ein

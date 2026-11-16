@@ -1801,3 +1801,79 @@ def test_kampagne_speichert_die_gewaehlten_postfacharten(seite):
         pg.context.close()
     finally:
         settings_store.update({"BANNER_CAMPAIGNS": vorher or []})
+
+
+# ── Baukasten: Schriftart-Auswahl, bearbeiter.-Vorschläge, Vorschau „Schreibt“ ──
+
+def test_schriftart_auswahl_mit_freitext(seite):
+    pg = seite("/template", breite=1280)
+    # global: Vorgabe gewählt, Freitext verborgen
+    wahl, feld = pg.locator("#g-font-wahl"), pg.locator("#g-font")
+    assert wahl.input_value() == "Calibri, Arial, sans-serif"
+    assert not feld.is_visible()
+    wahl.select_option("Georgia, serif")
+    assert feld.input_value() == "Georgia, serif"
+    # gespeicherter Wert ohne Vorgabe → „Eigene …“, Feld sichtbar mit dem Wert
+    pg.evaluate("() => applyGlobal({font_family: 'Lato, sans-serif'})")
+    assert wahl.input_value() == "__eigen" and feld.is_visible()
+    assert feld.input_value() == "Lato, sans-serif"
+    # Schreibweise egal: trifft die Vorgabe
+    pg.evaluate("() => applyGlobal({font_family: 'verdana,geneva , sans-serif'})")
+    assert wahl.input_value() == "Verdana, Geneva, sans-serif" and not feld.is_visible()
+
+    # Baustein: leer = wie global; Auswahl und Freitext landen im Baustein
+    pg.evaluate("() => addBlock('text')")
+    pg.locator(".block-card").last.locator(".block-type-badge").click()
+    karte = pg.locator(".block-card").last
+    bwahl = karte.locator(".schrift-wahl select")
+    bfeld = karte.locator("input[name=font]")
+    assert bwahl.input_value() == "" and not bfeld.is_visible()
+    bwahl.select_option("Tahoma, Geneva, sans-serif")
+    assert pg.evaluate("() => blocks.at(-1).font") == "Tahoma, Geneva, sans-serif"
+    bwahl.select_option("__eigen")
+    assert bfeld.is_visible()
+    bfeld.fill("Lato, Arial, sans-serif")
+    bfeld.dispatch_event("change")
+    assert pg.evaluate("() => blocks.at(-1).font") == "Lato, Arial, sans-serif"
+    pg.context.close()
+
+
+def test_vorschlag_kennt_bearbeiter(seite):
+    pg = seite("/template", breite=1280)
+    pg.evaluate("() => addBlock('text')")
+    pg.locator(".block-card").last.locator(".block-type-badge").click()
+    ta = pg.locator(".block-card").last.locator("textarea[name=text]")
+    ta.click()
+    ta.press_sequentially("{{ bearbeiter.disp")
+    box = pg.locator("#var-ac")
+    box.wait_for(state="visible")
+    assert box.inner_text().strip() == "bearbeiter.displayName"
+    pg.keyboard.press("Enter")
+    assert ta.input_value() == "{{ bearbeiter.displayName"
+    pg.context.close()
+
+
+def test_vorschau_schickt_wer_schreibt(seite):
+    pg = seite("/template", breite=1280)
+    urls = []
+
+    def abfangen(route):
+        urls.append(route.request.url)
+        route.fulfill(json={"html": "<p>x</p>", "banner_html": "", "disclaimer_html": ""})
+    pg.route("**/api/preview-data*", abfangen)
+    pg.evaluate("""() => {
+        for (const id of ['preview-email-sel', 'preview-bearbeiter-sel']) {
+            const s = document.getElementById(id);
+            for (const a of ['info@example.org', 'max@example.org']) {
+                const o = document.createElement('option'); o.value = o.textContent = a; s.appendChild(o);
+            }
+        }
+        document.getElementById('preview-email-sel').value = 'info@example.org';
+    }""")
+    pg.locator("#preview-bearbeiter-sel").select_option("max@example.org")
+    pg.wait_for_function("() => document.getElementById('preview-box').innerText.includes('x')")
+    assert "bearbeiter=max%40example.org" in urls[-1]
+    pg.locator("#preview-bearbeiter-sel").select_option("")
+    pg.wait_for_timeout(300)
+    assert "bearbeiter=" not in urls[-1]
+    pg.context.close()
