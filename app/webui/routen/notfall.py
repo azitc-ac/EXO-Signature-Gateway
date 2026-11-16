@@ -217,14 +217,22 @@ def _im_rahmen(body: dict) -> bool:
     return body.get("rahmen") is True
 
 
+def _cookie_partitioniert(antwort: Response, wert: str, max_age: int) -> None:
+    """Sitzungs-Cookie für den Teams-Reiter: SameSite=None + Partitioned (CHIPS).
+    Von Hand gebaut: Starlette kann `partitioned` erst ab Python 3.14 (es
+    stützt sich auf http.cookies) — im Image läuft 3.11. Der Wert kommt von
+    itsdangerous (URL-sicheres Base64 und Punkte), braucht also kein Quoting."""
+    antwort.headers.append("set-cookie", f"{COOKIE}={wert}; Max-Age={max_age}; Path=/notfall; HttpOnly; "
+                                         "Secure; SameSite=None; Partitioned")
+
+
 def _anmeldung_fertig(postfach: str, anmeldename, quelle: str, wie: str,
                       rahmen: bool = False) -> JSONResponse:
     antwort = JSONResponse({"ok": True})
     wert = _signierer().dumps({"b": postfach})
     if rahmen:
         # Teams-Reiter: nur so geht das Cookie im fremden Rahmen mit (Modul-Docstring).
-        antwort.set_cookie(COOKIE, wert, max_age=TTL_S, path="/notfall", httponly=True, secure=True,
-                           samesite="none", partitioned=True)
+        _cookie_partitioniert(antwort, wert, TTL_S)
     else:
         antwort.set_cookie(COOKIE, wert, max_age=TTL_S, path="/notfall", httponly=True, secure=True,
                            samesite="strict")
@@ -418,8 +426,7 @@ async def notfall_abmelden():
     # Die Variante des Teams-Reiters lebt in ihrer eigenen Partition; löschen
     # geht nur mit denselben Merkmalen. Beide Löschköpfe gehen mit — der
     # Browser wendet jeden auf das passende Cookie an.
-    antwort.set_cookie(COOKIE, "", max_age=0, path="/notfall", httponly=True, secure=True,
-                       samesite="none", partitioned=True)
+    _cookie_partitioniert(antwort, "", 0)
     return antwort
 
 
