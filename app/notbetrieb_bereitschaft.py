@@ -8,6 +8,7 @@ Deshalb jederzeit abrufbar (Seite Notbetrieb, Abnahme):
 - Anmeldung: Domänencontroller verschlüsselt erreichbar
 - Versand nach außen: Direktversand eingerichtet
 - On-Prem-Postfächer: Ziel vorhanden, letzte Probe angenommen
+- Hybrid-Connector: kennt keiner die Ausgangsadresse des Direktversands
 - TLS-Zertifikat gültig (Webmail und SMTP)
 
 Dazu der Stand des MX je eigener Domäne (`mx_stand`): zeigt er auf Exchange
@@ -144,6 +145,122 @@ def _onprem() -> dict:
               befund + f"; Probe an {probe.get('ziel')} vor {alter:.0f} h angenommen ({probe.get('antwort', '')}).")
 
 
+# ── Hybrid-Connector ────────────────────────────────────────────────────────
+# Microsoft ordnet eine eingehende Verbindung ZUERST als „originating“ einem
+# Tenant zu, wenn ein OnPremises-Eingangsconnector das Zertifikat des Senders
+# (TlsSenderCertificateName) oder seine IP (SenderIPAddresses) kennt und die
+# Absenderdomäne dort akzeptiert ist — gleich, welchen MX der Sender angewählt
+# hat (Exchange Team Blog „Office 365 Message Attribution“; MC1226222). Die
+# Absenderdomänen sind die eigenen, also zählen alle eigenen Connectoren.
+# Gemessen 16.11.2026 (exohv): Direktversand an einen anderen Microsoft-Kunden
+# lief so über den eigenen Tenant (DIR:OUT, DKIM selector1).
+
+HYBRID = "Notfall-Post an Microsoft-Kunden"
+HYBRID_WARUM = (
+    "Deine während des Notfalls ausgehenden Mails, die an einen anderen Microsoft-Kunden gehen sollen, würden "
+    "innerhalb von Microsoft deinem Tenant zugeordnet und diesen durchlaufen. Warum? Es gibt in deinem Tenant "
+    "einen (Hybrid-)Eingangsconnector „{name}“, der {grund}. {vermutlich} Alle Mails würden deshalb behandelt "
+    "wie von Exchange on-prem kommend und somit über deinen Tenant zum Ziel geschickt. Da dein Tenant im Notfall "
+    "gestört ist (und ein anderer Tenant vielleicht nicht), ist das nicht sinnvoll.")
+HYBRID_TUN = ("Am einfachsten sorgst du dafür, dass dein Gateway ein anderes Zertifikat hat als dein Exchange, und "
+              "stellst den Hybrid-Connector auf Zertifikat um — das ist ohnehin die von Microsoft empfohlene "
+              "Variante.")
+
+
+def _ip_passt(ip: str, eintraege: list[str]) -> str | None:
+    """Der Eintrag aus SenderIPAddresses, der `ip` enthält (einzelne Adresse
+    oder CIDR-Bereich), sonst None. Unlesbare Einträge zählen nicht."""
+    import ipaddress
+    try:
+        adresse = ipaddress.ip_address(ip)
+    except ValueError:
+        return None
+    for e in eintraege:
+        try:
+            if adresse in ipaddress.ip_network(e.strip(), strict=False):
+                return e
+        except ValueError:
+            continue
+    return None
+
+
+def _name_passt(namen: list[str], muster: str) -> str | None:
+    """Zertifikatsname des Senders, der zu TlsSenderCertificateName passt;
+    `*.domain` deckt genau eine Ebene ab (wie bei TLS)."""
+    m = (muster or "").strip().lower()
+    if not m:
+        return None
+    for n in (x.strip().lower() for x in namen):
+        if n == m:
+            return n
+        if m.startswith("*.") and n.endswith(m[1:]) and "." not in n[: -len(m) + 1]:
+            return n
+        if n.startswith("*.") and m.endswith(n[1:]) and "." not in m[: -len(n) + 1]:
+            return n
+    return None
+
+
+def hybrid_treffer(connectoren: list[dict], ip: str, zertifikat_namen: list[str]) -> list[dict]:
+    """Je Connector, der den Direktversand als seinen Exchange ansähe:
+    {name, art: ip|zertifikat, wert}. Rein & testbar."""
+    treffer = []
+    for c in connectoren:
+        n = _name_passt(zertifikat_namen, c.get("zertifikat", ""))
+        if n:
+            treffer.append({"name": c.get("name", ""), "art": "zertifikat", "wert": n})
+            continue
+        e = _ip_passt(ip, c.get("ips") or [])
+        if e:
+            treffer.append({"name": c.get("name", ""), "art": "ip", "wert": e})
+    return treffer
+
+
+def _gateway_zertifikat_namen() -> list[str]:
+    """Namen des Client-Zertifikats, das der Direktversand zeigt. Postfix
+    bekommt keins (direktversand.postconf_zeilen setzt kein smtp_tls_cert_file;
+    tests/test_notbetrieb_hybrid.py hält das fest) — ändert sich das, gehört
+    hier dessen CN/SAN hin."""
+    return []
+
+
+def _hybrid() -> dict:
+    import abnahme
+    import direktversand
+    import notbetrieb_rechte
+    if not direktversand.aktiv():
+        return _p(HYBRID, abnahme.ENTFAELLT, "Kein Direktversand — siehe „Versand nach außen“.")
+    e = direktversand.einstellungen()
+    if e["modus"] != "mx":
+        return _p(HYBRID, abnahme.ENTFAELLT, f"Direktversand über den Smarthost {e['smarthost']} — welche Adresse "
+                  "Microsoft sieht, bestimmt der Smarthost.")
+    ip = e["aussen_ip"]
+    if not ip:
+        return _p(HYBRID, abnahme.UNBEKANNT, "Ausgangsadresse des Direktversands nicht eingetragen — nicht prüfbar.",
+                  "Einstellungen → Mail-Routing → Selbst zustellen: „Ausgangsadresse“ eintragen.")
+    st = notbetrieb_rechte.hybrid_connectoren()
+    connectoren = st.get("connectoren")
+    alter = _alter_h(st.get("ts"))
+    if connectoren is None or alter is None:
+        return _p(HYBRID, abnahme.UNBEKANNT, "Eingangsconnectoren noch nicht gelesen." if alter is None else
+                  "Eingangsconnectoren beim letzten Abgleich nicht lesbar (Protokoll: „Get-InboundConnector“).",
+                  "Notbetrieb → „Rechte jetzt lesen“.")
+    treffer = hybrid_treffer(connectoren, ip, _gateway_zertifikat_namen())
+    if not treffer:
+        return _p(HYBRID, abnahme.OK, f"{len(connectoren)} Hybrid-Eingangsconnectoren geprüft (vor {alter:.0f} h), "
+                  f"keiner kennt die Ausgangsadresse {ip} des Gateways.")
+    t = treffer[0]
+    if t["art"] == "ip":
+        grund = f"auf dieselbe IP hört ({t['wert']}), mit der sich auch das Gateway dort meldet ({ip})"
+        vermutlich = "Vermutlich teilen sich das Gateway und Exchange on-prem dieselbe öffentliche IP."
+    else:
+        grund = f"dasselbe Zertifikat erwartet ({t['wert']}), das auch das Gateway dort vorzeigt"
+        vermutlich = "Vermutlich nutzen das Gateway und Exchange on-prem dasselbe Zertifikat."
+    befund = HYBRID_WARUM.format(name=t["name"], grund=grund, vermutlich=vermutlich)
+    if len(treffer) > 1:
+        befund += " Ebenso: " + ", ".join(f"„{x['name']}“" for x in treffer[1:]) + "."
+    return _p(HYBRID, abnahme.OFFEN, befund, HYBRID_TUN)
+
+
 def _kontakte() -> dict:
     import abnahme
     import notbetrieb_pim
@@ -200,7 +317,7 @@ def pruefen(mit_netz: bool = True) -> dict:
     st = notbetrieb.status()
     punkte = []
     for f in (lambda: _kopie(st), _abbild, lambda: _profile(st), lambda: _anmeldung(mit_netz), _versand,
-              _onprem, _kontakte, _zweitfaktor, lambda: _rueckweg(st), abnahme._tls):
+              _onprem, _hybrid, _kontakte, _zweitfaktor, lambda: _rueckweg(st), abnahme._tls):
         try:
             punkte.append(f())
         except Exception as exc:                                    # noqa: BLE001

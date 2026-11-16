@@ -126,8 +126,17 @@ def _ps_script(app_id: str, org: str) -> str:
         " { 'kontakt' } else { 'extern' }); versteckt = [bool]$x.HiddenFromAddressListsEnabled;"
         " ziel = $ziel.ToLower() }",
         "}",
+        # Hybrid-Eingangsconnectoren (OnPremises): Kennt einer die Ausgangsadresse
+        # des Direktversands, ordnet Microsoft Notfall-Post dem eigenen Tenant zu
+        # (notbetrieb_bereitschaft._hybrid). $null = nicht lesbar, nie „keine“.
+        "$connectoren = $null",
+        "try { $connectoren = @(Get-InboundConnector -ErrorAction Stop | Where-Object {"
+        " \"$($_.ConnectorType)\" -eq 'OnPremises' -and $_.Enabled } | ForEach-Object {"
+        " [pscustomobject]@{ name = \"$($_.Name)\"; ips = @($_.SenderIPAddresses | ForEach-Object { \"$_\" });"
+        " zertifikat = \"$($_.TlsSenderCertificateName)\" } }) } catch {"
+        " [Console]::Error.WriteLine(\"Get-InboundConnector: $_\") }",
         "[pscustomobject]@{ konten = $konten; rechte = $rechte; nicht_aufgeloest = $offen;"
-        " gruppen = $gruppen; extern = $extern }"
+        " gruppen = $gruppen; extern = $extern; connectoren = $connectoren }"
         " | ConvertTo-Json -Depth 5 -Compress",
         "Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue | Out-Null",
     ])
@@ -173,8 +182,23 @@ def parse(roh: str) -> dict | None:
             rechte.add((pf, wer, recht))
     return {"konten": list(konten.values()), "rechte": sorted(rechte),
             "nicht_aufgeloest": int(daten.get("nicht_aufgeloest") or 0),
+            "connectoren": _connectoren(daten),
             "empfaenger": _empfaenger(daten, {a.rsplit("@", 1)[1] for k in konten.values()
                                               for a in (k["primary"], k["upn"]) if "@" in a})}
+
+
+def _connectoren(daten: dict) -> list[dict] | None:
+    """Hybrid-Eingangsconnectoren (OnPremises, aktiv). `None` = nicht gelesen
+    (Schlüssel fehlt oder Abruf scheiterte) — ausdrücklich nicht „keine“."""
+    if "connectoren" not in daten or daten["connectoren"] is None:
+        return None
+    out = []
+    for c in _liste(daten["connectoren"]):
+        if isinstance(c, dict):
+            out.append({"name": str(c.get("name") or ""),
+                        "ips": [str(i).strip() for i in _liste(c.get("ips")) if str(i).strip()],
+                        "zertifikat": str(c.get("zertifikat") or "").strip()})
+    return out
 
 
 ARTEN = ("verteiler", "dynamisch", "gruppe", "extern", "kontakt")
@@ -300,6 +324,8 @@ def speichern(abbild: dict, ts: str | None = None) -> None:
                      (json.dumps({"ts": ts, "konten": len(abbild["konten"]), "rechte": len(abbild["rechte"]),
                                   "nicht_aufgeloest": abbild.get("nicht_aufgeloest", 0),
                                   "empfaenger": {a: n for a, n in je_art.items() if n}}),))
+        conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('hybrid_connectoren', ?)",
+                     (json.dumps({"ts": ts, "connectoren": abbild.get("connectoren")}),))
 
 
 def abgleichen() -> dict:
@@ -321,6 +347,17 @@ def stand() -> dict:
     with notbetrieb._lock, notbetrieb._conn() as conn:
         z = conn.execute("SELECT v FROM meta WHERE k='rechte_stand'").fetchone()
     return json.loads(z["v"]) if z else {"ts": "", "konten": 0, "rechte": 0, "nicht_aufgeloest": 0}
+
+
+def hybrid_connectoren() -> dict:
+    """{ts, connectoren}: Stand des letzten Abgleichs. connectoren None = nicht
+    gelesen; {} wenn noch nie abgeglichen."""
+    import notbetrieb
+    if not notbetrieb._db_pfad().exists():
+        return {}
+    with notbetrieb._lock, notbetrieb._conn() as conn:
+        z = conn.execute("SELECT v FROM meta WHERE k='hybrid_connectoren'").fetchone()
+    return json.loads(z["v"]) if z else {}
 
 
 def _konto(conn, adresse: str):
