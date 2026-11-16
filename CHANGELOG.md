@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.40 — 2026-11-16 — Dateirechte: mitentstehende Verzeichnisse, eine harden_file; Zustimmungsdatenbank ohne Schema bei jedem Öffnen
+
+- **Verzeichnisse, die beim Anlegen mit entstehen, bekommen 700.** Legt das
+  Gateway für eine geschützte Datei einen Pfad mit mehreren neuen Ebenen an,
+  bekam bisher nur die letzte Ebene 700; die darüber entstandenen erhielten die
+  Vorgabe des Systems (im Container 755). Eine 600-Datei darin war damit nur
+  halb geschützt: Name, Existenz und Größe blieben für andere Systembenutzer
+  lesbar, der Inhalt nicht. Jetzt werden neu entstandene Ebenen ebenfalls auf
+  700 gesetzt. Schon vorhandene Verzeichnisse bleiben unverändert. Bestehende
+  Verzeichnisse mit Schlüsseln härtet ohnehin jeder Start.
+- **`secure_io.harden_file` war zweimal definiert.** Wirksam war immer die
+  zweite, nur einschränkende Fassung; die erste (fester Modus 600) war
+  überdeckt. Am Verhalten ändert sich nichts. Die überdeckte Fassung ist
+  entfernt, ihre Begründung steht bei der gültigen. Ein Test verbietet jetzt
+  doppelte Funktions- und Klassendefinitionen in `app/` und `tools/`.
+- **Zustimmungsdatenbank:** Das Schema (Tabelle, Spalte `accepted_by`) wird nur
+  noch angelegt, wenn die Datei es noch nicht trägt (`PRAGMA user_version`),
+  nicht mehr bei jedem Öffnen. Geöffnet wird sie bei jedem Seitenaufbau.
+
+Gleiche Änderung im Hub (gemeinsame Datei `secure_io.py`).
+
+**Zu tun:** nichts.
+
 ## v1.12.39 — 2026-11-16 — Abwesenheitsnotizen: fehlende Regel-Ausnahme erkennen und nachziehen
 
 Die Routing-Regel leitet den gesamten Ausgang der aktivierten Postfächer ans
