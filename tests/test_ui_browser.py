@@ -1916,8 +1916,18 @@ def _notfall_start(browser, server, monkeypatch, faktor, ausgerufen=False, pfad=
     ctx.route("**/notfall/api/**", api)
     pg = ctx.new_page()
     pg.goto(f"{server}{pfad}", wait_until="domcontentloaded", timeout=30000)
-    pg.wait_for_timeout(600)
+    _zugang_geladen(pg)
     return pg
+
+
+# Fertig ist die Seite, wenn die Anmeldemaske steht oder der Zugang seinen
+# Stand zeigt (beides nach einer Antwort von /api/ich bzw. /api/faktor).
+_GELADEN = """() => { const z = id => !document.getElementById(id).hidden;
+  return z('anmeldung') || (z('einrichten') && (z('ein-stand') || z('ein-anmelden'))); }"""
+
+
+def _zugang_geladen(pg):
+    pg.wait_for_function(_GELADEN, timeout=10000)
 
 
 def _sichtbar(pg, sel):
@@ -1965,7 +1975,7 @@ def test_notfall_ausgerufen_startet_bei_der_anmeldung(browser, server, monkeypat
     assert pg.inner_text("#anmeldung h1") == "Anmelden"
     # /notfall/einrichten zeigt auch im Notfall den Zugang (alte Links, Konto-Menü).
     pg.goto(pg.url.split("/notfall")[0] + "/notfall/einrichten", wait_until="domcontentloaded")
-    pg.wait_for_timeout(600)
+    _zugang_geladen(pg)
     assert _sichtbar(pg, "#einrichten")
     pg.context.close()
 
