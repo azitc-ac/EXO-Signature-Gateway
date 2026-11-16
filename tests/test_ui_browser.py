@@ -468,6 +468,43 @@ def test_knopf_und_auswahl_in_der_feldspalte_nicht_gedehnt(seite, pfad):
     assert not befund["gedehnt"], f"Über die ganze Spalte gedehnt: {befund['gedehnt']}"
 
 
+@pytest.mark.parametrize("breite", [1280, 393])
+@pytest.mark.parametrize("pfad, ziel", [
+    ("/setup#exo-auto-ausnahme", "exo-auto-ausnahme"),
+    ("/advanced#watchdog", "watchdog"),
+])
+def test_ankersprung_zeigt_die_karte_ab_ihrem_kopf(seite, monkeypatch, pfad, ziel, breite):
+    """Ein Ankerziel tief in einer Karte landete unter der festen Navigation,
+    Kopf und Schritt-Nummer lagen ausser Sicht. Jetzt steht der Kartenkopf
+    direkt unter der Navigation und das Ziel darunter im Bild."""
+    import settings_store
+    # Der Abschnitt mit der Auto-Antwort-Ausnahme steht erst nach eingerichtetem Connector da.
+    vorher = bool(settings_store.get("EXO_CONNECTOR_CREATED"))
+    settings_store.update({"EXO_CONNECTOR_CREATED": True})
+    try:
+        pg = seite(pfad, breite=breite, hoehe=850)
+    finally:
+        settings_store.update({"EXO_CONNECTOR_CREATED": vorher})
+    pg.wait_for_timeout(600)
+    lage = pg.evaluate("""z => {
+      const nav = document.querySelector('nav').getBoundingClientRect().bottom;
+      const el = document.getElementById(z);
+      if (!el) return null;
+      const karte = el.closest('.wizard-step, .settings-card, .card') || el;
+      return {nav, karte: karte.getBoundingClientRect().top,
+              ziel: el.getBoundingClientRect().top, hoehe: innerHeight,
+              y: scrollY, eigen: karte === el};
+    }""", ziel)
+    assert lage, f"Ziel {ziel} fehlt auf der Seite"
+    assert lage["y"] > 0, lage                                  # es wurde überhaupt gescrollt
+    passt = lage["ziel"] - lage["karte"] + 80 <= lage["hoehe"] - lage["nav"]
+    if passt:      # Kopf direkt unter der Navigation, Ziel darunter im Bild
+        assert lage["nav"] <= lage["karte"] <= lage["nav"] + 16, lage
+        assert lage["ziel"] < lage["hoehe"], lage
+    else:          # Karte zu hoch (Telefon): dann das Ziel selbst, nicht darunter versteckt
+        assert lage["nav"] <= lage["ziel"] <= lage["nav"] + 16, lage
+
+
 # ── Lizenzmenge: kostenpflichtig eingeben, Gesamtzahl senden ─────────────────
 
 def test_lizenzfeld_meint_kostenpflichtige_postfaecher(seite):

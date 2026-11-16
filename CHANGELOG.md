@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.46 — 2026-11-16 — Ankerlinks zeigen die Karte ab ihrem Kopf
+
+Ein Link auf eine Stelle innerhalb einer Seite, etwa aus den offenen
+Aufgaben auf „Auto-Antwort-Ausnahme“ in der Einrichtung, scrollte das Ziel
+unter die feste Navigation. Kopf und Schritt-Nummer der Karte lagen oberhalb
+außer Sicht, sichtbar waren nur angeschnittene Knöpfe ohne Zusammenhang.
+Jetzt steht die Karte, in der das Ziel liegt, mit ihrem Kopf direkt unter der
+Navigation. Ist die Karte dafür zu hoch (etwa auf dem Telefon), steht das Ziel
+selbst oben. Eingeklappte Bereiche um das Ziel öffnen sich. Das gilt auf
+allen Seiten, auch für andere Sprünge, die nicht mehr unter die Navigation
+rutschen.
+
+**Zu tun:** nichts.
+
 ## v1.12.45 — 2026-11-16 — Teams-App per Knopf aktualisieren, Aufgaben mit Tätigkeitstitel, Test-Mail als HTML
 
 - **„Im Teams-Katalog aktualisieren“** (Einrichtung → Add-in, Abschnitt Teams-App).
