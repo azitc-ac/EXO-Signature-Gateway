@@ -150,3 +150,46 @@ def test_api_geteiltes_postfach(api):
 def test_api_nicht_betreutes_von_bleibt_bei_der_person(api):
     d = _abruf(von="fremd@firma.de", empfaenger="kunde@extern.de")
     assert d["vorlage"] == "Sig"
+
+
+# ── Eigenes Postfach unter anderer Adresse (UPN ≠ Hauptadresse) ───────────────
+# Die Anmeldung nennt den UPN (Kurzform), Outlook als Von-Adresse die
+# Hauptadresse. Bis v1.12.39 hielt der Textvergleich die Person für die
+# Bearbeiterin ihres eigenen Postfachs.
+
+@pytest.fixture
+def api_upn(api):
+    api["MAILBOX_CONFIG"] = {
+        "0f0e0d0c-0000-4000-8000-000000000001": {
+            "primary": "erika.mustermann@zarenko.net",
+            "known_addresses": ["erika.mustermann@zarenko.net", "erika@zarenko.net"],
+            "sig": True, "template": "Sig", "intern_template": "Intern", "use_policy": False},
+        "team@firma.de": {"sig": True, "template": "Team", "use_policy": False},
+    }
+    return api
+
+
+def test_api_upn_ist_kein_bearbeiter_des_eigenen_postfachs(api_upn):
+    d = _abruf(von="erika.mustermann@zarenko.net", empfaenger="kunde@extern.de")
+    assert d["vorlage"] == "Sig"
+    # Inhaber und „Bearbeiter“ sind dieselbe Person, keine zweite Identität.
+    assert "erika.mustermann@zarenko.net erika.mustermann@zarenko.net" in d["html"]
+
+
+def test_api_upn_schaltet_auf_intern(api_upn):
+    d = _abruf(von="erika.mustermann@zarenko.net", empfaenger="max@firma.de")
+    assert d["art"] == "intern" and d["vorlage"] == "Intern"
+
+
+def test_api_upn_im_geteilten_postfach_bleibt_bearbeiter(api_upn):
+    d = _abruf(von="team@firma.de", empfaenger="kunde@extern.de")
+    assert d["vorlage"] == "Team" and "team@firma.de erika@zarenko.net" in d["html"]
+
+
+def test_selbes_postfach():
+    import mailbox_match
+    cfg = {"g1": {"primary": "a.b@x.de", "known_addresses": ["a.b@x.de", "ab@x.de"]},
+           "g2": {"primary": "c@x.de", "known_addresses": ["c@x.de"]}}
+    assert mailbox_match.selbes_postfach(cfg, "AB@x.de", "a.b@x.de")
+    assert not mailbox_match.selbes_postfach(cfg, "ab@x.de", "c@x.de")
+    assert not mailbox_match.selbes_postfach(cfg, "fremd@x.de", "fremd@x.de")   # unbekannt ≠ gleich

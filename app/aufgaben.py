@@ -55,6 +55,11 @@ def _zertifikat_abbau_laeuft() -> bool:
     return setup_wizard.abbau_laeuft()
 
 
+def _auto_ausnahme_laeuft() -> bool:
+    import regel_auto_ausnahme
+    return regel_auto_ausnahme.laeuft()
+
+
 AUFGABEN: tuple[Aufgabe, ...] = (
     Aufgabe("zertifikat-anmeldung", abnahme._anmeldenachweis,
             "/setup#step-4", dringend=True, seit="1.10.80",
@@ -79,7 +84,7 @@ AUFGABEN: tuple[Aufgabe, ...] = (
             seit="1.10.115"),
     # Manifest des Verfassen-Add-ins geändert (interne Signatur, geteilte
     # Postfächer) — jede Installation muss es im Admin Center neu bestätigen.
-    Aufgabe("addin-fassung", abnahme._addin_fassung, "/mailboxes", seit="1.11.56"),
+    Aufgabe("addin-fassung", abnahme._addin_fassung, "/setup#addin-verfassen", seit="1.11.56"),
     # Function-Code der Azure-Wächter kam bis v1.11.63 nur beim Anlegen hinauf.
     Aufgabe("waechter-code", abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),
     # Eingetragener Key Vault ohne Datenrechte der App: Schlüssel blieben still lokal.
@@ -93,6 +98,10 @@ AUFGABEN: tuple[Aufgabe, ...] = (
             "/settings/routing#direktversand-probe", seit="1.12.31"),
     # Kalender-Ausnahme an „SMIME Signed Inbound“: bestehende Regeln neu schreiben.
     Aufgabe("smime-regeln", abnahme._smime_regeln_stand, "/setup#step-smime", seit="1.12.34"),
+    # Auto-Antwort-Ausnahme kam mit v1.9.88 nur an neue Routing-Regeln:
+    # Abwesenheitsnotizen älterer Installationen scheitern am Gateway-Rückweg.
+    Aufgabe("regel-auto-ausnahme", abnahme._regel_auto_ausnahme, "/setup#exo-auto-ausnahme",
+            seit="1.12.39", laeuft=_auto_ausnahme_laeuft),
 )
 
 _TTL_S = 10

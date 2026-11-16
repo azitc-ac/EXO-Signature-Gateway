@@ -150,6 +150,12 @@ try {
             -Enabled $false `
             -Mode Enforce | Out-Null
         Write-OK "S/MIME-Regel angelegt"
+    } else {
+        # Bestehende Regel: Auto-Antwort-Ausnahme nachziehen (kam mit v1.9.88 nur
+        # an neu angelegte Regeln). Nur diese Ausnahme, Gate und Rest unberührt.
+        Set-TransportRule -Identity $smimeRule `
+            -ExceptIfHeaderContainsMessageHeader "Auto-Submitted" `
+            -ExceptIfHeaderContainsWords "auto" | Out-Null
     }
     Set-RuleGate $smimeRule $smimeDg $smimeList.Count
 

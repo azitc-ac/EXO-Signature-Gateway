@@ -73,8 +73,28 @@ def test_alter_oder_unbekannter_code_ist_offen(register):
 
 def test_aktueller_code_ist_ok(register):
     register.registrieren(id="wd_a", name="A", kind="azure", token_hash="h",
-                          azure={"app_name": "a", "code_stand": watchdog_deploy.code_stand()})
+                          azure={"app_name": "a", "code_stand": watchdog_deploy.code_stand(),
+                                 "einstellungen_stand": watchdog_deploy.einstellungen_stand()})
     assert abnahme._waechter_code()["zustand"] == abnahme.OK
+
+
+def test_veraltete_einstellungen_sind_offen(register, monkeypatch):
+    """Regel umbenannt (Gateway-Name) — bis v1.12.42 prüfte der Wächter die
+    alte weiter, und der Punkt stand auf OK."""
+    import waechter_regel
+    register.registrieren(id="wd_a", name="A", kind="azure", token_hash="h",
+                          azure={"app_name": "a", "code_stand": watchdog_deploy.code_stand(),
+                                 "einstellungen_stand": watchdog_deploy.einstellungen_stand()})
+    monkeypatch.setattr(waechter_regel, "regelname", lambda: "Route via Neuer Name (Signatur)")
+    p = abnahme._waechter_code()
+    assert p["zustand"] == abnahme.OFFEN and "Einstellungen" in p["befund"]
+    assert watchdog_deploy.einstellungen_soll()["SIG_RULE_NAME"] == "Route via Neuer Name (Signatur)"
+
+
+def test_ohne_gemerkte_einstellungen_offen(register):
+    register.registrieren(id="wd_a", name="A", kind="azure", token_hash="h",
+                          azure={"app_name": "a", "code_stand": watchdog_deploy.code_stand()})
+    assert abnahme._waechter_code()["zustand"] == abnahme.OFFEN
 
 
 def test_aufgabe_und_abnahme_teilen_die_pruefung():
@@ -90,6 +110,8 @@ def test_anlegen_merkt_den_code_stand():
     deploy = s.split("async def _run_deploy", 1)[1].split("\nasync def ", 1)[0]
     assert "wd.deploy_code(" in deploy
     assert "merke_azure(wid, code_stand=wd.code_stand())" in deploy
+    assert "**wd.einstellungen_soll()" in deploy
+    assert "merke_azure(wid, einstellungen_stand=wd.einstellungen_stand())" in deploy
 
 
 # ── Route ─────────────────────────────────────────────────────────────────────
@@ -113,13 +135,24 @@ def test_aktualisieren_laedt_auf_genau_diese_function(anlage, monkeypatch):
     async def _deploy(sub, rg, app, token, zip_bytes=None):
         aufrufe.append((sub, rg, app, token))
         return True, "ok"
+    gesetzt = []
+
+    async def _einst(sub, rg, app, werte, token):
+        gesetzt.append((sub, rg, app, dict(werte)))
+        return True, "ok"
     monkeypatch.setattr(watchdog_deploy, "deploy_code", _deploy)
+    monkeypatch.setattr(watchdog_deploy, "set_app_settings", _einst)
     monkeypatch.setattr(keyvault, "get_user_arm_token", lambda upn: "ARM")
     monkeypatch.setattr(waechter, "_get_session_user", lambda req: "admin@firma.de")
     r = c.post("/api/watchdog/code-aktualisieren", json={"id": "wd_z"})
     assert r.status_code == 200 and r.json()["ok"] is True
     assert aufrufe == [("sub-1", "rg-1", "app-1", "ARM")]
-    assert waechter_register.holen("wd_z")["azure"]["code_stand"] == watchdog_deploy.code_stand()
+    az = waechter_register.holen("wd_z")["azure"]
+    assert az["code_stand"] == watchdog_deploy.code_stand()
+    # Einstellungen im selben Zug — nur die aus der Konfiguration, kein Token.
+    assert gesetzt == [("sub-1", "rg-1", "app-1", watchdog_deploy.einstellungen_soll())]
+    assert "WATCHDOG_TOKEN" not in gesetzt[0][3]
+    assert az["einstellungen_stand"] == watchdog_deploy.einstellungen_stand()
 
 
 def test_aktualisieren_scheitert_ohne_stand_zu_merken(anlage, monkeypatch):

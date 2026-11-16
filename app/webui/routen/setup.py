@@ -44,6 +44,7 @@ from fastapi.security import HTTPBasicCredentials
 import config
 import graph_client
 import pkce as pkce_mod
+import regel_auto_ausnahme
 import settings_store
 
 from webui.deps import (
@@ -155,6 +156,13 @@ async def setup_wizard(
     effective["exo_split_aktiv"] = regel_split.split_aktiv()
     effective["exo_rule_smime"] = regel_split.smime_regelname()
     addin_base_url = _addin_base_url(request)
+    # Fassungen der Outlook-Add-ins frisch bestimmen — sonst zeigte die Seite
+    # den Stand des letzten Manifest-Abrufs (nach einem Update oft veraltet).
+    try:
+        from webui.routen.addin import manifest_staende_auffrischen
+        manifest_staende_auffrischen()
+    except Exception as exc:                                # noqa: BLE001
+        log.warning("Einrichtung: Add-in-Fassungen nicht aufgefrischt: %s", exc)
     # Fassung des Teams-Pakets neben dem Download — das Admin Center zeigt keine
     # Versionsnummer, nur „Last modified“; `seit` ist der Vergleichswert.
     try:
@@ -184,6 +192,7 @@ async def setup_wizard(
                                 **{k: (settings_store.get("_ADDIN_VERFASSEN_STAND") or {}).get(k, "")
                                    for k in ("version", "seit")}},
             "webui_port": config.WEBUI_PORT,
+            "auto_ausnahme": regel_auto_ausnahme.gemerkt(),
         },
     )
 
@@ -644,7 +653,13 @@ async def api_verify_sso(_=Depends(_require_admin)):
     schritt("Anmeldung für Add-in und Tab (NAA)", not fehlt,
             "vollständig" if not fehlt else
             "Es fehlt: " + "; ".join(fehlt) + ". „In Entra ergänzen“ trägt es nach.")
-    if fehlt:
+    # Anmeldung per Microsoft-Knopf (SSO, Add-in-Login, Self-Service): Web-
+    # Rückadresse + ID-Token-Ausgabe — dieselbe Soll-Funktion wie der Setzer.
+    implicit = setup_wizard.implicit_luecke(app_obj)
+    schritt("Anmeldung per Microsoft-Knopf (Implicit)", not implicit,
+            "vollständig" if not implicit else
+            "Es fehlt: " + implicit + ". „In Entra ergänzen“ trägt es nach.")
+    if fehlt or implicit:
         ergebnis["nachholen"] = "/api/addin/update-redirect-uri"
 
     # Den gemerkten Stand (Anzeige „Aktuell registriert“) still auffrischen —
@@ -937,6 +952,20 @@ async def api_regel_schleifenkennung(user: str = Depends(_require_admin)):
 async def api_regel_schleifenkennung_angleichen(user: str = Depends(_require_admin)):
     import regel_kennung
     return JSONResponse(await asyncio.to_thread(regel_kennung.angleichen, user))
+
+
+# ── Auto-Antwort-Ausnahme an den Routing-Regeln (regel_auto_ausnahme.py) ─────
+
+@router.get("/api/setup/regel/auto-ausnahme")
+async def api_regel_auto_ausnahme(user: str = Depends(_require_admin)):
+    import regel_auto_ausnahme
+    return JSONResponse({"ok": True, **await asyncio.to_thread(regel_auto_ausnahme.pruefen)})
+
+
+@router.post("/api/setup/regel/auto-ausnahme-ergaenzen")
+async def api_regel_auto_ausnahme_ergaenzen(user: str = Depends(_require_admin)):
+    import regel_auto_ausnahme
+    return JSONResponse(await asyncio.to_thread(regel_auto_ausnahme.ergaenzen, user))
 
 
 # ── App-Pool API ──────────────────────────────────────────────────────────────

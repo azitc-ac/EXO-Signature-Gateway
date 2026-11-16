@@ -222,6 +222,31 @@ def build_function_zip() -> bytes:
     return buf.getvalue()
 
 
+def einstellungen_soll() -> dict:
+    """Die App-Einstellungen eines Azure-Wächters, die aus der Gateway-
+    Konfiguration folgen — EINE Quelle für Anlegen und „Code aktualisieren“.
+
+    Bis v1.12.42 setzte sie nur das Anlegen. Wurde danach die Signatur-Regel
+    umbenannt (Gateway-Name, EXO_RULE_SIG) oder die Außenadresse geändert,
+    prüfte der Wächter weiter die alte Regel bzw. Adresse, und keine Prüfung
+    sah es. FAIL_THRESHOLD, WATCHDOG_TOKEN und WATCHDOG_ID bleiben aussen vor:
+    Sie entstehen beim Anlegen und folgen nicht aus der Konfiguration."""
+    import aussenadresse
+    import settings_store
+    import waechter_regel
+    basis = (aussenadresse.konfiguriert() or "").rstrip("/")
+    return {"GATEWAY_HEALTH_URL": (basis + "/health") if basis else "",
+            "EXO_ORGANIZATION": settings_store.get("TENANT_DOMAIN") or "",
+            "SIG_RULE_NAME": waechter_regel.regelname()}
+
+
+def einstellungen_stand() -> str:
+    """Fingerabdruck von einstellungen_soll() — steht nach dem Setzen im
+    Register; weicht er ab, sind die Einstellungen des Wächters veraltet."""
+    import hashlib
+    return hashlib.sha256(json.dumps(einstellungen_soll(), sort_keys=True).encode()).hexdigest()[:16]
+
+
 def code_stand() -> str:
     """Fingerabdruck des Function-Codes, den dieses Gateway mitbringt — über
     die Dateiinhalte, nicht über das Zip (das trägt Zeitstempel). Steht beim

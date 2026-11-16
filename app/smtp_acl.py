@@ -56,6 +56,18 @@ def last_refresh_ts() -> float:
     return _last_refresh_ts
 
 
+def stand_ts() -> float:
+    """Wann die geladene Liste zuletzt ERFOLGREICH abgerufen wurde (Epoche),
+    0 = unbekannt. Nach einem Neustart gilt die Zeit der Zwischenspeicher-
+    Datei — sie wird nur bei Erfolg geschrieben."""
+    if _last_refresh_ts:
+        return _last_refresh_ts
+    try:
+        return _CACHE_FILE.stat().st_mtime if _CACHE_FILE.exists() else 0.0
+    except OSError:
+        return 0.0
+
+
 def _always_allowed_networks() -> list:
     """Immer erlaubt: nur die Rückschleife.
 

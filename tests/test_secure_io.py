@@ -180,3 +180,50 @@ def test_safe_join_gegen_geschwister_mit_gleichem_praefix(tmp_path):
     base.mkdir()
     (tmp_path / "data-evil").mkdir()
     assert secure_io.safe_join(base, "../data-evil/x") is None
+
+
+# ── Zwischenverzeichnisse (seit 2026-11) ─────────────────────────────────────
+
+def test_ensure_dir_haertet_neu_angelegte_zwischenverzeichnisse(data_dir):
+    """`ensure_dir(a/b/c)` legt a und b mit an. Bis 2026-11 bekamen sie die
+    umask (755) — eine 600-Datei darunter war nur halb geschützt."""
+    import os
+    alt = os.umask(0o022)
+    try:
+        ziel = secure_io.ensure_dir(data_dir / "ablage" / "a" / "b")
+    finally:
+        os.umask(alt)
+    assert mode_of(ziel) == "700"
+    assert mode_of(data_dir / "ablage") == "700"
+    assert mode_of(data_dir / "ablage" / "a") == "700"
+
+
+def test_ensure_dir_laesst_vorhandene_eltern_unberuehrt(data_dir):
+    """Ein schon vorhandenes Elternverzeichnis (Einhängepunkt) gehört dem
+    Betreiber — weder härten noch lockern."""
+    (data_dir / "offen").mkdir()
+    (data_dir / "offen").chmod(0o755)
+    secure_io.ensure_dir(data_dir / "offen" / "neu" / "tiefer")
+    assert mode_of(data_dir / "offen") == "755"
+    assert mode_of(data_dir / "offen" / "neu") == "700"
+
+
+def test_write_secret_haertet_mit_entstehende_eltern(data_dir):
+    import os
+    alt = os.umask(0o022)
+    try:
+        p = secure_io.write_secret_bytes(data_dir / "x" / "y" / "key.pem", b"k")
+    finally:
+        os.umask(alt)
+    assert mode_of(p) == "600"
+    assert mode_of(data_dir / "x") == "700" and mode_of(data_dir / "x" / "y") == "700"
+
+
+def test_harden_file_erweitert_nie(data_dir):
+    """400 bleibt 400 — die frühere, gleichnamige Fassung mit festem Modus
+    600 hätte es erweitert (sie war überdeckt und ist entfernt)."""
+    p = data_dir / "private_key.json"
+    p.write_text("x")
+    p.chmod(0o400)
+    assert secure_io.harden_file(p) is False
+    assert mode_of(p) == "400"

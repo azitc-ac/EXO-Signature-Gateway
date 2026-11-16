@@ -603,6 +603,36 @@ def _implicit_web_patch(web: dict | None, id_callback: str) -> dict | None:
     return web if dirty else None
 
 
+def id_callback_adresse(hostname: str = "") -> str:
+    """Rückadresse des Implicit-id_token-Flows — EINE Formel für Setzer
+    (patch_bootstrap_redirect_uri) und Prüfung (implicit_luecke)."""
+    import aussenadresse
+    extern = aussenadresse.konfiguriert()
+    if extern:
+        return f"{extern}/auth/id-callback"
+    return f"https://{hostname}/auth/id-callback" if hostname else ""
+
+
+def implicit_luecke(app_obj: dict) -> str:
+    """Was für die Anmeldung per Microsoft-Knopf (Implicit-id_token) an der
+    Bootstrap-App fehlt, in Worten — leer heisst vollständig. Aus DERSELBEN
+    Soll-Funktion wie der Setzer (`_implicit_web_patch`). Bis v1.12.42 prüfte
+    das nichts: Fehlte es, kam AADSTS700054 bei Anmeldung und Self-Service,
+    und Abnahme wie „Anmeldung prüfen“ blieben grün."""
+    id_callback = id_callback_adresse()
+    if not id_callback:
+        return ""
+    web = app_obj.get("web") or {}
+    if _implicit_web_patch(web, id_callback) is None:
+        return ""
+    teile = []
+    if id_callback not in (web.get("redirectUris") or []):
+        teile.append(f"Web-Rückadresse {id_callback}")
+    if not (web.get("implicitGrantSettings") or {}).get("enableIdTokenIssuance"):
+        teile.append("ID-Token-Ausgabe (Implicit)")
+    return " und ".join(teile)
+
+
 NAA_SCOPE = "access_as_user"
 
 
@@ -740,9 +770,7 @@ async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
         # Implicit-id_token-Flow (SSO-Knopf, Add-in-Login, Self-Service) absichern —
         # die id-callback-URI muss ZEICHENGLEICH zur Anmelde-Rückadresse sein
         # (aussenadresse.konfiguriert(), dieselbe Quelle wie _build_redirect_uri).
-        import aussenadresse
-        extern = aussenadresse.konfiguriert()
-        id_callback = f"{extern}/auth/id-callback" if extern else f"https://{hostname}/auth/id-callback"
+        id_callback = id_callback_adresse(hostname)
         web_neu = _implicit_web_patch(apps[0].get("web"), id_callback)
         if web_neu is not None:
             patch["web"] = web_neu
@@ -1123,6 +1151,10 @@ def run_exo_connector_setup(
             log.info("EXO connector setup succeeded")
             import waechter_regel
             waechter_regel.regel_umgeschaltet()
+            # Die Einrichtung setzt die Auto-Antwort-Ausnahme — Befund nachlesen,
+            # sonst stünde die Aufgabe bis zum nächsten Start weiter da.
+            import regel_auto_ausnahme
+            regel_auto_ausnahme.pruefen()
             return {"ok": True, "output": output}
         else:
             log.error("EXO connector setup failed rc=%d: %s", proc.returncode, output)

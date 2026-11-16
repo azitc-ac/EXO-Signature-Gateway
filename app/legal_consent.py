@@ -78,6 +78,11 @@ CONTEXT_DOCUMENTS: dict[str, list[str]] = {
 }
 
 
+# Stand des Schemas in PRAGMA user_version. Bei jeder Schemaänderung erhöhen
+# und die Änderung in _conn() idempotent nachziehen.
+_SCHEMA_STAND = 1
+
+
 def _conn() -> sqlite3.Connection:
     c = sqlite3.connect(str(_DB_PATH))
     # SQLite legt die Datei mit der umask des Prozesses an (im Container 644).
@@ -85,6 +90,13 @@ def _conn() -> sqlite3.Connection:
     # Datenbank bliebe bis zum nächsten Neustart mitlesbar.
     secure_io.harden_file(_DB_PATH)
     c.row_factory = sqlite3.Row
+    # Schema nur, wenn die Datei es noch nicht trägt. Bis 2026-11 liefen
+    # CREATE TABLE und PRAGMA table_info bei JEDEM Öffnen — und geöffnet wird
+    # bei jedem Seitenaufbau (Aufgabe „Vertragsbedingungen“). `user_version`
+    # liegt in der Datei selbst: Eine neue oder ersetzte Datenbank (Backup,
+    # Test) beginnt bei 0 und bekommt das Schema, ohne Merker im Prozess.
+    if c.execute("PRAGMA user_version").fetchone()[0] >= _SCHEMA_STAND:
+        return c
     c.execute("""
         CREATE TABLE IF NOT EXISTS consents (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,6 +112,7 @@ def _conn() -> sqlite3.Connection:
     spalten = {r[1] for r in c.execute("PRAGMA table_info(consents)")}
     if "accepted_by" not in spalten:
         c.execute("ALTER TABLE consents ADD COLUMN accepted_by TEXT NOT NULL DEFAULT ''")
+    c.execute(f"PRAGMA user_version = {_SCHEMA_STAND}")
     c.commit()
     return c
 

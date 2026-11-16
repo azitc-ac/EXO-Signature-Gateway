@@ -163,3 +163,15 @@ def test_routen_verlangen_die_verwaltungsrolle():
     from webui.routen import setup
     for fn in (setup.api_regel_empfaengerbedingung, setup.api_regel_empfaengerbedingung_entfernen):
         assert "_require_admin" in inspect.getsource(fn)
+
+
+def test_abnahme_meldet_offenes_gate(monkeypatch, zustand):
+    """Bis v1.12.42 meldete ein offenes Absender-Gate nur das Band, und das nur
+    mit eingerichtetem Bypass-Wächter — die Abnahme stand auf OK."""
+    _ps_liefert(monkeypatch, {"ok": True, "state": "Enabled", "sent_to_scope": "",
+                              "from_member_of": []})
+    p = abnahme._regel_empfaenger()
+    assert p["zustand"] == abnahme.OFFEN and "Absender-Gate" in p["befund"]
+    _ps_liefert(monkeypatch, {"ok": True, "state": "Enabled", "sent_to_scope": "",
+                              "from_member_of": ["Gate - Enabled Mailboxes"]})
+    assert abnahme._regel_empfaenger()["zustand"] == abnahme.OK

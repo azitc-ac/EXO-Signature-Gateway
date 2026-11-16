@@ -271,20 +271,11 @@ async def watchdog_grant_role(request: Request, user: str = Depends(_require_adm
 
 # ── Function per ARM anlegen (KV-Stil, delegierter ARM-Token) ─────────────────
 
-def _health_base_url() -> str:
-    base = (settings_store.get("ADDIN_BASE_URL") or "").strip().rstrip("/")
-    if not base:
-        host = (settings_store.get("PUBLIC_HOSTNAME") or "").strip()
-        base = f"https://{host}" if host else ""
-    return base
-
-
 async def _run_deploy(upn: str, sub: str, rg: str, loc: str, app_name: str, create_rg: bool) -> None:
     """Hintergrund-Provisionierung: RG → Storage → Function+MI → Code → Settings.
     Aktualisiert _deploy. Läuft im Hauptprozess (settings_store.update ist hier sicher)."""
     import re as _re
     import keyvault
-    import waechter_regel
     import watchdog_deploy as wd
 
     def _step(s):
@@ -351,11 +342,8 @@ async def _run_deploy(upn: str, sub: str, rg: str, loc: str, app_name: str, crea
         _deploy["watcher_id"] = wid
         waechter_register.merke_azure(wid, code_stand=wd.code_stand())
         settings_store.update({"WATCHDOG_KIND": "azure"})     # nur Anzeige; Aktivieren bleibt manuell
-        health = _health_base_url()
         app_settings = {
-            "GATEWAY_HEALTH_URL": (health + "/health") if health else "",
-            "EXO_ORGANIZATION": settings_store.get("TENANT_DOMAIN") or "",
-            "SIG_RULE_NAME": waechter_regel.regelname(),
+            **wd.einstellungen_soll(),
             "FAIL_THRESHOLD": "3",
             "WATCHDOG_TOKEN": token_klar,
             "WATCHDOG_ID": wid,
@@ -363,6 +351,7 @@ async def _run_deploy(upn: str, sub: str, rg: str, loc: str, app_name: str, crea
         ok, msg = await wd.set_app_settings(sub, rg, app_name, app_settings, token)
         if not ok:
             _deploy.update(running=False, ok=False, msg=msg); return
+        waechter_register.merke_azure(wid, einstellungen_stand=wd.einstellungen_stand())
 
         _deploy.update(running=False, ok=True, step="Fertig",
                        msg="Function angelegt und als Wächter registriert. "
@@ -465,7 +454,16 @@ async def watchdog_code_aktualisieren(request: Request, user: str = Depends(_req
         return JSONResponse({"ok": False, "detail": msg}, status_code=502)
     stand = wd.code_stand()
     waechter_register.merke_azure(wid, code_stand=stand)
-    log.info("Wächter-Code aktualisiert von %s: %s (%s) → Stand %s",
+    # Einstellungen, die aus der Konfiguration folgen (Regelname, Health-Adresse,
+    # Organisation), im selben Zug nachziehen — bis v1.12.42 nur beim Anlegen.
+    ok, msg = await wd.set_app_settings(az["subscription"], az["resource_group"], az["app_name"],
+                                        wd.einstellungen_soll(), token)
+    if not ok:
+        log.warning("Wächter-Einstellungen für %s nicht aktualisiert: %s", wid, msg)
+        return JSONResponse({"ok": False, "detail": "Code aktualisiert, Einstellungen nicht: " + msg},
+                            status_code=502)
+    waechter_register.merke_azure(wid, einstellungen_stand=wd.einstellungen_stand())
+    log.info("Wächter-Code und Einstellungen aktualisiert von %s: %s (%s) → Stand %s",
              user, wid, az["app_name"], stand)
     return JSONResponse({"ok": True, "code_stand": stand})
 

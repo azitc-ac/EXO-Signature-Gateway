@@ -50,7 +50,9 @@ def pruefen() -> dict:
         return {"zustand": UNBEKANNT, "sent_to_scope": "", "regel": regel}
     scope = erg["sent_to_scope"]
     return {"zustand": OK if ist_soll(scope) else BEDINGUNG,
-            "sent_to_scope": scope, "regel": regel}
+            "sent_to_scope": scope, "regel": regel,
+            # Mitgelesen: das Absender-Gate (regel_soll.gate_offen). None = unbekannt.
+            "gate_offen": erg.get("gate_offen")}
 
 
 def entfernen(von: str) -> dict:

@@ -357,3 +357,41 @@ def test_abschalten_der_automatik_ist_frei():
     eintrag = re.search(r'"auto_disable"\s*:\s*(None|"[a-z_]+")', m.group(1))
     assert eintrag and eintrag.group(1) == "None", (
         "auto_disable muss bewusst ohne Kontext bleiben")
+
+
+# ── Schema nur einmal (seit 2026-11) ─────────────────────────────────────────
+
+def test_schema_nur_beim_ersten_oeffnen(lc, monkeypatch):
+    """Geöffnet wird bei jedem Seitenaufbau. Bis 2026-11 liefen dabei jedes
+    Mal CREATE TABLE und PRAGMA table_info."""
+    import sqlite3
+    befehle: list[str] = []
+    echt = sqlite3.connect
+
+    def verbinden(*a, **kw):
+        c = echt(*a, **kw)
+        c.set_trace_callback(befehle.append)
+        return c
+    monkeypatch.setattr(legal_consent.sqlite3, "connect", verbinden)
+    legal_consent._conn().close()
+    assert any("CREATE TABLE" in b for b in befehle)
+    befehle.clear()
+    legal_consent._conn().close()
+    assert not [b for b in befehle if "CREATE TABLE" in b or "table_info" in b], befehle
+
+
+def test_altbestand_ohne_stand_bekommt_die_spalte(lc):
+    """Eine Datenbank von vor v1.11.53 (ohne accepted_by, user_version 0)
+    wird beim Öffnen nachgezogen; die Zustimmung funktioniert danach."""
+    import sqlite3
+    c = sqlite3.connect(str(legal_consent._DB_PATH))
+    c.execute("CREATE TABLE consents (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL, "
+              "version TEXT NOT NULL, content_hash TEXT NOT NULL, context TEXT NOT NULL DEFAULT '', "
+              "accepted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')))")
+    c.commit()
+    c.close()
+    _zustimmen()
+    with legal_consent._conn() as c:
+        spalten = {r[1] for r in c.execute("PRAGMA table_info(consents)")}
+        assert "accepted_by" in spalten
+        assert c.execute("PRAGMA user_version").fetchone()[0] == legal_consent._SCHEMA_STAND

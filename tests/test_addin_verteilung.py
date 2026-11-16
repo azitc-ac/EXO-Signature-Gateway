@@ -186,3 +186,24 @@ def test_sammellauf_merkt_vor_bevor_er_bewertet(stand, monkeypatch):
     monkeypatch.setattr(health_check, "run_checks_for_mailbox", _einzeln)
     asyncio.run(health_check.run_all_checks())
     assert bewertet[0] == ("alt@x.de", "info"), bewertet
+
+
+# ── Get-App gescheitert ≠ nicht installiert (v1.12.43) ────────────────────────
+
+def test_abfragefehler_ist_nicht_nicht_installiert(stand, monkeypatch):
+    """Bis v1.12.42 verschluckte -ErrorAction SilentlyContinue jeden Fehler von
+    Get-App: aus „nicht abfragbar“ wurde „nicht installiert“, in der Abnahme
+    „entfällt“."""
+    _uhr(monkeypatch, T0)
+    r = health_check._check_addins({VERF: "!Der Vorgang wurde gedrosselt", KNOPF: "1.9.163"})
+    assert r["verfassen"]["status"] == "skip" and "Get-App" in r["verfassen"]["detail"]
+    assert "soll" not in r["verfassen"], "ein Abfragefehler ist kein Befund gegen das Soll"
+    stand["MAILBOX_HEALTH"] = {"a@x.de": {"checks": {"addin_verfassen": r["verfassen"]}}}
+    assert abnahme._addin_fassung()["zustand"] == abnahme.UNBEKANNT
+
+
+def test_ps_trennt_nicht_gefunden_von_fehler():
+    import inspect
+    quelle = inspect.getsource(health_check)
+    assert "Get-App -Mailbox $email -Identity $aid -ErrorAction SilentlyContinue" not in quelle
+    assert "ManagementObjectNotFoundException" in quelle and '"!" + ' in quelle

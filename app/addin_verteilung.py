@@ -102,6 +102,6 @@ def einordnen(art: str, soll: str, ist: str, jetzt: datetime | None = None) -> s
 ZUWEISUNG_WEG = ("Admin Center → Einstellungen → Integrierte Apps → Add-in → Benutzer: "
                  "an alle (Jeder) zuweisen. Seit über 72 Stunden hat Exchange die neue "
                  "Fassung diesem Postfach nicht ausgeliefert.")
-AKTUALISIEREN_WEG = ("Admin Center → Einstellungen → Integrierte Apps → Add-in → "
+AKTUALISIEREN_WEG = ("Einrichtung → Verfassen-Add-in → „Integrierte Apps öffnen“ → Add-in → "
                      "Aktualisieren und die neuen Berechtigungen bestätigen. Exchange "
                      "verteilt die neue Fassung danach binnen bis zu 72 Stunden.")

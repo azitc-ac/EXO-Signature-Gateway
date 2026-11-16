@@ -5,6 +5,155 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.44 — 2026-11-16 — Bypass-Wächter: Azure-Anmeldung direkt am Wächter
+
+Fehlte beim „Code aktualisieren“ oder „Entfernen“ eines Azure-Wächters die
+Azure-Anmeldung, verwies eine Meldung auf „Wächter hinzufügen → Azure-Zugriff
+holen“. Den Knopf gab es dort aber erst nach Wahl von „Azure Function“, also
+war er nicht zu finden. Jetzt erscheint unter der Wächterliste „Azure-Anmeldung
+öffnen“. Nach der Anmeldung läuft die Aktion von selbst weiter.
+
+**Zu tun:** nichts.
+
+## v1.12.43 — 2026-11-16 — Prüfungen: keine grünen Befunde mehr auf veralteten oder unvollständigen Grundlagen
+
+Eine Durchsicht aller Prüfungen fand Stellen, die auf veralteten oder
+unvollständigen Grundlagen „OK“ meldeten. Außerdem fand sie Einstellungen, die
+nur neu angelegte Objekte bekamen:
+
+- **Berechtigungen der Gateway-App.** „Exchange erreichbar“ verglich mit einer
+  fest eingetragenen Auswahl von Rollen. Fehlten andere, etwa die für
+  Abwesenheiten oder den Kalender, blieb der Punkt grün. Jetzt gilt dieselbe
+  Liste, aus der die Einrichtung die Berechtigungen beantragt.
+- **Anmeldung per Microsoft-Knopf.** Die Bootstrap-App braucht für SSO,
+  Add-in-Anmeldung und Self-Service eine Web-Rückadresse und die
+  ID-Token-Ausgabe. Die Einrichtung setzt beides, geprüft wurde es nie. Fehlte
+  es, scheiterte die Anmeldung mit AADSTS700054. Jetzt prüfen es die Abnahme
+  und „Anmeldung prüfen“; „In Entra ergänzen“ trägt es nach.
+- **Azure-Wächter.** Regelname, Health-Adresse und Organisation setzte nur das
+  Anlegen. Nach einer Umbenennung prüfte der Wächter die alte Regel. „Code
+  aktualisieren“ zieht diese Einstellungen jetzt mit, und die Aufgabe
+  „Bypass-Wächter aktuell“ meldet veraltete Einstellungen.
+- **Fassung der Add-ins je Postfach.** Ein Fehler beim Abfragen in Exchange
+  galt als „nicht installiert“, in der Abnahme als „entfällt“. Jetzt heißt er
+  „nicht abgefragt“.
+- **S/MIME-Schlüssel.** Ein Zertifikat ohne lokalen Schlüssel galt als „Key
+  Vault“, auch wenn kein Key Vault eingetragen war. Das ist jetzt ein Fehler.
+- **Routing-Regeln.** Die Prüfung aus v1.12.39 umfasst jetzt auch die
+  Ausnahme für Kalenderelemente; „Ausnahme ergänzen“ setzt beide. Ein aktives
+  Gate ohne Verteilerliste meldet die Abnahme jetzt selbst. Bisher tat das nur
+  das Band, und nur mit eingerichtetem Bypass-Wächter.
+- **Alter von Befunden.** Die Liste der Microsoft-Adressbereiche nennt ihren
+  Stand und gilt nach drei Tagen ohne erfolgreichen Abruf als offen. Die
+  Add-in-Fassung nennt den Zeitpunkt der letzten Postfachprüfung. Ein
+  gemerkter Regelbefund bleibt sichtbar, auch wenn der Einrichtungsmerker
+  zurückgesetzt wurde.
+
+**Zu tun:** Abnahme ausführen. Neue offene Punkte zeigen ihren Weg: fehlende
+Rollen über „Fehlende Berechtigungen erteilen“, die Anmeldung über
+„Anmeldung prüfen“ → „In Entra ergänzen“, Wächter über „Code aktualisieren“,
+Regel-Ausnahmen über Einrichtung → Schritt 6 → „Ausnahme ergänzen“.
+
+## v1.12.42 — 2026-11-16 — Add-in-Fassung: Prüfung meldete nach einem Update fälschlich „aktuell“
+
+Die Postfachprüfung vergleicht je Postfach die Fassung des Add-ins in Outlook
+mit der Fassung, die das Gateway ausliefert. Diese Soll-Fassung entstand bisher
+nur, wenn jemand das Manifest abrief. Ein per Adresse in „Integrierte Apps“
+bereitgestelltes Add-in ruft Microsoft aber selten ab. Änderte ein
+Gateway-Update das Manifest, blieb die gemerkte Soll-Fassung deshalb alt. Die
+Prüfung verglich alt mit alt und meldete „aktuell“, obwohl Outlook noch das
+alte Manifest hatte. So fehlte etwa das Ereignis „Empfänger geändert“ (seit
+v1.11.56), und die interne Signatur schaltete beim Verfassen nicht um, ohne
+dass eine Aufgabe erschien.
+
+Jetzt bestimmt das Gateway die Soll-Fassung bei jeder Prüfung und beim Öffnen
+der Einrichtung selbst, aus demselben Code, der das Manifest ausliefert.
+
+**Zu tun:** Postfächer → „Status aktualisieren“. Erscheint danach die Aufgabe
+„Verfassen-Add-in aktuell“: Einrichtung → Verfassen-Add-in → „Integrierte Apps
+öffnen“ → Add-in → Aktualisieren. Exchange verteilt die neue Fassung danach
+binnen bis zu 72 Stunden.
+
+## v1.12.41 — 2026-11-16 — Verfassen-Add-in: eigenes Postfach auch bei abweichendem Anmeldenamen
+
+Weicht der Anmeldename (UPN) einer Person von ihrer Hauptadresse ab (etwa
+Kurzform bei der Anmeldung, Vor- und Nachname als Hauptadresse), hielt das
+Verfassen-Add-in sie für die Bearbeiterin eines fremden Postfachs: Die
+Anmeldung nannte den UPN, Outlook als Von-Adresse die Hauptadresse, und beide
+wurden als Text verglichen. Die Signatur kam zwar aus dem richtigen Postfach,
+aber Bausteine mit der Bedingung „Verfasser im fremden Postfach“ und die
+Variable `bearbeiter` behandelten die Person wie eine zweite.
+
+Jetzt zählt der Postfach-Eintrag (ExchangeGuid samt bekannter Adressen): Gehören
+UPN und Von-Adresse zu demselben Postfach, ist es das eigene. Dieselbe Prüfung
+nutzen der Aufgabenbereich (dort seit v1.11.51) und der Versand beim Vergleich
+von `From` und `Sender`.
+
+**Zu tun:** nichts.
+
+## v1.12.40 — 2026-11-16 — Dateirechte: mitentstehende Verzeichnisse, eine harden_file; Zustimmungsdatenbank ohne Schema bei jedem Öffnen
+
+- **Verzeichnisse, die beim Anlegen mit entstehen, bekommen 700.** Legt das
+  Gateway für eine geschützte Datei einen Pfad mit mehreren neuen Ebenen an,
+  bekam bisher nur die letzte Ebene 700; die darüber entstandenen erhielten die
+  Vorgabe des Systems (im Container 755). Eine 600-Datei darin war damit nur
+  halb geschützt: Name, Existenz und Größe blieben für andere Systembenutzer
+  lesbar, der Inhalt nicht. Jetzt werden neu entstandene Ebenen ebenfalls auf
+  700 gesetzt. Schon vorhandene Verzeichnisse bleiben unverändert. Bestehende
+  Verzeichnisse mit Schlüsseln härtet ohnehin jeder Start.
+- **`secure_io.harden_file` war zweimal definiert.** Wirksam war immer die
+  zweite, nur einschränkende Fassung; die erste (fester Modus 600) war
+  überdeckt. Am Verhalten ändert sich nichts. Die überdeckte Fassung ist
+  entfernt, ihre Begründung steht bei der gültigen. Ein Test verbietet jetzt
+  doppelte Funktions- und Klassendefinitionen in `app/` und `tools/`.
+- **Zustimmungsdatenbank:** Das Schema (Tabelle, Spalte `accepted_by`) wird nur
+  noch angelegt, wenn die Datei es noch nicht trägt (`PRAGMA user_version`),
+  nicht mehr bei jedem Öffnen. Geöffnet wird sie bei jedem Seitenaufbau.
+
+Gleiche Änderung im Hub (gemeinsame Datei `secure_io.py`).
+
+**Zu tun:** nichts.
+
+## v1.12.39 — 2026-11-16 — Abwesenheitsnotizen: fehlende Regel-Ausnahme erkennen und nachziehen
+
+Die Routing-Regel leitet den gesamten Ausgang der aktivierten Postfächer ans
+Gateway, auch die Abwesenheitsnotizen, die Exchange selbst verschickt. Diese
+haben nach RFC 3834 einen leeren Umschlag-Absender. Auf dem Rückweg über den
+Smarthost ordnet Exchange eine solche Mail dem Tenant nur über die Domäne des
+Gateway-Zertifikats zu. Liegt die nicht unter einer Domäne des Tenants, lehnt
+Exchange die Zustellung an externe Empfänger ab (`550 5.7.64 TenantAttribution`
+oder `451 4.4.4`). Die Notiz bleibt in der Warteschlange, und auch „Freigeben“
+scheitert dann.
+
+Seit v1.9.88 nehmen die Regeln automatische Antworten aus (Kopfzeile
+`Auto-Submitted` enthält `auto`), und Exchange verschickt sie selbst. Diese
+Ausnahme bekamen aber nur neu angelegte Regeln. Ältere Regeln behielten den
+alten Stand, und keine Prüfung im Gateway zeigte das. Eine schon vorhandene
+getrennte S/MIME-Regel bekam die Ausnahme auf keinem Weg.
+
+Neu:
+
+- Das Gateway liest die Ausnahme an seinen Routing-Regeln (Signatur, ggf.
+  S/MIME) einmal nach jedem Update und nach jeder Connector-Einrichtung. Fehlt
+  sie, erscheint eine Aufgabe oben rechts, und die Abnahme meldet den Punkt
+  „Routing-Regeln nehmen Abwesenheitsnotizen aus“.
+- Einrichtung → Schritt 6 „EXO Outbound Connector + Transport Rule“ zeigt den
+  Befund, mit „Regeln prüfen“ und „Ausnahme ergänzen“. Ergänzt wird nur diese
+  eine Ausnahme; Gate, Connector und die übrigen Bedingungen bleiben. Ob es
+  gewirkt hat, liest das Gateway danach aus Exchange nach.
+- Die Regeltrennung (S/MIME-Weg) ergänzt die Ausnahme jetzt auch an einer schon
+  vorhandenen S/MIME-Regel.
+- Neben den Manifest-Adressen beider Outlook-Add-ins führt „Integrierte Apps
+  öffnen“ direkt zur Liste im Microsoft 365 Admin Center. Die Aufgabe zur
+  Add-in-Fassung verweist auf diese Stelle.
+
+Eine Abwesenheitsnotiz, die schon in der Warteschlange liegt, lässt sich nicht
+nachträglich zustellen. Lösche sie dort.
+
+**Zu tun:** Erscheint nach dem Update die Aufgabe „Routing-Regeln nehmen
+Abwesenheitsnotizen aus“: Einrichtung → Schritt 6 → „Ausnahme ergänzen“. Die
+Regel wirkt nach etwa 15 Minuten.
+
 ## v1.12.38 — 2026-11-15 — Direktversand-Probe auch an externe Empfänger (Empfehlung)
 
 Die tägliche Probe des Direktversands misst bisher nur, ob Post im eigenen

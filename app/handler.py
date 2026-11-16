@@ -1192,7 +1192,8 @@ class SignatureHandler:
             _von_kopf = email.utils.parseaddr(msg.get("From", ""))[1].strip().lower()
             _sender_kopf = email.utils.parseaddr(msg.get("Sender", ""))[1].strip().lower()
             if (_von_kopf and _sender_kopf and _von_kopf != _sender_kopf
-                    and _sender_kopf == (sender or "").strip().lower()):
+                    and _sender_kopf == (sender or "").strip().lower()
+                    and not mailbox_match.selbes_postfach(_mailbox_cfg, _von_kopf, _sender_kopf)):
                 _von_cfg = mailbox_match.match_sender(_mailbox_cfg, _von_kopf)
                 if _von_cfg.get("sig") or _von_cfg.get("smime"):
                     _sig_absender, _bearbeiter, _sender_cfg = _von_kopf, sender, _von_cfg
