@@ -1602,3 +1602,89 @@ def test_selbst_zustellen_prueft_port25_vor_dem_speichern(browser, server, monke
         assert dialoge and "Port 25 ausgehend ist von hier gesperrt" in dialoge[0], dialoge
     else:
         assert not dialoge, dialoge
+
+
+# ── Webmail im Notbetrieb: verschiebbare Spalten, einzeilige breite Liste ────
+
+def _notfall_seite(browser, server, monkeypatch, breite, speicher=None):
+    """Webmail mit nachgespielter API: angemeldet, ein Postfach, zwei Mails."""
+    import json as _json
+    import notbetrieb
+
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    antworten = {
+        "ich": {"ok": True, "benutzer": "max@firma.at", "senden": False,
+                "zugriff": [{"postfach": "max@firma.at", "eigen": True}]},
+        "ordner": {"ok": True, "ordner": [{"id": "e", "wk": "inbox", "name": "Posteingang",
+                                           "anzahl": 2, "ungelesen": 1}]},
+        "liste": {"ok": True, "gesamt": 2, "je_seite": 50, "mails": [
+            {"graph_id": "m1", "von": "Erika Musterfrau", "betreff": "Angebot", "empfangen":
+             "2026-11-16T09:00:00Z", "gelesen": False, "vorschau": "Hallo Max, anbei das Angebot"},
+            {"graph_id": "m2", "von": "Hans Beispiel", "betreff": "Termin", "empfangen":
+             "2026-11-16T08:00:00Z", "gelesen": True, "vorschau": "Passt Donnerstag?"}]},
+    }
+    ctx = browser.new_context(viewport={"width": breite, "height": 900})
+    if speicher:
+        ctx.add_init_script("localStorage.setItem('nf-spalten', %s)" % _json.dumps(_json.dumps(speicher)))
+
+    def api(route):
+        teil = route.request.url.split("/notfall/api/")[1].split("?")[0]
+        route.fulfill(status=200, content_type="application/json",
+                      body=_json.dumps(antworten.get(teil, {"ok": True})))
+
+    ctx.route("**/notfall/api/**", api)
+    pg = ctx.new_page()
+    pg.goto(f"{server}/notfall", wait_until="domcontentloaded", timeout=30000)
+    pg.wait_for_selector("#liste .eintrag", timeout=10000)
+    return pg
+
+
+def _hoehe(pg, sel):
+    return pg.eval_on_selector(sel, "e => e.getBoundingClientRect().height")
+
+
+def test_notfall_liste_wird_einzeilig_wenn_breit_gezogen(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1600)
+    zweizeilig = _hoehe(pg, "#liste .eintrag")
+    assert pg.eval_on_selector("#listenspalte", "e => e.offsetWidth") == 360
+
+    # Trenner zwischen Liste und Lesebereich mit der Maus nach rechts ziehen.
+    box = pg.locator('.trenner[data-spalte="liste"]').bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + 200
+    pg.mouse.move(x, y); pg.mouse.down(); pg.mouse.move(x + 500, y, steps=5); pg.mouse.up()
+
+    assert pg.eval_on_selector("#listenspalte", "e => e.offsetWidth") > 800
+    einzeilig = _hoehe(pg, "#liste .eintrag")
+    assert einzeilig < zweizeilig * 0.6, (zweizeilig, einzeilig)
+    # Von, Betreff und Datum stehen auf einer Höhe.
+    oben = [pg.eval_on_selector(f"#liste .eintrag {s}", "e => Math.round(e.getBoundingClientRect().top)")
+            for s in (".von", ".betreff", ".datum")]
+    assert max(oben) - min(oben) <= 4, oben
+    # Gemerkt: neu laden behält die Breite.
+    gemerkt = pg.evaluate("JSON.parse(localStorage.getItem('nf-spalten')).liste")
+    assert gemerkt > 800
+    pg.context.close()
+
+
+def test_notfall_spalten_lassen_dem_lesebereich_platz(browser, server, monkeypatch):
+    # Gemerkte Breite aus einem großen Bildschirm, jetzt am kleinen Notebook.
+    pg = _notfall_seite(browser, server, monkeypatch, 1100, speicher={"ordner": 240, "liste": 2000})
+    assert pg.eval_on_selector("#lesen", "e => e.offsetWidth") >= 320
+    # Pfeiltaste verkleinert, Doppelklick setzt zurück.
+    t = pg.locator('.trenner[data-spalte="liste"]')
+    vorher = pg.eval_on_selector("#listenspalte", "e => e.offsetWidth")
+    t.focus(); pg.keyboard.press("ArrowLeft")
+    assert pg.eval_on_selector("#listenspalte", "e => e.offsetWidth") == vorher - 20
+    t.dblclick()
+    assert pg.eval_on_selector("#listenspalte", "e => e.offsetWidth") == 360
+    pg.context.close()
+
+
+def test_notfall_mobil_ohne_trenner_und_zweizeilig(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 393, speicher={"liste": 900})
+    assert pg.eval_on_selector('.trenner[data-spalte="liste"]', "e => getComputedStyle(e).display") == "none"
+    assert pg.evaluate("document.documentElement.scrollWidth") <= 393
+    kopf = pg.eval_on_selector("#liste .eintrag .von", "e => Math.round(e.getBoundingClientRect().top)")
+    betreff = pg.eval_on_selector("#liste .eintrag .betreff", "e => Math.round(e.getBoundingClientRect().top)")
+    assert betreff > kopf   # Betreff unter dem Absender, nicht daneben
+    pg.context.close()

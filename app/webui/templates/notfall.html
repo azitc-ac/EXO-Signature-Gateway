@@ -64,7 +64,15 @@ a.knopf { display: inline-block; text-decoration: none; border-radius: 6px; padd
 a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); }
 .meldung { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--fehler-bg); color: var(--fehler); }
 .meldung[hidden] { display: none; }
-#app { display: grid; grid-template-columns: 240px 360px 1fr; height: calc(100vh - var(--kopfhoehe, 48px)); }
+/* Ordner- und Listenbreite verschiebbar (Trenner dazwischen), gemerkt je Browser. */
+#app { display: grid; grid-template-columns: var(--b-ordner, 240px) 5px var(--b-liste, 360px) 5px minmax(0, 1fr);
+       height: calc(100vh - var(--kopfhoehe, 48px)); }
+.trenner { cursor: col-resize; background: var(--rand); touch-action: none; }
+.trenner:hover, .trenner:focus-visible, #app[data-ziehen] .trenner[data-aktiv] { background: var(--akzent); outline: 0; }
+/* Beim Ziehen über der Mail: Der Rahmen schluckt sonst die Mausereignisse. */
+#app[data-ziehen] { cursor: col-resize; user-select: none; }
+#app[data-ziehen] iframe { pointer-events: none; }
+#listenspalte { container-type: inline-size; }
 #app[hidden] { display: none; }
 .spalte { border-right: 1px solid var(--rand); overflow: auto; background: var(--flaeche); }
 #ordner .eintrag, #liste .eintrag { padding: 7px 12px; cursor: pointer; border-bottom: 1px solid var(--rand); }
@@ -83,6 +91,19 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
 #liste .eintrag[data-ungelesen="1"] .betreff { font-weight: 700; }
 #liste .kopf { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--leise); }
 #liste .vorschau { font-size: 12px; color: var(--leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Breite Liste (großer Bildschirm, Trenner nach rechts gezogen): je Mail EINE
+   Zeile wie in Outlook — Von │ Betreff │ Vorschau │ Datum. */
+@container (min-width: 620px) {
+  #liste .eintrag { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 2fr) minmax(0, 3fr) auto auto;
+                    gap: 12px; align-items: baseline; padding: 4px 12px; }
+  #liste .kopf { display: contents; }
+  #liste .von { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 13px; }
+  #liste .betreff { grid-column: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #liste .vorschau { grid-column: 3; }
+  #liste .ort { grid-column: 4; white-space: nowrap; }
+  #liste .datum { grid-column: 5; white-space: nowrap; }
+  #liste .eintrag[data-ungelesen="1"] .von { font-weight: 700; }
+}
 .suche { padding: 8px; border-bottom: 1px solid var(--rand); display: flex; gap: 6px; }
 .suche input { flex: 1; min-width: 0; }
 .filter { padding: 4px 10px 6px; border-bottom: 1px solid var(--rand); display: flex; gap: 14px; font-size: 13px; }
@@ -128,6 +149,7 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
      linke Spalte (An, Cc, Bcc) außerhalb des Bildes. */
   input, select, textarea { font-size: 16px; }
   #app { grid-template-columns: 1fr; height: auto; }
+  .trenner { display: none; }
   #app .spalte { border-right: 0; }
   #app[data-ansicht="liste"] #lesen, #app[data-ansicht="lesen"] #ordnerspalte,
   #app[data-ansicht="lesen"] #listenspalte { display: none; }
@@ -238,6 +260,8 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
 
 <main id="app" hidden data-ansicht="liste">
   <nav class="spalte" id="ordnerspalte"><div id="ordner"></div></nav>
+  <div class="trenner" data-spalte="ordner" role="separator" aria-orientation="vertical" tabindex="0"
+       aria-label="Breite der Ordner ändern (Pfeiltasten, Doppelklick setzt zurück)"></div>
   <section class="spalte" id="listenspalte">
     <div style="padding:8px 8px 0" id="neu-zeile"><button class="haupt" onclick="verfassen()">Neue Mail</button></div>
     <select id="ordnerwahl" aria-label="Ordner" style="display:none;margin:8px;width:calc(100% - 16px)"
@@ -253,6 +277,8 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
     </div>
     <div id="liste"></div>
   </section>
+  <div class="trenner" data-spalte="liste" role="separator" aria-orientation="vertical" tabindex="0"
+       aria-label="Breite der Liste ändern (Pfeiltasten, Doppelklick setzt zurück)"></div>
   <article id="lesen">
     <button class="zurueck" onclick="ansicht('liste')">← Zurück</button>
     <p class="leise" style="padding:18px">Wähle eine Nachricht.</p>
@@ -323,6 +349,7 @@ async function start() {
   document.getElementById('glocke').hidden = !(window.Notification && Notification.permission === 'default');
   if (!nb.takt) nb.takt = setInterval(neuePostPruefen, NEUE_POST_MS);
   document.getElementById('app').hidden = false;
+  spaltenSetzen(false);   // erst jetzt hat #app eine Breite
   postfachWaehlen(d.zugriff[0].postfach);
 }
 
@@ -846,7 +873,7 @@ async function listeLaden(seite) {
   }
   el.innerHTML = d.mails.map(m => '<div class="eintrag" data-id="' + escAttr(m.graph_id) + '" data-ungelesen="'
     + (m.gelesen ? 0 : 1) + '" onclick="mailOeffnen(this.dataset.id)">'
-    + '<div class="kopf"><span>' + esc(m.von || '') + '</span><span>' + datumKurz(m.empfangen) + '</span></div>'
+    + '<div class="kopf"><span class="von">' + esc(m.von || '') + '</span><span class="datum">' + datumKurz(m.empfangen) + '</span></div>'
     + '<div class="betreff">' + (m.anhang ? '📎 ' : '') + esc(m.betreff || '(kein Betreff)')
     + (m.anzahl > 1 ? ' <span class="zahl" title="Mails in dieser Unterhaltung">' + m.anzahl + '</span>' : '') + '</div>'
     + (suche && ordnerName(m.ordner) ? '<div class="ort">in ' + esc(ordnerName(m.ordner)) + '</div>' : '')
@@ -908,6 +935,55 @@ async function mailOeffnen(id) {
   ansicht('lesen');
   document.getElementById('lesen-betreff').focus();   // Screenreader und Tastatur landen bei der Mail
 }
+
+// ── Spaltenbreiten ───────────────────────────────────────────────────────
+// Ziehen, Pfeiltasten oder Doppelklick (zurück auf die Vorgabe) — gemerkt nur
+// in diesem Browser. Dem Lesebereich bleiben immer LESEN_MIN Pixel.
+const SPALTE_VORGABE = {ordner: 240, liste: 360}, SPALTE_MIN = {ordner: 140, liste: 240}, LESEN_MIN = 320;
+let spaltenBreite = Object.assign({}, SPALTE_VORGABE);
+try { Object.assign(spaltenBreite, JSON.parse(localStorage.getItem('nf-spalten') || '{}')); }
+catch (e) { /* ohne Speicher: Vorgabe */ }
+function spaltenSetzen(merken) {
+  const app = document.getElementById('app');
+  const platz = (app.clientWidth || window.innerWidth) - 10 - LESEN_MIN;
+  const b = {};
+  b.ordner = Math.max(SPALTE_MIN.ordner, Math.min(+spaltenBreite.ordner || SPALTE_VORGABE.ordner, platz - SPALTE_MIN.liste));
+  b.liste = Math.max(SPALTE_MIN.liste, Math.min(+spaltenBreite.liste || SPALTE_VORGABE.liste, platz - b.ordner));
+  app.style.setProperty('--b-ordner', Math.round(b.ordner) + 'px');
+  app.style.setProperty('--b-liste', Math.round(b.liste) + 'px');
+  document.querySelectorAll('.trenner').forEach(t => t.setAttribute('aria-valuenow', Math.round(b[t.dataset.spalte])));
+  if (merken) { try { localStorage.setItem('nf-spalten', JSON.stringify(spaltenBreite)); } catch (e) { /* privat */ } }
+}
+document.querySelectorAll('.trenner').forEach(t => {
+  const spalte = t.dataset.spalte, ziel = document.getElementById(spalte === 'ordner' ? 'ordnerspalte' : 'listenspalte');
+  t.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    t.setPointerCapture(ev.pointerId);
+    const app = document.getElementById('app'), links = ziel.getBoundingClientRect().left;
+    app.dataset.ziehen = '1'; t.dataset.aktiv = '1';
+    const ziehen = e => { spaltenBreite[spalte] = e.clientX - links; spaltenSetzen(false); };
+    const loslassen = () => {
+      t.removeEventListener('pointermove', ziehen);
+      delete app.dataset.ziehen; delete t.dataset.aktiv;
+      spaltenBreite[spalte] = ziel.getBoundingClientRect().width;   // was nach dem Begrenzen wirklich steht
+      spaltenSetzen(true);
+    };
+    t.addEventListener('pointermove', ziehen);
+    t.addEventListener('pointerup', loslassen, {once: true});
+    t.addEventListener('pointercancel', loslassen, {once: true});
+  });
+  t.addEventListener('keydown', ev => {
+    const schritt = {ArrowLeft: -20, ArrowRight: 20}[ev.key];
+    if (!schritt) return;
+    ev.preventDefault();
+    spaltenBreite[spalte] = ziel.getBoundingClientRect().width + schritt;
+    spaltenSetzen(true);
+    spaltenBreite[spalte] = ziel.getBoundingClientRect().width;
+  });
+  t.addEventListener('dblclick', () => { spaltenBreite[spalte] = SPALTE_VORGABE[spalte]; spaltenSetzen(true); });
+});
+window.addEventListener('resize', () => spaltenSetzen(false));
+spaltenSetzen(false);
 
 // Kopfzeile ist mobil oft zweizeilig: ihre echte Höhe für den Lesebereich.
 function kopfhoeheMerken() {
