@@ -744,6 +744,8 @@ async function anSchreiben(adresse) {
 let nbAdressTakt = 0;
 // Name in Anführungszeichen: „Mustermann, Max <…>“ zerfiele beim Senden am
 // Komma (getaddresses) — „Ungültige Adresse: Mustermann“.
+// Art eines Treffers: eigener Kontakt, Verteiler, Gruppe, Extern — oder nichts (Postfach).
+function adressArt(t) { return t.quelle === 'kontakt' ? 'Kontakt' : (t.art || ''); }
 function adressText(t) {
   const name = (t.name || '').replace(/["\\\r\n]/g, '').trim();
   return name ? '"' + name + '" <' + t.adresse + '>' : t.adresse;
@@ -770,7 +772,7 @@ async function adressbuchSuchen() {
   nbAb.treffer = d.treffer;
   el.innerHTML = d.treffer.length ? d.treffer.map((t, i) =>
     '<label><input type="checkbox" data-nr="' + i + '"' + (nbAb.gewaehlt.has(t.adresse.toLowerCase()) ? ' checked' : '')
-    + '><span><span>' + esc(t.name || t.adresse) + (t.quelle === 'kontakt' ? ' <span class="leise">· Kontakt</span>' : '')
+    + '><span><span>' + esc(t.name || t.adresse) + (adressArt(t) ? ' <span class="leise">· ' + esc(adressArt(t)) + '</span>' : '')
     + '</span><br><span class="adr">' + esc(t.adresse) + '</span></span></label>').join('')
     : '<p class="leise" style="padding:8px 12px">Nichts gefunden.</p>';
   adressbuchZahl(d.mehr);
@@ -810,7 +812,7 @@ async function adressVorschlag(feld) {
   if (!d.ok || takt !== nbAdressTakt) return;
   document.getElementById('vf-vorschlaege').innerHTML = d.treffer.map(t =>
     '<option value="' + escAttr(vorne + adressText(t)) + '">'
-    + esc(t.quelle === 'kontakt' ? 'Kontakt' : 'Adressliste') + '</option>').join('');
+    + esc(adressArt(t) || 'Adressliste') + '</option>').join('');
 }
 
 async function listeLaden(seite) {

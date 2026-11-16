@@ -94,7 +94,40 @@ def _ps_script(app_id: str, org: str) -> str:
         "    foreach ($w in $wer) { $rechte += [pscustomobject]@{ postfach = $pf; nutzer = $w; recht = 'auftrag' } }",
         "  }",
         "}",
-        "[pscustomobject]@{ konten = $konten; rechte = $rechte; nicht_aufgeloest = $offen }"
+        # Verteiler, Gruppen, externe Benutzer/Kontakte: Adressen und DIREKTE
+        # Mitglieder — verschachtelte Gruppen löst `parse` auf (mit Zyklenschutz).
+        "function Adressen($o) { @(@($o.EmailAddresses) | ForEach-Object { \"$_\" }"
+        " | Where-Object { $_ -match '^smtp:' } | ForEach-Object { $_.Substring(5).ToLower() }) }",
+        "function Smtp($liste) { @($liste | ForEach-Object { \"$($_.PrimarySmtpAddress)\".ToLower() }"
+        " | Where-Object { $_ }) }",
+        "$gruppen = @()",
+        "function Gruppe($g, $art, $mit) {",
+        "  [pscustomobject]@{ adresse = \"$($g.PrimarySmtpAddress)\".ToLower(); aliase = @(Adressen $g);"
+        " name = \"$($g.DisplayName)\"; art = $art; versteckt = [bool]$g.HiddenFromAddressListsEnabled;"
+        " nur_intern = [bool]$g.RequireSenderAuthenticationEnabled; mitglieder = @($mit) }",
+        "}",
+        "foreach ($g in @(Get-DistributionGroup -ResultSize Unlimited)) {",
+        # Raumlisten sind Verteiler aus Räumen — keine Post-Empfänger.
+        "  if (\"$($g.RecipientTypeDetails)\" -eq 'RoomList') { continue }",
+        "  $gruppen += Gruppe $g 'verteiler' (Smtp (Get-DistributionGroupMember -Identity \"$($g.PrimarySmtpAddress)\""
+        " -ResultSize Unlimited -ErrorAction SilentlyContinue)) }",
+        "foreach ($g in @(Get-DynamicDistributionGroup -ResultSize Unlimited)) {",
+        "  $gruppen += Gruppe $g 'dynamisch' (Smtp (Get-DynamicDistributionGroupMember -Identity"
+        " \"$($g.PrimarySmtpAddress)\" -ResultSize Unlimited -ErrorAction SilentlyContinue)) }",
+        "foreach ($g in @(Get-UnifiedGroup -ResultSize Unlimited)) {",
+        "  $gruppen += Gruppe $g 'gruppe' (Smtp (Get-UnifiedGroupLinks -Identity \"$($g.PrimarySmtpAddress)\""
+        " -LinkType Members -ResultSize Unlimited -ErrorAction SilentlyContinue)) }",
+        "$extern = @()",
+        "foreach ($x in @(Get-EXORecipient -RecipientTypeDetails MailUser,MailContact -ResultSize Unlimited"
+        " -Properties HiddenFromAddressListsEnabled,ExternalEmailAddress,EmailAddresses,DisplayName)) {",
+        "  $ziel = \"$($x.ExternalEmailAddress)\"; if ($ziel -match '^smtp:') { $ziel = $ziel.Substring(5) }",
+        "  $extern += [pscustomobject]@{ adresse = \"$($x.PrimarySmtpAddress)\".ToLower(); aliase = @(Adressen $x);"
+        " name = \"$($x.DisplayName)\"; art = $(if (\"$($x.RecipientTypeDetails)\" -eq 'MailContact')"
+        " { 'kontakt' } else { 'extern' }); versteckt = [bool]$x.HiddenFromAddressListsEnabled;"
+        " ziel = $ziel.ToLower() }",
+        "}",
+        "[pscustomobject]@{ konten = $konten; rechte = $rechte; nicht_aufgeloest = $offen;"
+        " gruppen = $gruppen; extern = $extern }"
         " | ConvertTo-Json -Depth 5 -Compress",
         "Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue | Out-Null",
     ])
@@ -139,7 +172,64 @@ def parse(roh: str) -> dict | None:
         if pf in konten and "@" in wer and recht in RECHTE and wer != pf:
             rechte.add((pf, wer, recht))
     return {"konten": list(konten.values()), "rechte": sorted(rechte),
-            "nicht_aufgeloest": int(daten.get("nicht_aufgeloest") or 0)}
+            "nicht_aufgeloest": int(daten.get("nicht_aufgeloest") or 0),
+            "empfaenger": _empfaenger(daten, {a.rsplit("@", 1)[1] for k in konten.values()
+                                              for a in (k["primary"], k["upn"]) if "@" in a})}
+
+
+ARTEN = ("verteiler", "dynamisch", "gruppe", "extern", "kontakt")
+
+
+def _adr(wert) -> str:
+    a = str(wert or "").strip().lower()
+    return a if "@" in a else ""
+
+
+def _empfaenger(daten: dict, domaenen: set) -> list[dict]:
+    """Verteiler, Gruppen und externe Benutzer/Kontakte → je Eintrag die
+    flach aufgelösten `ziele`: Postfach- oder externe Adressen, nie eine
+    Gruppe. Verschachtelte Gruppen werden durchlaufen, jede höchstens einmal
+    (Zyklen: A enthält B enthält A).
+
+    `aliase` = nur Adressen in eigenen Domänen (`domaenen`: die der Postfächer
+    und Gruppen). Ein externer Benutzer führt seine externe Adresse oft auch als
+    Proxyadresse, ein Kontakt hat gar keine andere — nähme der Notfall-Eingang
+    Post für sie an, leitete er Fremdpost nach außen weiter (offenes Relay)."""
+    roh = []
+    for quelle, arten in (("gruppen", ARTEN[:3]), ("extern", ARTEN[3:])):
+        for e in _liste(daten.get(quelle)):
+            if isinstance(e, dict) and _adr(e.get("adresse")) and e.get("art") in arten:
+                roh.append(e)
+    domaenen = set(domaenen) | {_adr(e["adresse"]).rsplit("@", 1)[1] for e in roh if e["art"] in ARTEN[:3]}
+    eintraege, index = [], {}
+    for e in roh:
+        adressen = {_adr(a) for a in _liste(e.get("aliase")) if _adr(a)} | {_adr(e["adresse"])}
+        e = {"adresse": _adr(e["adresse"]), "name": str(e.get("name") or ""), "art": e["art"],
+             "versteckt": e.get("versteckt") is True, "nur_intern": e.get("nur_intern") is True,
+             "aliase": sorted(a for a in adressen if a.rsplit("@", 1)[1] in domaenen),
+             "mitglieder": [_adr(m) for m in _liste(e.get("mitglieder")) if _adr(m)],
+             "ziel": _adr(e.get("ziel"))}
+        eintraege.append(e)
+        for a in e["aliase"]:
+            index.setdefault(a, e)
+
+    def flach(adresse: str, gesehen: set) -> list[str]:
+        e = index.get(adresse)
+        if e is None:
+            return [adresse]
+        if e["adresse"] in gesehen:
+            return []
+        gesehen.add(e["adresse"])
+        if e["art"] in ARTEN[3:]:
+            # Externer Benutzer ohne externe Adresse: nicht erreichbar.
+            return flach(e["ziel"], gesehen) if e["ziel"] else []
+        return [z for m in e["mitglieder"] for z in flach(m, gesehen)]
+
+    # Erst alle auflösen, dann aufräumen — eine spätere Gruppe kann eine schon
+    # aufgelöste als Mitglied haben.
+    ziele = {e["adresse"]: list(dict.fromkeys(flach(e["adresse"], set()))) for e in eintraege}
+    return [{k: v for k, v in e.items() if k not in ("mitglieder", "ziel")} | {"ziele": ziele[e["adresse"]]}
+            for e in eintraege]
 
 
 def fetch() -> dict | None:
@@ -185,9 +275,20 @@ def speichern(abbild: dict, ts: str | None = None) -> None:
                          [(k["primary"], k["upn"], k["typ"], 1 if k.get("versteckt") else 0)
                           for k in abbild["konten"]])
         conn.executemany("INSERT INTO rechte (postfach, nutzer, recht) VALUES (?,?,?)", abbild["rechte"])
+        empfaenger = abbild.get("empfaenger") or []
+        conn.execute("DELETE FROM empfaenger")
+        # Je eigene Adresse eine Zeile (annehmen=1); die Hauptadresse eines
+        # Kontakts in fremder Domäne nur fürs Adressbuch (annehmen=0).
+        conn.executemany("INSERT OR IGNORE INTO empfaenger (adresse, haupt, name, art, versteckt, nur_intern,"
+                         " ziele, annehmen) VALUES (?,?,?,?,?,?,?,?)",
+                         [(a, e["adresse"], e["name"], e["art"], 1 if e["versteckt"] else 0,
+                           1 if e["nur_intern"] else 0, json.dumps(e["ziele"]), 1 if a in e["aliase"] else 0)
+                          for e in empfaenger for a in dict.fromkeys(e["aliase"] + [e["adresse"]])])
+        je_art = {a: sum(1 for e in empfaenger if e["art"] == a) for a in ARTEN}
         conn.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('rechte_stand', ?)",
                      (json.dumps({"ts": ts, "konten": len(abbild["konten"]), "rechte": len(abbild["rechte"]),
-                                  "nicht_aufgeloest": abbild.get("nicht_aufgeloest", 0)}),))
+                                  "nicht_aufgeloest": abbild.get("nicht_aufgeloest", 0),
+                                  "empfaenger": {a: n for a, n in je_art.items() if n}}),))
 
 
 def abgleichen() -> dict:
@@ -196,8 +297,9 @@ def abgleichen() -> dict:
     if abbild is None:
         return {"ok": False, **stand()}
     speichern(abbild)
-    log.info("Notbetrieb-Rechte: %s Postfächer, %s Rechte, %s nicht auflösbar",
-             len(abbild["konten"]), len(abbild["rechte"]), abbild["nicht_aufgeloest"])
+    log.info("Notbetrieb-Rechte: %s Postfächer, %s Rechte, %s nicht auflösbar, %s Verteiler/Gruppen/Externe",
+             len(abbild["konten"]), len(abbild["rechte"]), abbild["nicht_aufgeloest"],
+             len(abbild.get("empfaenger") or []))
     return {"ok": True, **stand()}
 
 

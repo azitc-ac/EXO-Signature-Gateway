@@ -1072,3 +1072,34 @@ def test_ausgeblendete_postfaecher_nicht_vorgeschlagen_aber_erreichbar(client, s
 def test_bestandsdatenbank_bekommt_spalte_versteckt(schatten):
     with notbetrieb._conn() as conn:
         assert "versteckt" in {z[1] for z in conn.execute("PRAGMA table_info(konten)")}
+
+
+def test_adressbuch_zeigt_verteiler_und_externe_nicht_versteckte(client, schatten):
+    import notbetrieb_rechte
+    roh = json.loads(ROH) | {
+        "gruppen": [{"adresse": "alle@firma.at", "aliase": ["alle@firma.at", "jeder@firma.at"], "name": "Alle",
+                     "art": "verteiler", "versteckt": False, "mitglieder": ["a@firma.at", "b@firma.at"]},
+                    {"adresse": "teams@firma.at", "name": "Teams-Gruppe", "art": "gruppe", "versteckt": True,
+                     "mitglieder": ["b@firma.at"]}],
+        "extern": [{"adresse": "partner@firma.at", "name": "Partner", "art": "extern", "ziel": "p@anderswo.de"},
+                   {"adresse": "l@lieferant.de", "name": "Lieferant", "art": "kontakt", "ziel": "l@lieferant.de"}]}
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(json.dumps(roh)))
+    _anmelden(client)
+    treffer = {t["adresse"]: t for t in client.get("/notfall/api/adressbuch").json()["treffer"]}
+    assert treffer["alle@firma.at"]["art"] == "Verteiler" and treffer["alle@firma.at"]["name"] == "Alle"
+    assert treffer["partner@firma.at"]["art"] == "Extern" and treffer["l@lieferant.de"]["art"] == "Extern"
+    assert "teams@firma.at" not in treffer and "jeder@firma.at" not in treffer
+    assert {t["adresse"] for t in pim.adressen_suchen("a@firma.at", "all")} == {"alle@firma.at"}
+    # Beide Anzeigen (Adressbuch und Vorschlagsliste) nennen die Art.
+    html = (Path(__file__).resolve().parent.parent / "app/webui/templates/notfall.html").read_text()
+    assert "esc(adressArt(t))" in html and "esc(adressArt(t) || 'Adressliste')" in html
+
+
+def test_senden_an_verteiler_geht_an_die_mitglieder(postfix):
+    import notbetrieb_rechte
+    roh = json.loads(ROH) | {"gruppen": [{"adresse": "alle@firma.at", "name": "Alle", "art": "verteiler",
+                                          "mitglieder": ["b@firma.at", "chef@firma.at"]}]}
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(json.dumps(roh)))
+    erg = _senden("a@firma.at", "a@firma.at", "Alle <alle@firma.at>", betreff="Rundmail", text="x")
+    assert (erg["intern"], erg["extern"]) == (2, 0) and postfix == []
+    assert len(_lokal("b@firma.at", "inbox")) == 1 and len(_lokal("chef@firma.at", "inbox")) == 1

@@ -130,6 +130,15 @@ def quelle_nach_kopf(vorlaeufig: str | None, kopf_tenant: str) -> str | None:
 
 # ── Empfänger ───────────────────────────────────────────────────────────────
 
+def _nur_intern(rcpt: str) -> bool:
+    """Verteiler/Gruppe, die in Exchange nur Absender der Organisation annimmt
+    (RequireSenderAuthenticationEnabled) — Post von außen weist auch das
+    Gateway ab, sonst wäre der Notfall ein Weg an der Sperre vorbei."""
+    import notbetrieb
+    e = notbetrieb.empfaenger_eintrag(rcpt)
+    return bool(e and e["nur_intern"])
+
+
 def rcpt_pruefen(ip: str, session, mail_from: str, rcpt: str, bisher: int) -> str | None:
     """Antwort für RCPT, oder None = annehmen. `bisher` = schon angenommene
     Empfänger dieser Mail."""
@@ -142,7 +151,7 @@ def rcpt_pruefen(ip: str, session, mail_from: str, rcpt: str, bisher: int) -> st
         return "421 4.7.0 Zu viele unbekannte Empfänger"
     if bisher >= max_empfaenger():
         return "452 4.5.3 Zu viele Empfänger"
-    if not notbetrieb.postfach_fuer(rcpt):
+    if not notbetrieb.bekannt(rcpt):
         if q == MICROSOFT:
             # Kann noch der eigene Connector sein (Post nach außen) — das
             # entscheidet der Kopf nach DATA.
@@ -151,6 +160,9 @@ def rcpt_pruefen(ip: str, session, mail_from: str, rcpt: str, bisher: int) -> st
         _zaehlen("unbekannt")
         log.info("NOTFALL-EINGANG: %s → %s unbekannt (von %s)", mail_from, rcpt, ip)
         return "550 5.1.1 Empfänger unbekannt"
+    if q == INTERNET and _nur_intern(rcpt):
+        _zaehlen("unbekannt")
+        return "550 5.7.1 Nur für Absender aus der Organisation"
     if q == INTERNET and greylisting_an() and not _grau_durch(ip, mail_from, rcpt):
         _zaehlen("greylist")
         return "451 4.7.1 Bitte später erneut versuchen"
@@ -160,12 +172,16 @@ def rcpt_pruefen(ip: str, session, mail_from: str, rcpt: str, bisher: int) -> st
 def data_pruefen(q: str, ip: str, empfaenger: list[str], groesse: int) -> str | None:
     """Antwort für DATA, oder None = annehmen. Für `microsoft`/`internet`."""
     import notbetrieb
-    fremd = [e for e in empfaenger if not notbetrieb.postfach_fuer(e)]
+    fremd = [e for e in empfaenger if not notbetrieb.bekannt(e)]
     if fremd:
         # Bei `microsoft` hier zum ersten Mal sicher: kein eigener Connector,
         # also gilt die Empfängerprüfung jetzt.
         _zaehlen("unbekannt")
         return "550 5.1.1 Empfänger unbekannt: " + ", ".join(fremd[:3])
+    geschuetzt = [e for e in empfaenger if _nur_intern(e)]
+    if geschuetzt:
+        _zaehlen("unbekannt")
+        return "550 5.7.1 Nur für Absender aus der Organisation: " + ", ".join(geschuetzt[:3])
     if len(empfaenger) > max_empfaenger():
         return "452 4.5.3 Zu viele Empfänger"
     if groesse > max_bytes():

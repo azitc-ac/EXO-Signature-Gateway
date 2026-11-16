@@ -215,6 +215,8 @@
     Abbild von Vollzugriff, „Senden als“ und „Senden im Auftrag“ aus Exchange, täglich erneuert.
     Im Störfall gilt der zuletzt gesehene Stand. Postfächer, auf die ein aktiviertes Postfach
     Vollzugriff hat, kommen mit in die Kopie. Gruppen werden eine Ebene tief aufgelöst.
+    Mitgelesen werden Verteiler, Microsoft-365-Gruppen und externe Benutzer: Post an sie
+    stellt das Gateway im Notfall den Mitgliedern bzw. an die externe Adresse zu.
   </p>
   <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
     {% if aktiv %}<button class="btn secondary btn-sm" id="nb-rechte-btn" onclick="nbRechteAbgleichen()">Rechte jetzt lesen</button>{% endif %}
@@ -552,6 +554,13 @@ async function nbLoeschen() {
 
 // ── Zugriffsrechte ───────────────────────────────────────────────────────
 const NB_ART = {SharedMailbox: 'geteilt', UserMailbox: 'Nutzer'};
+// Verteiler, Gruppen, externe Benutzer/Kontakte aus dem Abbild (notbetrieb_rechte.ARTEN).
+const NB_EMPF = {verteiler: 'Verteiler', dynamisch: 'dynamische Verteiler', gruppe: 'Gruppen',
+                 extern: 'externe Benutzer', kontakt: 'Kontakte'};
+function nbEmpfaengerText(je) {
+  const teile = Object.entries(je || {}).map(([art, n]) => n + ' ' + (NB_EMPF[art] || art));
+  return teile.length ? '; ' + teile.join(', ') : '';
+}
 async function nbRechte() {
   const tb = document.getElementById('nb-rechte-tbody');
   const d = await getJSON('/api/notbetrieb/rechte');
@@ -560,6 +569,7 @@ async function nbRechte() {
   document.getElementById('nb-rechte-stand').textContent = st.ts
     ? 'Stand ' + new Date(st.ts).toLocaleString('de-DE') + ': ' + st.konten + ' Postfächer, ' + st.rechte + ' Rechte'
       + (st.nicht_aufgeloest ? ', ' + st.nicht_aufgeloest + ' Berechtigte nicht auflösbar' : '')
+      + nbEmpfaengerText(st.empfaenger)
     : 'Noch nicht gelesen.';
   if (!d.items.length) { tabelleHinweis(tb, 5, st.ts ? 'Keine Postfächer mit Rechten für andere.' : '—'); return; }
   const liste = a => a.length ? a.map(esc).join('<br>') : '<span class="muted">—</span>';

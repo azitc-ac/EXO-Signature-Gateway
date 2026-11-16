@@ -368,3 +368,98 @@ def test_handler_weist_gefaelschten_internen_absender_ab(handler_lauf, dns, monk
     lauf, raus, exchange = handler_lauf
     assert lauf(NETZ_IP, "chef@firma.at", ["a@firma.at"]).startswith("550 5.7.1")
     assert _kopie("a@firma.at") == []
+
+
+# ── Verteiler, Gruppen, externe Benutzer ────────────────────────────────────
+
+GAL = json.loads(ROH) | {
+    "konten": json.loads(ROH)["konten"] + [{"primary": "b@firma.at", "upn": "b@firma.at", "typ": "UserMailbox"}],
+    "gruppen": [
+        {"adresse": "alle@firma.at", "aliase": ["alle@firma.at", "alle.leute@firma.at"], "name": "Alle",
+         "art": "verteiler", "versteckt": False, "nur_intern": True,
+         "mitglieder": ["a@firma.at", "innen@firma.at", "partner@firma.at", None]},
+        # Verschachtelt und im Kreis: innen enthält alle, alle enthält innen.
+        {"adresse": "innen@firma.at", "aliase": "innen@firma.at", "name": "Innen", "art": "verteiler",
+         "versteckt": True, "nur_intern": False, "mitglieder": ["b@firma.at", "alle@firma.at"]},
+        {"adresse": "projekt@firma.at", "aliase": [], "name": "Projekt", "art": "gruppe",
+         "versteckt": False, "nur_intern": False, "mitglieder": "team@firma.at"},
+        {"adresse": "leer@firma.at", "aliase": [None], "name": "Leer", "art": "gruppe",
+         "versteckt": False, "nur_intern": False, "mitglieder": [None]},
+        {"adresse": "falsch@firma.at", "art": "unbekannt", "mitglieder": ["a@firma.at"]}],
+    "extern": [
+        # Die externe Adresse steht (wie live gesehen) auch unter den Proxyadressen.
+        {"adresse": "partner@firma.at", "aliase": ["partner@firma.at", "partner@anderswo.de"], "name": "Partner",
+         "art": "extern", "versteckt": False, "ziel": "Partner@Anderswo.de"},
+        {"adresse": "lieferant@lieferant.de", "aliase": ["lieferant@lieferant.de"], "name": "Lieferant",
+         "art": "kontakt", "versteckt": False, "ziel": "lieferant@lieferant.de"},
+        {"adresse": "ohne@firma.at", "aliase": [], "name": "Ohne", "art": "extern", "versteckt": False, "ziel": ""}]}
+
+
+@pytest.fixture
+def gal(notfall):
+    notbetrieb_rechte.speichern(notbetrieb_rechte.parse(json.dumps(GAL)))
+    notfall["NOTBETRIEB_EINGANG_GREYLIST"] = False
+    return notfall
+
+
+def test_gruppen_werden_flach_aufgeloest_mit_zyklenschutz():
+    e = {x["adresse"]: x for x in notbetrieb_rechte.parse(json.dumps(GAL))["empfaenger"]}
+    assert e["alle@firma.at"]["ziele"] == ["a@firma.at", "b@firma.at", "partner@anderswo.de"]
+    assert e["innen@firma.at"]["ziele"] == ["b@firma.at", "a@firma.at", "partner@anderswo.de"]
+    assert e["projekt@firma.at"]["ziele"] == ["team@firma.at"]
+    assert e["leer@firma.at"]["ziele"] == [] and e["ohne@firma.at"]["ziele"] == []
+    assert e["alle@firma.at"]["aliase"] == ["alle.leute@firma.at", "alle@firma.at"]
+    assert e["partner@firma.at"]["aliase"] == ["partner@firma.at"]
+    assert e["lieferant@lieferant.de"]["aliase"] == [] and e["lieferant@lieferant.de"]["ziele"] == ["lieferant@lieferant.de"]
+    assert "falsch@firma.at" not in e
+
+
+def test_aufloesen_verteiler_alias_und_externer_benutzer(gal):
+    intern, extern = notbetrieb.aufloesen(["alle.leute@firma.at", "Partner@firma.at", "kunde@x.de", "a@firma.at"])
+    assert intern == ["a@firma.at", "b@firma.at"]
+    assert extern == ["partner@anderswo.de", "kunde@x.de"]
+
+
+def test_verteiler_wird_an_mitglieder_zugestellt_nicht_an_den_eigenen_mx(gal, monkeypatch):
+    import direktversand
+    import domain_routing
+    import reinject
+    raus = []
+    monkeypatch.setattr(direktversand, "aktiv", lambda: True)
+    monkeypatch.setattr(domain_routing, "aufloesen", lambda z: {"host": "127.0.0.1", "port": 10025})
+    monkeypatch.setattr(reinject, "_an_postfix", lambda von, empf, *a: raus.append(empf))
+    erg = notbetrieb.zustellen("x@extern.de", ["alle@firma.at", "projekt@firma.at"], b"Subject: x\r\n\r\nx\r\n")
+    assert raus == [["partner@anderswo.de"]]
+    assert erg == {"intern": 3, "extern": 1}
+    with notbetrieb._conn() as conn:
+        bei = {z["postfach"] for z in conn.execute("SELECT postfach FROM mails WHERE herkunft='lokal'")}
+    assert bei == {"a@firma.at", "b@firma.at", "team@firma.at"}
+
+
+def test_eingang_nimmt_gruppen_an_und_achtet_nur_intern(gal):
+    assert _rcpt(NETZ_IP, "projekt@firma.at") is None
+    assert _rcpt(NETZ_IP, "partner@firma.at") is None
+    assert _rcpt(NETZ_IP, "alle.leute@firma.at").startswith("550 5.7.1")
+    assert ne.data_pruefen(ne.INTERNET, NETZ_IP, ["projekt@firma.at"], 10) is None
+    assert ne.data_pruefen(ne.INTERNET, NETZ_IP, ["a@firma.at", "alle@firma.at"], 10).startswith("550 5.7.1")
+    # Aus Microsofts Bereich erst nach dem Kopf — dann gilt die Sperre auch.
+    assert _rcpt(MS_IP, "alle@firma.at") is None
+    assert ne.data_pruefen(ne.MICROSOFT, MS_IP, ["alle@firma.at"], 10).startswith("550 5.7.1")
+    assert _rcpt(NETZ_IP, "unbekannt@firma.at").startswith("550 5.1.1")
+    # Fremde Domänen von externen Benutzern und Kontakten: kein Relay nach außen.
+    for fremd in ("partner@anderswo.de", "lieferant@lieferant.de"):
+        assert _rcpt(NETZ_IP, fremd).startswith("550 5.1.1"), fremd
+        assert ne.data_pruefen(ne.INTERNET, NETZ_IP, [fremd], 10).startswith("550 5.1.1"), fremd
+    assert notbetrieb.aufloesen(["lieferant@lieferant.de"]) == ([], ["lieferant@lieferant.de"])
+
+
+def test_stand_zaehlt_je_art(gal):
+    assert notbetrieb_rechte.stand()["empfaenger"] == {"verteiler": 2, "gruppe": 2, "extern": 2, "kontakt": 1}
+
+
+def test_rechte_skript_liest_gruppen_und_externe():
+    s = notbetrieb_rechte._ps_script("app", "firma.onmicrosoft.com")
+    for teil in ("Get-DistributionGroupMember", "Get-DynamicDistributionGroupMember",
+                 "Get-UnifiedGroupLinks", "-LinkType Members", "RequireSenderAuthenticationEnabled",
+                 "ExternalEmailAddress", "MailUser,MailContact", "RoomList", "gruppen = $gruppen"):
+        assert teil in s, teil

@@ -191,9 +191,8 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
     if sum(len(d) for _, _, d in anhaenge) > MAX_GROESSE:
         raise SendeFehler("Anhänge zu groß (höchstens 15 MB).")
 
-    # Dieselbe Einordnung wie notbetrieb.zustellen (Aliase eingeschlossen).
-    intern = [a for a in alle if notbetrieb.postfach_fuer(a)]
-    extern = [a for a in alle if not notbetrieb.postfach_fuer(a)]
+    # Dieselbe Einordnung wie notbetrieb.zustellen (Aliase, Verteiler, Gruppen).
+    intern, extern = notbetrieb.aufloesen(alle)
     if extern and not direktversand.aktiv() and notbetrieb.sendeweg(benutzer) == notbetrieb.WEG_NOTFALL:
         raise SendeFehler("Versand nach außen ist im Notbetrieb nicht eingerichtet (Direktversand).")
 
@@ -260,9 +259,9 @@ async def _hinaus(benutzer: str, postfach: str, recht: str, alle: list, inhalt: 
                              schon_zurueck="exchange_kopie" if exchange_kopie else None)
     if ueber == notbetrieb.WEG_EXCHANGE and not exchange_kopie:
         notbetrieb.rueckspielen_bald()
-    intern = sum(1 for a in alle if notbetrieb.postfach_fuer(a))
+    intern, extern = notbetrieb.aufloesen(alle)
     log.info("Notbetrieb-Senden (%s, %s): %s aus %s (%s) — %s intern, %s extern, %s", weg, ueber, benutzer,
-             postfach, recht, intern, len(alle) - intern, mid)
+             postfach, recht, len(intern), len(extern), mid)
     return ueber
 
 

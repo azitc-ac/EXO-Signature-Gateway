@@ -188,6 +188,50 @@ def postfach_fuer(adresse: str) -> str | None:
     return None
 
 
+def empfaenger_eintrag(adresse: str) -> dict | None:
+    """Verteiler, Gruppe oder externer Benutzer/Kontakt aus dem Abbild
+    (notbetrieb_rechte) — mit flach aufgelösten `ziele` —, sonst None."""
+    a = (adresse or "").strip().lower()
+    if not a or not _db_pfad().exists():
+        return None
+    with _lock, _conn() as conn:
+        z = conn.execute("SELECT * FROM empfaenger WHERE adresse=? AND annehmen=1", (a,)).fetchone()
+    if not z:
+        return None
+    return {"adresse": z["haupt"], "name": z["name"] or "", "art": z["art"],
+            "nur_intern": bool(z["nur_intern"]), "ziele": json.loads(z["ziele"])}
+
+
+def bekannt(adresse: str) -> bool:
+    """Nimmt das Gateway im Notfall Post für diese Adresse an — Postfach,
+    Verteiler, Gruppe oder externer Benutzer des Tenants."""
+    return bool(postfach_fuer(adresse) or empfaenger_eintrag(adresse))
+
+
+def aufloesen(adressen: list) -> tuple[list[str], list[str]]:
+    """EINE Einordnung der Empfänger für Zustellung, Eingang und Webmail:
+    (interne Postfächer, externe Adressen), je einmal. Postfächer samt Aliasen
+    zuerst; Verteiler und Gruppen auf ihre Mitglieder, externe Benutzer auf ihre
+    externe Adresse; alles Übrige ist extern."""
+    intern: list[str] = []
+    extern: list[str] = []
+    for a in adressen:
+        pf = postfach_fuer(a)
+        if pf:
+            intern.append(pf)
+            continue
+        e = empfaenger_eintrag(a)
+        if e is None:
+            extern.append(a.strip())
+            continue
+        if not e["ziele"]:
+            log.warning("Notbetrieb: %s (%s) hat keine erreichbaren Mitglieder", e["adresse"], e["art"])
+        for z in e["ziele"]:
+            pf = postfach_fuer(z)
+            (intern if pf else extern).append(pf or z)
+    return list(dict.fromkeys(intern)), list(dict.fromkeys(extern))
+
+
 # Zielordner für interne Empfänger: Posteingang, oder Junk-E-Mail, wenn die
 # Echtheitsprüfung des Notfall-Eingangs das verlangt (notbetrieb_echtheit). Der
 # Handler setzt ihn zu Beginn JEDER Mail neu — eine zweite Mail derselben
@@ -205,9 +249,9 @@ def zustellen(mail_from: str, rcpt_tos: list, inhalt: bytes) -> dict:
     Fehler (der Aufrufer entscheidet über Warteschlange oder Meldung)."""
     # Aliase auf ihr Postfach: Ohne das hielte die Zustellung `vorname.nachname@`
     # für extern und schickte die Mail per Direktversand an den eigenen MX.
-    ziele = {e: postfach_fuer(e) for e in rcpt_tos}
-    intern = [pf for pf in ziele.values() if pf]
-    extern = [e for e, pf in ziele.items() if not pf]
+    # Verteiler, Gruppen und Adressen externer Benutzer auf ihre Ziele — sonst
+    # gingen sie als „extern“ an den eigenen MX, der im Notfall nicht annimmt.
+    intern, extern = aufloesen(rcpt_tos)
     if extern:
         import direktversand
         import domain_routing
@@ -314,6 +358,16 @@ def _conn() -> sqlite3.Connection:
             nutzer   TEXT NOT NULL,
             recht    TEXT NOT NULL,
             PRIMARY KEY (postfach, nutzer, recht)
+        );
+        CREATE TABLE IF NOT EXISTS empfaenger (
+            adresse    TEXT PRIMARY KEY,
+            haupt      TEXT NOT NULL,
+            name       TEXT,
+            art        TEXT NOT NULL,
+            versteckt  INTEGER NOT NULL DEFAULT 0,
+            nur_intern INTEGER NOT NULL DEFAULT 0,
+            ziele      TEXT NOT NULL,
+            annehmen   INTEGER NOT NULL DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS meta (
             k TEXT PRIMARY KEY,

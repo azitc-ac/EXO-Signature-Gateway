@@ -182,6 +182,10 @@ def _wortanfang(t: str, text: str | None) -> bool:
     return any(w.startswith(t) for w in _WORTGRENZE.split((text or "").lower()) if w)
 
 
+ART_TEXT = {"verteiler": "Verteiler", "dynamisch": "Verteiler", "gruppe": "Gruppe",
+            "extern": "Extern", "kontakt": "Extern"}
+
+
 def adressen_suchen(benutzer: str, text: str, mindestens: int = 2, hoechstens: int = MAX_TREFFER) -> list[dict]:
     """Adresshilfe beim Verfassen: eigene Kontakte zuerst, dann die globale
     Adressliste (gesicherte Profile) samt geteilter Postfächer. Höchstens
@@ -192,10 +196,10 @@ def adressen_suchen(benutzer: str, text: str, mindestens: int = 2, hoechstens: i
         return []
     treffer: dict[str, dict] = {}
 
-    def nehmen(name, adresse, quelle):
+    def nehmen(name, adresse, quelle, art=""):
         a = (adresse or "").strip()
         if a and "@" in a and a.lower() not in treffer and (_wortanfang(t, a) or _wortanfang(t, name)):
-            treffer[a.lower()] = {"name": name or "", "adresse": a, "quelle": quelle}
+            treffer[a.lower()] = {"name": name or "", "adresse": a, "quelle": quelle, "art": art}
 
     for k in kontakte(benutzer):
         for m in k["mails"]:
@@ -203,6 +207,7 @@ def adressen_suchen(benutzer: str, text: str, mindestens: int = 2, hoechstens: i
     with notbetrieb._lock, notbetrieb._conn() as conn:
         profile = conn.execute("SELECT DISTINCT daten FROM profile").fetchall()
         konten = conn.execute("SELECT primary_adr, versteckt FROM konten").fetchall()
+        weitere = conn.execute("SELECT haupt, name, art FROM empfaenger WHERE adresse=haupt AND versteckt=0").fetchall()
     # In Adresslisten ausgeblendete Postfächer schlägt auch Outlook nicht vor —
     # sie bleiben erreichbar, wer die Adresse kennt, tippt sie aus.
     versteckt = {z["primary_adr"] for z in konten if z["versteckt"]}
@@ -213,6 +218,9 @@ def adressen_suchen(benutzer: str, text: str, mindestens: int = 2, hoechstens: i
     for z in konten:
         if not z["versteckt"]:
             nehmen("", z["primary_adr"], "gal")
+    # Verteiler, Gruppen, externe Benutzer — das Gateway löst sie beim Senden auf.
+    for z in weitere:
+        nehmen(z["name"], z["haupt"], "gal", ART_TEXT.get(z["art"], ""))
     # Treffer am Anfang von Name oder Adresse zuerst.
     return sorted(treffer.values(), key=lambda x: (not (x["adresse"].lower().startswith(t)
                                                         or x["name"].lower().startswith(t)),
