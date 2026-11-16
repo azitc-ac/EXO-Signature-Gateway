@@ -93,6 +93,8 @@ textarea:focus-visible, h2[tabindex]:focus { outline: 2px solid var(--akzent); o
 #liste .eintrag[data-ungelesen="1"] .betreff { font-weight: 700; }
 #liste .kopf { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--leise); }
 #liste .vorschau { font-size: 12px; color: var(--leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Bei einer Suche mit Fund nur im Empfänger: An-Zeile vor der Vorschau, etwas kräftiger. */
+#liste .vorschau .an { color: var(--text); }
 /* Breite Liste (großer Bildschirm, Trenner nach rechts gezogen): je Mail EINE
    Zeile wie in Outlook — Von │ Betreff │ Vorschau │ Datum. */
 @container (min-width: 620px) {
@@ -870,12 +872,15 @@ function sucheGetippt() {
   nb.suchTakt = setTimeout(() => listeLaden(0), n ? SUCHE_PAUSE_MS : 0);
 }
 // Suchwörter gelb markieren: Text in Stücke an den Treffern, jedes Stück maskiert.
+function suchMuster(woerter) {
+  return new RegExp('(' + woerter.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+}
 function markiert(text, woerter) {
   text = String(text || '');
   if (!woerter || !woerter.length) return esc(text);
-  const muster = new RegExp('(' + woerter.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
-  return text.split(muster).map((t, i) => i % 2 ? '<mark>' + esc(t) + '</mark>' : esc(t)).join('');
+  return text.split(suchMuster(woerter)).map((t, i) => i % 2 ? '<mark>' + esc(t) + '</mark>' : esc(t)).join('');
 }
+function trifft(text, woerter) { return suchMuster(woerter).test(String(text || '')); }
 
 async function listeLaden(seite) {
   clearTimeout(nb.suchTakt);
@@ -904,7 +909,11 @@ async function listeLaden(seite) {
     + '<div class="betreff">' + (m.anhang ? '📎 ' : '') + markiert(m.betreff || '(kein Betreff)', w)
     + (m.anzahl > 1 ? ' <span class="zahl" title="Mails in dieser Unterhaltung">' + m.anzahl + '</span>' : '') + '</div>'
     + (suche && ordnerName(m.ordner) ? '<div class="ort">in ' + esc(ordnerName(m.ordner)) + '</div>' : '')
-    + '<div class="vorschau">' + markiert(m.vorschau, w) + '</div></div>').join('')
+    // Treffer nur beim Empfänger: Die Liste zeigt sonst kein An — ohne diese
+    // Zeile stünde der Fund ohne sichtbaren Grund in der Liste.
+    + '<div class="vorschau">' + (w.length && m.an && trifft(m.an, w) && !trifft(m.von, w)
+         ? '<span class="an">An: ' + markiert(m.an, w) + '</span> · ' : '')
+    + markiert(m.vorschau, w) + '</div></div>').join('')
     + (d.gesamt > (seite + 1) * d.je_seite
        ? '<div style="padding:10px"><button onclick="listeLaden(' + (seite + 1) + ')">Ältere</button></div>' : '')
     + (seite ? '<div style="padding:0 10px 10px"><button onclick="listeLaden(' + (seite - 1) + ')">Neuere</button></div>' : '');
@@ -924,9 +933,9 @@ async function mailOeffnen(id) {
   nb.mail = id;
   el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
     + '<div class="kopfbereich"><h2 id="lesen-betreff" tabindex="-1">' + markiert(d.betreff || '(kein Betreff)', w) + '</h2>'
-    + '<div><b>Von:</b> ' + esc(adressen(d.von)) + '</div>'
-    + '<div><b>An:</b> ' + esc(adressen(d.an)) + '</div>'
-    + (d.cc.length ? '<div><b>Cc:</b> ' + esc(adressen(d.cc)) + '</div>' : '')
+    + '<div><b>Von:</b> ' + markiert(adressen(d.von), w) + '</div>'
+    + '<div><b>An:</b> ' + markiert(adressen(d.an), w) + '</div>'
+    + (d.cc.length ? '<div><b>Cc:</b> ' + markiert(adressen(d.cc), w) + '</div>' : '')
     + '<div class="leise">' + esc(new Date(d.datum).toLocaleString('de-DE'))
     // Die Signatur wird hier NICHT geprüft — nur angezeigt, dass eine da ist.
     + (d.signiert ? ' · S/MIME-signiert (Signatur im Notbetrieb nicht geprüft)' : '')

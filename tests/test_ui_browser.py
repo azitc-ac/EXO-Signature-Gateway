@@ -1668,7 +1668,11 @@ def _notfall_seite(browser, server, monkeypatch, breite, speicher=None):
             {"graph_id": "m1", "von": "Erika Musterfrau", "betreff": "Angebot", "empfangen":
              "2026-11-16T09:00:00Z", "gelesen": False, "vorschau": "Hallo Max, anbei das Angebot"},
             {"graph_id": "m2", "von": "Hans Beispiel", "betreff": "Termin", "empfangen":
-             "2026-11-16T08:00:00Z", "gelesen": True, "vorschau": "Passt Donnerstag?"}]},
+             "2026-11-16T08:00:00Z", "gelesen": True, "vorschau": "Passt Donnerstag?",
+             "an": "Vertrieb <vertrieb@firma.at>"}]},
+        "mail": {"ok": True, "betreff": "Termin", "von": [{"name": "Hans Beispiel", "adresse": "hans@firma.at"}],
+                 "an": [{"name": "Vertrieb", "adresse": "vertrieb@firma.at"}], "cc": [], "anhaenge": [],
+                 "datum": "2026-11-16T08:00:00Z", "html": False, "text": "Passt Donnerstag?"},
     }
     ctx = browser.new_context(viewport={"width": breite, "height": 900})
     if speicher:
@@ -1754,4 +1758,26 @@ def test_notfall_suche_beim_tippen_und_markiert(browser, server, monkeypatch):
     assert pg.eval_on_selector("#liste .eintrag .vorschau mark", "e => e.textContent") == "Angebot"
     farbe = pg.eval_on_selector("#liste mark", "e => getComputedStyle(e).backgroundColor")
     assert farbe == "rgb(253, 230, 138)", farbe
+    pg.context.close()
+
+
+def test_notfall_suche_markiert_absender_und_empfaenger(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300)
+    # Treffer nur beim Empfänger: Die Liste zeigt dafür eine An-Zeile, markiert.
+    pg.fill("#suche", "vertrieb"); pg.press("#suche", "Enter")
+    pg.wait_for_timeout(500)
+    assert pg.eval_on_selector('#liste .eintrag[data-id="m2"] .an mark', "e => e.textContent") == "Vertrieb"
+    assert pg.locator('#liste .eintrag[data-id="m1"] .an').count() == 0     # kein Fund im An: keine Zeile
+    # Geöffnete Mail: An-Feld markiert.
+    pg.click('#liste .eintrag[data-id="m2"]')
+    pg.wait_for_selector("#lesen-betreff")
+    assert "vertrieb" in pg.inner_html("#lesen .kopfbereich").lower().split("<mark>")[1].split("</mark>")[0]
+    # Absender: in Liste und Kopf der Mail.
+    pg.fill("#suche", "hans"); pg.press("#suche", "Enter")
+    pg.wait_for_timeout(500)
+    assert pg.eval_on_selector('#liste .eintrag[data-id="m2"] .von mark', "e => e.textContent") == "Hans"
+    pg.click('#liste .eintrag[data-id="m2"]')
+    pg.wait_for_timeout(300)
+    marken = pg.eval_on_selector_all("#lesen .kopfbereich mark", "es => es.map(e => e.textContent)")
+    assert "Hans" in marken and "hans" in marken, marken      # Name und Adresse
     pg.context.close()
