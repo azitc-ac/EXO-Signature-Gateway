@@ -1498,6 +1498,13 @@
     "name": "api_setup_smime_rules"
   },
   {
+    "pfad": "/api/setup/teams-katalog/aktualisieren",
+    "methoden": [
+      "GET"
+    ],
+    "name": "setup_teams_katalog_aktualisieren"
+  },
+  {
     "pfad": "/api/setup/test-graph",
     "methoden": [
       "POST"

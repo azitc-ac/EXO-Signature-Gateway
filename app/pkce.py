@@ -47,6 +47,12 @@ BERECHTIGUNGEN_SCOPES = [
     "https://graph.microsoft.com/AppRoleAssignment.ReadWrite.All",
 ]
 
+# „Im Teams-Katalog aktualisieren“: Graph „Update teamsApp“ ist nur delegiert
+# möglich; AppCatalog.Submit ist die kleinste Berechtigung und braucht keine
+# Admin-Zustimmung (Graph permissions reference) — die Bootstrap-App fragt sie
+# beim Anmelden an, an der Registrierung ist nichts nachzutragen.
+TEAMS_KATALOG_SCOPES = ["https://graph.microsoft.com/AppCatalog.Submit"]
+
 # Minimal scopes for SSO login (identity only) — KEIN Graph-Resource-Scope
 # (User.Read/offline_access): der Login nutzt das Access-Token nicht, und ein
 # Resource-Scope verschiebt einen MFA-Step-up in den Back-Channel, wo kein Dialog

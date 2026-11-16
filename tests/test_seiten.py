@@ -347,12 +347,15 @@ def test_setup_vergleicht_teams_katalog_mit_dem_paket(client, monkeypatch, katal
     ss.update({"ADMIN_PASSWORD_HASH": "", "ADDIN_ENABLED": True, "TEAMS_APP_AKTIV": True})
     html = client.get("/setup", auth=("admin", _cfg.WEBUI_PASSWORD or "admin")).text
     assert erwartet in html and 'id="ber-teams"' in html
+    # Der Knopf nur bei veralteter Fassung: neu einstellen kann Graph nur Vorhandenes.
+    assert ('id="teams-katalog-btn"' in html) is (katalog["zustand"] == "ok")
 
     paket = ss.get("_TEAMS_APP_STAND")["version"]                    # Paket = Katalog → aktuell
     monkeypatch.setattr(graph_client, "teams_katalog",
                         lambda eid: _gleich(paket))
     html = client.get("/setup", auth=("admin", _cfg.WEBUI_PASSWORD or "admin")).text
     assert f"✓ Im Teams-Katalog: Fassung {paket}, aktuell" in html
+    assert 'id="teams-katalog-btn"' not in html
 
     ss.update({"TEAMS_APP_AKTIV": False})                            # aus → keine Abfrage
     n = len(aufrufe)

@@ -150,16 +150,44 @@ def test_offen_und_gescheitert_erscheinen_erledigt_nicht(monkeypatch):
     def kaputt():
         raise RuntimeError("Datei weg")
     monkeypatch.setattr(aufgaben, "AUFGABEN", (
-        aufgaben.Aufgabe("ok", lambda: abnahme._punkt("A", abnahme.OK), "/a"),
-        aufgaben.Aufgabe("offen", lambda: abnahme._punkt("B", abnahme.OFFEN, "fehlt"), "/b"),
-        aufgaben.Aufgabe("dringend", lambda: abnahme._punkt("C", abnahme.OFFEN, "x"), "/c",
+        aufgaben.Aufgabe("ok", "Ok erledigen", lambda: abnahme._punkt("A", abnahme.OK), "/a"),
+        aufgaben.Aufgabe("offen", "Offen erledigen", lambda: abnahme._punkt("B", abnahme.OFFEN, "fehlt"), "/b"),
+        aufgaben.Aufgabe("dringend", "Dringend erledigen", lambda: abnahme._punkt("C", abnahme.OFFEN, "x"), "/c",
                          dringend=True),
-        aufgaben.Aufgabe("kaputt", kaputt, "/d"),
+        aufgaben.Aufgabe("kaputt", "Kaputt erledigen", kaputt, "/d"),
     ))
     liste = aufgaben.offene()
     assert [a["kennung"] for a in liste] == ["dringend", "offen", "kaputt"]
     assert "Datei weg" in liste[2]["befund"]
+    # Titel ist die Tätigkeit, nicht der Name der Prüfung („B“).
+    assert liste[1]["titel"] == "Offen erledigen"
     aufgaben.vergessen()
+
+
+def _pruefungsnamen() -> set[str]:
+    """Alle festen Namen, die abnahme._punkt bekommt — direkt oder über `name = "…"`."""
+    import ast
+    baum = ast.parse(Path(abnahme.__file__).read_text(encoding="utf-8"))
+    namen = set()
+    for knoten in ast.walk(baum):
+        if (isinstance(knoten, ast.Assign) and isinstance(knoten.value, ast.Constant)
+                and any(getattr(z, "id", None) == "name" for z in knoten.targets)):
+            namen.add(knoten.value.value)
+        if (isinstance(knoten, ast.Call) and getattr(knoten.func, "id", None) == "_punkt"
+                and knoten.args and isinstance(knoten.args[0], ast.Constant)):
+            namen.add(knoten.args[0].value)
+    return {n for n in namen if isinstance(n, str)}
+
+
+def test_titel_ist_eine_taetigkeit_nicht_der_pruefungsname():
+    """Der Prüfungsname beschreibt den Sollzustand („Bypass-Wächter aktuell“).
+    Über einer OFFENEN Aufgabe liest er sich wie eine Erfolgsmeldung."""
+    namen = _pruefungsnamen()
+    assert "Bypass-Wächter aktuell" in namen          # der Suchlauf greift
+    for a in aufgaben.AUFGABEN:
+        assert a.titel.strip(), a.kennung
+        if a.kennung != "vertragsbedingungen":        # Name ist dort schon die Tätigkeit
+            assert a.titel not in namen, (a.kennung, a.titel)
 
 
 def test_stempel_folgt_dem_befund():
@@ -225,9 +253,9 @@ def test_laufende_aufgabe_wird_als_laufend_gemeldet(monkeypatch):
     offen = lambda: abnahme._punkt("A", abnahme.OFFEN, "Secret da")       # noqa: E731
     kaputt = lambda: 1 / 0                                                 # noqa: E731
     monkeypatch.setattr(aufgaben, "AUFGABEN", (
-        aufgaben.Aufgabe("laeuft", offen, "/a", dringend=True, laeuft=lambda: True),
-        aufgaben.Aufgabe("still", offen, "/b", dringend=True),
-        aufgaben.Aufgabe("unklar", offen, "/c", laeuft=kaputt),
+        aufgaben.Aufgabe("laeuft", "Laeuft erledigen", offen, "/a", dringend=True, laeuft=lambda: True),
+        aufgaben.Aufgabe("still", "Still erledigen", offen, "/b", dringend=True),
+        aufgaben.Aufgabe("unklar", "Unklar erledigen", offen, "/c", laeuft=kaputt),
     ))
     zustand = {a["kennung"]: a["laeuft"] for a in aufgaben.offene()}
     assert zustand == {"laeuft": True, "still": False, "unklar": False}

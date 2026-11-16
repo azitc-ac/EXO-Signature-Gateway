@@ -795,27 +795,41 @@ async def outlook_addin_page_redirect(user: str = Depends(_require_admin)):
     return RedirectResponse("/setup#step-addin", status_code=308)
 
 
+_TESTMAIL_TEXT = ("Dies ist eine Test-Mail vom EXO Signature Gateway.\n"
+                  "Die Signatur wird durch den Service eingefügt.")
+_TESTMAIL_HTML = ("<html><body><p>Dies ist eine Test-Mail vom EXO Signature Gateway.</p>"
+                  "<p>Die Signatur wird durch den Service eingefügt.</p></body></html>")
+_TESTMAIL_ARTEN = ("html", "alternative", "plain")
+
+
+def _testmail_rumpf(art: str):
+    """Rumpf der Test-Mail je Format. `alternative` ist multipart/alternative
+    mit Text- und HTML-Teil — die Form, in der Outlook versendet."""
+    if art == "plain":
+        return MIMEText(_TESTMAIL_TEXT, "plain", "utf-8")
+    if art == "html":
+        return MIMEText(_TESTMAIL_HTML, "html", "utf-8")
+    from email.mime.multipart import MIMEMultipart
+    msg = MIMEMultipart("alternative")
+    msg.attach(MIMEText(_TESTMAIL_TEXT, "plain", "utf-8"))
+    msg.attach(MIMEText(_TESTMAIL_HTML, "html", "utf-8"))
+    return msg
+
+
 @app.post("/api/test-mail")
 async def api_test_mail(request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
     from_email = (data.get("from_email") or "").strip()
     to_email = (data.get("to_email") or "").strip()
-    mail_type = (data.get("mail_type") or "plain").strip()
+    # Vorgabe HTML: So sendet Outlook, und nur dort zeigt sich, ob die Signatur
+    # richtig sitzt. Unbekannte Formate werden abgewiesen statt still Nur-Text.
+    mail_type = (data.get("mail_type") or "html").strip()
+    if mail_type not in _TESTMAIL_ARTEN:
+        raise HTTPException(400, f"Unbekanntes Format: {mail_type}")
     if not from_email or not to_email:
         raise HTTPException(400, "from_email und to_email sind erforderlich")
 
-    if mail_type == "html":
-        msg = MIMEText(
-            "<html><body><p>Dies ist eine HTML Test-Mail vom EXO Signature Gateway.</p>"
-            "<p>Die Signatur wird durch den Service eingefügt.</p></body></html>",
-            "html", "utf-8",
-        )
-    else:
-        msg = MIMEText(
-            "Dies ist eine Nur-Text Test-Mail vom EXO Signature Gateway.\n"
-            "Die Signatur wird durch den Service eingefügt.",
-            "plain", "utf-8",
-        )
+    msg = _testmail_rumpf(mail_type)
     msg["Subject"] = f"Test-Mail ({mail_type}) – Signaturprüfung"
     msg["From"] = from_email
     msg["To"] = to_email

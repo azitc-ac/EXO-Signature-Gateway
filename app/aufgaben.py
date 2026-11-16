@@ -41,6 +41,10 @@ log = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class Aufgabe:
     kennung: str
+    # Was zu TUN ist — nicht der Name der Prüfung. Der beschreibt den
+    # Sollzustand („Bypass-Wächter aktuell“) und stünde über einer offenen
+    # Aufgabe wie eine Erfolgsmeldung.
+    titel: str
     pruefung: Callable[[], dict]
     link: str
     dringend: bool = False
@@ -61,46 +65,64 @@ def _auto_ausnahme_laeuft() -> bool:
 
 
 AUFGABEN: tuple[Aufgabe, ...] = (
-    Aufgabe("zertifikat-anmeldung", abnahme._anmeldenachweis,
+    Aufgabe("zertifikat-anmeldung", "App-Anmeldung auf Zertifikat umstellen",
+            abnahme._anmeldenachweis,
             "/setup#step-4", dringend=True, seit="1.10.80",
             laeuft=_zertifikat_abbau_laeuft),
-    Aufgabe("smime-schluessel", abnahme._smime_schluessel,
+    Aufgabe("smime-schluessel", "S/MIME-Schlüssel verschlüsselt ablegen",
+            abnahme._smime_schluessel,
             "/settings/smime#schluesselablage", dringend=True, seit="1.10.82"),
     # Öffnet den Zustimmungsdialog aus base.html — auf jeder Seite.
-    Aufgabe("vertragsbedingungen", abnahme._vertragsbedingungen,
+    Aufgabe("vertragsbedingungen", "Geänderten Vertragsbedingungen zustimmen",
+            abnahme._vertragsbedingungen,
             "#vertragsbedingungen", dringend=True),
-    Aufgabe("admin-passwort", abnahme._admin_passwort, "/setup#step-1", dringend=True),
-    Aufgabe("tls-zertifikat", abnahme._tls, "/setup#step-le", dringend=True),
-    Aufgabe("lizenz", abnahme._fair_use, "/settings/connect#lizenz", dringend=True),
-    Aufgabe("benachrichtigung", abnahme._benachrichtigung,
+    Aufgabe("admin-passwort", "Admin-Kennwort ändern",
+            abnahme._admin_passwort, "/setup#step-1", dringend=True),
+    Aufgabe("tls-zertifikat", "TLS-Zertifikat beziehen oder erneuern",
+            abnahme._tls, "/setup#step-le", dringend=True),
+    Aufgabe("lizenz", "Lizenz an die Zahl der Postfächer anpassen",
+            abnahme._fair_use, "/settings/connect#lizenz", dringend=True),
+    Aufgabe("benachrichtigung", "Benachrichtigung der Verwaltung einrichten",
+            abnahme._benachrichtigung,
             "/settings#benachrichtigungen"),
-    Aufgabe("signaturvorlage", abnahme._signaturvorlage, "/template"),
-    Aufgabe("postfaecher", abnahme._postfaecher, "/mailboxes"),
-    Aufgabe("wartende-zertifikate", abnahme._wartende_zertifikate, "/smime#wartend",
+    Aufgabe("signaturvorlage", "Signaturvorlage anlegen",
+            abnahme._signaturvorlage, "/template"),
+    Aufgabe("postfaecher", "Postfächer aktivieren",
+            abnahme._postfaecher, "/mailboxes"),
+    Aufgabe("wartende-zertifikate", "Wartende Empfängerzertifikate entscheiden",
+            abnahme._wartende_zertifikate, "/smime#wartend",
             seit="1.10.110"),
-    Aufgabe("tls-rueckweg", abnahme._tls_rueckweg, "/settings/routing#weiterleitungsziele",
+    Aufgabe("tls-rueckweg", "Zertifikatsprüfung am TLS-Rückweg einschalten",
+            abnahme._tls_rueckweg, "/settings/routing#weiterleitungsziele",
             seit="1.10.112"),
-    Aufgabe("bestand-durchsicht", abnahme._bestand_durchsicht, "/smime#durchsicht",
+    Aufgabe("bestand-durchsicht", "Empfängerzertifikate ohne bekannten Aussteller durchsehen",
+            abnahme._bestand_durchsicht, "/smime#durchsicht",
             seit="1.10.115"),
     # Manifest des Verfassen-Add-ins geändert (interne Signatur, geteilte
     # Postfächer) — jede Installation muss es im Admin Center neu bestätigen.
-    Aufgabe("addin-fassung", abnahme._addin_fassung, "/setup#addin-verfassen", seit="1.11.56"),
+    Aufgabe("addin-fassung", "Verfassen-Add-in im Admin Center aktualisieren",
+            abnahme._addin_fassung, "/setup#addin-verfassen", seit="1.11.56"),
     # Function-Code der Azure-Wächter kam bis v1.11.63 nur beim Anlegen hinauf.
-    Aufgabe("waechter-code", abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),
+    Aufgabe("waechter-code", "Bypass-Wächter aktualisieren",
+            abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),
     # Eingetragener Key Vault ohne Datenrechte der App: Schlüssel blieben still lokal.
-    Aufgabe("key-vault-zugriff", abnahme._key_vault_zugriff, "/setup#step-keyvault", seit="1.12.4"),
+    Aufgabe("key-vault-zugriff", "Key-Vault-Zugriff der App einrichten",
+            abnahme._key_vault_zugriff, "/setup#step-keyvault", seit="1.12.4"),
     # Notbetrieb: eine stehengebliebene Kopie oder ein fehlendes Recht fiele
     # sonst erst im Ernstfall auf. Kein `seit` — die Aufgabe entsteht aus dem
     # Zustand, nicht aus einem Update.
-    Aufgabe("notbetrieb-bereit", abnahme._notbetrieb_lokal, "/notbetrieb"),
+    Aufgabe("notbetrieb-bereit", "Notbetrieb bereit machen", abnahme._notbetrieb_lokal, "/notbetrieb"),
     # Direktversand an, aber keine (bestandene) tägliche Probe: ob Post ankommt, weiss niemand.
-    Aufgabe("direktversand-probe", abnahme._direktversand_probe,
+    Aufgabe("direktversand-probe", "Direktversand-Probe einrichten und bestehen",
+            abnahme._direktversand_probe,
             "/settings/routing#direktversand-probe", seit="1.12.31"),
     # Kalender-Ausnahme an „SMIME Signed Inbound“: bestehende Regeln neu schreiben.
-    Aufgabe("smime-regeln", abnahme._smime_regeln_stand, "/setup#step-smime", seit="1.12.34"),
+    Aufgabe("smime-regeln", "S/MIME-Eingangsregeln aktualisieren",
+            abnahme._smime_regeln_stand, "/setup#step-smime", seit="1.12.34"),
     # Auto-Antwort-Ausnahme kam mit v1.9.88 nur an neue Routing-Regeln:
     # Abwesenheitsnotizen älterer Installationen scheitern am Gateway-Rückweg.
-    Aufgabe("regel-auto-ausnahme", abnahme._regel_auto_ausnahme, "/setup#exo-auto-ausnahme",
+    Aufgabe("regel-auto-ausnahme", "Auto-Antwort-Ausnahme an den Routing-Regeln ergänzen",
+            abnahme._regel_auto_ausnahme, "/setup#exo-auto-ausnahme",
             seit="1.12.39", laeuft=_auto_ausnahme_laeuft),
 )
 
@@ -145,7 +167,7 @@ def offene() -> list[dict]:
                 laeuft = bool(a.laeuft and a.laeuft())
             except Exception:                         # noqa: BLE001 — dann eben „offen“
                 laeuft = False
-            liste.append({"kennung": a.kennung, "titel": p["name"], "laeuft": laeuft,
+            liste.append({"kennung": a.kennung, "titel": a.titel, "laeuft": laeuft,
                           "befund": p.get("befund", ""), "zu_tun": p.get("zu_tun", ""),
                           "link": a.link, "dringend": a.dringend, "seit": a.seit,
                           "stempel": _stempel(p)})

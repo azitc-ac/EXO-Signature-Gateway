@@ -1,0 +1,56 @@
+{#- Test-Mail durch den eigenen Listener — EIN Baustein für Einrichtung und Erweitert.
+
+    Bis v1.12.44 stand das Formular zweimal da, mit zwei `sendTestMail()`: Unter
+    Erweitert gab es eine Formatwahl, im Assistenten nicht — dort ging jede
+    Test-Mail als Nur-Text hinaus, obwohl Outlook HTML sendet.
+
+    Aufruf:  {% from "_testmail.html" import testmail %}
+             {{ testmail() }}
+-#}
+{% macro testmail(absender="Absender", empfaenger="Empfänger") %}
+<div class="settings-row">
+  <label for="test-from">{{ absender }}</label>
+  <div class="settings-control"><input type="email" id="test-from" placeholder="user@contoso.com" style="max-width:320px"></div>
+</div>
+<div class="settings-row">
+  <label for="test-to">{{ empfaenger }}</label>
+  <div class="settings-control"><input type="email" id="test-to" placeholder="empfaenger@domain.com" style="max-width:320px"></div>
+</div>
+<div class="settings-row">
+  <label for="test-type">Format</label>
+  <div class="settings-control">
+    <select id="test-type">
+      <option value="html" selected>HTML</option>
+      <option value="alternative">HTML mit Text-Alternative (wie Outlook)</option>
+      <option value="plain">Nur Text</option>
+    </select>
+  </div>
+</div>
+<div class="actions" style="margin-top:12px">
+  <button class="btn secondary" onclick="sendTestMail()">Test-Mail senden</button>
+</div>
+<div id="test-result" style="margin-top:10px;display:none"></div>
+<script>
+async function sendTestMail() {
+  const from_email = feldWert('test-from');
+  const to_email   = feldWert('test-to');
+  const mail_type  = feldWert('test-type');
+  const result     = document.getElementById('test-result');
+
+  if (!from_email || !to_email) {
+    showAlert(result, 'error', 'Bitte Absender und Empfänger angeben.');
+    return;
+  }
+  hideAlert(result);
+
+  const d = await postJSON('/api/test-mail', {from_email, to_email, mail_type});
+  if (!d.ok) { showAlert(result, 'error', 'Fehler: ' + esc(errText(d))); return; }
+  // „Angenommen" ist nicht „zugestellt": Die Test-Mail wird nur an den
+  // Gateway-Listener übergeben; die eigentliche Zustellung läuft danach
+  // asynchron über Exchange und kann noch scheitern.
+  showAlert(result, 'success', 'Test-Mail an das Gateway übergeben &rarr; ' + esc(to_email) +
+    '. Das bestätigt noch keine Zustellung — ob sie ankommt, zeigt der Posteingang bzw. die ' +
+    'Exchange-Nachrichtenverfolgung (Message Trace).');
+}
+</script>
+{% endmacro %}

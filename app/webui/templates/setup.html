@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_berechtigungen.html" import berechtigungen %}
+{% from "_testmail.html" import testmail %}
 {% block content %}
 <h1>Einstellungen</h1>
 
@@ -1230,19 +1231,7 @@
     <p class="hint" style="margin-bottom:12px">
       Sende eine Test-Mail durch den Service und bestätige, dass die Signatur korrekt eingefügt wird.
     </p>
-    <div class="settings-row">
-      <label for="test-from">Absender (interner Benutzer)</label>
-      <input type="email" id="test-from" placeholder="user@contoso.com" style="width:280px">
-    </div>
-    <div class="settings-row">
-      <label for="test-to">Empfänger (extern)</label>
-      <input type="email" id="test-to" placeholder="test@gmail.com" style="width:280px">
-    </div>
-    <div id="test-result" style="margin-top:8px;display:none"></div>
-
-    <div class="actions" style="margin-top:12px">
-      <button class="btn primary" onclick="sendTestMail()">Test-Mail senden</button>
-    </div>
+    {{ testmail(absender="Absender (interner Benutzer)", empfaenger="Empfänger (extern)") }}
 
     {# Abnahme: die Anlage als Ganzes, nicht die Einzelschritte darueber.
        Wer alle Haekchen im Assistenten hat, weiss damit noch nicht, ob Post
@@ -1434,27 +1423,6 @@ async function _skriptSchritt(url, knopfId, arbeitsText, resultId, okText) {
 function setupExoConnector() {
   return _skriptSchritt('/api/setup/exo-connector', 'exo-btn',
     'Richtet Exchange ein… (kann 2 Min. dauern)', 'exo-result', 'EXO-Connector eingerichtet.');
-}
-
-async function sendTestMail() {
-  const from_email = feldWert('test-from');
-  const to_email   = feldWert('test-to');
-  const result     = document.getElementById('test-result');
-
-  if (!from_email || !to_email) {
-    showAlert(result, 'error', 'Bitte Absender und Empfänger angeben.');
-    return;
-  }
-  hideAlert(result);
-
-  const d = await postJSON('/api/test-mail', {from_email, to_email});
-  if (!d.ok) { showAlert(result, 'error', 'Fehler: ' + esc(errText(d))); return; }
-  // „Angenommen" ist nicht „zugestellt": Die Test-Mail wird nur an den
-  // Gateway-Listener übergeben; die eigentliche Zustellung läuft danach
-  // asynchron über Exchange und kann noch scheitern.
-  showAlert(result, 'success', 'Test-Mail an das Gateway übergeben &rarr; ' + esc(to_email) +
-    '. Das bestätigt noch keine Zustellung — ob sie ankommt, zeigt der Posteingang bzw. die ' +
-    'Exchange-Nachrichtenverfolgung (Message Trace).');
 }
 
 async function saveWizardGatewayName() {
@@ -2439,8 +2407,13 @@ async function saveKeyvault() {
           {% if k.zustand == 'ok' and k.aktuell %}
             <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fertig" id="teams-katalog-stand">✓ Im Teams-Katalog: Fassung {{ k.version }}, aktuell</span>
           {% elif k.zustand == 'ok' %}
-            <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">⚠ Im Teams-Katalog: Fassung {{ k.version }}, das Paket hat {{ teams_app.version }}.
-              Lade es neu hoch: <em>Integrierte Apps</em> → App öffnen → <em>Aktualisieren</em>.</span>
+            <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">⚠ Im Teams-Katalog: Fassung {{ k.version }}, das Paket hat {{ teams_app.version }}.</span>
+            <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+              <button type="button" class="btn secondary btn-sm" id="teams-katalog-btn" onclick="teamsKatalogAktualisieren(this)">Im Teams-Katalog aktualisieren</button>
+              <span class="hint">Anmeldung mit einem Konto mit aktiver Rolle Teams-Administrator oder höher (bei PIM vorher aktivieren).</span>
+            </span>
+            <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="teams-katalog-result" hidden></span>
+            <span id="teams-katalog-einfuegen" style="display:block" hidden></span>
           {% elif k.zustand == 'nicht_gefunden' %}
             <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">⚠ Nicht im Teams-Katalog. Lade das Paket unter <em>Integrierte Apps</em> hoch.</span>
           {% elif k.zustand == 'recht_fehlt' %}
@@ -2639,6 +2612,38 @@ async function autoAusnahmeErgaenzen(btn) {
   location.hash = 'exo-auto-ausnahme';
   setTimeout(function () { location.reload(); }, 1200);
 }
+
+// Neue Fassung der Teams-App in den Katalog: Admin-Anmeldung (AppCatalog.Submit,
+// delegiert), danach lädt das Gateway das Paket hoch und liest die Fassung neu.
+var _teamsKatalogWartet = false;
+async function teamsKatalogAktualisieren(btn) {
+  var einfuegen = false;
+  var r = await knopfAktion(btn, 'Öffne Login…', () => anmeldeFenster(async function () {
+    var d = await getJSON('/api/setup/teams-katalog/aktualisieren');
+    if (!d.ok) throw new Error(errText(d));
+    einfuegen = !!d.einfuegen;
+    return d.auth_url;
+  }, 'teams-katalog-login', true));
+  if (!r.ok) { showMsg('teams-katalog-result', '✗ ' + r.fehler, false); return; }
+  _teamsKatalogWartet = true;
+  showMsg('teams-katalog-result', 'Admin-Anmeldung im neuen Fenster…', true);
+  if (einfuegen) anmeldeAdresseEinfuegen('teams-katalog-einfuegen', 'teams-katalog');
+}
+window.addEventListener('message', function (ev) {
+  if (ev.origin !== window.location.origin || !ev.data || !_teamsKatalogWartet) return;
+  if (ev.data.type === 'teams-katalog-done') {
+    _teamsKatalogWartet = false;
+    showMsg('teams-katalog-result', '✓ Im Katalog aktualisiert — die Seite lädt neu', true);
+    location.hash = 'teams-app-schalter';
+    setTimeout(function () { location.reload(); }, 1500);
+  } else if (ev.data.type === 'teams-katalog-fail') {
+    _teamsKatalogWartet = false;
+    showMsg('teams-katalog-result', '✗ ' + (ev.data.msg || 'Aktualisieren fehlgeschlagen'), false);
+  } else if (ev.data.type === 'anmeldung-abgelaufen') {
+    _teamsKatalogWartet = false;
+    showMsg('teams-katalog-result', '✗ Anmeldung abgelaufen, nichts hochgeladen — bitte erneut', false);
+  }
+});
 
 function copyManifestUrl(url, okId) {
   navigator.clipboard.writeText(url).then(function() {

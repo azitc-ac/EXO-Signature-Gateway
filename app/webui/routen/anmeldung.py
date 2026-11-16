@@ -275,9 +275,34 @@ def _berechtigungen_callback_page(ok: bool, msg: str = "") -> str:
                         schliessen_ms=2500, breite=460)
 
 
+def _teams_katalog_callback_page(ok: bool, msg: str = "", version: str | None = None) -> str:
+    """Popup-Abschluss „Im Teams-Katalog aktualisieren“."""
+    text = (f"Im Katalog steht jetzt Fassung {version}. Outlook und Teams zeigen sie nach "
+            "einiger Zeit; der Store in Outlook folgt mit bis zu einer Stunde Verzögerung.") if ok \
+        else (msg or "Unbekannter Fehler")
+    return _popup_seite(ok, "Teams-Katalog aktualisiert" if ok else "Aktualisieren fehlgeschlagen", text,
+                        {"type": "teams-katalog-done" if ok else "teams-katalog-fail",
+                         "msg": msg, "version": version or ""},
+                        schliessen_ms=4000, breite=460)
+
+
+@router.get("/api/setup/teams-katalog/aktualisieren")
+async def setup_teams_katalog_aktualisieren(request: Request, _: str = Depends(_require_admin)):
+    """Startet die Admin-Anmeldung (Popup) mit AppCatalog.Submit; nach der
+    Rückkehr lädt nachlauf() das App-Paket als neue Fassung in den Teams-Katalog.
+    Liefert die Login-URL."""
+    from webui.hilfen import _addin_base_url
+    redirect_uri = _setup_redirect_uri()
+    _state, auth_url = pkce_mod.create_session(
+        redirect_uri, flow="teams_katalog", scopes=pkce_mod.TEAMS_KATALOG_SCOPES,
+        extra={"base": _addin_base_url(request)})
+    return JSONResponse({"auth_url": auth_url, "einfuegen": _endet_lokal(redirect_uri)})
+
+
 # Abläufe, deren Ergebnis eine Wirkung im Tenant ist (nicht eine Sitzung im
 # Browser) — nur sie lassen sich auch über das Einfügen der Adresse abschließen.
-NACHLAUF_ABLAEUFE = ("setup", "berechtigungen", "watchdog_grants", "patch_redirect_uri")
+NACHLAUF_ABLAEUFE = ("setup", "berechtigungen", "watchdog_grants", "patch_redirect_uri",
+                     "teams_katalog")
 
 
 async def nachlauf(flow: str, session_obj: dict, access_token: str) -> dict:
@@ -315,6 +340,15 @@ async def nachlauf(flow: str, session_obj: dict, access_token: str) -> dict:
             import waechter_register
             waechter_register.merke_azure(extra["watcher_id"], app_id=app_id)
         return {"ok": ok, "msg": msg, "app_id": app_id}
+    if flow == "teams_katalog":
+        # Paket aus derselben Quelle wie der Download, mit der Adresse, die die
+        # Seite beim Klick hatte (der Rückweg kennt keine Anfrage mehr).
+        from webui.routen.addin import teams_app_paket
+        paket, m = teams_app_paket((session_obj.get("extra") or {}).get("base", ""))
+        res = await graph_client.teams_katalog_aktualisieren(access_token, m["id"], paket)
+        if res["ok"]:
+            log.info("Teams-Katalog aktualisiert: Fassung %s", res["version"])
+        return {"ok": res["ok"], "msg": res["msg"], "app_id": "", "version": res["version"]}
     if flow == "patch_redirect_uri":
         await setup_wizard.patch_bootstrap_redirect_uri(
             access_token, settings_store.get("PUBLIC_HOSTNAME") or "")
@@ -497,6 +531,8 @@ async def auth_callback(
         return HTMLResponse(_berechtigungen_callback_page(res["ok"], res["msg"]))
     if flow == "watchdog_grants":
         return HTMLResponse(_watchdog_callback_page(res["ok"], res["msg"], res["app_id"]))
+    if flow == "teams_katalog":
+        return HTMLResponse(_teams_katalog_callback_page(res["ok"], res["msg"], res.get("version")))
     return HTMLResponse(_setup_callback_page(ok=res["ok"], msg=res["msg"]))
 
 @router.post("/auth/id-callback")

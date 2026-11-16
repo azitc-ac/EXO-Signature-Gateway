@@ -54,7 +54,8 @@ def test_hoechste_veroeffentlichte_fassung_zahlenweise(monkeypatch):
     Eine eingereichte, nicht veröffentlichte Fassung zählt nicht."""
     urls = _graph(monkeypatch, 200, _app(("1.9.156", "published"), ("1.10.0", "published"),
                                           ("2.0.0", "submitted")))
-    assert asyncio.run(graph_client.teams_katalog(APP_ID)) == {"zustand": "ok", "version": "1.10.0"}
+    r = asyncio.run(graph_client.teams_katalog(APP_ID))
+    assert (r["zustand"], r["version"], r["eingereicht"]) == ("ok", "1.10.0", "2.0.0")
     assert APP_ID in urls[0] and "appCatalogs/teamsApps" in urls[0]
 
 
@@ -82,3 +83,109 @@ def test_recht_nur_wenn_bereitgestellt(monkeypatch, wert, erwartet):
     spec = next(s for s in setup_wizard._GRAPH_PERMISSION_SPECS if s["id"] == KAT_ID)
     assert spec["name"] == "AppCatalog.Read.All"
     assert settings_store.DEFAULTS["TEAMS_APP_AKTIV"] is False
+
+
+# ── „Im Teams-Katalog aktualisieren“ (delegiert, AppCatalog.Submit) ─────────
+
+def _katalog_app(*defs):
+    return [{"id": KATALOG_ID,
+             "appDefinitions": [{"version": v, "publishingState": z} for v, z in defs]}]
+
+
+KATALOG_ID = "11111111-2222-3333-4444-555555555555"   # id der teamsApp, ≠ externalId
+
+
+def _graph_schreibend(monkeypatch, lesungen, post_status=204):
+    """Jedes GET liefert die nächste Lesung; POST zeichnet Adresse und Rumpf auf."""
+    aufrufe = {"get": [], "post": []}
+
+    class _Antwort:
+        def __init__(self, status, value=None):
+            self.status_code, self._v, self.text = status, value, "x"
+
+        def json(self):
+            return {"value": self._v or []}
+
+    class _Client:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+
+        async def get(self, url, headers=None):
+            aufrufe["get"].append((url, headers))
+            status, value = lesungen.pop(0)
+            return _Antwort(status, value)
+
+        async def post(self, url, headers=None, content=None):
+            aufrufe["post"].append((url, headers, content))
+            return _Antwort(post_status)
+
+    monkeypatch.setattr(httpx, "AsyncClient", _Client)
+    return aufrufe
+
+
+def test_aktualisieren_laedt_an_die_katalog_id_und_liest_neu(monkeypatch):
+    aufrufe = _graph_schreibend(monkeypatch, [
+        (200, _katalog_app(("1.11.0", "published"))),
+        (200, _katalog_app(("1.11.0", "published"), ("1.12.45", "published"))),
+    ])
+    r = asyncio.run(graph_client.teams_katalog_aktualisieren("DELEG", APP_ID, b"ZIP"))
+    assert r == {"ok": True, "msg": "", "version": "1.12.45"}
+    url, kopf, rumpf = aufrufe["post"][0]
+    assert url.endswith(f"/appCatalogs/teamsApps/{KATALOG_ID}/appDefinitions")
+    assert kopf["Content-Type"] == "application/zip" and kopf["Authorization"] == "Bearer DELEG"
+    assert rumpf == b"ZIP"
+    assert len(aufrufe["get"]) == 2                      # Erfolg = neu gelesen
+
+
+def test_nicht_im_katalog_laedt_nichts_hoch(monkeypatch):
+    aufrufe = _graph_schreibend(monkeypatch, [(200, [])])
+    r = asyncio.run(graph_client.teams_katalog_aktualisieren("T", APP_ID, b"ZIP"))
+    assert not r["ok"] and "Integrierte Apps" in r["msg"] and aufrufe["post"] == []
+
+
+def test_nur_eingereicht_ist_kein_erfolg(monkeypatch):
+    """Ohne Admin-Rolle landet die Fassung als „submitted“ — veröffentlicht ist sie nicht."""
+    _graph_schreibend(monkeypatch, [
+        (200, _katalog_app(("1.11.0", "published"))),
+        (200, _katalog_app(("1.11.0", "published"), ("1.12.45", "submitted"))),
+    ])
+    r = asyncio.run(graph_client.teams_katalog_aktualisieren("T", APP_ID, b"ZIP"))
+    assert not r["ok"] and "eingereicht" in r["msg"] and r["version"] == "1.11.0"
+
+
+def test_403_nennt_die_rolle(monkeypatch):
+    _graph_schreibend(monkeypatch, [(200, _katalog_app(("1.11.0", "published")))], post_status=403)
+    r = asyncio.run(graph_client.teams_katalog_aktualisieren("T", APP_ID, b"ZIP"))
+    assert not r["ok"] and "Teams-Administrator" in r["msg"]
+
+
+def test_aktualisieren_nur_mit_uuid(monkeypatch):
+    aufrufe = _graph_schreibend(monkeypatch, [])
+    r = asyncio.run(graph_client.teams_katalog_aktualisieren("T", "x' or 1 eq 1", b"ZIP"))
+    assert not r["ok"] and aufrufe == {"get": [], "post": []}
+
+
+def test_nachlauf_laedt_dasselbe_paket_wie_der_download(monkeypatch):
+    """In den Katalog geht, was der Download liefert — mit der Adresse vom Klick."""
+    from webui.routen import addin, anmeldung
+    gesehen = {}
+
+    async def fake(token, externe_id, paket):
+        gesehen.update(token=token, id=externe_id, paket=paket)
+        return {"ok": True, "msg": "", "version": "9.9.9"}
+    monkeypatch.setattr(graph_client, "teams_katalog_aktualisieren", fake)
+    res = asyncio.run(anmeldung.nachlauf(
+        "teams_katalog", {"extra": {"base": "https://gw.firma.at"}}, "DELEG"))
+    paket, m = addin.teams_app_paket("https://gw.firma.at")
+    assert res["ok"] and res["version"] == "9.9.9"
+    assert gesehen["token"] == "DELEG" and gesehen["id"] == m["id"]
+    import io, json, zipfile
+    a = zipfile.ZipFile(io.BytesIO(gesehen["paket"])).read("manifest.json")
+    assert json.loads(a) == json.loads(zipfile.ZipFile(io.BytesIO(paket)).read("manifest.json"))
+    assert "teams_katalog" in anmeldung.NACHLAUF_ABLAEUFE      # auch per Einfügen abschliessbar
+
+
+def test_anmeldung_fragt_nur_appcatalog_submit_an():
+    import pkce
+    assert pkce.TEAMS_KATALOG_SCOPES == ["https://graph.microsoft.com/AppCatalog.Submit"]

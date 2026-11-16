@@ -686,17 +686,98 @@ async def teams_katalog(externe_id: str) -> dict:
     if resp.status_code != 200:
         log.warning("teams_katalog: Graph %s %s", resp.status_code, resp.text[:200])
         return {"zustand": "fehler", "version": None}
-    versionen = [d.get("version") for a in resp.json().get("value", [])
-                 for d in a.get("appDefinitions") or []
-                 if d.get("publishingState") == "published" and d.get("version")]
-    if not versionen:
-        return {"zustand": "nicht_gefunden", "version": None}
-    def _tupel(v):
-        try:
-            return tuple(int(t) for t in str(v).split("."))
-        except ValueError:
-            return (0,)
-    return {"zustand": "ok", "version": max(versionen, key=_tupel)}
+    return _katalog_auswerten(resp.json().get("value", []))
+
+
+def _versions_tupel(v) -> tuple[int, ...]:
+    try:
+        return tuple(int(t) for t in str(v).split("."))
+    except ValueError:
+        return (0,)
+
+
+def _katalog_auswerten(apps: list) -> dict:
+    """Höchste veröffentlichte Fassung samt Katalog-ID (`id` der teamsApp —
+    die braucht „Update teamsApp“, NICHT die externalId aus dem Manifest).
+    `eingereicht`: eine Fassung wartet auf Freigabe (publishingState submitted)."""
+    veroeffentlicht = [(d.get("version"), a.get("id")) for a in apps
+                       for d in a.get("appDefinitions") or []
+                       if d.get("publishingState") == "published" and d.get("version")]
+    eingereicht = [d.get("version") for a in apps for d in a.get("appDefinitions") or []
+                   if d.get("publishingState") == "submitted" and d.get("version")]
+    if not veroeffentlicht:
+        return {"zustand": "nicht_gefunden", "version": None, "katalog_id": None,
+                "eingereicht": max(eingereicht, key=_versions_tupel) if eingereicht else None}
+    version, katalog_id = max(veroeffentlicht, key=lambda t: _versions_tupel(t[0]))
+    return {"zustand": "ok", "version": version, "katalog_id": katalog_id,
+            "eingereicht": max(eingereicht, key=_versions_tupel) if eingereicht else None}
+
+
+async def teams_katalog_aktualisieren(token: str, externe_id: str, paket: bytes) -> dict:
+    """Neue Fassung der Teams-App in den Katalog des Tenants — mit dem
+    DELEGIERTEN Token eines Admins (Graph „Update teamsApp“ kennt keine
+    Anwendungsberechtigung; kleinste ist AppCatalog.Submit, und nur Teams-
+    Dienstadministratoren oder höher dürfen). Ohne `requiresReview` ist die
+    Fassung bei einem Admin sofort veröffentlicht.
+
+    Danach wird die Fassung mit demselben Token NEU GELESEN: Erfolg ist, was im
+    Katalog steht, nicht der Rückgabecode. Liefert {ok, msg, version}."""
+    import httpx
+    from urllib.parse import quote
+    if not _UUID_RE.fullmatch(externe_id or ""):
+        return {"ok": False, "msg": "Manifest ohne gültige ID.", "version": None}
+    kopf = {"Authorization": f"Bearer {token}"}
+    filt = "externalId eq '" + externe_id + "'"
+    url = (f"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps"
+           f"?$filter={quote(filt)}&$expand=appDefinitions")
+
+    async def _lesen(client) -> dict | None:
+        r = await client.get(url, headers=kopf)
+        if r.status_code != 200:
+            log.warning("teams_katalog_aktualisieren: Lesen Graph %s %s", r.status_code, r.text[:200])
+            return None
+        return _katalog_auswerten(r.json().get("value", []))
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            vorher = await _lesen(client)
+            if vorher is None:
+                return {"ok": False, "version": None,
+                        "msg": "Katalog nicht lesbar (siehe Protokoll). Es wurde nichts hochgeladen."}
+            if not vorher["katalog_id"]:
+                return {"ok": False, "version": None,
+                        "msg": "Die App ist noch nicht im Teams-Katalog. Das erste Hochladen geht nur "
+                               "über Integrierte Apps (Graph erlaubt dafür nur eine Einreichung zur Prüfung)."}
+            resp = await client.post(
+                f"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/{vorher['katalog_id']}/appDefinitions",
+                headers={**kopf, "Content-Type": "application/zip"}, content=paket)
+            if resp.status_code == 403:
+                log.warning("teams_katalog_aktualisieren: 403 %s", resp.text[:300])
+                return {"ok": False, "version": vorher["version"],
+                        "msg": "Microsoft hat abgelehnt (403): Das angemeldete Konto braucht eine aktive "
+                               "Rolle Teams-Administrator oder höher — bei PIM vorher aktivieren."}
+            if resp.status_code not in (200, 201, 204):
+                log.warning("teams_katalog_aktualisieren: Graph %s %s", resp.status_code, resp.text[:300])
+                fehler = ""
+                try:
+                    fehler = (resp.json().get("error") or {}).get("message", "")
+                except ValueError:
+                    pass
+                return {"ok": False, "version": vorher["version"],
+                        "msg": f"Graph {resp.status_code}: {fehler or resp.text[:200]}"}
+            nachher = await _lesen(client)
+    except Exception as exc:                                   # noqa: BLE001
+        log.warning("teams_katalog_aktualisieren: %s", exc)
+        return {"ok": False, "msg": str(exc), "version": None}
+    if nachher is None:
+        return {"ok": False, "version": None,
+                "msg": "Hochgeladen, aber die Fassung ließ sich danach nicht lesen (siehe Protokoll)."}
+    if nachher.get("eingereicht") and not (nachher["version"] and
+            _versions_tupel(nachher["version"]) >= _versions_tupel(nachher["eingereicht"])):
+        return {"ok": False, "version": nachher["version"],
+                "msg": f"Fassung {nachher['eingereicht']} wurde nur zur Prüfung eingereicht, nicht "
+                       "veröffentlicht. Freigeben im Teams Admin Center → Teams-Apps → Apps verwalten."}
+    return {"ok": True, "msg": "", "version": nachher["version"]}
 
 
 _BETREFF_PRAEFIX = re.compile(
