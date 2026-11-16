@@ -1139,4 +1139,5 @@ def test_notbetrieb_seite_zeigt_richtlinie_zum_kopieren_und_faktor_abdeckung():
     assert '"edge_richtlinie": edge_richtlinie(webmail_url)' in route
     # Zweiter Faktor mit Bezugsgröße und Weg zum Einrichten unter demselben Link.
     assert "{{ faktor_abdeckung.eingerichtet }} von {{ faktor_abdeckung.nutzer }}" in html
-    assert "{{ webmail_url }}/einrichten" in html and "imap_host or" not in html
+    # Nicht aus dem EHLO-Hostnamen gebaut (der darf ein anderer Name sein).
+    assert "{{ webmail_url }}/einrichten" in html and "}}/notfall/einrichten" not in html
