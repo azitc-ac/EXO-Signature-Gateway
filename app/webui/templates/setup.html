@@ -2378,7 +2378,7 @@ async function saveKeyvault() {
             <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">⚠ Im Teams-Katalog: Fassung {{ k.version }}, das Paket hat {{ teams_app.version }}.</span>
             <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
               <button type="button" class="btn secondary btn-sm" id="teams-katalog-btn" onclick="teamsKatalogAktualisieren(this)">Im Teams-Katalog aktualisieren</button>
-              <span class="hint">Anmeldung mit einem Konto mit aktiver Rolle Teams-Administrator oder höher (bei PIM vorher aktivieren).</span>
+              <span class="hint">Anmeldung mit einem Konto mit aktiver Rolle Teams-Administrator oder höher (bei PIM vorher aktivieren). Beim ersten Mal fragt Microsoft die Zustimmung zu „Read and write to all app catalogs“ ab.</span>
             </span>
             <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="teams-katalog-result" hidden></span>
             <span id="teams-katalog-einfuegen" style="display:block" hidden></span>
@@ -2581,7 +2581,7 @@ async function autoAusnahmeErgaenzen(btn) {
   setTimeout(function () { location.reload(); }, 1200);
 }
 
-// Neue Fassung der Teams-App in den Katalog: Admin-Anmeldung (AppCatalog.Submit,
+// Neue Fassung der Teams-App in den Katalog: Admin-Anmeldung (AppCatalog.ReadWrite.All,
 // delegiert), danach lädt das Gateway das Paket hoch und liest die Fassung neu.
 var _teamsKatalogWartet = false;
 async function teamsKatalogAktualisieren(btn) {

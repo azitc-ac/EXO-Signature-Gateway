@@ -123,10 +123,17 @@ def test_gateway_und_addin_teilen_eine_regel():
     assert "antwort_vorlage(_vorlagen, True)" in quelle
 
 
-def test_signatur_im_text_der_beantworteten_mail_zaehlt_wie_im_gateway(antwort):
-    """Gateway-Kennung im Text der beantworteten Mail, ohne bekannte Kennung."""
-    antwort["html"] = '<p>Danke</p><div id="x_exo-sig-s">x</div>'
-    assert _abruf(KONV)["kette"] is True
+@pytest.mark.parametrize("block, erwartet", [
+    # Eigener markierter Block (Adresse des Postfachs darin) → in der Kette.
+    ("<p>Erika Mustermann</p><p>erika@zarenko.net</p>", True),
+    # Markierter Block eines Kollegen — bis v1.12.47 zählte auch der.
+    ("<p>Max Kollege</p><p>max.kollege@zarenko.net</p>", False),
+])
+def test_signatur_im_text_der_beantworteten_mail_zaehlt_wie_im_gateway(antwort, block, erwartet):
+    """Gateway-Kennung im Text der beantworteten Mail, ohne bekannte Kennung:
+    zählt nur, wenn der markierte Block dem Postfach gehört."""
+    antwort["html"] = f'<p>Danke</p><div id="x_exo-sig-s">{block}</div>'
+    assert _abruf(KONV)["kette"] is erwartet
 
 
 SIG_ZEILEN = ("<table><tr><td>Erika Mustermann - Beratung</td></tr>"

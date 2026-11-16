@@ -85,7 +85,7 @@ def test_recht_nur_wenn_bereitgestellt(monkeypatch, wert, erwartet):
     assert settings_store.DEFAULTS["TEAMS_APP_AKTIV"] is False
 
 
-# ── „Im Teams-Katalog aktualisieren“ (delegiert, AppCatalog.Submit) ─────────
+# ── „Im Teams-Katalog aktualisieren“ (delegiert, AppCatalog.ReadWrite.All) ──
 
 def _katalog_app(*defs):
     return [{"id": KATALOG_ID,
@@ -157,7 +157,7 @@ def test_nur_eingereicht_ist_kein_erfolg(monkeypatch):
 def test_403_nennt_die_rolle(monkeypatch):
     _graph_schreibend(monkeypatch, [(200, _katalog_app(("1.11.0", "published")))], post_status=403)
     r = asyncio.run(graph_client.teams_katalog_aktualisieren("T", APP_ID, b"ZIP"))
-    assert not r["ok"] and "Teams-Administrator" in r["msg"]
+    assert not r["ok"] and "Teams-Administrator" in r["msg"] and "app catalogs" in r["msg"]
 
 
 def test_aktualisieren_nur_mit_uuid(monkeypatch):
@@ -186,6 +186,8 @@ def test_nachlauf_laedt_dasselbe_paket_wie_der_download(monkeypatch):
     assert "teams_katalog" in anmeldung.NACHLAUF_ABLAEUFE      # auch per Einfügen abschliessbar
 
 
-def test_anmeldung_fragt_nur_appcatalog_submit_an():
+def test_anmeldung_fragt_appcatalog_readwrite_an():
+    """AppCatalog.Submit erlaubt nur Einreichen — gemessen 16.11.2026: 403
+    beim Veröffentlichen, auch als Global Admin. Genau diese eine Berechtigung."""
     import pkce
-    assert pkce.TEAMS_KATALOG_SCOPES == ["https://graph.microsoft.com/AppCatalog.Submit"]
+    assert pkce.TEAMS_KATALOG_SCOPES == ["https://graph.microsoft.com/AppCatalog.ReadWrite.All"]

@@ -716,9 +716,9 @@ def _katalog_auswerten(apps: list) -> dict:
 async def teams_katalog_aktualisieren(token: str, externe_id: str, paket: bytes) -> dict:
     """Neue Fassung der Teams-App in den Katalog des Tenants — mit dem
     DELEGIERTEN Token eines Admins (Graph „Update teamsApp“ kennt keine
-    Anwendungsberechtigung; kleinste ist AppCatalog.Submit, und nur Teams-
-    Dienstadministratoren oder höher dürfen). Ohne `requiresReview` ist die
-    Fassung bei einem Admin sofort veröffentlicht.
+    Anwendungsberechtigung; veröffentlichen erst mit AppCatalog.ReadWrite.All,
+    siehe pkce.TEAMS_KATALOG_SCOPES, und nur Teams-Dienstadministratoren oder
+    höher). Ohne `requiresReview` ist die Fassung dann sofort veröffentlicht.
 
     Danach wird die Fassung mit demselben Token NEU GELESEN: Erfolg ist, was im
     Katalog steht, nicht der Rückgabecode. Liefert {ok, msg, version}."""
@@ -753,9 +753,21 @@ async def teams_katalog_aktualisieren(token: str, externe_id: str, paket: bytes)
                 headers={**kopf, "Content-Type": "application/zip"}, content=paket)
             if resp.status_code == 403:
                 log.warning("teams_katalog_aktualisieren: 403 %s", resp.text[:300])
+                # Zwei Ursachen, und Graph unterscheidet sie im Text nicht
+                # verlässlich: fehlende Rolle des Kontos ODER fehlende
+                # Berechtigung des Tokens (bis v1.12.48 AppCatalog.Submit —
+                # mit Global Admin abgelehnt). Deshalb beide nennen und die
+                # Meldung von Graph mitgeben, statt eine zu raten.
+                fehler = ""
+                try:
+                    fehler = (resp.json().get("error") or {}).get("message", "")
+                except ValueError:
+                    pass
                 return {"ok": False, "version": vorher["version"],
-                        "msg": "Microsoft hat abgelehnt (403): Das angemeldete Konto braucht eine aktive "
-                               "Rolle Teams-Administrator oder höher — bei PIM vorher aktivieren."}
+                        "msg": "Microsoft hat abgelehnt (403"
+                               + (f": „{fehler}“" if fehler else "") + "). Nötig sind eine aktive Rolle "
+                               "Teams-Administrator oder höher (bei PIM vorher aktivieren) und die "
+                               "Zustimmung zu „Read and write to all app catalogs“ bei der Anmeldung."}
             if resp.status_code not in (200, 201, 204):
                 log.warning("teams_katalog_aktualisieren: Graph %s %s", resp.status_code, resp.text[:300])
                 fehler = ""

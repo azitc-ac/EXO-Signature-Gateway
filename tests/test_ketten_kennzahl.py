@@ -180,7 +180,7 @@ def test_zaehler_haengt_an_der_wirkung_nicht_am_befund():
     weil man sich auf sie verlässt.
     """
     quelle = (Path(__file__).resolve().parent.parent / "app" / "handler.py").read_text()
-    erkennung = quelle.index("_in_kette = (")
+    erkennung = quelle.index("_in_kette = bool(_kette_grund)")
     zweig = quelle.index("elif not suppress_html_sig and _in_kette:")
     stellen = [i for i in range(len(quelle))
                if quelle.startswith('stats.increment("stapel_verhindert")', i)]

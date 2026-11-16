@@ -485,6 +485,9 @@ def test_ankersprung_zeigt_die_karte_ab_ihrem_kopf(seite, monkeypatch, pfad, zie
         pg = seite(pfad, breite=breite, hoehe=850)
     finally:
         settings_store.update({"EXO_CONNECTOR_CREATED": vorher})
+    # Erst nach `load` steht die endgültige Lage (ankerZeigen zieht dort nach);
+    # auf einem ausgelasteten Rechner kam die Messung sonst davor.
+    pg.wait_for_load_state("load")
     pg.wait_for_timeout(600)
     lage = pg.evaluate("""z => {
       const nav = document.querySelector('nav').getBoundingClientRect().bottom;

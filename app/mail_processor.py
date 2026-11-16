@@ -321,24 +321,32 @@ def addin_signatur_entfernen(msg: email.message.Message) -> bool:
     return entfernt and not _has_own_sig_in_compose_area(msg)
 
 
-def _has_sig_in_thread(msg: email.message.Message, sig_html: str = "") -> bool:
-    """Return True if a gateway signature is already present anywhere in the message.
+def _has_sig_in_thread(msg: email.message.Message, sig_html: str = "",
+                       nur_entwurf: bool = False) -> bool:
+    """Steht die Signatur, die gerade eingefügt werden soll, schon in der Mail?
 
-    Checks only explicit gateway markers and sentinels:
-    - <!-- exo-sig-start --> (HTML comment, preserved by Outlook Desktop/Exchange)
-    - id="exo-sig-s" / id="x_exo-sig-s" (Add-in sentinels; Exchange adds x_ prefix)
-    - class="exo-gateway-sig" (class attribute, survives iOS Mail quoting)
+    Im Verfassenbereich zählt jede Gateway-Kennung (dort steht nur, was der
+    Absender selbst eingefügt hat, etwa per Add-in). Im ZITAT nur ein
+    markierter Block, der zu *sig_html* gehört (`_gehoert_dem_absender`).
 
-    Fingerprint matching was intentionally removed: it false-positives when the sender's
-    regular Outlook client sig (same name/phone/company tokens) appears in the quoted area.
-    The class sentinel covers the iOS Mail case (iOS Mail strips HTML comments but preserves
-    class attributes when quoting).
-    """
+    ⚠️ Bis v1.12.47 genügte jede Kennung irgendwo in der Mail. Die Signatur
+    eines Kollegen oder eines anderen Gateways im Zitat liess die eigene ganz
+    wegfallen — die Kennung ist für alle Absender dieselbe.
+
+    *nur_entwurf*: Der Handler hat die Kette schon mit Absenderbindung geprüft
+    (`kette_grund`) und will die volle Signatur; dann zählt nur der
+    Verfassenbereich."""
     html = extract_html(msg)
     if not html:
         return False
-    if hat_kennung(html):
-        log.info("_has_sig_in_thread: gateway marker/sentinel found — skipping injection")
+    qpos = _find_first_quote_wrapper_pos(html)
+    if hat_kennung(html if qpos is None else html[:qpos]):
+        log.info("_has_sig_in_thread: Gateway-Kennung im Verfassenbereich — keine zweite Signatur")
+        return True
+    if nur_entwurf or qpos is None:
+        return False
+    if marker_im_zitat(html[qpos:], [text_zeilen(sig_html)]):
+        log.info("_has_sig_in_thread: dieselbe Signatur steht markiert im Zitat — keine zweite")
         return True
     return False
 
@@ -353,15 +361,16 @@ def _strip_to_lines(h: str) -> str:
     return _H.unescape(h)
 
 
-def sender_already_in_thread(msg: email.message.Message, sender_addrs,
-                             zeilenlisten=()) -> bool:
-    """True, wenn im ZITAT dieser Mail schon eine Signatur des Absenders zu
-    lesen ist — dann bekommt die Antwort die Antwort-Signatur statt des vollen
-    Blocks (siehe `signatur_zu_lesen`).
+def kette_grund(msg: email.message.Message, sender_addrs=(), zeilenlisten=(),
+                merkmale=()) -> str:
+    """Woran im ZITAT dieser Mail eine Signatur des Absenders zu lesen ist:
+    "kennung" (markierter Block, der ihm gehört), "text" (Zeilen seiner
+    Signatur) oder "" (nicht zu lesen → volle Signatur). Siehe
+    `signatur_grund`.
 
     Nur das Zitat, nie die ganze Mail: Im Verfassenbereich steht womöglich die
     Client-Signatur des Absenders, und ein Textabgleich dort schlüge bei jeder
-    Antwort an (v1.4.312–316). Ohne erkanntes Zitat → False (volle Signatur).
+    Antwort an (v1.4.312–316). Ohne erkanntes Zitat → "" (volle Signatur).
 
     Eine „Von:"-Zeile mit der Absenderadresse zählt bewusst nicht: Microsoft
     Bookings verschickt Benachrichtigungen VON der Adresse des Postfachs, ohne
@@ -369,11 +378,18 @@ def sender_already_in_thread(msg: email.message.Message, sender_addrs,
     """
     html = extract_html(msg) or ""
     if not html:
-        return False
+        return ""
     qpos = _find_first_quote_wrapper_pos(html)
     if qpos is None:
-        return False  # no quoted thread → sender's first contribution
-    return signatur_zu_lesen(html[qpos:], zeilenlisten)
+        return ""  # no quoted thread → sender's first contribution
+    return signatur_grund(html[qpos:], zeilenlisten, list(merkmale) + list(sender_addrs or ()))
+
+
+def sender_already_in_thread(msg: email.message.Message, sender_addrs=(),
+                             zeilenlisten=(), merkmale=()) -> bool:
+    """True, wenn im Zitat schon eine Signatur des Absenders steht — dann
+    bekommt die Antwort die Antwort-Signatur statt des vollen Blocks."""
+    return bool(kette_grund(msg, sender_addrs, zeilenlisten, merkmale))
 
 
 _ZEILENENDE_RE = re.compile(r"<\s*(?:br|/p|/div|/tr|/td|/th|/li|/h[1-6])\b[^>]*>", re.I)
@@ -396,38 +412,109 @@ def text_zeilen(sig_html: str) -> list[str]:
     return list(dict.fromkeys(z for z in zeilen if len(z) >= _ZEILE_MIN))
 
 
-def signatur_zu_lesen(region_html: str, zeilenlisten=()) -> bool:
-    """Ist in *region_html* eine Signatur des Absenders zu lesen?
-
-    EINE Prüfung für den Versand (Zitat der Antwort) und das Verfassen-Add-in
-    (Text der beantworteten Mail). Zwei Merkmale:
-
-    * die Kennung dieses Gateways (`marker_im_zitat`) — übersteht aber das
-      Zitieren durch fremde Programme nicht (an 400 echten Mails: extern in
-      keinem Fall, VM 20.10.2026: 0 von 8),
-    * der TEXT der Signatur: mindestens die Hälfte ihrer Zeilen, mindestens
-      zwei, je Vorlage aus *zeilenlisten* (volle und Antwort-Signatur, siehe
-      `signature_engine.erkennungs_zeilen`). VM 20.10.2026: 7 von 8 Zeilen in
-      jeder echten Antwort, 0 in einer Mail, die nur auf die signierte Mail
-      verweist, ohne sie zu zitieren.
-
-    Ein Verweis in References/In-Reply-To allein genügt NICHT: Er sagt, dass
-    eine signierte Mail vorausging, nicht, dass die Signatur hier steht."""
-    if marker_im_zitat(region_html):
-        return True
+def _zeilen_treffer(text: str, zeilenlisten) -> bool:
+    """Mindestens die Hälfte (mindestens zwei) der Zeilen EINER Signatur stehen
+    in *text* (Klartext)."""
     listen = [z for z in zeilenlisten if len(z) >= 2]
-    if not listen:
-        return False
-    text = _klartext(region_html)
     return any(sum(z in text for z in zeilen) >= max(2, (len(zeilen) + 1) // 2)
                for zeilen in listen)
 
 
-def marker_im_zitat(region: str) -> bool:
-    """Steht im zitierten Teil eine Signatur dieses Gateways? EINE Prüfung für
-    den Versand (oben) und das Verfassen-Add-in, das statt des Zitats den
-    Text der beantworteten Mail prüft (graph_client.antwort_bezug)."""
-    return hat_kennung(region)
+def signatur_grund(region_html: str, zeilenlisten=(), merkmale=()) -> str:
+    """Ist in *region_html* eine Signatur des Absenders zu lesen — und woran?
+
+    EINE Prüfung für den Versand (Zitat der Antwort) und das Verfassen-Add-in
+    (Text der beantworteten Mail). Zwei Merkmale:
+
+    * "kennung": ein von diesem Gateway markierter Block, der dem ABSENDER
+      gehört (`marker_im_zitat`). Die Kennung übersteht das Zitieren durch
+      fremde Programme oft nicht (an 400 echten Mails: extern in keinem Fall,
+      VM 20.10.2026: 0 von 8) — und sie ist für jeden Absender dieselbe.
+    * "text": der TEXT der Signatur — mindestens die Hälfte ihrer Zeilen,
+      mindestens zwei, je Vorlage aus *zeilenlisten* (volle und
+      Antwort-Signatur, siehe `signature_engine.erkennungs_zeilen`). VM
+      20.10.2026: 7 von 8 Zeilen in jeder echten Antwort, 0 in einer Mail, die
+      nur auf die signierte Mail verweist, ohne sie zu zitieren.
+
+    *merkmale*: Name und Adressen des Absenders
+    (`signature_engine.erkennungs_merkmale`), für die Zuordnung eines
+    markierten Blocks.
+
+    Ein Verweis in References/In-Reply-To allein genügt NICHT: Er sagt, dass
+    eine signierte Mail vorausging, nicht, dass die Signatur hier steht."""
+    if marker_im_zitat(region_html, zeilenlisten, merkmale):
+        return "kennung"
+    if _zeilen_treffer(_klartext(region_html), zeilenlisten):
+        return "text"
+    return ""
+
+
+def signatur_zu_lesen(region_html: str, zeilenlisten=(), merkmale=()) -> bool:
+    return bool(signatur_grund(region_html, zeilenlisten, merkmale))
+
+
+def _kennung_bloecke(region: str) -> list[str]:
+    """Die von Gateway oder Add-in markierten Blöcke in *region*: vom
+    Kommentar-Marker bis `exo-sig-end`, bzw. das Element mit id/Klasse samt
+    verschachtelter Elemente gleichen Namens. Ohne Ende: bis zum Schluss."""
+    bloecke = []
+    lower = region.lower()
+    for m in _KENNUNG_RE.finditer(region):
+        if m.group(0).startswith("<!--"):
+            ende = region.find(_SIG_MARKER_END, m.end())
+            bloecke.append(region[m.end():ende if ende != -1 else len(region)])
+            continue
+        anfang = region.rfind("<", 0, m.start())
+        tm = re.match(r"<\s*([a-z0-9]+)", lower[anfang:]) if anfang != -1 else None
+        if not tm:
+            continue
+        name = tm.group(1)
+        pos = lower.find(">", m.end())
+        if pos == -1:
+            continue
+        pos, tiefe = pos + 1, 1
+        auf_re = re.compile(r"<" + name + r"\b")
+        while tiefe:
+            zu = lower.find("</" + name, pos)
+            auf = auf_re.search(lower, pos)
+            if zu == -1:
+                pos = len(region)
+                break
+            if auf and auf.start() < zu:
+                tiefe, pos = tiefe + 1, auf.end()
+            else:
+                tiefe, pos = tiefe - 1, zu + len(name) + 2
+        bloecke.append(region[anfang:pos])
+    return bloecke
+
+
+def _gehoert_dem_absender(block: str, zeilenlisten=(), merkmale=()) -> bool:
+    """Gehört der markierte *block* dem Absender?
+
+    Name und Adresse sind das Persönliche einer Signatur — Firma, Anschrift
+    und Zentrale teilen Kollegen. Trägt die eigene Signatur Name oder Adresse
+    (steht in *zeilenlisten*), muss der Block sie tragen. Sonst (Vorlage ohne
+    beides, etwa ein Team-Postfach) zählt der Textabgleich wie beim Zitat.
+    Ein geteiltes Postfach ist dabei EIN Absender: geprüft wird gegen das
+    Postfach, nicht gegen die Person, die gerade schreibt."""
+    text = _klartext(block)
+    klein = text.lower()
+    persoenlich = {m.strip().lower() for m in merkmale if m and len(m.strip()) >= 4}
+    sig_text = " ".join(" ".join(z) for z in zeilenlisten).lower()
+    traegt = [p for p in persoenlich if p in sig_text]
+    if traegt:
+        return any(p in klein for p in traegt)
+    if any(len(z) >= 2 for z in zeilenlisten):
+        return _zeilen_treffer(text, zeilenlisten)
+    return bool(persoenlich) and any(p in klein for p in persoenlich)
+
+
+def marker_im_zitat(region: str, zeilenlisten=(), merkmale=()) -> bool:
+    """Steht in *region* ein von diesem Gateway markierter Block, der dem
+    Absender gehört? Bis v1.12.47 genügte jede Kennung — die eines Kollegen
+    oder eines anderen Gateways ebenso, und wer zum ersten Mal antwortete,
+    bekam die Antwort-Signatur."""
+    return any(_gehoert_dem_absender(b, zeilenlisten, merkmale) for b in _kennung_bloecke(region))
 
 
 def inject(
@@ -437,6 +524,7 @@ def inject(
     use_cid_images: bool = True,
     force: bool = False,
     zusatz: bool = False,
+    kette_geprueft: bool = False,
 ) -> email.message.Message:
     """Signatur (oder mit `zusatz=True` nur Banner/Disclaimer) einfügen.
 
@@ -444,6 +532,10 @@ def inject(
     per #nosig abbestellt oder in einer Kette entfallen. Dann wird nichts
     entfernt (weder eigene noch Client-Signaturen), keine Doppel-Prüfung
     übersprungen, und der Block trägt eigene Marker (siehe _ZUSATZ_MARKER_START).
+
+    `kette_geprueft=True`: Der Aufrufer hat schon mit Absenderbindung geprüft,
+    ob die Signatur im Zitat steht (handler: `kette_grund`) — dann verhindert
+    `SKIP_SIG_IN_THREAD` nur noch eine zweite im Verfassenbereich.
     """
     if zusatz:
         force = True
@@ -451,7 +543,8 @@ def inject(
     # content from previous mails), don't inject another one — prevents stacking
     # in ping-pong threads. The existing SKIP_DUPLICATE_SIG setting additionally
     # checks only the compose area for stricter control when explicitly enabled.
-    if not force and settings_store.get("SKIP_SIG_IN_THREAD") is not False and _has_sig_in_thread(msg, sig_html):
+    if not force and settings_store.get("SKIP_SIG_IN_THREAD") is not False \
+            and _has_sig_in_thread(msg, sig_html, nur_entwurf=kette_geprueft):
         log.info("inject: SKIP_SIG_IN_THREAD — gateway sig already in thread, skipping injection")
         loop_detector.mark_as_signed(msg)
         return msg

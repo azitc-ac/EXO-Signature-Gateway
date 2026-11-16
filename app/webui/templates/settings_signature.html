@@ -61,7 +61,7 @@
              {% if s.SKIP_SIG_IN_THREAD is not false %}checked{% endif %}>
       Signatur-Stacking in Antwort-Ketten verhindern
     </label>
-    <span class="hint">Wenn eine Gateway-Signatur in einer zitierten Vorgänger-Mail erkannt wird, wird keine neue Signatur eingefügt — verhindert Stacking bei Ping-Pong-Threads</span>
+    <span class="hint">Steht die eigene Gateway-Signatur des Absenders schon in einer zitierten Vorgänger-Mail, wird keine zweite eingefügt — verhindert Stacking bei Ping-Pong-Threads. Die Signatur eines Kollegen oder eines anderen Gateways im Zitat zählt nicht</span>
   </div>
 
   <div data-adv="sig" style="display:none">
