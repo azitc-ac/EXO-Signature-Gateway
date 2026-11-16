@@ -44,7 +44,6 @@ import logging
 import threading
 import time
 from email.message import EmailMessage, MIMEPart
-from email.policy import SMTP
 import email
 import email.policy
 import re
@@ -227,7 +226,7 @@ _ALTES_ZITAT = re.compile(r"(?m)^Am .+ schrieb .+:\n> ")
 
 def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text: str,
            anhaenge: list, bezug: dict | None, zitat: dict | None = None) -> EmailMessage:
-    msg = EmailMessage(policy=SMTP)
+    msg = EmailMessage(policy=AUSGABE)
     msg["From"] = von
     if sender:
         msg["Sender"] = sender
@@ -245,13 +244,13 @@ def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text:
         # Aufbau wie Outlook: related[alternative[text, html], Bilder] — keine
         # data:-URIs, die zeigt Outlook nicht. Von Hand: EmailMessage.make_related()
         # wandelt alternative nicht in related um (nur umgekehrt).
-        koerper = MIMEPart(policy=SMTP)
+        koerper = MIMEPart(policy=AUSGABE)
         koerper.set_content(_als_text(text or "", zitat))
         koerper.add_alternative(_als_html(text or "", zitat), subtype="html")
         teile = [koerper]
         for cid, typ, daten in zitat["bilder"]:
             haupt, _, unter = typ.partition("/")
-            bild = MIMEPart(policy=SMTP)
+            bild = MIMEPart(policy=AUSGABE)
             bild.set_content(daten, maintype=haupt, subtype=unter or "octet-stream", cid=f"<{cid}>",
                              disposition="inline")
             teile.append(bild)
@@ -424,7 +423,7 @@ def _zustellen(benutzer: str, postfach: str, recht: str, alle: list, zustellunge
     # Gesendet-Kopie = was hinausging (mit Signatur), dazu Bcc. Hat Exchange
     # selbst eine angelegt (Graph sendMail mit MIME), gilt die lokale als
     # schon zurückgespielt — sonst stünde sie dort zweimal.
-    kopie = email.message_from_bytes(haupt[2], policy=email.policy.SMTP)
+    kopie = email.message_from_bytes(haupt[2], policy=AUSGABE)
     del kopie["Bcc"]
     if bcc_l:
         kopie["Bcc"] = ", ".join(bcc_l)

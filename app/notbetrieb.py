@@ -79,6 +79,7 @@ import httpx
 
 import config
 import graph_client
+import mime_policy
 import secure_io
 import settings_store
 
@@ -1096,7 +1097,7 @@ def _als_graph(mime: bytes, gelesen: bool, empfangen: datetime | None) -> tuple[
     for teil in msg.iter_attachments():
         typ = teil.get_content_type()
         if typ == "message/rfc822":
-            daten = teil.get_payload(0).as_bytes(policy=email.policy.SMTP)
+            daten = teil.get_payload(0).as_bytes(policy=mime_policy.SMTP_REINJECT)
         else:
             daten = teil.get_payload(decode=True) or b""
         name = teil.get_filename() or ("nachricht.eml" if typ == "message/rfc822" else "anhang")
