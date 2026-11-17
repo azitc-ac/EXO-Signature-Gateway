@@ -10,6 +10,13 @@ Genommen werden einzeilige `run: python tools/…` bzw. `run: node tools/…`.
 Mehrzeilige Schritte (pytest, Abhängigkeiten, Drift mit Fremd-Repo) laufen
 hier nicht — pytest gehört in den Container, nicht auf den Entwicklungsrechner.
 
+Ausnahme NUR_GIT: Tests, die allein Git-Historie und JSON lesen. Im Container
+fehlt die Historie — dort scheitern sie immer und gelten als „bekannt“, ein
+echter Befund geht darin unter. Am 17.11.2026 so geschehen: Der Kopien-Stand
+stieg ohne Begründung, lokal unsichtbar, die CI blieb rot, und weil der Test
+JEDES Paar der Historie prüft, half nur das Umschreiben des Commits. Hier
+laufen sie ohne pytest (Funktionen `test_*` direkt aufgerufen).
+
     python3 tools/ci_lokal.py            # alle
     NODE_PATH=…/node_modules python3 tools/ci_lokal.py   # wenn acorn woanders liegt
 """
@@ -29,9 +36,32 @@ def schritte() -> list[str]:
                                                      CI.read_text("utf-8"), re.M)]
 
 
+NUR_GIT = ["tests/test_kopien_stand.py"]
+
+
+def nur_git(pfad: str) -> tuple[bool, str]:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("nur_git_" + Path(pfad).stem, WURZEL / pfad)
+    modul = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(modul)
+        for name in sorted(n for n in dir(modul) if n.startswith("test_")):
+            getattr(modul, name)()
+    except Exception as exc:                                     # noqa: BLE001 — Befund melden, nicht abbrechen
+        return False, f"{type(exc).__name__}: {exc}"
+    return True, ""
+
+
 def main() -> int:
     rot = 0
     liste = schritte()
+    for pfad in NUR_GIT:
+        ok, ausgabe = nur_git(pfad)
+        print(("OK   " if ok else "ROT  ") + pfad)
+        if not ok:
+            rot += 1
+            print("\n".join("     " + z for z in ausgabe.strip().splitlines()[-15:]))
+    liste_alle = len(liste) + len(NUR_GIT)
     for befehl in liste:
         teile = befehl.split()
         if teile[0] == "python":
@@ -45,7 +75,7 @@ def main() -> int:
         if not ok:
             rot += 1
             print("\n".join("     " + z for z in ausgabe.strip().splitlines()[-15:]))
-    print(f"{len(liste) - rot} von {len(liste)} Prüfungen grün")
+    print(f"{liste_alle - rot} von {liste_alle} Prüfungen grün")
     return 1 if rot or not liste else 0
 
 

@@ -61,6 +61,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config
+import probelauf
 
 log = logging.getLogger(__name__)
 
@@ -138,11 +139,9 @@ def beantwortete(msg) -> list[str]:
     return _MID_RE.findall(msg.get("References") or "")[-1:]
 
 
+@probelauf.ohne_wirkung()
 def merken(postfach: str, message_id: str) -> None:
     """Diese Nachricht wurde für dieses Postfach signiert."""
-    import probelauf
-    if probelauf.aktiv():
-        return
     if not postfach or not message_id:
         return
     try:

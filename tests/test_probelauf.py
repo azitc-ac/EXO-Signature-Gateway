@@ -1,7 +1,7 @@
 """Probelauf (Signatur-Vorschau im Webmail): Was der Handler festhält, hält
 ein Probelauf nicht fest.
 
-Die Stellen sind die Eingänge der Module, nicht die Aufrufe im Handler — so
+Die Stellen tragen `@probelauf.ohne_wirkung` am Eingang, nicht die Aufrufe im Handler — so
 deckt eine Prüfung jeden Aufrufer ab. Kommt eine neue festhaltende Stelle
 dazu, gehört sie hier hinein; den Durchlauf durch den echten Handler prüft
 tests/test_notbetrieb_webmail.py (test_vorschau_haelt_nichts_fest).
@@ -30,15 +30,14 @@ FESTHALTENDE = [(stats, "increment"), (mail_audit, "log_event"), (sig_thread, "m
 
 
 @pytest.mark.parametrize("modul,name", FESTHALTENDE, ids=lambda x: getattr(x, "__name__", x))
-def test_stelle_fragt_den_probelauf_zuerst(modul, name):
-    """Die erste Anweisung nach dem Docstring: `if probelauf.aktiv(): return`."""
-    baum = ast.parse(textwrap.dedent(inspect.getsource(getattr(modul, name))))
-    rumpf = baum.body[0].body
-    if isinstance(rumpf[0], ast.Expr) and isinstance(getattr(rumpf[0], "value", None), ast.Constant):
-        rumpf = rumpf[1:]
-    wenn = next(s for s in rumpf if not isinstance(s, ast.Import))
-    assert isinstance(wenn, ast.If) and ast.unparse(wenn.test) == "probelauf.aktiv()", ast.unparse(wenn)[:80]
-    assert isinstance(wenn.body[0], ast.Return)
+def test_stelle_traegt_die_wache(modul, name):
+    """Am Eingang: `@probelauf.ohne_wirkung(…)` — und sie wirkt wirklich
+    (die gerufene Funktion ist die Wache, nicht das Original)."""
+    funktion = getattr(modul, name)
+    baum = ast.parse(textwrap.dedent(inspect.getsource(funktion)))
+    dekoratoren = [ast.unparse(d) for d in baum.body[0].decorator_list]
+    assert any(d.startswith("probelauf.ohne_wirkung(") for d in dekoratoren), dekoratoren
+    assert funktion.__wrapped__ is not None and funktion.__code__ is not funktion.__wrapped__.__code__
 
 
 def test_zaehler_bleibt_im_probelauf_stehen(monkeypatch):

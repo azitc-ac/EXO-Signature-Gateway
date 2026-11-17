@@ -15,7 +15,6 @@ eingesetzt.
 """
 from __future__ import annotations
 
-import base64
 import email
 import email.policy
 import html
@@ -394,13 +393,18 @@ def inhalt_html(postfach: str, graph_id: str, markieren: str = "") -> str | None
     inhalt, bilder = _html_und_bilder(_laden(z["datei"]))
     if inhalt is None:
         return None
-    cids = {cid.lower(): f"data:{typ};base64,{base64.b64encode(daten).decode()}" for cid, typ, daten in bilder}
-    if cids:
-        inhalt = _CID.sub(lambda m: cids.get(m.group(1).lower(), m.group(0)), inhalt)
-    return markieren_html(inhalt, suchwoerter(markieren))
+    return markieren_html(bilder_einbetten(inhalt, bilder), suchwoerter(markieren))
 
 
 _CID = re.compile(r"(?i)cid:([^\"'\s>)]+)")
+
+
+def bilder_einbetten(inhalt: str, bilder: list) -> str:
+    """cid:-Verweise durch data:-URIs ersetzen (INHALT_CSP erlaubt nur data:)
+    für Lesebereich und Signatur-Vorschau — über den gemeinsamen Baustein
+    mail_processor.cid_als_data (auch Portal und Warteschlange)."""
+    import mail_processor
+    return mail_processor.cid_als_data(inhalt, [(cid, typ, daten, cid) for cid, typ, daten in bilder])[0]
 
 
 def _html_und_bilder(msg) -> tuple:

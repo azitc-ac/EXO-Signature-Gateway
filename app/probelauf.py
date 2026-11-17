@@ -8,8 +8,8 @@ Probelauf nicht: Mailprotokoll, Zähler, „von dir signiert“ (sig_thread — 
 bekäme die echte Antwort danach die Antwort-Signatur), zurückgehaltene Post,
 Relay-Statistik.
 
-Jede dieser Stellen fragt `aktiv()` an ihrem EINGANG, nicht der Handler je
-Aufruf — so deckt eine Stelle alle Aufrufer ab. Welche Stellen das sind, prüft
+Jede dieser Stellen trägt `@ohne_wirkung` — die Wache sitzt an ihrem
+EINGANG, nicht im Handler je Aufruf, so deckt eine Stelle alle Aufrufer ab. Welche Stellen das sind, prüft
 tests/test_probelauf.py; den Durchlauf durch den echten Handler
 tests/test_notbetrieb_webmail.py (test_vorschau_haelt_nichts_fest).
 
@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import functools
 
 _aktiv: contextvars.ContextVar[bool] = contextvars.ContextVar("probelauf", default=False)
 
@@ -36,3 +37,16 @@ def an():
         yield
     finally:
         _aktiv.reset(marke)
+
+
+def ohne_wirkung(rueckgabe=None):
+    """Im Probelauf nichts tun und `rueckgabe` liefern — für jede Stelle, die
+    festhält (Protokoll, Zähler, Warteschlange …)."""
+    def dekorieren(funktion):
+        @functools.wraps(funktion)
+        def wache(*args, **kwargs):
+            if _aktiv.get():
+                return rueckgabe
+            return funktion(*args, **kwargs)
+        return wache
+    return dekorieren

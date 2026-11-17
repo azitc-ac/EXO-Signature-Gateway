@@ -39,7 +39,6 @@ Bcc steht nur in der Kopie unter „Gesendet“, nie in der übertragenen Mail.
 from __future__ import annotations
 
 import asyncio
-import base64
 import html
 import logging
 import threading
@@ -343,10 +342,7 @@ async def vorschau(benutzer: str, postfach: str, an: str = "", cc: str = "", bcc
     inhalt = re.sub(re.escape(ZITAT_ANFANG) + r".*?" + re.escape(ZITAT_ENDE),
                     lambda m: f'<div style="{_SCHRIFT};color:#888">[Ursprüngliche Nachricht]</div>',
                     inhalt, count=1, flags=re.S)
-    cids = {cid.lower(): f"data:{typ};base64,{base64.b64encode(daten).decode()}" for cid, typ, daten in bilder}
-    if cids:
-        inhalt = notbetrieb_lesen._CID.sub(lambda m: cids.get(m.group(1).lower(), m.group(0)), inhalt)
-    return {**erg, "zustand": "angehaengt", "html": inhalt}
+    return {**erg, "zustand": "angehaengt", "html": notbetrieb_lesen.bilder_einbetten(inhalt, bilder)}
 
 
 def versand_hindernis(benutzer: str, alle: list) -> tuple:

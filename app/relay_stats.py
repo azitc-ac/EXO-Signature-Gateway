@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import config
+import probelauf
 
 log = logging.getLogger(__name__)
 
@@ -87,14 +88,12 @@ def _heute() -> str:
     return _jetzt().strftime("%Y-%m-%d")
 
 
+@probelauf.ohne_wirkung()
 def merke(ip: str, absender: str = "", empfaenger: list | None = None,
           bytes_: int = 0, identitaet: str = "") -> None:
     """Eine angenommene Relay-Mail verbuchen (Tag/Volumen + Absender-/Empfänger-
     Aggregat, bei Login-Einlieferung zusätzlich je Identität). Best-effort:
     Zählen darf den Mailfluss nie aufhalten."""
-    import probelauf
-    if probelauf.aktiv():
-        return
     ip = (ip or "").strip()
     tag = _heute()
     groesse = max(0, int(bytes_ or 0))
@@ -126,15 +125,13 @@ def merke(ip: str, absender: str = "", empfaenger: list | None = None,
 EREIGNIS_TAGE = 30              # Einzelvorgänge: so lange, wie die Ansicht reicht
 
 
+@probelauf.ohne_wirkung()
 def merke_routing(ziel: str, bytes_: int = 0, ok: bool = True, *,
                   absender: str = "", empfaenger: list | None = None,
                   inhalt: bytes = b"", fehler_text: str = "") -> None:
     """Eine an ein Next-Hop-Ziel (Hybrid) geroutete Transaktion verbuchen —
     Tagessumme UND Einzelvorgang. Best-effort: Zählen darf den Mailfluss nie
     aufhalten."""
-    import probelauf
-    if probelauf.aktiv():
-        return
     import hashlib
     ziel = (ziel or "").strip().lower()[:100]
     if not ziel:
