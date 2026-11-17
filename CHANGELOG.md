@@ -5,6 +5,40 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.57 — 2026-11-17 — Postfachliste: „wirkt in bis zu 3 h“ nach dem Aktivieren
+
+Ein frisch aktiviertes Postfach zeigt in der Postfachliste drei Stunden lang
+die Marke **wirkt in bis zu 3 h** (Tooltip: Exchange übernimmt neue Mitglieder
+der Verteilerliste mit Verzögerung — meist schneller, verlassen kann man sich
+darauf nicht).
+
+Herleitung: Die Mitgliedsliste der Verteilerliste ist nach wenigen Minuten
+aktuell, die Transportregel (`FromMemberOf`) erfasst ein neues Mitglied aber
+erst nach bis zu rund drei Stunden — manchmal deutlich schneller, aber nicht
+verlässlich (gemessen in zwei Tenants; Exchange hält die Auflösung der Gruppe
+zwischengespeichert). In dieser Zeit erreicht die Post des Postfachs das
+Gateway noch nicht, und es wirkte, als sei das Postfach falsch eingerichtet.
+
+Dafür speichert *Postfächer → Speichern* je Postfach den Zeitpunkt der
+Aktivierung (`aktiviert_seit`, UTC) — nur beim Übergang „weder Signatur noch
+S/MIME → eines von beiden an“. Erneutes Speichern behält ihn, Aus- und
+Wiedereinschalten setzt ihn neu. Postfächer, die schon vor dieser Fassung
+aktiv waren, haben keinen Zeitpunkt und bekommen keine Marke.
+
+Die Zeitangabe „5–15 Min.“ in der Meldung nach dem Speichern bezog sich auf
+die Verteilerliste und war für den Regel-Treffer zu kurz; sie lautet jetzt
+„bis zu ~3 Stunden, oft weniger“. Die Angaben zu Änderungen an der
+Transportregel selbst (*Einstellungen → Signatur*) bleiben unverändert.
+
+Dasselbe gilt für Hybrid-Nutzer (v1.12.55): Auch sie kommen über die
+Verteilerliste zur Transportregel, und auch bei ihnen dauert es bis zu drei
+Stunden, bis ihre Post das Gateway erreicht. Die Marke erscheint bei ihnen
+ebenso, neben der Marke **Hybrid** (Tooltip-Hinweise seit v1.12.56).
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.56 — 2026-11-17 — Postfachliste: Hybrid-Hinweis kürzer
 
 Die Zeile unter dem Namen eines Hybrid-Nutzers entfällt. Die gesperrten

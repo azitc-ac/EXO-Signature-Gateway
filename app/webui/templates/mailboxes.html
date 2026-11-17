@@ -4,6 +4,16 @@
 {% block content %}
 <h1>Postfächer</h1>
 
+<style>
+  /* Marke am Postfach (JS setzt data-marke). 'wartet' = frisch aktiviert, die
+     Transportregel greift erst nach bis zu ~3 h. Hier statt in style.css/
+     dark-mode.css: beide sind mit dem SMTP-Relay gespiegelt. */
+  .mb-marke { display:inline-block; font-size:10px; font-weight:600; padding:1px 6px;
+              border-radius:8px; margin-left:5px; vertical-align:middle; cursor:help }
+  .mb-marke[data-marke="wartet"] { background:#e0f2fe; color:#0369a1 }
+  [data-theme="dark"] .mb-marke[data-marke="wartet"] { background:#0a1827; color:#7dd3fc }
+</style>
+
 <!-- Fair-Use-Zähler -->
 <div id="fairuse-counter" style="display:none;margin-bottom:16px">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -1031,6 +1041,7 @@ function renderMailboxTable(mailboxes) {
   // S/MIME, Abwesenheit und Add-in setzen ein EXO-Postfach voraus (Speichern
   // erzwingt S/MIME aus, siehe api_save_mailboxes).
   var HYBRID_HINWEIS = 'Bei Hybrid nicht verfügbar';
+  var REGEL_WARTET_TIPP = 'Exchange übernimmt neue Mitglieder der Verteilerliste mit Verzögerung — meist schneller, verlassen kann man sich darauf nicht';
   mailboxes.forEach(function(mb, i) {
     mb._idx = i;
     var isResource = (mb.type === 'room' || mb.type === 'equipment');
@@ -1046,6 +1057,9 @@ function renderMailboxTable(mailboxes) {
     var tdEmail = document.createElement('td');
     tdEmail.style.padding = '6px 8px';
     var badge = _typeBadge[mb.type] || '';
+    // Frisch aktiviert: Die Transportregel erfasst neue Mitglieder der
+    // Verteilerliste erst nach bis zu ~3 h (Server: regel_wartet).
+    if (mb.regel_wartet) badge += '<span class="mb-marke" data-marke="wartet" title="' + REGEL_WARTET_TIPP + '">wirkt in bis zu 3 h</span>';
     tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' + badge +
       (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '') +
       (isResource ? '<br><span style="color:#94a3b8;font-size:10px">zählt nicht zur Lizenz</span>' : '');
@@ -1347,7 +1361,7 @@ async function saveMailboxes() {
     refreshFairUse();
     wacheFertig('mb-save-btn', true);
     result.className = 'alert';
-    result.innerHTML = 'Lokal gespeichert. Die Verteilerliste wird bei EXO im Hintergrund aktualisiert (5–15 Min.) — du kannst weiterarbeiten.';
+    result.innerHTML = 'Gespeichert. Die Verteilerliste wird im Hintergrund aktualisiert, neu aktivierte Postfächer wirken nach bis zu ~3 h.';
     result.style.display = 'block';
     _pollDgStatus(result);
   } else if (d.ok) {
@@ -1367,7 +1381,8 @@ async function saveMailboxes() {
 // Pollt den Hintergrundlauf der Verteilerlisten-Aktualisierung. Läuft, bis der
 // Server "done" meldet; der Sicherheitsdeckel (~160 s) bricht das Warten ab,
 // ohne es als Fehler zu werten — der Lauf kann serverseitig weiterlaufen, und
-// bis Exchange die Liste überall kennt, vergehen ohnehin 5–15 Min.
+// bis die Transportregel neue Mitglieder erfasst, vergehen ohnehin bis zu
+// ~3 Stunden, oft weniger.
 async function _pollDgStatus(result) {
   for (var i = 0; i < 80; i++) {
     await warten(2000);
