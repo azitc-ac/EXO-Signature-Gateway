@@ -359,7 +359,9 @@ async def nachlauf(flow: str, session_obj: dict, access_token: str) -> dict:
         paket, m = TEAMS_PAKETE[extra.get("app") or "signatur"](extra.get("base", ""))
         res = await graph_client.teams_katalog_aktualisieren(access_token, m["id"], paket)
         if res["ok"]:
+            import teams_katalog
             log.info("Teams-Katalog aktualisiert: Fassung %s", res["version"])
+            teams_katalog.merken(extra.get("app") or "signatur", {"zustand": "ok", "version": res["version"]})
         return {"ok": res["ok"], "msg": res["msg"], "app_id": "", "version": res["version"]}
     if flow == "patch_redirect_uri":
         await setup_wizard.patch_bootstrap_redirect_uri(

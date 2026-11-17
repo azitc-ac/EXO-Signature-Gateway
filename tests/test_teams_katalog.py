@@ -191,3 +191,74 @@ def test_anmeldung_fragt_appcatalog_readwrite_an():
     beim Veröffentlichen, auch als Global Admin. Genau diese eine Berechtigung."""
     import pkce
     assert pkce.TEAMS_KATALOG_SCOPES == ["https://graph.microsoft.com/AppCatalog.ReadWrite.All"]
+
+
+# ── Veraltete Fassung im Katalog als Aufgabe (seit 17.11.2026) ──────────────
+# Stand bis dahin nur auf der jeweiligen Seite; auf exohv blieb die
+# Notfall-App so unbemerkt auf einer älteren Fassung.
+
+import abnahme  # noqa: E402
+import aufgaben  # noqa: E402
+import teams_katalog  # noqa: E402
+
+
+@pytest.fixture
+def werte(monkeypatch):
+    import notbetrieb
+    w = {"ADDIN_ENABLED": True, "TEAMS_APP_AKTIV": True, "TENANT_ID": "t", "CLIENT_ID": "c",
+         "_TEAMS_APP_STAND": {"version": "1.12.0"}, "_TEAMS_NOTFALL_STAND": {"version": "1.11.15"}}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: w.get(k, d))
+    monkeypatch.setattr(settings_store, "force_update", lambda p: w.update(p))
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    aufgaben.vergessen()
+    return w
+
+
+@pytest.mark.parametrize("app,katalog,zustand", [
+    ("signatur", {"zustand": "ok", "version": "1.11.9"}, abnahme.OFFEN),
+    ("signatur", {"zustand": "ok", "version": "1.12.0"}, abnahme.OK),
+    ("signatur", {"zustand": "ok", "version": "1.12.1"}, abnahme.OK),
+    ("signatur", {"zustand": "nicht_gefunden", "version": None}, abnahme.OFFEN),
+    ("signatur", {"zustand": "recht_fehlt", "version": None}, abnahme.UNBEKANNT),
+    ("notfall", {"zustand": "ok", "version": "1.11.9"}, abnahme.OFFEN),
+    ("notfall", {"zustand": "nicht_gefunden", "version": None}, abnahme.ENTFAELLT),   # optional
+    ("notfall", None, abnahme.UNBEKANNT),                                            # nie gelesen
+])
+def test_pruefung_aus_dem_gemerkten_stand(werte, app, katalog, zustand):
+    if katalog:
+        teams_katalog.merken(app, katalog)
+    assert teams_katalog.pruefung(app)["zustand"] == zustand
+
+
+def test_ohne_bereitstellung_entfaellt(werte):
+    werte["TEAMS_APP_AKTIV"] = False
+    teams_katalog.merken("signatur", {"zustand": "ok", "version": "0.1.0"})
+    assert teams_katalog.pruefung("signatur")["zustand"] == abnahme.ENTFAELLT
+
+
+def test_veraltet_wird_aufgabe_und_verschwindet_nach_dem_knopf(werte, monkeypatch):
+    """Der Weg der Beobachtung: Katalog älter als das Paket → Aufgabe; nach
+    „Im Teams-Katalog aktualisieren“ (Nachlauf) ist sie weg — ohne neuen Abruf."""
+    from webui.routen import anmeldung
+    teams_katalog.merken("notfall", {"zustand": "ok", "version": "1.11.9"})
+    offen = {a["kennung"]: a for a in aufgaben.offene()}
+    assert "teams-katalog-notfall" in offen and "1.11.9" in offen["teams-katalog-notfall"]["befund"]
+
+    async def fake(token, externe_id, paket):
+        # Hochgeladen wird das Paket, das der Nachlauf eben gebaut hat — seine Fassung.
+        return {"ok": True, "msg": "", "version": werte["_TEAMS_NOTFALL_STAND"]["version"]}
+    monkeypatch.setattr(graph_client, "teams_katalog_aktualisieren", fake)
+    monkeypatch.setattr(graph_client, "teams_katalog",
+                        lambda *a: (_ for _ in ()).throw(AssertionError("kein Abruf nötig")))
+    asyncio.run(anmeldung.nachlauf("teams_katalog", {"extra": {"base": "https://gw.firma.at", "app": "notfall"}}, "T"))
+    assert "teams-katalog-notfall" not in {a["kennung"] for a in aufgaben.offene()}
+
+
+def test_seitenabruf_merkt_den_stand(werte, monkeypatch):
+    async def fake(externe_id):
+        return {"zustand": "ok", "version": "1.11.9"}
+    monkeypatch.setattr(graph_client, "teams_katalog", fake)
+    s = asyncio.run(teams_katalog.stand("signatur", "https://gw.firma.at"))
+    assert s["katalog"]["aktuell"] is False
+    assert werte["_TEAMS_KATALOG"]["signatur"]["version"] == "1.11.9"
+    assert teams_katalog.pruefung("signatur")["zustand"] == abnahme.OFFEN

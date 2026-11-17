@@ -14,7 +14,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 import domain_routing
-import graph_client
 import gruppen
 import aussenadresse
 import notbetrieb
@@ -44,15 +43,9 @@ async def teams_notfall_stand() -> dict | None:
     basis = aussenadresse.basis()
     if not basis:
         return None
-    from webui.routen.addin import _notfall_teams_manifest, _versionstupel
+    import teams_katalog
     try:
-        m = _notfall_teams_manifest(basis)
-        stand = {"version": m["version"],
-                 "seit": (settings_store.get("_TEAMS_NOTFALL_STAND") or {}).get("seit", ""),
-                 "katalog": await graph_client.teams_katalog(m["id"])}
-        v = stand["katalog"].get("version")
-        stand["katalog"]["aktuell"] = bool(v) and _versionstupel(v) >= _versionstupel(m["version"])
-        return stand
+        return await teams_katalog.stand("notfall", basis)
     except Exception as exc:                                   # noqa: BLE001
         log.warning("Notbetrieb: Teams-App „Notfall-Mail“ nicht ermittelt: %s", exc)
         return None

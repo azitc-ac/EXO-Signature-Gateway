@@ -30,6 +30,8 @@ _RETRY_INTERVAL = 60                   # jede Minute — feinste Exchange-Retry-
                                        # held_mails.next_retry
 _last_mailuser_run: float = 0.0        # monotonic; 0 = never (triggers run on first tick)
 _MAILUSER_INTERVAL = 24 * 60 * 60      # onprem-MailUser-Liste täglich abgleichen (Per-Empfänger-Routing)
+_last_teams_katalog_run: float = 0.0   # monotonic; 0 = beim ersten Takt
+_TEAMS_KATALOG_INTERVAL = 24 * 60 * 60  # Fassung der Teams-Apps im Katalog (Aufgabe „veraltet“)
 _last_probe_run: float = 0.0           # monotonic; 0 = never (triggers run on first tick)
 _PROBE_INTERVAL = 15 * 60              # Direktversand-Probe: Ankunft prüfen (jeder Takt), Senden täglich
 _last_ooo_run: float = 0.0             # monotonic; 0 = never (triggers run on first tick)
@@ -561,6 +563,20 @@ def _retry_held_deliveries() -> None:
         _last_retry_run = time.monotonic()
 
 
+def _teams_katalog() -> None:
+    """Fassung der Teams-Apps im Katalog lesen und merken — die Aufgabe im
+    Sammelpunkt liest nur das Gemerkte (teams_katalog.pruefung)."""
+    global _last_teams_katalog_run
+    try:
+        import asyncio
+        import teams_katalog
+        asyncio.run(teams_katalog.auffrischen())
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("scheduler: Teams-Katalog nicht gelesen: %s", exc)
+    finally:
+        _last_teams_katalog_run = time.monotonic()
+
+
 def _refresh_onprem_mailusers() -> None:
     """Onprem-MailUser-Liste periodisch abgleichen — NUR bei aktivem
     Per-Empfänger-Routing. Läuft im Hauptprozess (settings_store.update ok).
@@ -686,6 +702,8 @@ def _loop() -> None:
                 _retry_held_deliveries()
             if time.monotonic() - _last_mailuser_run > _MAILUSER_INTERVAL:
                 _refresh_onprem_mailusers()
+            if time.monotonic() - _last_teams_katalog_run > _TEAMS_KATALOG_INTERVAL:
+                _teams_katalog()
             if time.monotonic() - _last_ooo_run > _OOO_INTERVAL:
                 _sync_ooo()
             if time.monotonic() - _last_notbetrieb_run > _NOTBETRIEB_INTERVAL:

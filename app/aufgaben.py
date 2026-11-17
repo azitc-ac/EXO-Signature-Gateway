@@ -112,6 +112,12 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     # sonst erst im Ernstfall auf. Kein `seit` — die Aufgabe entsteht aus dem
     # Zustand, nicht aus einem Update.
     Aufgabe("notbetrieb-bereit", "Notbetrieb bereit machen", abnahme._notbetrieb_lokal, "/notbetrieb"),
+    # Teams-Apps: neue Paketfassung, im Katalog noch die alte — stand bis
+    # 17.11.2026 nur auf der jeweiligen Seite. Aus dem Zustand, ohne `seit`.
+    Aufgabe("teams-katalog-signatur", "Teams-App „Signatur & Abwesenheit“ im Katalog aktualisieren",
+            abnahme._teams_katalog_signatur, "/setup#teams-app-schalter"),
+    Aufgabe("teams-katalog-notfall", "Teams-App „Notfall-Mail“ im Katalog aktualisieren",
+            abnahme._teams_katalog_notfall, "/notbetrieb#nb-teams-app"),
     # Direktversand an, aber keine (bestandene) tägliche Probe: ob Post ankommt, weiss niemand.
     Aufgabe("direktversand-probe", "Direktversand-Probe einrichten und bestehen",
             abnahme._direktversand_probe,

@@ -962,6 +962,19 @@ def _notbetrieb_lokal() -> dict:
                   luecken[0].get("zu_tun") or "Notbetrieb → Bereitschaft.")
 
 
+def _teams_katalog_signatur() -> dict:
+    """Self-Service-App im Teams-Katalog so aktuell wie das Paket? Nur der
+    gemerkte Stand (teams_katalog.pruefung), kein Netz."""
+    import teams_katalog
+    return teams_katalog.pruefung("signatur")
+
+
+def _teams_katalog_notfall() -> dict:
+    """Wie _teams_katalog_signatur, für die Teams-App „Notfall-Mail“."""
+    import teams_katalog
+    return teams_katalog.pruefung("notfall")
+
+
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _regel_auto_ausnahme, _implicit_anmeldung,
@@ -970,7 +983,7 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
               _smime_regeln_stand,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,
-              _csp_berichte, _notbetrieb_lokal)
+              _csp_berichte, _notbetrieb_lokal, _teams_katalog_signatur, _teams_katalog_notfall)
 
 
 def bericht() -> dict:
