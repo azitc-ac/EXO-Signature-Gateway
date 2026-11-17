@@ -2204,6 +2204,38 @@ def test_notfall_im_teams_reiter_richtet_im_browser_ein(browser, server, monkeyp
     pg.context.close()
 
 
+def test_notfall_teams_konto_geht_als_anmeldehinweis_mit(browser, server, monkeypatch):
+    """Teams-Reiter → „Im Browser einrichten“ trägt das Teams-Konto mit; die
+    Einrichtung im Browser gibt es an die Microsoft-Anmeldung weiter (dort
+    war sonst ein anderes Konto angemeldet, Klicktest 17.11.2026)."""
+    import json as _json
+    import notbetrieb
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    monkeypatch.setattr(notbetrieb, "ausgerufen", lambda: False)
+    ctx = browser.new_context(viewport={"width": 1100, "height": 900})
+    ctx.add_init_script("""window.microsoftTeams = {app: {
+        initialize: async () => {}, getContext: async () => ({user: {loginHint: 'nb.cloud@firma.at'}}),
+        openLink: async u => { window._geoeffnet = u; }}};""")
+    ctx.route("**/*teams-js*", lambda r: r.abort())
+    ctx.route("**/*MicrosoftTeams*", lambda r: r.abort())
+    ctx.route("**/notfall/api/**", lambda r: r.fulfill(status=401, content_type="application/json",
+                                                        body=_json.dumps({"detail": "x"})))
+    pg = ctx.new_page()
+    pg.goto(f"{server}/notfall?host=teams", wait_until="domcontentloaded", timeout=30000)
+    _zugang_geladen(pg)
+    pg.wait_for_function("() => nb.teamsOk && nb.teamsKonto")
+    pg.click("#ein-anmelden a")
+    pg.wait_for_function("() => window._geoeffnet")
+    ziel = pg.evaluate("window._geoeffnet")
+    assert "/notfall/einrichten" in ziel and "login_hint=nb.cloud%40firma.at" in ziel, ziel
+    # Im Browser angekommen: der Hinweis geht an die Microsoft-Anmeldung.
+    pg.goto(f"{server}/notfall/einrichten?login_hint=nb.cloud%40firma.at", wait_until="domcontentloaded")
+    _zugang_geladen(pg)
+    href = pg.get_attribute("#ein-anmelden a", "href")
+    assert href.startswith("/auth/login/microsoft?") and "login_hint=nb.cloud%40firma.at" in href, href
+    ctx.close()
+
+
 def test_webmail_hat_konto_menue(browser, server, monkeypatch):
     pg = _notfall_seite(browser, server, monkeypatch, 1300)
     assert _sichtbar(pg, "#konto-link")

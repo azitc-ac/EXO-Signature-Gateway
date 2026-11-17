@@ -663,16 +663,21 @@ async def auth_login(request: Request, error: str = "", next: str = "/"):
     )
 
 @router.get("/auth/login/microsoft")
-async def auth_login_microsoft(request: Request, next: str = "/"):
+async def auth_login_microsoft(request: Request, next: str = "/", login_hint: str = ""):
     """Start SSO über den Implicit-id_token-Flow (kein Graph-Token → MFA-Step-up
     erscheint am interaktiven Sign-in; siehe pkce.create_implicit_session).
 
     EIGENER Redirect-Pfad `/auth/id-callback` (Web-Plattform, ID-Token-Erteilung) —
     getrennt vom Code-Flow-Callback `/auth/callback` (publicClient), damit sich beide
-    nicht in die Quere kommen."""
+    nicht in die Quere kommen.
+
+    `login_hint`: vorgeschlagenes Konto — aus dem Teams-Reiter das Teams-Konto,
+    damit im Standardbrowser nicht ein anderes angemeldetes Konto greift
+    (Klicktest 17.11.2026). Nur eine Adresse geht weiter (pkce.login_hint_gueltig)."""
     redirect_uri = _build_redirect_uri(sso=True, path="/auth/id-callback")
     _state, auth_url = pkce_mod.create_implicit_session(redirect_uri,
-                                                        next_url=_sicheres_ziel(next))
+                                                        next_url=_sicheres_ziel(next),
+                                                        login_hint=login_hint[:254])
     return RedirectResponse(auth_url)
 
 @router.get("/api/auth/sso-url")

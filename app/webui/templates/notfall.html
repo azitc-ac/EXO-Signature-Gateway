@@ -512,15 +512,30 @@ const IM_TEAMS = {{ 'true' if im_teams else 'false' }};
 // Teams-Reiter: Links mit data-extern (Einrichten, Konto) gehen über Teams in
 // den Browser — die Microsoft-Anmeldung lässt sich im Reiter nicht einbetten.
 // Antwortet TeamsJS nicht, bleibt es beim gewöhnlichen Link (target=_blank).
+// Das Teams-Konto geht als Anmeldehinweis mit: Im Standardbrowser ist oft ein
+// anderes Konto angemeldet (Klicktest 17.11.2026), Microsoft schlägt sonst das vor.
 if (IM_TEAMS && window.microsoftTeams) {
-  microsoftTeams.app.initialize().then(() => { nb.teamsOk = true; }, () => { nb.teamsOk = false; });
+  microsoftTeams.app.initialize().then(async () => {
+    nb.teamsOk = true;
+    try { const c = await microsoftTeams.app.getContext();
+          nb.teamsKonto = (c.user && (c.user.loginHint || c.user.userPrincipalName)) || ''; }
+    catch (e) { nb.teamsKonto = ''; }
+  }, () => { nb.teamsOk = false; });
 }
 document.addEventListener('click', ev => {
   const a = ev.target.closest ? ev.target.closest('a[data-extern]') : null;
   if (!a || !nb.teamsOk) return;
   ev.preventDefault();
-  microsoftTeams.app.openLink(a.href).catch(() => { location.href = a.href; });
+  const ziel = new URL(a.href, location.href);
+  if (nb.teamsKonto && ziel.pathname === '/notfall/einrichten') ziel.searchParams.set('login_hint', nb.teamsKonto);
+  microsoftTeams.app.openLink(ziel.href).catch(() => { location.href = ziel.href; });
 });
+// Im Browser angekommen (aus Teams): den Hinweis an die Microsoft-Anmeldung weitergeben.
+(function () {
+  const hinweis = new URLSearchParams(location.search).get('login_hint') || '';
+  const a = document.querySelector('#ein-anmelden a[href^="/auth/login/microsoft"]');
+  if (hinweis && a) a.href = a.getAttribute('href') + '&login_hint=' + encodeURIComponent(hinweis);
+})();
 
 // ── Barrierefreiheit an EINER Stelle ───────────────────────────────────────
 // Einträge (Mails, Ordner, Postfächer, Termine, Kontakte, Entwürfe) werden an
