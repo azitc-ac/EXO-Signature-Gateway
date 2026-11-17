@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.58 — 2026-11-17 — Test ohne festes Datum
+
+Der Grenzwerttest der Marke „wirkt in bis zu 3 h“ rechnet jetzt relativ zur
+aktuellen Zeit statt mit einem festen Datum (Prüfung gegen Zeitbomben in
+Tests). Keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.57 — 2026-11-17 — Postfachliste: „wirkt in bis zu 3 h“ nach dem Aktivieren
 
 Ein frisch aktiviertes Postfach zeigt in der Postfachliste drei Stunden lang

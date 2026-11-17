@@ -92,7 +92,7 @@ def test_umschluesseln_auf_guid_ist_kein_uebergang(monkeypatch):
 
 
 def test_regel_wartet_grenzen():
-    jetzt = datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+    jetzt = datetime.now(timezone.utc).replace(microsecond=0)
     def e(delta):
         return {"sig": True, "aktiviert_seit": (jetzt - delta).isoformat()}
     assert mbroute.regel_wartet(e(timedelta(minutes=5)), jetzt) is True
