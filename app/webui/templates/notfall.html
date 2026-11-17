@@ -732,7 +732,16 @@ function bytesB64u(b) {
   new Uint8Array(b).forEach(x => { s += String.fromCharCode(x); });
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-function pkMoeglich() { return !!(window.PublicKeyCredential && navigator.credentials); }
+// Passkeys nur, wenn der Browser sie kann UND der Rahmen sie erlaubt. Ein
+// eingebettetes Fenster ohne allow="publickey-credentials-get|create" lässt
+// navigator.credentials ohne Dialog und ohne Fehler hängen — beobachtet im
+// Teams-Desktop-Reiter (Klicktest 17.11.2026; Ursache dort vermutet, nicht
+// gemessen). `art`: 'get' (Anmelden) oder 'create' (Einrichten).
+function pkMoeglich(art) {
+  if (!(window.PublicKeyCredential && navigator.credentials)) return false;
+  const regel = document.permissionsPolicy || document.featurePolicy;
+  return !(regel && regel.allowsFeature && !regel.allowsFeature('publickey-credentials-' + (art || 'get')));
+}
 function pkOptionen(o) {
   o.challenge = b64uBytes(o.challenge);
   if (o.user) o.user.id = b64uBytes(o.user.id);
@@ -765,8 +774,12 @@ async function passkeyAnmelden() {
     // Abbrechbar: Wer stattdessen einen Code eingibt, soll nicht auf das Ende
     // eines übersehenen Passkey-Dialogs warten (Klicktest: knapp 3 Minuten).
     nb.pkAbbruch = new AbortController();
+    // Kommt kein Passkey-Fenster, sagt das sonst niemand: nach 8 s ein Hinweis
+    // (der Dialog darf weiterlaufen — vielleicht ist er nur verdeckt).
+    const still = setTimeout(() => faktorMeldung('Kein Passkey-Fenster zu sehen? Gib stattdessen den Code ein.'), 8000);
     try { c = await navigator.credentials.get({publicKey: pkOptionen(o.optionen), signal: nb.pkAbbruch.signal}); }
     catch (e) { return {ok: false, still: pkAbgebrochen(e), error: 'Passkey nicht verfügbar: ' + e.message}; }
+    finally { clearTimeout(still); }
     return postJSON('/notfall/anmelden/passkey', {vorgang: nb.vorgang, antwort: pkAntwort(c), rahmen: IM_TEAMS});
   });
   if (d.ok) { document.getElementById('faktor').hidden = true; start().then(kopfhoeheMerken); return; }
@@ -807,12 +820,12 @@ async function einrichtenStart() {
         + '<button data-id="' + escAttr(p.id) + '" onclick="passkeyEntfernen(this, this.dataset.id)">Entfernen</button></div>')
         .join('') + '</div>' : '';
   const pk = document.getElementById('ein-pk'), hinweis = document.getElementById('ein-pk-hinweis');
-  pk.hidden = !pkMoeglich();
+  pk.hidden = !pkMoeglich('create');
   pk.textContent = d.passkeys.length ? 'Weiteren Passkey auf diesem Gerät' : 'Passkey auf diesem Gerät einrichten';
   // Nur die App: Passkey vorschlagen — er ist schneller (kein Code abtippen).
   const nurApp = d.aktiv && d.totp && !d.passkeys.length;
-  hinweis.hidden = pkMoeglich() && !nurApp;
-  hinweis.textContent = !pkMoeglich() ? 'Dieser Browser kann keine Passkeys — nimm die Authenticator-App.'
+  hinweis.hidden = pkMoeglich('create') && !nurApp;
+  hinweis.textContent = !pkMoeglich('create') ? 'Hier gehen keine Passkeys — nimm die Authenticator-App.'
     : 'Tipp: Füge einen Passkey hinzu — die Anmeldung geht damit schneller, ohne Code abzutippen.';
   document.getElementById('ein-beginnen').textContent = d.totp ? 'Neues Telefon für die App' : 'Authenticator-App einrichten';
   document.getElementById('ein-codes').hidden = !d.aktiv || d.gesperrt;

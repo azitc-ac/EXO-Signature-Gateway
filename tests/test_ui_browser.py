@@ -2116,6 +2116,22 @@ def test_notfall_ausprobieren_setzt_die_adresse_des_webmails(browser, server, mo
     pg.context.close()
 
 
+def test_notfall_passkey_nur_wo_der_rahmen_ihn_erlaubt(browser, server, monkeypatch):
+    """Ein Rahmen ohne publickey-credentials-get lässt navigator.credentials
+    hängen (Teams-Desktop-Reiter) — dann bietet die Seite keinen Passkey an."""
+    pg = _notfall_start(browser, server, monkeypatch, faktor=None)
+    assert pg.evaluate("pkMoeglich()") is True
+    for erlaubt, erwartet in (("publickey-credentials-get 'none'; publickey-credentials-create 'none'", False),
+                              ("publickey-credentials-get 'self'; publickey-credentials-create 'self'", True)):
+        pg.evaluate("""([url, allow]) => new Promise(fertig => { const f = document.createElement('iframe');
+            f.setAttribute('allow', allow); f.onload = fertig; f.src = url; document.body.appendChild(f); })""",
+                    [pg.url, erlaubt])
+        rahmen = pg.frames[-1]
+        rahmen.wait_for_function("typeof pkMoeglich === 'function'")
+        assert rahmen.evaluate("[pkMoeglich('get'), pkMoeglich('create')]") == [erwartet, erwartet], erlaubt
+    pg.context.close()
+
+
 def test_notfall_zugang_nur_app_schlaegt_passkey_vor(browser, server, monkeypatch):
     pg = _notfall_start(browser, server, monkeypatch, faktor=_FAKTOR_NUR_APP)
     stand = pg.locator("#ein-zustand")
