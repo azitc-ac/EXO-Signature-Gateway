@@ -30,6 +30,14 @@ schnitt und wieder einsetzte, schrieb danach wörtlich „<Message/>“ in die
 Abwesenheitsnotiz. `tests/test_ews_onprem.py` prüft Sonderzeichen und den
 Rundlauf lesen → setzen → lesen.
 
+KALENDER (seit v1.12.61): `kalender_lesen` liest per FindItem/CalendarView die
+Termine für Kalender-Automatik und Ankündigung; `kalender_als_graph` übersetzt
+sie in die Graph-`calendarView`-Form — die Auswertung bleibt in abwesenheit.
+
+EIGENE CA (`EWS_ONPREM_CA`, seit v1.12.61): PEM einer internen CA, ZUSÄTZLICH
+zu certifi (`_tls_kontext`). Ohne Eintrag bleibt die Sitzung, wie requests sie
+anlegt. Prüfung beim Speichern: `ca_pruefen`.
+
 Diese Aufrufe sind blockierend (requests). Aufrufer im Event-Loop nutzen
 `asyncio.to_thread`. Nie im SMTP-Pfad aufrufen.
 """
@@ -50,6 +58,11 @@ KEY_URL = "EWS_ONPREM_URL"
 KEY_KONTO = "EWS_ONPREM_KONTO"
 KEY_KENNWORT = "EWS_ONPREM_KENNWORT"
 KEY_VERBINDEN = "EWS_ONPREM_VERBINDEN"
+KEY_CA = "EWS_ONPREM_CA"
+
+# Eigene CA: Obergrenzen gegen versehentlich eingefügte Riesendateien.
+CA_MAX_ZEICHEN = 200_000
+CA_MAX_ANZAHL = 50
 
 ZEITLIMIT_S = 20
 SERVER_VERSION = "Exchange2016"     # kleinster gemeinsamer Nenner für 2016/2019/SE
@@ -130,6 +143,61 @@ def verbinden_pruefen(adresse: str) -> str:
     return ""
 
 
+def ca_pruefen(text: str, jetzt: datetime | None = None) -> tuple[str, str]:
+    """Eigenes CA-Zertifikat (PEM, eines oder mehrere) prüfen.
+
+    (normalisiertes PEM, Fehlertext). Leer → ("", ""). Zurück kommen nur die
+    Zertifikate selbst, neu kodiert — Begleittext (etwa „Bag Attributes“ aus
+    openssl) fällt weg. Zugelassen ist, was OpenSSL als Vertrauensanker nimmt:
+    ein CA-Zertifikat (BasicConstraints CA) oder ein selbstsigniertes Zertifikat
+    (etwa das Standardzertifikat einer frisch installierten Exchange). Ein
+    Serverzertifikat, das eine CA ausgestellt hat, hilft als Anker nicht — dafür
+    nennt die Meldung die ausstellende CA. Abgelaufene Zertifikate scheitern bei
+    der Prüfung ohnehin und werden gleich hier abgelehnt."""
+    from cryptography import x509
+    roh = (text or "").strip()
+    if not roh:
+        return "", ""
+    if len(roh) > CA_MAX_ZEICHEN:
+        return "", "Das CA-Zertifikat ist zu groß — bitte nur die Zertifikate der CA eintragen"
+    if "PRIVATE KEY" in roh:
+        return "", ("Das ist ein privater Schlüssel. Hier gehört nur das öffentliche Zertifikat "
+                    "der CA hinein (-----BEGIN CERTIFICATE-----)")
+    if "-----BEGIN CERTIFICATE-----" not in roh:
+        return "", ("Kein PEM-Zertifikat erkannt — erwartet wird Text ab "
+                    "-----BEGIN CERTIFICATE----- (Base64, nicht DER)")
+    try:
+        zerts = x509.load_pem_x509_certificates(roh.encode("utf-8", "replace"))
+    except ValueError:
+        return "", "Das CA-Zertifikat ist nicht lesbar (PEM beschädigt oder unvollständig)"
+    if len(zerts) > CA_MAX_ANZAHL:
+        return "", f"Höchstens {CA_MAX_ANZAHL} Zertifikate"
+    jetzt = jetzt or datetime.now(timezone.utc)
+    from cryptography.hazmat.primitives.serialization import Encoding
+    teile = []
+    for z in zerts:
+        name = z.subject.rfc4514_string() or "(ohne Namen)"
+        if z.not_valid_after_utc < jetzt:
+            return "", f"Zertifikat {name} ist am {z.not_valid_after_utc:%d.%m.%Y} abgelaufen"
+        if z.not_valid_before_utc > jetzt:
+            return "", f"Zertifikat {name} gilt erst ab {z.not_valid_before_utc:%d.%m.%Y}"
+        try:
+            ca = z.extensions.get_extension_for_class(x509.BasicConstraints).value.ca
+        except x509.ExtensionNotFound:
+            ca = False
+        if not ca and z.issuer != z.subject:
+            return "", (f"{name} ist kein CA-Zertifikat, sondern ein von "
+                        f"{z.issuer.rfc4514_string()} ausgestelltes Zertifikat — trage das "
+                        "Zertifikat dieser CA ein")
+        teile.append(z.public_bytes(Encoding.PEM).decode("ascii"))
+    return "".join(teile), ""
+
+
+def ca_hinterlegt() -> int:
+    """Wie viele eigene CA-Zertifikate sind hinterlegt (0 = nur certifi)?"""
+    return _wert(KEY_CA).count("-----BEGIN CERTIFICATE-----")
+
+
 # ── XML bauen ─────────────────────────────────────────────────────────────────
 
 def _t(name: str) -> str:
@@ -196,6 +264,26 @@ def anfrage_oof_setzen(ziel: str, state: str, extern_publikum: str, intern: str,
     return _umschlag(ziel, req)
 
 
+def anfrage_kalender(ziel: str, von: datetime, bis: datetime) -> bytes:
+    """FindItem mit CalendarView auf den Kalender von `ziel` — Serientermine kommen
+    als einzelne Vorkommen, wie bei Graph `calendarView`. Nur die Felder, die die
+    Abwesenheit braucht (wie `$select` beim Graph-Weg): kein Betreff, kein Text.
+    Kein MaxEntriesReturned: Bei Überschreitung bräche EWS die ganze Abfrage ab."""
+    req = ET.Element(_m("FindItem"), {"Traversal": "Shallow"})
+    form = ET.SubElement(req, _m("ItemShape"))
+    ET.SubElement(form, _t("BaseShape")).text = "IdOnly"
+    felder = ET.SubElement(form, _t("AdditionalProperties"))
+    for f in ("calendar:Start", "calendar:End", "calendar:LegacyFreeBusyStatus",
+              "calendar:IsAllDayEvent", "item:Sensitivity"):
+        ET.SubElement(felder, _t("FieldURI"), {"FieldURI": f})
+    ET.SubElement(req, _m("CalendarView"), {"StartDate": _zeit_ews(von.isoformat()),
+                                             "EndDate": _zeit_ews(bis.isoformat())})
+    ordner = ET.SubElement(ET.SubElement(req, _m("ParentFolderIds")), _t("DistinguishedFolderId"),
+                           {"Id": "calendar"})
+    ET.SubElement(ET.SubElement(ordner, _t("Mailbox")), _t("EmailAddress")).text = ziel
+    return _umschlag(ziel, req)
+
+
 # ── XML lesen ─────────────────────────────────────────────────────────────────
 
 def _parse(roh: bytes | str) -> ET.Element:
@@ -248,7 +336,10 @@ def antwort_pruefen(status: int, roh: bytes | str) -> ET.Element:
         raise fault
     if status != 200:
         raise EwsFehler("http", f"Exchange antwortet HTTP {status}")
-    rm = root.find(f".//{{{NS_M}}}ResponseMessage")
+    # GetUserOofSettings antwortet mit <ResponseMessage>, FindItem & Co. mit
+    # <FindItemResponseMessage> (in <ResponseMessages>) — das erste davon zählt.
+    rm = next((el for el in root.iter() if el.tag.startswith(f"{{{NS_M}}}")
+               and el.tag.endswith("ResponseMessage")), None)
     if rm is None:
         raise EwsFehler("antwort", "Antwort ohne ResponseMessage")
     code = _text(rm.find(_m("ResponseCode"))).strip()
@@ -271,6 +362,24 @@ def oof_aus_antwort(root: ET.Element) -> dict:
         "start": _text(s.find(f"{_t('Duration')}/{_t('StartTime')}")).strip(),
         "ende": _text(s.find(f"{_t('Duration')}/{_t('EndTime')}")).strip(),
     }
+
+
+def kalender_aus_antwort(root: ET.Element) -> list[dict]:
+    """FindItemResponse → [{start, ende, frei_belegt, ganztaegig, vertraulichkeit}]
+    (EWS-Werte, Zeiten wie geliefert — EWS antwortet in UTC)."""
+    ergebnis = root.find(f".//{_m('RootFolder')}")
+    if ergebnis is None:
+        raise EwsFehler("antwort", "Antwort ohne RootFolder")
+    out = []
+    for el in ergebnis.iter(_t("CalendarItem")):
+        out.append({
+            "start": _text(el.find(_t("Start"))).strip(),
+            "ende": _text(el.find(_t("End"))).strip(),
+            "frei_belegt": _text(el.find(_t("LegacyFreeBusyStatus"))).strip(),
+            "ganztaegig": _text(el.find(_t("IsAllDayEvent"))).strip().lower() == "true",
+            "vertraulichkeit": _text(el.find(_t("Sensitivity"))).strip(),
+        })
+    return out
 
 
 # ── Übersetzung in die Graph-Form (automaticRepliesSetting) ───────────────────
@@ -301,6 +410,57 @@ def als_graph(oof: dict) -> dict:
     if e:
         g["scheduledEndDateTime"] = e
     return g
+
+
+# EWS LegacyFreeBusyStatus / Sensitivity → Graph showAs / sensitivity
+FREI_BELEGT_ZU_GRAPH = {"Free": "free", "Tentative": "tentative", "Busy": "busy", "OOF": "oof",
+                        "WorkingElsewhere": "workingElsewhere", "NoData": "unknown"}
+VERTRAULICHKEIT_ZU_GRAPH = {"Normal": "normal", "Personal": "personal", "Private": "private",
+                            "Confidential": "confidential"}
+
+
+def _ganztag_graph(wert: str, zone) -> dict | None:
+    """Grenze eines GANZTÄGIGEN EWS-Termins → Graph-Form.
+
+    EWS liefert die Mitternacht der Termin-Zeitzone als UTC-Zeitpunkt (Berlin:
+    „…T23:00:00Z“ am Vortag). Graph liefert ganztägige Termine dagegen als
+    „00:00“ des Kalendertags in der angefragten Zone — die Abwesenheit fragt UTC
+    an und rechnet danach selbst auf die lokale Mitternacht um
+    (`abwesenheit._ganztaegig_utc`). Gebraucht wird also nur der Kalendertag:
+    in `zone` (Anzeige-Zeitzone) umgerechnet und auf die nächste Mitternacht
+    gerundet — so stimmt der Tag auch, wenn die Termin-Zone eine andere ist
+    (bis ±12 h Versatz)."""
+    from datetime import timedelta
+    if not wert:
+        return None
+    try:
+        d = datetime.fromisoformat(wert.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=timezone.utc)
+    lokal = d.astimezone(zone)
+    tag = lokal.date() + (timedelta(days=1) if lokal.hour >= 12 else timedelta(0))
+    return {"dateTime": f"{tag:%Y-%m-%d}T00:00:00.0000000", "timeZone": "UTC"}
+
+
+def kalender_als_graph(termine: list[dict], zone=timezone.utc) -> list[dict]:
+    """EWS-Termine → Graph-`calendarView`-Einträge mit genau den Feldern, die
+    der Graph-Weg anfragt (start, end, showAs, sensitivity, isAllDay), Zeiten in
+    UTC wie unter `Prefer: outlook.timezone="UTC"`. Die Auswertung (Status
+    „Abwesend“, Mindestdauer, privat) bleibt damit EINE — in abwesenheit."""
+    out = []
+    for t in termine:
+        ganz = bool(t.get("ganztaegig"))
+        wandeln = (lambda w: _ganztag_graph(w, zone)) if ganz else _graph_zeit
+        out.append({
+            "start": wandeln(t.get("start") or ""),
+            "end": wandeln(t.get("ende") or ""),
+            "showAs": FREI_BELEGT_ZU_GRAPH.get(t.get("frei_belegt") or "", "unknown"),
+            "sensitivity": VERTRAULICHKEIT_ZU_GRAPH.get(t.get("vertraulichkeit") or "", "normal"),
+            "isAllDay": ganz,
+        })
+    return out
 
 
 def _iso_aus_graph(wert: dict | None) -> str:
@@ -340,43 +500,84 @@ def aus_graph(setting: dict, aenderung: dict) -> dict:
 
 # ── Netz ──────────────────────────────────────────────────────────────────────
 
-def _sitzung_und_url():
-    """(requests.Session, URL). Lazy: requests_ntlm wird erst hier geladen.
+def _tls_kontext(ca_pem: str):
+    """TLS-Kontext: certifi-Bündel PLUS die eigene CA — ergänzt, ersetzt nicht
+    (sonst brächen öffentliche Zertifikate). Gebaut wie urllib3 es ohne eigenen
+    Kontext täte (`create_urllib3_context`), damit nichts strenger oder lockerer
+    wird als der Weg ohne eigene CA. Prüfung und Hostnamen bleiben an; urllib3
+    prüft den Hostnamen bei eigenem Kontext selbst (`assert_hostname`)."""
+    import ssl
 
-    `EWS_ONPREM_VERBINDEN` (Split-DNS): Die Verbindung geht an diese IP, SNI und
-    Zertifikatsprüfung bleiben beim Hostnamen der URL. Kein globales Umbiegen
-    der Namensauflösung — nur diese Sitzung ist betroffen. TLS-Prüfung ist
-    immer an."""
+    import certifi
+    from urllib3.util.ssl_ import create_urllib3_context
+    ctx = create_urllib3_context(cert_reqs=ssl.CERT_REQUIRED)
+    ctx.load_verify_locations(cafile=certifi.where())
+    ctx.load_verify_locations(cadata=ca_pem)
+    return ctx
+
+
+def _tls_sitzung(url: str, ip: str = "", ca_pem: str = ""):
+    """(requests.Session ohne Anmeldung, Ziel-URL) — TLS-Teil der Sitzung.
+
+    `ip` (Split-DNS, `EWS_ONPREM_VERBINDEN`): Die Verbindung geht an diese IP,
+    SNI und Zertifikatsprüfung bleiben beim Hostnamen der URL. Kein globales
+    Umbiegen der Namensauflösung — nur diese Sitzung ist betroffen.
+    `ca_pem` (`EWS_ONPREM_CA`): eigene CA zusätzlich zu certifi.
+    Ohne beides bleibt die Sitzung exakt wie requests sie anlegt. TLS-Prüfung
+    ist immer an."""
     import requests
     from requests.adapters import HTTPAdapter
+
+    sitzung = requests.Session()
+    sitzung.trust_env = False      # kein Proxy aus der Umgebung vor die lokale Exchange
+    teile = urlsplit(url)
+    host = teile.hostname or ""
+    if not ip and not ca_pem:
+        return sitzung, url
+
+    class _EwsAdapter(HTTPAdapter):
+        def init_poolmanager(self, *a, **kw):
+            if ip:
+                kw["server_hostname"] = host
+                kw["assert_hostname"] = host
+            if ca_pem:
+                kw["ssl_context"] = _tls_kontext(ca_pem)
+            super().init_poolmanager(*a, **kw)
+
+    if ip:
+        ip_teil = f"[{ip}]" if ":" in ip else ip
+        netloc = ip_teil + (f":{teile.port}" if teile.port else "")
+        url = urlunsplit((teile.scheme, netloc, teile.path, teile.query, ""))
+        sitzung.headers["Host"] = host + (f":{teile.port}" if teile.port else "")
+    sitzung.mount("https://", _EwsAdapter())
+    return sitzung, url
+
+
+def _sitzung_und_url():
+    """(requests.Session, URL) mit NTLM. Lazy: requests_ntlm wird erst hier geladen."""
     from requests_ntlm import HttpNtlmAuth
 
     url = _wert(KEY_URL)
     fehler = url_pruefen(url)
     if fehler:
         raise EwsFehler("konfiguration", fehler)
-    sitzung = requests.Session()
-    sitzung.auth = HttpNtlmAuth(_wert(KEY_KONTO), _wert(KEY_KENNWORT))
-    sitzung.trust_env = False      # kein Proxy aus der Umgebung vor die lokale Exchange
     ip = _wert(KEY_VERBINDEN)
-    if ip:
-        if verbinden_pruefen(ip):
-            raise EwsFehler("konfiguration", verbinden_pruefen(ip))
-        teile = urlsplit(url)
-        host = teile.hostname or ""
-
-        class _FesteAdresse(HTTPAdapter):
-            def init_poolmanager(self, *a, **kw):
-                kw["server_hostname"] = host
-                kw["assert_hostname"] = host
-                super().init_poolmanager(*a, **kw)
-
-        ip_teil = f"[{ip}]" if ":" in ip else ip
-        netloc = ip_teil + (f":{teile.port}" if teile.port else "")
-        url = urlunsplit((teile.scheme, netloc, teile.path, teile.query, ""))
-        sitzung.mount("https://", _FesteAdresse())
-        sitzung.headers["Host"] = host + (f":{teile.port}" if teile.port else "")
+    if ip and verbinden_pruefen(ip):
+        raise EwsFehler("konfiguration", verbinden_pruefen(ip))
+    sitzung, url = _tls_sitzung(url, ip, _wert(KEY_CA))
+    sitzung.auth = HttpNtlmAuth(_wert(KEY_KONTO), _wert(KEY_KENNWORT))
     return sitzung, url
+
+
+def _tls_hinweis() -> str:
+    """Zusatz zur TLS-Fehlermeldung: Ist eine eigene CA hinterlegt?"""
+    n = ca_hinterlegt()
+    if n:
+        return (f" Eigenes CA-Zertifikat hinterlegt ({n}) — passt es zur CA, die das "
+                "Exchange-Zertifikat ausgestellt hat, und lautet das Zertifikat auf den "
+                "Hostnamen der EWS-Adresse?")
+    return (" Kein eigenes CA-Zertifikat hinterlegt — stammt das Exchange-Zertifikat von "
+            "einer internen CA, trage deren Zertifikat unter „Eigene CA“ ein.")
 
 
 def _senden(ziel: str, umschlag: bytes) -> tuple[int, bytes]:
@@ -390,7 +591,8 @@ def _senden(ziel: str, umschlag: bytes) -> tuple[int, bytes]:
         return r.status_code, r.content
     except requests.exceptions.SSLError as exc:
         raise EwsFehler("tls", "TLS-Prüfung fehlgeschlagen — Zertifikat passt nicht zum "
-                               f"Hostnamen oder ist nicht vertrauenswürdig ({_kurz(exc)})") from None
+                               f"Hostnamen oder ist nicht vertrauenswürdig ({_kurz(exc)})."
+                        + _tls_hinweis()) from None
     except requests.exceptions.Timeout:
         raise EwsFehler("zeitlimit", f"Keine Antwort binnen {ZEITLIMIT_S} s") from None
     except requests.exceptions.ConnectionError as exc:
@@ -446,6 +648,16 @@ def oof_setzen(adresse: str, state: str, extern_publikum: str, intern: str, exte
     _aufruf(ziel, f"SetUserOofSettings ({state})",
             anfrage_oof_setzen(ziel, state, extern_publikum, intern, extern, start, ende))
     return oof_lesen(ziel)
+
+
+def kalender_lesen(adresse: str, von: datetime, bis: datetime) -> list[dict]:
+    """Termine im Zeitraum (EWS-Form, siehe kalender_aus_antwort) — EwsFehler bei
+    Fehlern. Nur lesend."""
+    if not konfiguriert():
+        raise EwsFehler("konfiguration", "Anbindung an Exchange lokal ist nicht eingerichtet")
+    ziel = _ziel(adresse)
+    return kalender_aus_antwort(_aufruf(ziel, "FindItem (Kalender)",
+                                        anfrage_kalender(ziel, von, bis)))
 
 
 def verbindung_testen(adresse: str) -> dict:
