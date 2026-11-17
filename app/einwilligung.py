@@ -197,7 +197,19 @@ def verlangen(email: str) -> None:
     erst die Zustimmung, dann die Bestellung. Wirft
     `acme_state.EinwilligungFehlt` — alle Aufrufer (Einzelbestellung,
     Sammellauf, Verlängerung) fangen sie und fragen den Inhaber an.
+
+    Davor (seit v1.12.62): Kann das Gateway das Postfach überhaupt lesen? Ein
+    Hybrid-Nutzer ohne Anbindung an Exchange lokal hat kein Postfach, das
+    Graph erreicht — die Bestellung entstünde (und kostete), die Mail der CA
+    bliebe ungelesen. Dann `acme_state.EnrollmentNotAllowed` mit dem Grund
+    (`ews_onprem.bezug_sperre`) — eine Einwilligung des Inhabers änderte daran
+    nichts, deshalb NICHT EinwilligungFehlt.
     """
+    import ews_onprem
+    sperre = ews_onprem.bezug_sperre(email)
+    if sperre:
+        import acme_state
+        raise acme_state.EnrollmentNotAllowed(sperre)
     if not liegt_vor(email):
         import acme_state
         raise acme_state.EinwilligungFehlt(

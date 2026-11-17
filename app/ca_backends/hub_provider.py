@@ -39,6 +39,9 @@ class HubProviderBackend(CABackend):
     def can_auto_renew(self) -> bool:
         return True
 
+    def liest_postfach(self) -> bool:
+        return True      # Bestätigungsmail der CA lesen und bestätigen (hub_orders)
+
     def is_ready(self) -> bool:
         import hub_client
         return bool(self._p.get("available")) and hub_client.cert_is_registered()

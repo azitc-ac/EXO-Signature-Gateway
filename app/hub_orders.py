@@ -238,13 +238,20 @@ _CA_ABSENDER = ("certum.pl", "certum.eu", "swisssign", "sectigo", "digicert")
 _MAIL_VORLAUF_MIN = 15
 
 
+def _ab(seit: str) -> datetime | None:
+    """Frühester Empfangszeitpunkt (mit Vorlauf) — None ohne/mit unlesbarem `seit`."""
+    if not seit:
+        return None
+    try:
+        return datetime.fromisoformat(seit) - timedelta(minutes=_MAIL_VORLAUF_MIN)
+    except Exception:
+        return None
+
+
 def _zeitfilter(seit: str) -> str:
     """Graph-Filter auf den Empfangszeitpunkt — mit Vorlauf, oder leer."""
-    if not seit:
-        return ""
-    try:
-        ab = datetime.fromisoformat(seit) - timedelta(minutes=_MAIL_VORLAUF_MIN)
-    except Exception:
+    ab = _ab(seit)
+    if ab is None:
         return ""
     return "&$filter=receivedDateTime ge " + ab.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -277,30 +284,24 @@ async def bestaetigungslink(email: str, ref: str, seit: str = "") -> str:
     import einwilligung
     if not einwilligung.liegt_vor(email):
         return ""
-    import httpx as _httpx
-    import graph_client
 
     ref = (ref or "").strip()
     if not ref:
         return ""
-    token = await graph_client._acquire_token_async()
-    if not token:
+    # Hybrid-Nutzer (Postfach in der lokalen Organisation): über EWS, mit
+    # Anbindung — sonst gar nicht (Graph erreicht das Postfach nicht). EINE
+    # Weiche für alle Postfach-Lesezugriffe: ews_onprem.postfach_weg.
+    import ews_onprem
+    weg = ews_onprem.postfach_weg(email)
+    if weg == ews_onprem.WEG_GESPERRT:
+        log.info("hub_orders: Postfach %s liegt in der lokalen Organisation, Anbindung an "
+                 "Exchange lokal fehlt — Bestätigungsmail nicht lesbar", email)
         return ""
-
-    zeitfilter = _zeitfilter(seit)
-    url = (f"https://graph.microsoft.com/v1.0/users/{email}"
-           f"/mailFolders/inbox/messages"
-           f"?$select=subject,from,body&$top=25"
-           f"&$orderby=receivedDateTime desc{zeitfilter}")
-    try:
-        async with _httpx.AsyncClient(timeout=20) as c:
-            r = await c.get(url, headers={"Authorization": f"Bearer {token}"})
-        if r.status_code != 200:
-            log.warning("hub_orders: Postfach %s nicht lesbar (HTTP %s)", email, r.status_code)
-            return ""
-        nachrichten = r.json().get("value", [])
-    except Exception as exc:
-        log.warning("hub_orders: Postfach %s nicht lesbar: %s", email, exc)
+    if weg == ews_onprem.WEG_EWS:
+        nachrichten = await _posteingang_ews(email, ref, seit)
+    else:
+        nachrichten = await _posteingang_graph(email, seit)
+    if nachrichten is None:
         return ""
 
     import html as _html
@@ -319,6 +320,48 @@ async def bestaetigungslink(email: str, ref: str, seit: str = "") -> str:
         if treffer:
             return treffer[0]
     return ""
+
+
+async def _posteingang_graph(email: str, seit: str) -> list | None:
+    """Jüngste 25 Mails per Graph (Betreff, Absender, Text) — None bei Fehler."""
+    import httpx as _httpx
+    import graph_client
+    token = await graph_client._acquire_token_async()
+    if not token:
+        return None
+
+    zeitfilter = _zeitfilter(seit)
+    url = (f"https://graph.microsoft.com/v1.0/users/{email}"
+           f"/mailFolders/inbox/messages"
+           f"?$select=subject,from,body&$top=25"
+           f"&$orderby=receivedDateTime desc{zeitfilter}")
+    try:
+        async with _httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(url, headers={"Authorization": f"Bearer {token}"})
+        if r.status_code != 200:
+            log.warning("hub_orders: Postfach %s nicht lesbar (HTTP %s)", email, r.status_code)
+            return None
+        return r.json().get("value", [])
+    except Exception as exc:
+        log.warning("hub_orders: Postfach %s nicht lesbar: %s", email, exc)
+        return None
+
+
+async def _posteingang_ews(email: str, ref: str, seit: str) -> list | None:
+    """Dieselben Mails per EWS (Hybrid-Nutzer), in der Form des Graph-Abrufs.
+    Der Server filtert zusätzlich auf die Referenz im Betreff — geprüft wird
+    sie danach wie beim Graph-Weg. None bei Fehler (ews_onprem protokolliert
+    den Ausgang)."""
+    import ews_onprem
+    try:
+        return await asyncio.to_thread(ews_onprem.posteingang_als_graph, email,
+                                       _ab(seit), ref, 25)
+    except ews_onprem.EwsFehler as exc:
+        log.warning("hub_orders: Postfach %s (Exchange lokal) nicht lesbar: %s", email, exc.detail)
+        return None
+    except Exception as exc:                                       # noqa: BLE001
+        log.warning("hub_orders: Postfach %s (Exchange lokal) nicht lesbar: %s", email, exc)
+        return None
 
 
 async def bestaetigungen_nachholen() -> int:

@@ -28,6 +28,13 @@ class CABackend(ABC):
         """Short hint shown in the UI when is_ready() is False."""
         return ""
 
+    def liest_postfach(self) -> bool:
+        """Liest das Gateway für diesen Bezugsweg das Postfach (Mail der CA) und
+        handelt im Namen des Inhabers? Dann gilt `einwilligung.verlangen` —
+        und für Hybrid-Nutzer ohne Anbindung an Exchange lokal die Sperre
+        `ews_onprem.bezug_sperre` (Oberfläche: Knopf gesperrt, mit Grund)."""
+        return False
+
     @abstractmethod
     def get_portal_url(self, email: str, user_config: dict) -> str:
         """Return the CA portal URL for manual renewal steps."""

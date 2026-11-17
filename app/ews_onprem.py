@@ -4,9 +4,18 @@ WOFÜR
 -----
 Hybrid-Nutzer (MAILBOX_CONFIG-Eintrag mit `hybrid: True`, siehe exo_mailboxes)
 haben ihr Postfach in der lokalen Organisation. Graph erreicht es nicht. Für
-die Abwesenheit spricht das Gateway deshalb mit der lokalen Exchange per EWS —
-und NUR für diese Postfächer. Die Weiche dafür steht an EINER Stelle:
-`abwesenheit._ueber_ews()`. Ein EXO-Postfach geht nie hierher.
+die Abwesenheit und den S/MIME-Zertifikatsbezug (Mail der CA lesen) spricht
+das Gateway deshalb mit der lokalen Exchange per EWS — und NUR für diese
+Postfächer. Die Weiche dafür steht an EINER Stelle: `zustaendig()` (genutzt von
+`abwesenheit._ueber_ews()` und `postfach_weg()`). Ein EXO-Postfach geht nie
+hierher.
+
+POSTEINGANG (seit v1.12.62): `posteingang_lesen` = FindItem (Kennungen, jüngste
+zuerst, Zeit- und Betreff-Filter am Server) + EIN GetItem (Betreff, Absender,
+Message-ID, Text). `posteingang_als_graph` liefert die Form des Graph-Abrufs
+`mailFolders/inbox/messages`; die Auswertung bleibt bei den Aufrufern
+(acme_state, hub_orders). Gesendet wird über EWS nichts — Antworten eines
+Hybrid-Nutzers gehen wie seine übrige Post über den Smarthost (reinject).
 
 OHNE KONFIGURATION
 ------------------
@@ -284,6 +293,84 @@ def anfrage_kalender(ziel: str, von: datetime, bis: datetime) -> bytes:
     return _umschlag(ziel, req)
 
 
+POSTEINGANG_MAX = 50        # wie der größte Graph-Abruf ($top=50, acme_state)
+
+
+def _feld(eltern: ET.Element, uri: str) -> None:
+    ET.SubElement(eltern, _t("FieldURI"), {"FieldURI": uri})
+
+
+def _vergleich(art: str, uri: str, wert: str, **attribute) -> ET.Element:
+    el = ET.Element(_t(art), attribute)
+    _feld(el, uri)
+    if art == "Contains":
+        ET.SubElement(el, _t("Constant"), {"Value": wert})
+    else:
+        ET.SubElement(ET.SubElement(el, _t("FieldURIOrConstant")), _t("Constant"), {"Value": wert})
+    return el
+
+
+def anfrage_posteingang_suchen(ziel: str, ab: datetime | None = None,
+                               betreff_enthaelt: str = "", anzahl: int = 25) -> bytes:
+    """FindItem im Posteingang von `ziel`: nur Kennungen, jüngste zuerst.
+
+    Entspricht dem Graph-Abruf `mailFolders/inbox/messages?$orderby=
+    receivedDateTime desc&$top=…&$filter=receivedDateTime ge …`. Zusätzlich
+    filtert der Server auf einen Betreff-Teil (ohne Rücksicht auf Groß-/
+    Kleinschreibung) — die Aufrufer prüfen den Betreff danach selbst noch
+    einmal; der Filter spart nur, unbeteiligte Mails abzuholen. Die Werte gehen
+    als Attribut über xml.etree hinein, nie per Zeichenkettenverkettung."""
+    anzahl = max(1, min(int(anzahl), POSTEINGANG_MAX))
+    req = ET.Element(_m("FindItem"), {"Traversal": "Shallow"})
+    ET.SubElement(ET.SubElement(req, _m("ItemShape")), _t("BaseShape")).text = "IdOnly"
+    ET.SubElement(req, _m("IndexedPageItemView"), {"MaxEntriesReturned": str(anzahl),
+                                                   "Offset": "0", "BasePoint": "Beginning"})
+    bedingungen = []
+    if ab is not None:
+        bedingungen.append(_vergleich("IsGreaterThanOrEqualTo", "item:DateTimeReceived",
+                                      _zeit_ews(ab.isoformat())))
+    if betreff_enthaelt:
+        bedingungen.append(_vergleich("Contains", "item:Subject", betreff_enthaelt,
+                                      ContainmentMode="Substring",
+                                      ContainmentComparison="IgnoreCase"))
+    if bedingungen:
+        r = ET.SubElement(req, _m("Restriction"))
+        if len(bedingungen) == 1:
+            r.append(bedingungen[0])
+        else:
+            und = ET.SubElement(r, _t("And"))
+            for b in bedingungen:
+                und.append(b)
+    ordnung = ET.SubElement(ET.SubElement(req, _m("SortOrder")), _t("FieldOrder"),
+                            {"Order": "Descending"})
+    _feld(ordnung, "item:DateTimeReceived")
+    ordner = ET.SubElement(ET.SubElement(req, _m("ParentFolderIds")), _t("DistinguishedFolderId"),
+                           {"Id": "inbox"})
+    ET.SubElement(ET.SubElement(ordner, _t("Mailbox")), _t("EmailAddress")).text = ziel
+    return _umschlag(ziel, req)
+
+
+def anfrage_nachrichten_holen(ziel: str, kennungen: list[tuple[str, str]]) -> bytes:
+    """GetItem für die gefundenen Kennungen: Betreff, Absender, Empfangszeit,
+    Message-ID und Text (`BodyType Best` — HTML bleibt HTML, Text bleibt Text,
+    wie Graph `body` ohne Prefer-Kopf)."""
+    req = ET.Element(_m("GetItem"))
+    form = ET.SubElement(req, _m("ItemShape"))
+    ET.SubElement(form, _t("BaseShape")).text = "IdOnly"
+    ET.SubElement(form, _t("BodyType")).text = "Best"
+    felder = ET.SubElement(form, _t("AdditionalProperties"))
+    for f in ("item:Subject", "message:From", "item:DateTimeReceived",
+              "message:InternetMessageId", "item:Body"):
+        _feld(felder, f)
+    ids = ET.SubElement(req, _m("ItemIds"))
+    for kennung, aenderung in kennungen:
+        attr = {"Id": kennung}
+        if aenderung:
+            attr["ChangeKey"] = aenderung
+        ET.SubElement(ids, _t("ItemId"), attr)
+    return _umschlag(ziel, req)
+
+
 # ── XML lesen ─────────────────────────────────────────────────────────────────
 
 def _parse(roh: bytes | str) -> ET.Element:
@@ -317,8 +404,19 @@ def _fault(root: ET.Element) -> EwsFehler | None:
     return EwsFehler(code, _klartext(code, meldung))
 
 
-def antwort_pruefen(status: int, roh: bytes | str) -> ET.Element:
-    """HTTP-Status + Rumpf → Wurzel des Antwort-XML, oder EwsFehler."""
+def _antwort_ok(rm: ET.Element) -> bool:
+    return (rm.get("ResponseClass") == "Success"
+            and _text(rm.find(_m("ResponseCode"))).strip() == "NoError")
+
+
+def antwort_pruefen(status: int, roh: bytes | str, teilweise: bool = False) -> ET.Element:
+    """HTTP-Status + Rumpf → Wurzel des Antwort-XML, oder EwsFehler.
+
+    `teilweise` (GetItem mit mehreren Kennungen): Je Element kommt eine eigene
+    ResponseMessage. Es genügt, dass eine davon gelang — ein Element, das
+    zwischen Suche und Abruf gelöscht wurde, darf die übrigen nicht mitnehmen.
+    Wer die Elemente liest, nimmt nur die aus erfolgreichen Antworten
+    (`nachrichten_aus_antwort`)."""
     if status == 401:
         raise EwsFehler("anmeldung", "Anmeldung abgelehnt (401) — Konto/Kennwort prüfen; "
                                      "das EWS-Verzeichnis muss NTLM erlauben")
@@ -338,12 +436,15 @@ def antwort_pruefen(status: int, roh: bytes | str) -> ET.Element:
         raise EwsFehler("http", f"Exchange antwortet HTTP {status}")
     # GetUserOofSettings antwortet mit <ResponseMessage>, FindItem & Co. mit
     # <FindItemResponseMessage> (in <ResponseMessages>) — das erste davon zählt.
-    rm = next((el for el in root.iter() if el.tag.startswith(f"{{{NS_M}}}")
-               and el.tag.endswith("ResponseMessage")), None)
-    if rm is None:
+    rms = [el for el in root.iter() if el.tag.startswith(f"{{{NS_M}}}")
+           and el.tag.endswith("ResponseMessage")]
+    if not rms:
         raise EwsFehler("antwort", "Antwort ohne ResponseMessage")
+    if teilweise and any(_antwort_ok(r) for r in rms):
+        return root
+    rm = rms[0]
     code = _text(rm.find(_m("ResponseCode"))).strip()
-    if rm.get("ResponseClass") != "Success" or code != "NoError":
+    if not _antwort_ok(rm):
         code = code or "Error"
         raise EwsFehler(code, _klartext(code, _text(rm.find(_m("MessageText"))).strip()))
     return root
@@ -378,6 +479,71 @@ def kalender_aus_antwort(root: ET.Element) -> list[dict]:
             "frei_belegt": _text(el.find(_t("LegacyFreeBusyStatus"))).strip(),
             "ganztaegig": _text(el.find(_t("IsAllDayEvent"))).strip().lower() == "true",
             "vertraulichkeit": _text(el.find(_t("Sensitivity"))).strip(),
+        })
+    return out
+
+
+def kennungen_aus_antwort(root: ET.Element) -> list[tuple[str, str]]:
+    """FindItemResponse → [(ItemId, ChangeKey)] in der Reihenfolge des Servers."""
+    ergebnis = root.find(f".//{_m('RootFolder')}")
+    if ergebnis is None:
+        raise EwsFehler("antwort", "Antwort ohne RootFolder")
+    out = []
+    for el in ergebnis.iter(_t("ItemId")):
+        if el.get("Id"):
+            out.append((el.get("Id"), el.get("ChangeKey") or ""))
+    return out
+
+
+def nachrichten_aus_antwort(root: ET.Element) -> list[dict]:
+    """GetItemResponse → [{id, betreff, von, von_art, empfangen, message_id, text,
+    text_art}] — nur aus erfolgreichen ResponseMessages (siehe antwort_pruefen
+    `teilweise`). Jede Elementart zählt (Message, MeetingRequest, …), wie bei
+    Graph `messages`. `von_art` ist der RoutingType (SMTP; EX bei Absendern der
+    lokalen Organisation — dann steht in `von` kein SMTP-Name)."""
+    out = []
+    for rm in root.iter():
+        if not (rm.tag.startswith(f"{{{NS_M}}}") and rm.tag.endswith("ResponseMessage")):
+            continue
+        if not _antwort_ok(rm):
+            continue
+        elemente = rm.find(_m("Items"))
+        if elemente is None:
+            continue
+        for el in list(elemente):
+            kennung = el.find(_t("ItemId"))
+            koerper = el.find(_t("Body"))
+            absender = el.find(f"{_t('From')}/{_t('Mailbox')}")
+            out.append({
+                "id": kennung.get("Id", "") if kennung is not None else "",
+                "betreff": _text(el.find(_t("Subject"))),
+                "von": _text(absender.find(_t("EmailAddress"))).strip() if absender is not None else "",
+                "von_name": _text(absender.find(_t("Name"))) if absender is not None else "",
+                "von_art": _text(absender.find(_t("RoutingType"))).strip() if absender is not None else "",
+                "empfangen": _text(el.find(_t("DateTimeReceived"))).strip(),
+                "message_id": _text(el.find(_t("InternetMessageId"))).strip(),
+                "text": _text(koerper),
+                "text_art": (koerper.get("BodyType") or "") if koerper is not None else "",
+            })
+    return out
+
+
+def nachrichten_als_graph(nachrichten: list[dict]) -> list[dict]:
+    """EWS-Nachrichten → die Felder, die Graph `mailFolders/inbox/messages` mit
+    `$select=subject,from,receivedDateTime,internetMessageId,body` liefert. Die
+    Auswertung (Betreff, Absender der CA, Link bzw. Challenge im Text) bleibt
+    beim Aufrufer — für beide Wege dieselbe."""
+    out = []
+    for n in nachrichten:
+        out.append({
+            "id": n.get("id") or "",
+            "subject": n.get("betreff") or "",
+            "from": {"emailAddress": {"address": n.get("von") or "",
+                                      "name": n.get("von_name") or ""}},
+            "receivedDateTime": n.get("empfangen") or "",
+            "internetMessageId": n.get("message_id") or "",
+            "body": {"contentType": "html" if (n.get("text_art") or "").upper() == "HTML" else "text",
+                     "content": n.get("text") or ""},
         })
     return out
 
@@ -605,13 +771,13 @@ def _kurz(exc: Exception) -> str:
     return str(exc)[:160]
 
 
-def _aufruf(ziel: str, was: str, umschlag: bytes) -> ET.Element:
+def _aufruf(ziel: str, was: str, umschlag: bytes, teilweise: bool = False) -> ET.Element:
     """Senden, auswerten, protokollieren — die Zeile steht NACH dem Aufruf und
     nennt den Ausgang."""
     t0 = time.monotonic()
     try:
         status, roh = _senden(ziel, umschlag)
-        root = antwort_pruefen(status, roh)
+        root = antwort_pruefen(status, roh, teilweise)
     except EwsFehler as exc:
         log.warning("EWS %s für %s: fehlgeschlagen nach %.2f s — %s", was, ziel,
                     time.monotonic() - t0, exc)
@@ -676,3 +842,81 @@ def verbindung_testen(adresse: str) -> dict:
     return {"ok": True, "code": "NoError",
             "detail": f"Abwesenheit lesbar (Zustand {oof['state']})",
             "dauer": round(time.monotonic() - t0, 2)}
+
+
+# ── Postfach lesen: die Weiche für S/MIME-Bezug (seit v1.12.62) ───────────────
+
+def zustaendig(adresse: str) -> bool:
+    """DIE Weiche: Geht ein Zugriff auf das Postfach von `adresse` über EWS
+    statt Graph? Nur für Hybrid-Nutzer UND nur bei eingerichteter Anbindung.
+
+    Ein EXO-Postfach geht NIE hierher (exo_mailboxes.ist_hybrid ist für jedes
+    bekannte EXO-Postfach falsch). Ohne Anbindung wird ist_hybrid gar nicht erst
+    befragt. Abwesenheit, Kalender (abwesenheit._ueber_ews) und das Lesen der
+    CA-Mails beim Zertifikatsbezug (`postfach_weg`) laufen alle hierüber."""
+    if not konfiguriert():
+        return False
+    import exo_mailboxes
+    return exo_mailboxes.ist_hybrid(adresse)
+
+
+WEG_GRAPH, WEG_EWS, WEG_GESPERRT = "graph", "ews", "gesperrt"
+
+BEZUG_GESPERRT = ("Hybrid-Nutzer: Das Postfach liegt in der lokalen Exchange-Organisation. "
+                  "Für den Zertifikatsbezug liest das Gateway die Mail der "
+                  "Zertifizierungsstelle — dafür braucht es die Anbindung an Exchange lokal "
+                  "(Einstellungen → Allgemein → Exchange lokal (EWS)). Ohne sie: Zertifikat "
+                  "über „Importieren“ einspielen.")
+
+
+def postfach_weg(adresse: str) -> str:
+    """Wie liest das Gateway das Postfach von `adresse`?
+
+    graph    — EXO-Postfach (unverändert wie vor v1.12.62)
+    ews      — Hybrid-Nutzer mit eingerichteter Anbindung (`zustaendig`)
+    gesperrt — Hybrid-Nutzer ohne Anbindung: Graph erreicht das Postfach nicht
+               (es gibt in EXO keins), ein Versuch scheiterte nur später und
+               undeutlicher."""
+    if zustaendig(adresse):
+        return WEG_EWS
+    import exo_mailboxes
+    return WEG_GESPERRT if exo_mailboxes.ist_hybrid(adresse) else WEG_GRAPH
+
+
+def bezug_sperre(adresse: str) -> str:
+    """Grund, warum für `adresse` kein Zertifikat über einen Bezugsweg bestellt
+    werden kann, der das Postfach liest (CASTLE, Hub) — oder ""."""
+    return BEZUG_GESPERRT if postfach_weg(adresse) == WEG_GESPERRT else ""
+
+
+def posteingang_suchen(adresse: str, anzahl: int = 1, ab: datetime | None = None,
+                       betreff_enthaelt: str = "") -> list[tuple[str, str]]:
+    """Nur die Kennungen der jüngsten Mails (FindItem, IdOnly) — EwsFehler bei
+    Fehlern. Auch die Probe der Gesundheitsprüfung: kein Betreff, kein Text."""
+    if not konfiguriert():
+        raise EwsFehler("konfiguration", "Anbindung an Exchange lokal ist nicht eingerichtet")
+    ziel = _ziel(adresse)
+    return kennungen_aus_antwort(_aufruf(
+        ziel, "FindItem (Posteingang)", anfrage_posteingang_suchen(ziel, ab, betreff_enthaelt, anzahl)))
+
+
+def posteingang_lesen(adresse: str, ab: datetime | None = None, betreff_enthaelt: str = "",
+                      anzahl: int = 25) -> list[dict]:
+    """Jüngste Mails im Posteingang (EWS-Form, siehe nachrichten_aus_antwort),
+    neueste zuerst — EwsFehler bei Fehlern. Nur lesend: FindItem (Kennungen),
+    dann EIN GetItem für alle Treffer. Ohne Treffer kein zweiter Aufruf."""
+    kennungen = posteingang_suchen(adresse, anzahl, ab, betreff_enthaelt)
+    if not kennungen:
+        return []
+    ziel = _ziel(adresse)
+    return nachrichten_aus_antwort(_aufruf(
+        ziel, f"GetItem ({len(kennungen)} Nachricht(en))",
+        anfrage_nachrichten_holen(ziel, kennungen), teilweise=True))
+
+
+def posteingang_als_graph(adresse: str, ab: datetime | None = None, betreff_enthaelt: str = "",
+                          anzahl: int = 25) -> list[dict]:
+    """`posteingang_lesen` in der Form des Graph-Abrufs (`value` von
+    mailFolders/inbox/messages). Blockierend — Aufrufer im Event-Loop nutzen
+    asyncio.to_thread."""
+    return nachrichten_als_graph(posteingang_lesen(adresse, ab, betreff_enthaelt, anzahl))

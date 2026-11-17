@@ -37,6 +37,9 @@ class CastleAcmeBackend(CABackend):
     def can_auto_renew(self) -> bool:
         return True
 
+    def liest_postfach(self) -> bool:
+        return True      # Challenge-Mail lesen, Antwort im Namen des Inhabers
+
     def get_portal_url(self, email: str, user_config: dict) -> str:
         return _CASTLE_PORTAL
 

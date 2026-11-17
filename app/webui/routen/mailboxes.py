@@ -419,9 +419,11 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         _alt_hybrid = bool(_alt_key and (vorher.get(_alt_key) or {}).get("hybrid"))
         ist_hybrid = (bool(mb) and mb.get("type") == exo_mailboxes.HYBRID_TYP) or _alt_hybrid
         sig = bool(m.get("sig", False))
-        # S/MIME braucht ein EXO-Postfach (Zertifikat, Entschlüsselung, Ablage) —
-        # für Hybrid-Nutzer hier durchgesetzt, nicht nur in der Oberfläche.
-        smime = bool(m.get("smime", False)) and not ist_hybrid
+        # S/MIME auch für Hybrid-Nutzer (seit v1.12.62): Signieren, Verschlüsseln
+        # und Entschlüsseln laufen am Gateway, der Rückweg ist der Smarthost wie
+        # für jede ihrer Mails. Nur der Zertifikatsbezug liest ihr Postfach —
+        # das sperrt einwilligung.verlangen ohne Anbindung an Exchange lokal.
+        smime = bool(m.get("smime", False))
         if not (sig or smime):
             continue    # both off → passthrough by default, not stored
         banner_template = (m.get("banner_template") or "").strip()

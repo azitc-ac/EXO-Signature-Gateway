@@ -673,6 +673,28 @@ async def _check_ews_zugriff(email: str) -> dict:
     return _make_result(stufe, f"EWS-Zugriff: {erg['detail']}"[:300])
 
 
+async def _check_postfach_lesen(email: str, smime_active) -> dict:
+    """Hybrid-Nutzer mit S/MIME: Kann das Gateway die Mail der
+    Zertifizierungsstelle lesen (CASTLE-Challenge, Bestätigungslink)? Über
+    dieselbe Weiche wie der Bezug selbst (ews_onprem.postfach_weg). Gelesen
+    wird die Kennung der jüngsten Mail — kein Betreff, kein Text."""
+    if not smime_active:
+        return _make_result("skip", "S/MIME nicht aktiviert")
+    import ews_onprem
+    if ews_onprem.postfach_weg(email) != ews_onprem.WEG_EWS:
+        return _make_result("skip", "Zertifikatsbezug nur per Import — Anbindung an "
+                                    "Exchange lokal (EWS) nicht eingerichtet")
+    try:
+        await asyncio.to_thread(ews_onprem.posteingang_suchen, email, 1)
+    except ews_onprem.EwsFehler as exc:
+        stufe = ("error" if exc.code in ews_onprem.KEIN_ZUGRIFF_CODES
+                 or exc.code in ("anmeldung", "tls", "konfiguration") else "warn")
+        return _make_result(stufe, f"Posteingang über EWS nicht lesbar: {exc.detail}"[:300])
+    except Exception as exc:                                       # noqa: BLE001
+        return _make_result("warn", f"Posteingang über EWS nicht lesbar: {exc}"[:300])
+    return _make_result("ok", "Posteingang über EWS lesbar (Zertifikatsbezug möglich)")
+
+
 # Die Sign-API-Probe kostet je Postfach einen Key-Vault-Aufruf. Ein Erfolg gilt
 # einen Tag; ein Fehler wird bei jedem Lauf neu geprüft, damit die Behebung
 # sofort sichtbar wird.
@@ -781,6 +803,14 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
     checks["graph_postfach"] = await _check_graph_postfach(email, token)
     checks["abwesenheit"] = await _check_abwesenheit(email, token)
 
+    checks.update(await _checks_smime(email, smime_active, kv_url))
+    return _ergebnis_speichern(email, checks)
+
+
+async def _checks_smime(email: str, smime_active, kv_url: str) -> dict:
+    """Schlüssel, Zertifikat und Key Vault — alles am Gateway, kein Postfach.
+    EINE Fassung für EXO-Postfächer und Hybrid-Nutzer (seit v1.12.62)."""
+    checks: dict = {}
     # 5. smime_cert
     if smime_active:
         checks["smime_cert"] = _check_smime_cert(email)
@@ -817,8 +847,7 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
         checks["kv_sign"] = _make_result("skip", "Kein Schlüssel für dieses Postfach")
     else:
         checks["kv_sign"] = _make_result("skip", "Kein Key-Vault-Schlüssel für dieses Postfach")
-
-    return _ergebnis_speichern(email, checks)
+    return checks
 
 
 def _ergebnis_speichern(email: str, checks: dict) -> dict:
@@ -843,12 +872,17 @@ _LOKAL = "Postfach in der lokalen Organisation"
 
 async def _checks_hybrid(email: str, cfg: dict, exo_data: dict | None) -> dict:
     """Prüfungen für einen Hybrid-Nutzer (Postfach in der lokalen Exchange-
-    Organisation). Graph-Zugriff, Abwesenheit, IMAP, Add-ins und S/MIME setzen
-    ein EXO-Postfach voraus und entfallen — die Abwesenheit nur, solange keine
+    Organisation). Graph-Zugriff, Abwesenheit, IMAP und Add-ins setzen ein
+    EXO-Postfach voraus und entfallen — die Abwesenheit nur, solange keine
     Anbindung an Exchange lokal (EWS) eingerichtet ist; mit ihr wird der
     EWS-Zugriff geprüft. Geprüft werden Bestand in EXO,
     Verteilerliste (nur solange die Option wirkt — sonst nähme die Selbstheilung
-    ein Postfach auf, dessen Post das Gateway nicht zurückgeben kann) und Vorlage."""
+    ein Postfach auf, dessen Post das Gateway nicht zurückgeben kann) und Vorlage.
+
+    S/MIME (seit v1.12.62): Zertifikat, Schlüssel und Key Vault wie bei
+    EXO-Postfächern (`_checks_smime`, dieselbe Fassung). Dazu `postfach_lesen`:
+    Kann das Gateway die Mail der CA lesen (Zertifikatsbezug)? Über EWS geprüft,
+    ohne Anbindung „entfällt“ mit Grund — Import geht trotzdem."""
     import exo_mailboxes
     checks: dict = {}
     aktiv = exo_mailboxes.hybrid_aktiv()
@@ -878,11 +912,15 @@ async def _checks_hybrid(email: str, cfg: dict, exo_data: dict | None) -> dict:
     import abwesenheit
     ueber_ews = abwesenheit.ews_verfuegbar()
     for name in ("imap_permission", "addin_verfassen", "addin_knopf",
-                 "graph_postfach", "abwesenheit", "smime_cert", "smime_key", "kv_sign"):
+                 "graph_postfach", "abwesenheit"):
         if name == "abwesenheit" and ueber_ews:
             checks[name] = await _check_ews_zugriff(email)
             continue
         checks[name] = _make_result("skip", _LOKAL)
+    smime_active = cfg.get("smime_sign") or cfg.get("smime_encrypt") or cfg.get("smime")
+    checks.update(await _checks_smime(email, smime_active,
+                                      (settings_store.get("KEYVAULT_URL") or "").strip()))
+    checks["postfach_lesen"] = await _check_postfach_lesen(email, smime_active)
     if cfg.get("sig"):
         checks["template"] = await _check_template(email, cfg)
     else:

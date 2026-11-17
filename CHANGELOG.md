@@ -5,6 +5,92 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.62 — 2026-11-18 — S/MIME für Hybrid-Nutzer
+
+S/MIME ist für Hybrid-Nutzer (Postfach in der lokalen Exchange-Organisation,
+v1.12.55) nicht mehr gesperrt. Die Spalte S/MIME in der Postfachliste ist für
+sie bedienbar, und das Speichern behält den Haken.
+
+**Was geht — ohne weitere Einrichtung.** Signieren, Verschlüsseln und
+Entschlüsseln laufen vollständig am Gateway; der Rückweg ist für Hybrid-Nutzer
+ohnehin der Smarthost (Modus SMTP Port 25). Ausgehend signiert das Gateway mit
+dem Zertifikat des Nutzers und verschlüsselt mit den gespeicherten
+Empfängerzertifikaten. Eingehend erreicht verschlüsselte und signierte Post das
+Gateway über die bestehenden S/MIME-Regeln (sie prüfen den Absender, nicht den
+Empfänger); es entschlüsselt mit dem Schlüssel des Empfängers, prüft eine
+innere Signatur und stellt über den Smarthost zu, Exchange Online leitet an die
+lokale Organisation weiter. Absenderzertifikate werden wie bei allen
+Empfängern gesammelt. Mit aktiver Regeltrennung kommen Hybrid-Nutzer mit S/MIME
+in die S/MIME-Verteilerliste — wie bisher nur, solange die Hybrid-Option wirkt.
+Die Gesundheitsprüfung prüft Zertifikat, Schlüssel und Key Vault wie bei
+EXO-Postfächern (eine gemeinsame Prüfung für beide). „Gesendete Elemente“
+liegen lokal und werden nicht nachgebessert; nötig ist das nicht, denn über den
+Smarthost entsteht keine verschlüsselte Kopie — dort liegt Outlooks lesbares
+Original.
+
+Post, die das Gateway ALS den Absender schickt, geht für Hybrid-Nutzer
+ebenfalls über den Smarthost statt über Graph sendMail (das ein Postfach in
+Exchange Online voraussetzt): die Mails des sicheren Portals (Benachrichtigung
+des Empfängers bei `#enc` ohne Empfängerzertifikat, Zugangscode,
+Lesebestätigung, Antwort aus dem Portal) und die Unzustellbarkeitsmeldung
+„kein Verschlüsselungszertifikat“. Für EXO-Postfächer bleibt es bei Graph.
+
+**Behoben, für alle Postfächer:** Die Unzustellbarkeitsmeldung an den Absender
+(„kein Verschlüsselungszertifikat“ bzw. „Verschlüsselungsfehler“, gesendet
+wenn eine verschlüsselt verlangte Mail weder verschlüsselt noch über das
+Portal zugestellt werden kann) wurde seit der gemeinsamen
+Serialisierungs-Policy für selbst gebaute Mails nie verschickt: Der Betreff
+enthält „ü“, und die Serialisierung brach mit einem Kodierungsfehler ab, bevor
+ein Versand versucht wurde. Die Mail selbst ging dabei nie im Klartext hinaus;
+nur die Rückmeldung an den Absender fehlte. Der Betreff wird jetzt als
+RFC-2047-Wort kodiert.
+
+**Zertifikat beziehen.** Ein importiertes Zertifikat (*S/MIME → Importieren*,
+PKCS#12) geht immer. Die Bezugswege, die das Postfach lesen — CASTLE (die
+Challenge-Mail) und die Anbieter über den Hub (die Bestätigungsmail der
+Zertifizierungsstelle) —, brauchen die Anbindung an Exchange lokal (EWS,
+v1.12.59). Mit ihr liest das Gateway den Posteingang des Hybrid-Nutzers per
+EWS: `FindItem` im Posteingang (jüngste zuerst, am Server gefiltert nach
+Empfangszeit und Betreff-Teil), danach ein `GetItem` für die Treffer (Betreff,
+Absender, Message-ID, Text). Das Ergebnis hat die Form des Graph-Abrufs; die
+Auswertung — Referenz im Betreff, Absender der Zertifizierungsstelle, Link
+bzw. Challenge im Text — ist für beide Wege dieselbe. Die Challenge-Antwort an
+CASTLE geht für Hybrid-Nutzer über den Smarthost, wie jede ihrer Mails; steht
+`ACME_REPLY_METHOD` auf `graph` (Senden ALS das Postfach per Graph), wird für
+sie auf diesen Weg umgelenkt. Über EWS wird nichts gesendet.
+
+Ohne Anbindung sperrt das Gateway diese Bezugswege für Hybrid-Nutzer: im Kern
+vor jeder Bestellung (Einzelbestellung, Sammellauf, automatische Bestellung
+beim Aktivieren, Verlängerung) mit dem Grund „Anbindung an Exchange lokal
+fehlt“ — nicht als fehlende Einwilligung, denn eine Zustimmung des Inhabers
+änderte nichts. Auf der S/MIME-Seite trägt das Postfach die Marke
+**Hybrid — Bezug nur per Import**, der Bestellknopf nennt den Grund. Eine schon
+laufende CASTLE-Bestellung bricht mit diesem Grund ab, statt zwanzig Minuten
+auf eine Mail zu warten, die das Gateway nicht lesen kann; ebenso, wenn die
+lokale Exchange das Postfach verweigert (Management Scope). Die DigiCert-
+Direktanbindung liest kein Postfach und bleibt frei.
+
+Neue Prüfung **Postfach lesen (EWS)** für Hybrid-Nutzer mit S/MIME: Mit
+Anbindung sucht das Gateway die Kennung der jüngsten Mail im Posteingang (kein
+Betreff, kein Text) und meldet, ob der Zertifikatsbezug möglich ist; ohne
+Anbindung „entfällt“ mit Hinweis auf den Import.
+
+Die Entscheidung „EWS oder Graph“ steht für Abwesenheit, Kalender und
+Zertifikatsbezug an einer Stelle. EXO-Postfächer gehen unverändert den
+Graph-Weg — auch bei eingerichteter Anbindung.
+
+Voraussetzung für den Bezug über EWS: Das Dienstkonto der Anbindung darf das
+Postfach per ApplicationImpersonation öffnen (wie für die Abwesenheit). Lesen
+im Postfach braucht wie bisher die Einwilligung des Inhabers oder die bewusste
+des Administrators.
+
+**Zu tun:** nichts. Willst du für Hybrid-Nutzer Zertifikate über CASTLE oder
+den Hub beziehen, richte die Anbindung unter *Einstellungen → Allgemein →
+Exchange lokal (EWS)* ein; sonst spiele das Zertifikat unter *S/MIME →
+Importieren* ein.
+
+---
+
 ## v1.12.61 — 2026-11-18 — Exchange lokal: eigene CA und Kalender-Automatik für Hybrid-Nutzer
 
 Zwei Ergänzungen zur Anbindung an Exchange lokal (EWS, v1.12.59).

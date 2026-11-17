@@ -954,7 +954,8 @@ var _hasHealthData = false;
 var _CHECK_LABELS = {
   exo_mailbox: 'EXO-Postfach', dg_member: 'DG-Mitglied', imap_permission: 'IMAP-Berechtigung',
   template: 'Signatur', smime_cert: 'S/MIME Zertifikat', smime_key: 'S/MIME Key', kv_sign: 'Key Vault',
-  addin_verfassen: 'Add-in Signatur', addin_knopf: 'Add-in Knopf', graph_postfach: 'Graph-Zugriff', abwesenheit: 'Abwesenheit'
+  addin_verfassen: 'Add-in Signatur', addin_knopf: 'Add-in Knopf', graph_postfach: 'Graph-Zugriff', abwesenheit: 'Abwesenheit',
+  postfach_lesen: 'Postfach lesen (EWS)'
 };
 
 // Zustände aus health_check._make_result — jeder muss hier stehen
@@ -1041,10 +1042,12 @@ function renderMailboxTable(mailboxes) {
     'hybrid':    '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#fef3c7;color:#92400e;vertical-align:middle" title="Postfach in der lokalen Exchange-Organisation">Hybrid</span>',
   };
   // Hybrid-Nutzer: Postfach in der lokalen Organisation, in EXO nur ein MailUser.
-  // S/MIME und Add-in setzen ein EXO-Postfach voraus (Speichern erzwingt S/MIME
-  // aus, siehe api_save_mailboxes); die Abwesenheit geht nur mit der Anbindung
-  // an Exchange lokal (EWS, _hybridAbwesenheit).
+  // Das Add-in setzt ein EXO-Postfach voraus; die Abwesenheit geht nur mit der
+  // Anbindung an Exchange lokal (EWS, _hybridAbwesenheit). S/MIME geht (seit
+  // v1.12.62, läuft am Gateway) — ohne Anbindung nur mit importiertem Zertifikat.
   var HYBRID_HINWEIS = 'Bei Hybrid nicht verfügbar';
+  var HYBRID_SMIME_OHNE_EWS = 'Zertifikat nur über „Importieren“ (S/MIME-Seite) — für den Bezug '
+    + 'über eine Zertifizierungsstelle fehlt die Anbindung an Exchange lokal';
   var REGEL_WARTET_TIPP = 'Exchange übernimmt neue Mitglieder der Verteilerliste mit Verzögerung — meist schneller, verlassen kann man sich darauf nicht';
   mailboxes.forEach(function(mb, i) {
     mb._idx = i;
@@ -1140,7 +1143,7 @@ function renderMailboxTable(mailboxes) {
     smimeCb.dataset.idx = String(i);
     if (mb.smime) smimeCb.checked = true;
     if (isResource) { smimeCb.disabled = true; smimeCb.title = 'Raum-/Geräte-Postfächer können nicht aktiviert werden'; }
-    if (isHybrid) { smimeCb.checked = false; smimeCb.disabled = true; smimeCb.title = HYBRID_HINWEIS; }
+    if (isHybrid && !_hybridAbwesenheit) smimeCb.title = HYBRID_SMIME_OHNE_EWS;
     tdSmime.appendChild(smimeCb);
 
     // Health status
