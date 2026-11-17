@@ -464,9 +464,15 @@ async def _durch_den_handler(benutzer: str, postfach: str, recht: str, alle: lis
     import reinject
     zustellungen: list[tuple[str, list, bytes]] = []
     umschlag = benutzer if recht == "auftrag" else postfach
-    with reinject.umleiten(lambda von, empf, roh: zustellungen.append((von, empf, roh))):
-        antwort = await handler.SignatureHandler().handle_DATA(
-            None, _Sitzung(), _Umschlag(umschlag, alle, inhalt))
+    # „Senden als“: kein Sender-Kopf, den Bearbeiter sagt das Webmail dem
+    # Handler direkt (notbetrieb.webmail_bearbeiter) — wie das Add-in in Outlook.
+    marke = notbetrieb.webmail_bearbeiter.set(benutzer if recht == "als" else "")
+    try:
+        with reinject.umleiten(lambda von, empf, roh: zustellungen.append((von, empf, roh))):
+            antwort = await handler.SignatureHandler().handle_DATA(
+                None, _Sitzung(), _Umschlag(umschlag, alle, inhalt))
+    finally:
+        notbetrieb.webmail_bearbeiter.reset(marke)
     return str(antwort), zustellungen
 
 

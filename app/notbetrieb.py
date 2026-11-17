@@ -375,6 +375,11 @@ eingang_ordner: contextvars.ContextVar = contextvars.ContextVar("notbetrieb_eing
 # dessen Sendeconnector im Kreis (on-prem kennt den Empfänger nicht → schickt
 # an Exchange Online → im Notfall ans Gateway → zurück an on-prem).
 eingang_quelle: contextvars.ContextVar = contextvars.ContextVar("notbetrieb_eingang_quelle", default="")
+# Wer im Webmail schreibt, wenn er „als“ ein anderes Postfach sendet: Exchange
+# setzt dabei keinen Sender-Kopf, der Handler kennt die Person also nicht (in
+# Outlook füllt sie das Add-in). Das Webmail kennt sie — gesetzt NUR von
+# notbetrieb_senden für den Aufruf im Prozess, sonst leer.
+webmail_bearbeiter: contextvars.ContextVar = contextvars.ContextVar("notbetrieb_webmail_bearbeiter", default="")
 SCHLEIFE_KENNUNG = "notbetrieb-onprem"   # Schlüssel der Schleifenbremse (domain_routing)
 
 

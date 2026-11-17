@@ -1200,6 +1200,15 @@ class SignatureHandler:
                     _sig_absender, _bearbeiter, _sender_cfg = _von_kopf, sender, _von_cfg
                     log.info("Im Auftrag von: %s schreibt für %s — Signatur und S/MIME von %s",
                              sender, _von_kopf, _von_kopf)
+            # „Senden als“ aus dem Notbetrieb-Webmail: Die Person kennt nur das
+            # Webmail (kein Sender-Kopf). Nur im Prozess gesetzt, nie aus der Mail.
+            if not _bearbeiter and getattr(session, "notbetrieb_intern", False):
+                import notbetrieb as _nb_wb
+                _wb = (_nb_wb.webmail_bearbeiter.get() or "").strip().lower()
+                if _wb and not mailbox_match.selbes_postfach(_mailbox_cfg, _wb, _sig_absender):
+                    _bearbeiter = _wb
+                    log.info("Senden als (Webmail): %s schreibt als %s — Bearbeiter %s",
+                             _wb, _sig_absender, _wb)
             if not _mailbox_cfg or not (_sender_cfg.get("sig") or _sender_cfg.get("smime")):
                 log.debug("Sender %s not in active MAILBOX_CONFIG — forwarding as-is", sender)
                 # mark_as_signed_bytes ist PFLICHT wie auf jedem anderen Rückweg:

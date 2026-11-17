@@ -812,6 +812,56 @@ def test_im_auftrag_signiert_mit_der_person_als_bearbeiter(postfix, schatten, mo
     assert "SIG chef@firma.at BEARB a@firma.at" in _teile(inhalt)[1]
 
 
+def test_senden_als_signiert_mit_der_person_aus_dem_webmail(postfix, schatten, monkeypatch):
+    """„Senden als“: Exchange setzt keinen Sender-Kopf, der Handler kennt die
+    Person nicht — in Outlook füllt sie das Add-in. Das Webmail kennt sie und
+    gibt sie mit (notbetrieb.webmail_bearbeiter)."""
+    import notbetrieb as _nb
+    import signature_engine
+    schatten["MAILBOX_CONFIG"] = {"chef@firma.at": {"sig": True}}
+    echt = ns.senderecht
+    monkeypatch.setattr(ns, "senderecht", lambda b, pf: "als" if pf == "chef@firma.at" else echt(b, pf))
+    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None, extra=None, **kw: (
+        f"<p>SIG {u.mail} BEARB {(extra or {}).get('bearbeiter').mail}</p>",
+        f"SIG {u.mail} BEARB {(extra or {}).get('bearbeiter').mail}"))
+    _senden("a@firma.at", "chef@firma.at", "kunde@extern.de", betreff="Termin", text="x")
+    von, _empf, inhalt = postfix[-1]
+    kopf = _email.message_from_bytes(inhalt, policy=_policy.default)
+    assert von == "chef@firma.at" and kopf["Sender"] is None          # wie „Senden als“ bei Exchange
+    assert "SIG chef@firma.at BEARB a@firma.at" in _teile(inhalt)[1]
+    assert _nb.webmail_bearbeiter.get() == ""                           # nach dem Aufruf zurückgesetzt
+
+
+def test_bearbeiter_aus_dem_webmail_gilt_nur_im_prozess(postfix, schatten, monkeypatch):
+    """Eine Verbindung von außen (Sitzung ohne notbetrieb_intern) bekommt den
+    Bearbeiter nie aus der Markierung — auch wenn sie zufällig gesetzt wäre."""
+    import handler
+    import notbetrieb as _nb
+    import reinject
+    import signature_engine
+    schatten["MAILBOX_CONFIG"] = {"chef@firma.at": {"sig": True}}
+    gesehen = []
+    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None, extra=None, **kw: (
+        gesehen.append((extra or {}).get("bearbeiter").mail) or "<p>S</p>", "S"))
+
+    import smtp_acl
+    monkeypatch.setattr(smtp_acl, "is_allowed", lambda ip: True)     # Verbindung von Exchange
+
+    class _Aussen(ns._Sitzung):
+        notbetrieb_intern = False
+        peer = ("192.0.2.9", 25)
+    marke = _nb.webmail_bearbeiter.set("a@firma.at")
+    try:
+        with reinject.umleiten(lambda *a: None):
+            asyncio.run(handler.SignatureHandler().handle_DATA(None, _Aussen(), ns._Umschlag(
+                "chef@firma.at", ["kunde@extern.de"],
+                b"From: chef@firma.at\r\nTo: kunde@extern.de\r\nSubject: x\r\nMessage-ID: <m@firma.at>\r\n"
+                b"Content-Type: text/html\r\n\r\n<p>x</p>\r\n")))
+    finally:
+        _nb.webmail_bearbeiter.reset(marke)
+    assert gesehen and "a@firma.at" not in gesehen                   # signiert — ohne die Markierung
+
+
 # ── Signatur-Vorschau: Probelauf durch denselben Handler ────────────────────
 
 def _vorschau(*a, **k):
