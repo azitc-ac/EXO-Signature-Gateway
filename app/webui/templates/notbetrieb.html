@@ -274,7 +274,7 @@
   <div class="settings-row">
     <label for="nb-wer">Anmeldename oder Adresse</label>
     <div class="settings-control" style="display:flex;gap:6px;flex-wrap:wrap">
-      <input type="text" id="nb-wer" placeholder="max.mustermann@firma.at" style="min-width:220px">
+      <input autocapitalize="none" autocorrect="off" spellcheck="false" type="text" id="nb-wer" placeholder="max.mustermann@firma.at" style="min-width:220px">
       <button class="btn secondary btn-sm" id="nb-wer-btn" onclick="nbZugriff()">Zeigen</button>
     </div>
   </div>
@@ -351,7 +351,10 @@
     <span id="nb-onprem-probe-msg"></span>
   </div>
   <p class="hint" style="margin:4px 0 0">„Weg prüfen“ verbindet sich wie die Zustellung und fragt bis zum
-    Empfänger (RCPT) — ohne etwas zu senden. Das Ergebnis zählt zur Bereitschaft.</p>
+    Empfänger (RCPT) — ohne etwas zu senden. Das Ergebnis zählt zur Bereitschaft. Löst der Name des Ziels
+    nur öffentlich auf, ginge die Post im Notfall über den Internetanschluss zurück ins eigene Netz — ein
+    Eintrag unter <a href="/advanced#hosts-eintraege">Einstellungen → Erweitert → Hosts-Einträge</a> führt sie
+    direkt hin, die Zertifikatsprüfung bleibt beim Namen.</p>
 </div>
 
 <!-- Direktversand-Probe -->
@@ -478,7 +481,7 @@
   </p>
   <div class="settings-row">
     <label for="nb-ldap-server">Domänencontroller</label>
-    <div class="settings-control"><input type="text" id="nb-ldap-server" value="{{ ldap.server }}"
+    <div class="settings-control"><input autocapitalize="none" autocorrect="off" spellcheck="false" type="text" id="nb-ldap-server" value="{{ ldap.server }}"
       placeholder="ldaps://dc01.firma.local" style="min-width:260px"></div>
   </div>
   <div class="settings-row">
@@ -538,7 +541,7 @@
   <p class="hint" style="margin-top:0">Spielt die Anmeldung durch, wie sie im Notbetrieb abliefe. Wird nicht gespeichert.</p>
   <div class="settings-row">
     <label for="nb-test-name">Anmeldename</label>
-    <div class="settings-control"><input type="text" id="nb-test-name" autocomplete="off"
+    <div class="settings-control"><input spellcheck="false" autocorrect="off" autocapitalize="none" type="text" id="nb-test-name" autocomplete="off"
       placeholder="max.mustermann@firma.at" style="min-width:220px"></div>
   </div>
   <div class="settings-row">

@@ -236,6 +236,7 @@ DEFAULTS: dict = {
     # Ursprungsadresse setzen (smtp_proxy.py). Leer = aus. Nur diese Adressen
     # dürfen den Absender angeben — und müssen es dann auch.
     "SMTP_PROXY_QUELLEN": [],
+    "HOSTS_EINTRAEGE": "",                 # eigene Hosts-Einträge (namensaufloesung), Format wie /etc/hosts
     # Woran Exchange Online an Port 25 erkannt wird (exo_erkennung.py):
     # "eins" = Adresse ODER Client-Zertifikat, "beide" = beides, "adresse" = nur Adresse.
     "EXO_ERKENNUNG": "eins",

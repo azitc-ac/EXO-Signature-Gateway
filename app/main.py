@@ -855,6 +855,9 @@ def main() -> None:
         tz_name=settings_store.get("LOG_TIMEZONE") or "UTC",
     )
     log_manager.stufe_anwenden()
+    # Eigene Hosts-Einträge vor dem DNS — vor der ersten Verbindung des Prozesses.
+    import namensaufloesung
+    namensaufloesung.einschalten()
     import mail_trace
     mail_trace.install()
     # aiosmtpd loggt jede Verbindung mehrzeilig auf INFO — Internet-Scanner

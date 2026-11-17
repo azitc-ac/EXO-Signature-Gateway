@@ -234,6 +234,7 @@ REGISTER: dict[str, E] = {
     "REINJECT_MODE": E(art=OPTION, ort="setup.html"),
     "RELAY_TENANT_STRENG": E(art=OPTION, ort="advanced.html"),
     "SMTP_PROXY_QUELLEN": E(art=OPTION, ort="advanced.html"),
+    "HOSTS_EINTRAEGE": E(art=OPTION, ort="advanced.html"),
     "EXO_ERKENNUNG": E(art=OPTION, ort="advanced.html"),
     "RELAY_TENANT_CHECK": E(
         art=NOTNAGEL,

@@ -262,6 +262,12 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
             clean["SMTP_PROXY_QUELLEN"] = smtp_proxy.normalisieren(clean["SMTP_PROXY_QUELLEN"])
         except ValueError as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    if "HOSTS_EINTRAEGE" in clean:
+        import namensaufloesung
+        try:
+            clean["HOSTS_EINTRAEGE"] = namensaufloesung.normalisieren(str(clean["HOSTS_EINTRAEGE"] or ""))
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     settings_store.update(clean)
     if "HYBRID_POSTFAECHER" in clean or "REINJECT_MODE" in clean:
         # Das PowerShell-Skript der Postfachliste hängt an beiden (Get-MailUser
