@@ -303,7 +303,39 @@
   </div><!-- /notif-config-block -->
 </div>
 
+<!-- Postfächer: Hybrid-Nutzer -->
+<div class="settings-card" id="postfaecher-hybrid">
+  <h2>Postfächer</h2>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="hybrid-postfaecher"
+             {% if s.HYBRID_POSTFAECHER is true %}checked{% endif %}
+             onchange="saveHybridPostfaecher(this.checked)">
+      Hybrid-Nutzer einbeziehen (Postfach in der lokalen Exchange-Organisation)
+      <span id="hybrid-postfaecher-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
+    </label>
+  </div>
+  <p class="hint" style="margin:4px 0 0">
+    Nutzer, deren Postfach noch in der lokalen Exchange-Organisation liegt, erscheinen in
+    der Postfachliste und lassen sich für Signatur, Banner und Disclaimer aktivieren.
+    Aktivierte Hybrid-Nutzer kommen in die Verteilerliste des Gateways; ihre Post geht
+    über den Smarthost an Exchange Online zurück. Abwesenheit, S/MIME und das Outlook-Add-in
+    sind für sie nicht verfügbar.
+  </p>
+  {% if reinject_mode != "smtp" %}
+  <p class="hint" style="margin:6px 0 0;color:#b45309">
+    Wirkt nur mit dem Rückweg „SMTP Port 25“. Im aktuellen Rückweg bleibt die Option
+    ohne Wirkung: Hybrid-Nutzer erscheinen nicht in der Postfachliste und kommen nicht
+    in die Verteilerliste.
+  </p>
+  {% endif %}
+</div>
+
 <script>
+
+async function saveHybridPostfaecher(an) {
+  await savePartial({HYBRID_POSTFAECHER: an}, 'hybrid-postfaecher-result', 'settings:hybrid');
+}
 
 // savePartial() steht in common.js — eine Fassung fuer alle Seiten.
 

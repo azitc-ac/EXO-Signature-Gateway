@@ -82,6 +82,11 @@ try {
     $toAdd    = $MemberList | Where-Object { $_.ToLower() -notin $current }
     $toRemove = $current | Where-Object { $_ -notin ($MemberList | ForEach-Object { $_.ToLower() }) }
 
+    # Mitglieder koennen auch Hybrid-Nutzer sein (MailUser, Postfach in der lokalen
+    # Organisation; Option HYBRID_POSTFAECHER). Add-/Remove-DistributionGroupMember
+    # nehmen jeden mail-aktivierten Empfaenger per SMTP-Adresse — kein Postfach-Cmdlet.
+    # Der IMAP-Grant unten bekommt sie nie: er laeuft nur im Rueckweg graph_plus,
+    # und dort nimmt das Gateway keine Hybrid-Nutzer in die Liste auf.
     foreach ($m in $toAdd) {
         try {
             Add-DistributionGroupMember -Identity $dgName -Member $m -ErrorAction Stop

@@ -27,6 +27,12 @@ from pathlib import Path
 
 import config
 import settings_store
+# EINE Fassung für beide Abfragen: EmailAddresses → kleingeschriebene
+# SMTP-Adressen (ConvertTo-Json macht aus einer Ein-Element-Liste einen Skalar).
+# Die Hybrid-Postfachliste (exo_mailboxes, Schalter HYBRID_POSTFAECHER) liest
+# dieselben MailUser, filtert aber STRENGER (IsDirSynced, echte ExchangeGuid) —
+# hier bleibt der Filter für das Domänen-Routing bewusst unverändert.
+from exo_mailboxes import _norm_addresses, ist_teams_adresse
 
 log = logging.getLogger("exo_mailusers")
 
@@ -34,26 +40,6 @@ _AUTH_CERT_PATH = Path(config.DATA_DIR) / "auth.pfx"
 
 KEY_LISTE = "ONPREM_MAILUSERS"       # list[str] — lowercased SMTP-Adressen
 KEY_STAND = "ONPREM_MAILUSERS_TS"    # ISO8601-Zeitpunkt des letzten erfolgreichen Abgleichs
-
-
-def _norm_addresses(raw) -> list[str]:
-    """EmailAddresses → deduplizierte, kleingeschriebene SMTP-Adressen ohne
-    smtp:-Präfix (Nicht-SMTP-Proxies wie SIP:/X500: ignorieren). ConvertTo-Json
-    macht aus einer Ein-Element-Liste einen Skalar — beides abfangen."""
-    if raw is None:
-        return []
-    if isinstance(raw, str):
-        raw = [raw]
-    seen: set[str] = set()
-    out: list[str] = []
-    for a in raw:
-        s = str(a)
-        if s[:5].lower() == "smtp:":
-            addr = s[5:].strip().lower()
-            if addr and addr not in seen:
-                seen.add(addr)
-                out.append(addr)
-    return out
 
 
 def _parse(raw_json: str) -> list[str]:
@@ -72,12 +58,12 @@ def _parse(raw_json: str) -> list[str]:
         if (m.get("RecipientTypeDetails") or "") != "MailUser":
             continue
         primary = (m.get("primary") or "").strip().lower()
-        if primary.endswith(".teams.ms"):
+        if ist_teams_adresse(primary):
             continue
         if primary:
             adressen.add(primary)
         adressen.update(a for a in _norm_addresses(m.get("addresses"))
-                        if not a.endswith(".teams.ms"))
+                        if not ist_teams_adresse(a))
     return sorted(adressen)
 
 

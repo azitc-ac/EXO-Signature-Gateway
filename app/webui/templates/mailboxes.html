@@ -148,6 +148,7 @@ async function ankerAnwenden() {
         <option value="">Alle Typen</option>
         <option value="user">Benutzer</option>
         <option value="shared">Shared</option>
+        <option value="hybrid">Hybrid</option>
         <option value="resource">Raum &amp; Gerät</option>
       </select>
       <select id="mb-sig-filter" onchange="filterMailboxes()" aria-label="Nach Signatur filtern"
@@ -1024,10 +1025,16 @@ function renderMailboxTable(mailboxes) {
     'shared':    '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#dbeafe;color:#1e40af;vertical-align:middle">Shared</span>',
     'room':      '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#f1f5f9;color:#64748b;vertical-align:middle">Raum</span>',
     'equipment': '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#f1f5f9;color:#64748b;vertical-align:middle">Gerät</span>',
+    'hybrid':    '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#fef3c7;color:#92400e;vertical-align:middle" title="Postfach in der lokalen Exchange-Organisation">Hybrid</span>',
   };
+  // Hybrid-Nutzer: Postfach in der lokalen Organisation, in EXO nur ein MailUser.
+  // S/MIME, Abwesenheit und Add-in setzen ein EXO-Postfach voraus (Speichern
+  // erzwingt S/MIME aus, siehe api_save_mailboxes).
+  var HYBRID_HINWEIS = 'Postfach in der lokalen Organisation: Abwesenheit, S/MIME und Add-in nicht verfügbar';
   mailboxes.forEach(function(mb, i) {
     mb._idx = i;
     var isResource = (mb.type === 'room' || mb.type === 'equipment');
+    var isHybrid = (mb.type === 'hybrid');
     var tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #f0f0f0';
     if (isResource) tr.style.opacity = '0.7';
@@ -1041,7 +1048,8 @@ function renderMailboxTable(mailboxes) {
     var badge = _typeBadge[mb.type] || '';
     tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' + badge +
       (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '') +
-      (isResource ? '<br><span style="color:#94a3b8;font-size:10px">zählt nicht zur Lizenz</span>' : '');
+      (isResource ? '<br><span style="color:#94a3b8;font-size:10px">zählt nicht zur Lizenz</span>' : '') +
+      (isHybrid ? '<br><span style="color:#94a3b8;font-size:10px">' + esc(HYBRID_HINWEIS) + '</span>' : '');
 
     // Standardsignatur checkbox
     var tdSig = document.createElement('td');
@@ -1115,6 +1123,7 @@ function renderMailboxTable(mailboxes) {
     smimeCb.dataset.idx = String(i);
     if (mb.smime) smimeCb.checked = true;
     if (isResource) { smimeCb.disabled = true; smimeCb.title = 'Raum-/Geräte-Postfächer können nicht aktiviert werden'; }
+    if (isHybrid) { smimeCb.checked = false; smimeCb.disabled = true; smimeCb.title = HYBRID_HINWEIS; }
     tdSmime.appendChild(smimeCb);
 
     // Health status
@@ -1137,12 +1146,13 @@ function renderMailboxTable(mailboxes) {
       _richtlinienStand(bannerSel, sig, pol, mb.banner_template, 'policy-banner-tpl');
       _richtlinienStand(disclaimerSel, sig, pol, mb.disclaimer_template, 'policy-disclaimer-tpl');
       // Abwesenheit greift für aktivierte Postfächer (Signatur ODER S/MIME).
-      var oofAus = !(sig || smime);
+      var oofAus = !(sig || smime) || isHybrid;
       oofSel.disabled = oofAus;
       oofSel.style.opacity = oofAus ? '0.4' : '1';
-      addinCtrl.style.opacity = (!sig || pol) ? '0.4' : '1';
-      addinCtrl.style.pointerEvents = (!sig || pol) ? 'none' : '';
-      addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
+      var addinAus = !sig || pol || isHybrid;
+      addinCtrl.style.opacity = addinAus ? '0.4' : '1';
+      addinCtrl.style.pointerEvents = addinAus ? 'none' : '';
+      addinCtrl.title = isHybrid ? HYBRID_HINWEIS : (pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '');
     }
     policyCb.addEventListener('change', _applyPolicy);
     sigCb.addEventListener('change', _applyPolicy);
@@ -1156,6 +1166,11 @@ function renderMailboxTable(mailboxes) {
       disclaimerSel.disabled = true; disclaimerSel.style.opacity = '0.4';
       oofSel.disabled = true; oofSel.style.opacity = '0.4';
       addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
+    }
+    if (isHybrid) {
+      oofSel.disabled = true; oofSel.style.opacity = '0.4'; oofSel.title = HYBRID_HINWEIS;
+      addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
+      addinCtrl.title = HYBRID_HINWEIS;
     }
 
     // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Banner, Disclaimer, Abwesenheit, Outlook Add-In

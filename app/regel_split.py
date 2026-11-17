@@ -63,7 +63,7 @@ def _adresse(entry: dict) -> str:
     return (entry.get("primary") or entry.get("email") or "").strip().lower()
 
 
-def partitioniere(mailbox_config: dict | None) -> dict:
+def partitioniere(mailbox_config: dict | None, mit_hybrid: bool | None = None) -> dict:
     """Teilt die AKTIVEN Postfächer nach Verschlüsselungs-Fähigkeit auf.
 
     Rückgabe: {"signatur": [addr, …], "smime": [addr, …]} (primäre Adressen,
@@ -73,12 +73,21 @@ def partitioniere(mailbox_config: dict | None) -> dict:
       - `smime` gesetzt  → S/MIME-Weg (Warte-Regel; kann verschlüsseln).
       - sonst nur `sig`  → Signatur-Weg (bypass-fähig; kann NIE verschlüsseln).
       - weder noch       → inaktiv, in keiner Liste.
+      - Hybrid-Nutzer (`hybrid`) nur, solange die Option wirkt
+        (`exo_mailboxes.hybrid_aktiv()`, Vorgabe für `mit_hybrid=None`) —
+        sonst käme ihre Post ans Gateway, das sie nicht zurückgeben kann.
     """
     signatur: list[str] = []
     smime: list[str] = []
     for entry in (mailbox_config or {}).values():
         if not isinstance(entry, dict):
             continue
+        if entry.get("hybrid"):
+            if mit_hybrid is None:
+                import exo_mailboxes
+                mit_hybrid = exo_mailboxes.hybrid_aktiv()
+            if not mit_hybrid:
+                continue
         addr = _adresse(entry)
         if not addr:
             continue
@@ -93,6 +102,7 @@ def partitioniere(mailbox_config: dict | None) -> dict:
 def aktive_adressen(mailbox_config: dict | None) -> list[str]:
     """Alle AKTIVEN Postfächer (sig ODER smime aktiviert), sortiert/dedupliziert.
     Maßgeblich für den IMAP-FullAccess-Grant (Least Privilege: nur diese, nicht
-    tenantweit alle Postfächer)."""
-    p = partitioniere(mailbox_config)
+    tenantweit alle Postfächer). Ohne Hybrid-Nutzer: Sie haben kein
+    EXO-Postfach, auf das sich FullAccess setzen ließe."""
+    p = partitioniere(mailbox_config, mit_hybrid=False)
     return sorted(set(p["signatur"]) | set(p["smime"]))

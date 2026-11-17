@@ -5,6 +5,55 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.55 — 2026-11-17 — Hybrid-Nutzer in der Postfachliste
+
+Neue Option unter *Einstellungen → Allgemein → Postfächer*: **Hybrid-Nutzer
+einbeziehen (Postfach in der lokalen Exchange-Organisation)**. Vorgabe: aus.
+
+Gedacht für Hybrid-Umgebungen, in denen die lokale Organisation ihre Post über
+Exchange Online verschickt. Solche Nutzer stehen in Exchange Online als
+`MailUser` (aus dem lokalen Active Directory synchronisiert, mit eigener
+ExchangeGuid). Ist die Option an, holt die Postfachliste sie in derselben
+PowerShell-Sitzung mit `Get-MailUser` dazu und zeigt sie mit der Marke
+**Hybrid**. Teams-Objekte (`*.teams.ms`, Null-GUID), nur in der Cloud angelegte
+MailUser und Gäste (`GuestMailUser`) erscheinen nicht. Die Einstellungen eines
+Hybrid-Nutzers hängen wie bei Cloud-Postfächern an der ExchangeGuid und bleiben
+bei einer späteren Migration nach Exchange Online erhalten.
+
+Was für Hybrid-Nutzer gilt:
+
+- **Signatur, Banner, Disclaimer** wie bei Cloud-Postfächern. Aktivierte
+  Hybrid-Nutzer kommen zusätzlich in die Verteilerliste des Gateways, damit die
+  Transportregel ihre Post ans Gateway leitet.
+- **Rückweg immer über den Smarthost.** Graph sendMail, Port 587 und IMAP APPEND
+  setzen ein Postfach in Exchange Online voraus und kommen für sie nicht in
+  Frage. Deshalb wirkt die Option nur mit dem Rückweg **SMTP Port 25**: In den
+  Graph-Modi legt die Einrichtung keinen Eingangs-Connector für das Gateway an,
+  und Port 25 ausgehend ist dort oft gesperrt. Steht der Rückweg auf Graph-only
+  oder Graph++, bleiben Hybrid-Nutzer aus Postfachliste und Verteilerliste
+  heraus; ein bestehender Eintrag bleibt gespeichert. Kommt dennoch Post eines
+  Hybrid-Nutzers an, versucht das Gateway nur den Smarthost und legt sie bei
+  einem Fehler in die Warteschlange.
+- **Nicht verfügbar:** Abwesenheit, S/MIME und das Outlook-Add-in. Die
+  Postfachliste sperrt diese Spalten; S/MIME wird auch beim Speichern
+  abgelehnt. Die Gesundheitsprüfung lässt Graph-Zugriff, Abwesenheit, Add-ins
+  und S/MIME für sie aus. „Gesendete Elemente“ werden nicht nachgebessert —
+  sie liegen in der lokalen Organisation.
+- **Intern:** Hybrid-Nutzer zählen als interne Empfänger (interne Signatur,
+  interne Abwesenheitsantwort des Gateways).
+- **Lizenz:** Aktivierte Hybrid-Nutzer zählen wie jedes aktivierte Postfach.
+
+Bei ausgeschalteter Option ändert sich nichts: Die Postfachliste fragt
+`Get-MailUser` nicht ab. Die Liste der lokalen Postfächer für das
+Per-Empfänger-Routing (*Mail-Routing*) bleibt davon unabhängig.
+
+**Zu tun:** nichts — die Option ist ausgeschaltet. Wenn du sie einschaltest:
+Rückweg SMTP Port 25 mit funktionierendem Smarthost prüfen, danach
+*Postfächer → Postfächer laden*, Hybrid-Nutzer aktivieren und speichern (mit
+Aktualisierung der Verteilerliste).
+
+---
+
 ## v1.12.54 — 2026-11-17 — Tests zu v1.12.52 berichtigt
 
 Zwei Browsertests zu v1.12.52 bedienten die globale Schriftauswahl in einem

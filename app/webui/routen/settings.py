@@ -165,6 +165,8 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
             "saved": request.query_params.get("saved"),
             "gateway_name": _gateway_name(),
             "sender_mailboxes": sender_mailboxes,
+            # Hybrid-Option wirkt nur im Rückweg smtp (exo_mailboxes.hybrid_aktiv)
+            "reinject_mode": settings_store.reinject_mode(),
         },
     )
 
@@ -261,6 +263,11 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
         except ValueError as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     settings_store.update(clean)
+    if "HYBRID_POSTFAECHER" in clean or "REINJECT_MODE" in clean:
+        # Das PowerShell-Skript der Postfachliste hängt an beiden (Get-MailUser
+        # nur bei wirksamer Hybrid-Option) — der nächste Abruf fragt EXO frisch.
+        import exo_mailboxes
+        exo_mailboxes.invalidate_cache()
     if "LOG_LEVEL" in clean:
         import log_manager
         log_manager.stufe_anwenden()    # wirkt sofort, nicht erst nach dem Neustart

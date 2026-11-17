@@ -1,7 +1,9 @@
 """Ist eine Adresse intern? — EINE Definition für Versand und Add-in.
 
 Intern ist eine Adresse, wenn sie
-  1. einem Postfach dieses Tenants gehört (exo_mailboxes.known_addresses), oder
+  1. einem Postfach dieses Tenants gehört (exo_mailboxes.known_addresses) oder
+     einem Hybrid-Nutzer (Postfach in der lokalen Exchange-Organisation,
+     exo_mailboxes.hybrid_addresses — gleiche Organisation, also intern), oder
   2. auf eine akzeptierte Domäne des Tenants endet (Authoritative oder
      InternalRelay — setup_wizard.list_accepted_domains, zwischengespeichert).
 
@@ -34,7 +36,7 @@ def _domaenen() -> set[str]:
 def _postfaecher() -> set[str]:
     try:
         import exo_mailboxes
-        return exo_mailboxes.known_addresses()
+        return exo_mailboxes.known_addresses() | exo_mailboxes.hybrid_addresses()
     except Exception as exc:                                 # noqa: BLE001
         log.debug("Postfachliste nicht lesbar: %s", exc)
         return set()

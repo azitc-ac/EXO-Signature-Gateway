@@ -202,7 +202,9 @@ def _antworten(empfaenger: str, absender: str, content_bytes: bytes) -> str:
         if not abwesenheit._abwesend_jetzt(setting):
             return "nicht: nicht abwesend"
 
-        intern = absender in (exo_mailboxes.known_addresses() or set())
+        # Hybrid-Nutzer gehören zur selben Organisation → interne Antwort.
+        intern = absender in ((exo_mailboxes.known_addresses() or set())
+                              | exo_mailboxes.hybrid_addresses())
         if intern:
             html = setting.get("internalReplyMessage") or ""
         else:

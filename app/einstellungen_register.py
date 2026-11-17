@@ -222,6 +222,7 @@ REGISTER: dict[str, E] = {
     "GROUP_VARS": E(art=STRUKTUR, ort="/api/settings/internal-groups/save"),  # Custom-Vars je Gruppe
     "ONPREM_MAILUSERS": E(art=ZUSTAND),      # via Get-MailUser abgeglichen, nicht von Hand
     "ONPREM_MAILUSERS_TS": E(art=ZUSTAND),   # Zeitpunkt des letzten Abgleichs
+    "HYBRID_POSTFAECHER": E(art=OPTION, ort="settings.html"),  # Hybrid-Nutzer in die Postfachliste
     "RELAY_USER": E(
         art=NOTNAGEL,
         grund="Benutzername für einen vorgeschalteten Relay, der eine Anmeldung "

@@ -97,9 +97,12 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
     import asyncio
     import exo_mailboxes
     import mailbox_match
-    raw = await asyncio.to_thread(exo_mailboxes.list_mailboxes, bool(refresh))
+    # Hybrid-Nutzer (Postfach in der lokalen Organisation) nur, solange die
+    # Option wirkt — exo_mailboxes.mit_hybrid; list_mailboxes allein kennt sie nicht.
+    raw = await asyncio.to_thread(exo_mailboxes.mit_hybrid, bool(refresh))
     _type_map = {"UserMailbox": "user", "SharedMailbox": "shared",
-                 "RoomMailbox": "room", "EquipmentMailbox": "equipment"}
+                 "RoomMailbox": "room", "EquipmentMailbox": "equipment",
+                 exo_mailboxes.HYBRID_TYP: "hybrid"}
     users = [{"email": m["primary"], "name": m.get("display_name") or m["primary"],
              "type": _type_map.get(m.get("type", ""), "shared")}
             for m in raw if m.get("primary")]
@@ -143,7 +146,9 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "email": cemail,
                 "config_key": key,
                 "name": cfg.get("display_name") or cemail,
-                "type": "user",
+                # Hybrid-Eintrag bei ausgeschalteter Option: weiter als Hybrid
+                # kenntlich (S/MIME, Abwesenheit, Add-in bleiben gesperrt).
+                "type": "hybrid" if cfg.get("hybrid") else "user",
                 "sig": cfg.get("sig", False),
                 "smime": cfg.get("smime", False),
                 # Wahl-Slots roh: None = keine eigene Wahl (folgt dem Standard),
@@ -163,7 +168,9 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "bookings_url": bookings_map.get(cemail, ""),
             })
     result.sort(key=lambda r: _namens_schluessel(r.get("name") or r["email"]))
-    return {"mailboxes": result}
+    return {"mailboxes": result,
+            "hybrid_eingeschaltet": exo_mailboxes.hybrid_eingeschaltet(),
+            "hybrid_aktiv": exo_mailboxes.hybrid_aktiv()}
 
 
 @router.get("/api/mailboxes/namen")
@@ -178,7 +185,8 @@ async def api_mailbox_namen(_=Depends(_check_auth)):
     """
     import asyncio
     import exo_mailboxes
-    raw = await asyncio.to_thread(exo_mailboxes.list_mailboxes)
+    # Mit Hybrid-Nutzern: Auch sie bekommen eine Signatur, die Vorschau gehört dazu.
+    raw = await asyncio.to_thread(exo_mailboxes.mit_hybrid)
     liste = [{"email": m["primary"], "name": m.get("display_name") or m["primary"]}
              for m in raw if m.get("primary")]
     # Alphabetisch nach Anzeigename: EXO liefert in keiner verlässlichen
@@ -206,7 +214,7 @@ async def api_mailbox_migrate_preview(user: str = Depends(_require_admin)):
     import asyncio
     import exo_mailboxes
     import mailbox_migrate
-    mailboxes = await asyncio.to_thread(exo_mailboxes.list_mailboxes, True)
+    mailboxes = await asyncio.to_thread(exo_mailboxes.mit_hybrid, True)
     if not mailboxes:
         return JSONResponse({"ok": False, "error": "EXO-Postfachliste leer/nicht verfügbar."},
                             status_code=503)
@@ -231,7 +239,7 @@ async def api_mailbox_migrate_apply(user: str = Depends(_require_admin)):
     import asyncio
     import exo_mailboxes
     import mailbox_migrate
-    mailboxes = await asyncio.to_thread(exo_mailboxes.list_mailboxes, True)
+    mailboxes = await asyncio.to_thread(exo_mailboxes.mit_hybrid, True)
     if not mailboxes:
         return JSONResponse({"ok": False, "error": "EXO-Postfachliste leer/nicht verfügbar."},
                             status_code=503)
@@ -341,7 +349,10 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     vorher = settings_store.get("MAILBOX_CONFIG") or {}
     smime_vorher = {a for a in _adressen_mit_smime(vorher)}
     # address → EXO record (cached; empty on EXO failure → graceful e-mail-key fallback)
-    exo_list = await asyncio.to_thread(exo_mailboxes.list_mailboxes, False)
+    # Mit Hybrid-Nutzern (nur solange die Option wirkt): auch sie werden an ihrer
+    # ExchangeGuid verankert — sie überlebt eine spätere Migration nach EXO.
+    exo_list = await asyncio.to_thread(exo_mailboxes.mit_hybrid, False)
+    hybrid_wirkt = exo_mailboxes.hybrid_aktiv()
     addr_to_mb: dict = {}
     for mb in exo_list:
         for a in mb.get("addresses", []):
@@ -351,12 +362,21 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
             addr_to_mb[p] = mb
     config_map: dict = {}
     enabled_members: list[str] = []
+    hybrid_mitglieder: set[str] = set()
     for m in mailboxes:
         email = (m.get("email") or "").lower().strip()
         if not email:
             continue
+        mb = addr_to_mb.get(email)
+        # Hybrid-Nutzer: aus der EXO-Liste (Typ MailUser) oder — bei
+        # ausgeschalteter Option nicht in der Liste — aus dem bisherigen Eintrag.
+        _alt_key = "" if mb else mailbox_match.match_sender_key(vorher, email)
+        _alt_hybrid = bool(_alt_key and (vorher.get(_alt_key) or {}).get("hybrid"))
+        ist_hybrid = (bool(mb) and mb.get("type") == exo_mailboxes.HYBRID_TYP) or _alt_hybrid
         sig = bool(m.get("sig", False))
-        smime = bool(m.get("smime", False))
+        # S/MIME braucht ein EXO-Postfach (Zertifikat, Entschlüsselung, Ablage) —
+        # für Hybrid-Nutzer hier durchgesetzt, nicht nur in der Oberfläche.
+        smime = bool(m.get("smime", False)) and not ist_hybrid
         if not (sig or smime):
             continue    # both off → passthrough by default, not stored
         banner_template = (m.get("banner_template") or "").strip()
@@ -391,16 +411,29 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
                 entry["disclaimer_template"] = disclaimer_template
             if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
                 entry["addin_templates"] = addin_tpl
-        mb = addr_to_mb.get(email)
         if mb:
             key = mb["guid"]
             entry["known_addresses"] = list(mb.get("addresses", []))
             entry["primary"] = mb.get("primary", email)
             entry["display_name"] = mb.get("display_name", "")
             member = mb.get("primary", email)
+        elif _alt_hybrid:
+            # Hybrid-Eintrag, Option gerade aus: Anker und Adressen behalten,
+            # statt auf einen E-Mail-Schlüssel zurückzufallen.
+            key = _alt_key
+            _a = vorher.get(_alt_key) or {}
+            for _f in ("known_addresses", "primary", "display_name"):
+                if _f in _a:
+                    entry[_f] = _a[_f]
+            member = (_a.get("primary") or email)
         else:
             key = email          # EXO couldn't resolve → keep e-mail-keyed
             member = email
+        if ist_hybrid:
+            # Kennzeichen für den heißen Pfad (reinject: nur Smarthost), auch
+            # nach einem Neustart mit leerem Zwischenspeicher — exo_mailboxes.ist_hybrid.
+            entry["hybrid"] = True
+            entry.pop("addin_templates", None)
         # ⚠️ Carryover: Dieser Speichervorgang baut `entry` KOMPLETT NEU und ersetzt
         # danach MAILBOX_CONFIG ganz. Felder, die NICHT aus dieser Tabelle stammen,
         # sondern anderswo gesetzt werden (Abwesenheits-Dashboard, Self-Service),
@@ -418,6 +451,12 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
             config_map[key]["smime"] = config_map[key].get("smime") or smime
         else:
             config_map[key] = entry
+        # In die Verteilerliste nur, solange die Option wirkt (Rückweg smtp) —
+        # sonst käme ihre Post ans Gateway, das sie nicht zurückgeben kann.
+        if ist_hybrid:
+            hybrid_mitglieder.add(member)
+            if not hybrid_wirkt:
+                continue
         if member not in enabled_members:
             enabled_members.append(member)
     settings_store.update({"MAILBOX_CONFIG": config_map})
@@ -431,7 +470,9 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
 
     # Bookings-URLs für neu hinzugekommene Postfächer im Hintergrund ermitteln
     existing_bookings: dict = settings_store.get("USER_BOOKINGS") or {}
-    new_emails = [e for e in enabled_members if e not in existing_bookings]
+    # Ohne Hybrid-Nutzer: Bookings hängt an einem EXO-Postfach.
+    new_emails = [e for e in enabled_members
+                  if e not in existing_bookings and e not in hybrid_mitglieder]
     if new_emails and app_id and tenant_domain:
         import setup_wizard as _sw
         async def _fetch_new():

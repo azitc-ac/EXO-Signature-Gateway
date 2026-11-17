@@ -319,6 +319,29 @@ def _senden(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         log.warning("Domänen-Routing ist konfiguriert, aber der Rückweg steht auf "
                     "%r — Routing wirkt nur im smtp-Modus; Post geht an EXO", mode)
 
+    # ── Hybrid-Nutzer: IMMER über den Smarthost ──────────────────────────────
+    # Absender mit Postfach in der lokalen Exchange-Organisation (in EXO nur ein
+    # MailUser). Graph sendMail und 587 SendAsApp senden ALS ein EXO-Postfach,
+    # das es nicht gibt (ErrorInvalidUser); IMAP APPEND legte die Post nur in
+    # Posteingänge ab, statt sie zuzustellen. Der einzige Rückweg ist der
+    # Smarthost — wie im Modus `smtp`, X-Sig-Applied setzt der Aufrufer. Die
+    # Option wirkt nur in `smtp` (exo_mailboxes.hybrid_aktiv); kommt in einem
+    # Graph-Modus doch Post an (Modus nachträglich umgestellt, Verteilerliste
+    # noch nicht nachgezogen), bleibt der Smarthost der einzige Versuch —
+    # scheitert er, geht die Mail in die Warteschlange, nicht verloren.
+    import exo_mailboxes
+    if exo_mailboxes.ist_hybrid(mail_from):
+        if mode != "smtp":
+            log.warning("Hybrid-Absender %s im Rückweg %r — Zustellung nur über den "
+                        "Smarthost möglich; Hybrid-Nutzer wirken nur im Modus smtp",
+                        mail_from, mode)
+        try:
+            _send_smtp(mail_from, rcpt_tos, content_bytes)
+        except Exception as exc:                              # noqa: BLE001
+            _fail_delivery(mail_from, rcpt_tos, content_bytes,
+                           f"Hybrid-Absender, Smarthost: {exc}", queue_on_failure)
+        return None
+
     # Bifurcation handling (587 as-sender + send_to_all) is an OUTBOUND-only
     # feature: it only makes sense for mail SENT BY a tenant mailbox that
     # Exchange split into forks. Inbound external mail (e.g. an S/MIME-signed
@@ -329,7 +352,6 @@ def _senden(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     # (2026-07-08: an inbound SwissSign mail with an external Cc was delivered
     # to the internal recipient TWICE). Empty known-set = "unknown" -> treat as
     # NOT internal (conservative: at worst scoped delivery, never a duplicate).
-    import exo_mailboxes
     _known = exo_mailboxes.known_addresses()
     _sender_internal = bool(_known) and (mail_from or "").strip().lower() in _known
 
