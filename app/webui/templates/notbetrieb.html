@@ -33,6 +33,12 @@
   .nb-schritte li { margin-bottom:2px }
   .nb-eingerueckt { padding-left:26px }
   .nb-zusatz { display:inline }
+  /* Kennzahlen als Übersicht statt einer langen Zeile: Bezeichnung │ Wert. */
+  .nb-kennzahlen { display:grid; grid-template-columns:max-content 1fr; gap:4px 16px; margin:8px 0 12px; font-size:13px }
+  .nb-kennzahlen dt { color:#64748b }
+  [data-theme="dark"] .nb-kennzahlen dt { color:#94a3b8 }
+  .nb-kennzahlen dd { margin:0 }
+  @media (max-width:600px) { .nb-kennzahlen { grid-template-columns:1fr; gap:0 } .nb-kennzahlen dd { margin-bottom:6px } }
   .nb-klapp { border-top:1px solid #e5e7eb; padding:2px 0 }
   [data-theme="dark"] .nb-klapp { border-top-color:#334155 }
   .nb-klapp > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
@@ -150,8 +156,9 @@
     <div class="settings-control">
       <textarea id="nb-probegruppe" rows="3" style="width:100%"
         placeholder="max.mustermann@firma.at">{{ probegruppe | join('\n') }}</textarea>
-      <div class="hint" style="margin-top:4px">Eine Adresse je Zeile. Sendet schon jetzt wie im Notfall, am
-        Exchange vorbei (Probealarm: externe per Direktversand, interne nur in die Kopie).</div>
+      <div class="hint" style="margin-top:4px">Eine Adresse je Zeile. Liest und sendet schon jetzt wie im
+        Notfall: sieht die Kopie auch ohne „für alle lesbar“ und sendet am Exchange vorbei (Probealarm: externe
+        per Direktversand, interne nur in die Kopie).</div>
     </div>
   </div>
   <div class="settings-row">
@@ -168,11 +175,12 @@
     Das Gateway hält die Ordnerstruktur jedes aktivierten Postfachs und darin die Post der
     eingestellten Tage. Nachgeführt wird alle 15 Minuten; was aus dem Fenster fällt, wird gelöscht.
   </p>
-  <p id="nb-stand" style="margin:6px 0">Lädt…</p>
-  <div style="display:flex;gap:6px;flex-wrap:wrap">
+  <dl id="nb-stand" class="nb-kennzahlen"><dt>Stand</dt><dd>Lädt…</dd></dl>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
     {% if aktiv %}<button class="btn secondary btn-sm" id="nb-abgleich-btn" onclick="nbAbgleich()">Jetzt abgleichen</button>{% endif %}
     <button class="btn secondary btn-sm" id="nb-zurueck-btn" onclick="nbZurueck()"
             title="Im Notbetrieb angenommene Post nach Exchange spielen — Doppeltes erkennt es an der Message-ID">Zurückspielen</button>
+    <span id="nb-abgleich-laeuft" hidden></span>
     <button class="btn danger btn-sm" id="nb-loeschen-btn" onclick="nbLoeschen()"
             title="Die ganze Kopie auf diesem Gateway löschen — verweigert, solange angenommene Post nicht zurückgespielt ist">Kopie löschen</button>
   </div>
@@ -225,33 +233,33 @@
     <button class="btn secondary btn-sm" id="nb-regel-neu-btn" onclick="nbRegelNeu()">Regel hinzufügen</button>
   </div>
 
+  <!-- Platzbedarf: direkt bei den Feldern, damit „was wäre wenn“ ohne Speichern
+       sichtbar ist — vorher stand es in einer eigenen Karte darunter. -->
+  <h3>Reicht der Platz?</h3>
+  <div class="msg" id="nb-platz-urteil" style="margin-top:0" hidden></div>
+  <p class="hint" id="nb-platz-wofuer" style="margin:6px 0 0">Gerechnet für die Werte oben — ändere sie und sieh
+    sofort, ob es passt. Erst „Speichern“ übernimmt sie, „Änderungen verwerfen“ stellt den gespeicherten Stand
+    wieder her.</p>
+  <p class="hint" id="nb-platz-text" style="margin:6px 0 0"></p>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px">
+    <button class="btn secondary btn-sm" id="nb-messen-btn" onclick="nbMessen()">Platzbedarf messen</button>
+    <span id="nb-messen-stand" class="fortschritt" hidden></span>
+    <span class="hint">Einmal messen genügt: die Post der letzten {{ mess_tage }} Tage live in Exchange, längere
+      Fenster aus dem Tagesmittel hochgerechnet.</span>
+  </div>
+
   <div class="actions" style="margin-top:14px">
     <button class="btn secondary" id="nb-fenster-btn" data-wache-container="#nb-fenster-karte"
             data-wache-hinweis="nb-fenster-result"
             onclick="nbFensterSpeichern()">Speichern</button>
+    <button class="btn secondary" id="nb-fenster-verwerfen" onclick="nbFensterVerwerfen()" hidden>Änderungen verwerfen</button>
     <span id="nb-fenster-result"></span>
   </div>
 </div>
 
-<!-- Platzbedarf -->
-<div class="settings-card" style="margin-bottom:18px">
-  <h2 style="margin-top:0">Reicht der Platz?</h2>
-  <p class="hint" style="margin-top:0">
-    Misst die Post der letzten {{ mess_tage }} Tage live in Exchange und rechnet daraus den Bedarf
-    für die Einstellung oben — auch für eine noch nicht gespeicherte. Längere Fenster werden aus dem
-    Tagesmittel hochgerechnet.
-  </p>
-  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-    <button class="btn secondary btn-sm" id="nb-messen-btn" onclick="nbMessen()">Platzbedarf messen</button>
-    <span id="nb-messen-stand" class="fortschritt" hidden></span>
-  </div>
-  <div class="msg" id="nb-platz-urteil" style="margin-top:8px" hidden></div>
-  <p class="hint" id="nb-platz-text" style="margin:6px 0 0"></p>
-</div>
-
 <!-- Zugriffsrechte -->
 <div class="settings-card" style="margin-bottom:18px">
-  <h2 style="margin-top:0">Wer darf welches Postfach</h2>
+  <h2 style="margin-top:0">Postfachberechtigungen</h2>
   <p class="hint" style="margin-top:0">
     Abbild von Vollzugriff, „Senden als“ und „Senden im Auftrag“ aus Exchange, täglich erneuert.
     Im Störfall gilt der zuletzt gesehene Stand. Postfächer, auf die ein aktiviertes Postfach
@@ -292,7 +300,7 @@
     Geprüft werden SPF, DKIM und DMARC: abweisen, was die Absenderdomäne so verlangt oder sich als
     eigene Domäne ausgibt, Zweifelhaftes in Junk-E-Mail. Noch ohne Inhaltsfilter.
   </p>
-  <p id="nb-eingang-stand" class="hint" style="margin:6px 0"></p>
+  <dl id="nb-eingang-stand" class="nb-kennzahlen"></dl>
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="nb-eingang-grey" {% if eingang.greylist %}checked{% endif %}>
@@ -482,7 +490,10 @@
   <div class="settings-row">
     <label for="nb-ldap-server">Domänencontroller</label>
     <div class="settings-control"><input autocapitalize="none" autocorrect="off" spellcheck="false" type="text" id="nb-ldap-server" value="{{ ldap.server }}"
-      placeholder="ldaps://dc01.firma.local" style="min-width:260px"></div>
+      placeholder="ldaps://dc01.firma.local" style="min-width:260px">
+      <div class="hint" style="margin-top:4px">Den Namen aus dem Zertifikat des DC eintragen — geprüft wird gegen
+        ihn. Eine IP-Adresse geht nur, wenn sie im Zertifikat steht. Löst der Name hier nicht auf:
+        <a href="/advanced#hosts-eintraege">Hosts-Eintrag</a> anlegen.</div></div>
   </div>
   <div class="settings-row">
     <label for="nb-ldap-basis">Basis-DN</label>
@@ -569,6 +580,23 @@
 const NB_GRUPPEN = {{ gruppen | tojson }};
 const NB_POSTFAECHER = {{ postfaecher | tojson }};
 let nbRegeln = {{ regeln | tojson }};
+// Gespeicherter Stand der Karte „Wie weit die Kopie reicht“ — für „Änderungen
+// verwerfen“ und die Markierung „noch nicht gespeichert“ an der Platzrechnung.
+const nbUmfangWert = () => (document.querySelector('input[name="nb-umfang"]:checked') || {}).value || 'alle';
+let nbFensterGespeichert = null;
+function nbFensterStand() { return JSON.stringify([nbFormular(), nbUmfangWert()]); }
+function nbFensterGeaendert() { return nbFensterGespeichert !== null && nbFensterStand() !== nbFensterGespeichert; }
+function nbFensterVerwerfen() {
+  const [f, umfang] = JSON.parse(nbFensterGespeichert);
+  ['mail', 'kal_zurueck', 'kal_vor'].forEach(k => { document.getElementById('nb-std-' + k).value = f.fenster[k]; });
+  const radio = document.querySelector('input[name="nb-umfang"][value="' + umfang + '"]');
+  if (radio) radio.checked = true;
+  nbRegeln = f.regeln;
+  nbRegelnZeichnen();
+  // Die Speicher-Wache vergleicht mit dem gespeicherten Stand — ein Ereignis genügt.
+  document.getElementById('nb-std-mail').dispatchEvent(new Event('input', {bubbles: true}));
+  nbRechnen();
+}
 let nbPlatz = null;            // letzte Rechnung, je Postfach für die Tabelle
 
 function nbZielOptionen(gewaehlt) {
@@ -635,7 +663,7 @@ async function nbFensterSpeichern() {
   const ok = await savePartial({NOTBETRIEB_FENSTER: f.fenster, NOTBETRIEB_REGELN: f.regeln,
                                 NOTBETRIEB_UMFANG: umfang}, 'nb-fenster-result');
   wacheFertig('nb-fenster-btn', ok);
-  if (ok) nbPostfaecher();
+  if (ok) { nbFensterGespeichert = nbFensterStand(); nbRechnen(); nbPostfaecher(); }
 }
 
 // ── Notfall ──────────────────────────────────────────────────────────────
@@ -681,36 +709,52 @@ async function nbBereitschaft() {
 }
 
 // ── Stand ────────────────────────────────────────────────────────────────
+// Kennzahlen als Übersicht: [Bezeichnung, HTML] je Zeile — EINE Darstellung
+// für den Stand der Kopie und den Notfall-Eingang. Werte maskiert der Aufrufer.
+function nbKennzahlen(el, zeilen) {
+  el.innerHTML = zeilen.map(z => '<dt>' + esc(z[0]) + '</dt><dd>' + z[1] + '</dd>').join('');
+}
+// Zahl mit Bezeichnung; über 0 und `warnen` gelb hervorgehoben.
+function nbZahl(n, text, warnen) {
+  const t = esc((n || 0) + ' ' + text);
+  return warnen && n > 0 ? '<span class="zustand-text" data-zustand="warnung">' + t + '</span>' : t;
+}
+function nbZeit(iso) {
+  return new Date(iso).toLocaleString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric',
+                                                hour: '2-digit', minute: '2-digit'});
+}
+const nbWarnung = t => '<span class="zustand-text" data-zustand="warnung">' + esc(t) + '</span>';
+
 async function nbStand() {
   const d = await getJSON('/api/notbetrieb/status');
   const el = document.getElementById('nb-stand');
-  if (!d.ok) { el.textContent = 'Stand nicht lesbar: ' + errText(d); return; }
+  if (!d.ok) { nbKennzahlen(el, [['Stand', nbWarnung('nicht lesbar: ' + errText(d))]]); return; }
   const l = d.letzter_lauf;
-  let t = d.mails + ' Mails aus ' + d.postfaecher_im_schatten + ' Postfächern in der Kopie';
-  if (d.lokal_offen) t += ' · ' + d.lokal_offen + ' im Notbetrieb angenommen, noch nicht zurückgespielt';
-  t += ' · ' + (d.profile_stand
-    ? d.profile + ' Profile für Signaturen gesichert (' + new Date(d.profile_stand).toLocaleString('de-DE') + ')'
-    : 'Profile für Signaturen noch nicht gesichert');
-  if (l && l.ts) {
-    t += ' · letzter Abgleich ' + new Date(l.ts).toLocaleString('de-DE') + ': '
-      + (l.kein_token ? 'kein Graph-Zugang'
-         : l.neu + ' neu, ' + l.entfernt + ' entfernt, ' + l.abgelaufen + ' abgelaufen, '
-           + (l.fehler + l.postfaecher_fehler) + ' Fehler bei ' + l.postfaecher + ' Postfächern');
-  } else {
-    t += ' · noch kein Abgleich gelaufen';
-  }
-  el.textContent = t;
+  const zeilen = [['Kopie', esc(d.mails + ' Mails aus ' + d.postfaecher_im_schatten + ' Postfächern')]];
+  if (d.lokal_offen) zeilen.push(['Zurückzuspielen', nbWarnung(d.lokal_offen + ' im Notbetrieb angenommen, '
+                                                              + 'noch nicht zurückgespielt')]);
+  zeilen.push(['Profile für Signaturen', d.profile_stand
+    ? esc(d.profile + ' gesichert · Stand ' + nbZeit(d.profile_stand)) : nbWarnung('noch nicht gesichert')]);
+  zeilen.push(['Letzter Abgleich', !(l && l.ts) ? nbWarnung('noch keiner')
+    : esc(nbZeit(l.ts) + ' · ' + l.postfaecher + ' Postfächer') + '<br>' + (l.kein_token ? nbWarnung('kein Graph-Zugang')
+      : [nbZahl(l.neu, 'neu'), nbZahl(l.entfernt, 'entfernt'), nbZahl(l.abgelaufen, 'abgelaufen'),
+         nbZahl(l.fehler + l.postfaecher_fehler, 'Fehler', true)].join(' · '))]);
+  nbKennzahlen(el, zeilen);
   const e = d.eingang || {};
-  document.getElementById('nb-eingang-stand').textContent = 'Seit dem Start: ' + (e.angenommen || 0)
-    + ' angenommen, ' + (e.unbekannt || 0) + ' an unbekannte Empfänger abgewiesen, ' + (e.greylist || 0)
-    + ' aufgeschoben (Greylisting), ' + (e.gedrosselt || 0) + ' gedrosselt, ' + (e.unecht || 0)
-    + ' als gefälscht abgewiesen, ' + (e.junk || 0) + ' in Junk-E-Mail.';
+  nbKennzahlen(document.getElementById('nb-eingang-stand'), [
+    ['Angenommen', nbZahl(e.angenommen, 'seit dem Start')],
+    ['Abgewiesen', [nbZahl(e.unbekannt, 'an unbekannte Empfänger'), nbZahl(e.unecht, 'als gefälscht')].join(' · ')],
+    ['Aufgeschoben', nbZahl(e.greylist, 'durch Greylisting')],
+    ['Gedrosselt', nbZahl(e.gedrosselt, 'Mails')],
+    ['Junk-E-Mail', nbZahl(e.junk, 'abgelegt')]]);
 }
 
 async function nbAbgleich() {
-  // Fortschritt an der Standzeile — sonst zeigt sie bis zum Ende den vorigen Lauf (Klicktest).
+  // Fortschritt neben den Knöpfen — sonst zeigt der Stand bis zum Ende den vorigen
+  // Lauf (Klicktest). Nicht AM Stand: Die Anzeige wird danach versteckt und geleert,
+  // und mit ihr verschwand bis 17.11.2026 die ganze Standzeile bis zum Neuladen.
   const d = await knopfAktion('nb-abgleich-btn', 'Gleiche ab…', () => postJSON('/api/notbetrieb/abgleich', {}),
-                              {anzeige: 'nb-stand'});
+                              {anzeige: 'nb-abgleich-laeuft'});
   showMsg('nb-msg', d.ok ? 'Abgleich gelaufen: ' + d.neu + ' neu, ' + d.entfernt + ' entfernt.'
                          : 'Abgleich fehlgeschlagen: ' + errText(d), d.ok);
   nbStand(); nbPostfaecher();
@@ -876,6 +920,8 @@ async function nbPostfaecher() {
 // ── Platzbedarf ──────────────────────────────────────────────────────────
 function nbPlatzZeigen(d) {
   nbPlatz = d;
+  const geaendert = nbFensterGeaendert();
+  document.getElementById('nb-fenster-verwerfen').hidden = !geaendert;
   const urteil = document.getElementById('nb-platz-urteil');
   const text = document.getElementById('nb-platz-text');
   if (!d.ok || !d.gemessen) {
@@ -889,7 +935,8 @@ function nbPlatzZeigen(d) {
   const ok = anteil != null && anteil < 80;
   showMsg(urteil, 'Bedarf ' + groesseText(d.bedarf) + ' von ' + groesseText(d.verfuegbar) + ' verfügbar'
           + (anteil != null ? ' (' + anteil + ' %)' : '')
-          + (ok ? ' — passt.' : ' — reicht nicht oder zu knapp.'), ok);
+          + (ok ? ' — passt.' : ' — reicht nicht oder zu knapp.')
+          + (geaendert ? ' (für die geänderten, noch nicht gespeicherten Werte)' : ''), ok);
   const teile = Object.entries(d.nach_herkunft || {}).map(([h, b]) => h + ': ' + groesseText(b)).join(' · ');
   text.textContent = 'Gemessen ' + new Date(d.mess_ts).toLocaleString('de-DE') + ': ' + d.mess_mails
     + ' Mails der letzten ' + d.mess_tage + ' Tage in ' + d.mess_dauer_s + ' s'
@@ -930,6 +977,7 @@ async function nbMessen() {
 document.getElementById('nb-fenster-karte').addEventListener('input', nbRechnenBald);
 document.getElementById('nb-fenster-karte').addEventListener('change', nbRechnenBald);
 nbRegelnZeichnen();
+nbFensterGespeichert = nbFensterStand();
 nbStand();
 nbRechte();
 nbFaktoren();

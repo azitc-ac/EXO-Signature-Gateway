@@ -2079,6 +2079,78 @@ def test_notbetrieb_lage_knopf_und_vollstaendige_ablaeufe(seite, monkeypatch):
     pg.context.close()
 
 
+def test_notbetrieb_stand_als_uebersicht_bleibt_nach_dem_abgleich(seite, monkeypatch):
+    """Der Stand der Kopie war eine lange Zeile; jetzt Bezeichnung │ Wert,
+    Fehler über 0 gelb. Und: Nach „Jetzt abgleichen“ verschwand die Zeile, weil
+    sie als Fortschrittsanzeige diente (versteckt und geleert am Ende)."""
+    import json as _json
+    import notbetrieb
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    status = {"ok": True, "mails": 143, "postfaecher_im_schatten": 4, "lokal_offen": 0, "profile": 36,
+              "profile_stand": "2026-11-17T20:35:44Z",
+              "letzter_lauf": {"ts": "2026-11-17T21:12:37Z", "neu": 0, "entfernt": 0, "abgelaufen": 0,
+                               "fehler": 2, "postfaecher_fehler": 0, "postfaecher": 21},
+              "eingang": {"angenommen": 5, "unbekannt": 1}}
+
+    def api(route):
+        teil = route.request.url.split("/api/notbetrieb/")[1].split("?")[0]
+        antwort = {"status": status, "abgleich": {"ok": True, "neu": 0, "entfernt": 0}}.get(teil, {"ok": True, "items": []})
+        route.fulfill(status=200, content_type="application/json", body=_json.dumps(antwort))
+    pg = seite("/notbetrieb", breite=1280)
+    pg.context.route("**/api/notbetrieb/**", api)
+    pg.reload(wait_until="domcontentloaded")
+    pg.wait_for_function("() => document.querySelectorAll('#nb-stand dt').length === 3")
+    zeilen = pg.eval_on_selector_all("#nb-stand dt", "e => e.map(x => x.innerText)")
+    assert zeilen == ["Kopie", "Profile für Signaturen", "Letzter Abgleich"], zeilen
+    assert pg.inner_text("#nb-stand dd:nth-of-type(1)") == "143 Mails aus 4 Postfächern"
+    fehler = pg.locator('#nb-stand [data-zustand="warnung"]')
+    assert fehler.count() == 1 and fehler.inner_text() == "2 Fehler"
+    assert "21 Postfächer" in pg.inner_text("#nb-stand dd:nth-of-type(3)")
+    assert pg.eval_on_selector_all("#nb-eingang-stand dt", "e => e.length") == 5
+    pg.click("#nb-abgleich-btn")
+    pg.wait_for_function("() => !document.getElementById('nb-abgleich-btn').disabled")
+    pg.wait_for_timeout(300)
+    assert _sichtbar(pg, "#nb-stand") and pg.eval_on_selector_all("#nb-stand dt", "e => e.length") == 3
+    pg.context.close()
+
+
+def test_notbetrieb_platz_was_waere_wenn_und_verwerfen(seite, monkeypatch):
+    """Platzbedarf steht bei den Feldern: ändern → sofort gerechnet (ohne
+    Speichern), als „noch nicht gespeichert“ markiert; „Änderungen verwerfen“
+    stellt den gespeicherten Stand her und sperrt Speichern wieder."""
+    import json as _json
+    import notbetrieb
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    gerechnet = []
+
+    def api(route):
+        teil = route.request.url.split("/api/notbetrieb/")[1].split("?")[0]
+        if teil == "platz-rechnen":
+            gerechnet.append(route.request.post_data_json)
+            antwort = {"ok": True, "gemessen": True, "bedarf": 1_000_000, "verfuegbar": 10_000_000, "anteil": 0.1,
+                       "frei": 9_000_000, "belegt": 1_000_000, "mess_ts": "2026-11-17T20:00:00Z", "mess_mails": 10,
+                       "mess_tage": 30, "mess_dauer_s": 1, "nach_herkunft": {}, "geeicht": False}
+        else:
+            antwort = {"ok": True, "items": []}
+        route.fulfill(status=200, content_type="application/json", body=_json.dumps(antwort))
+    pg = seite("/notbetrieb", breite=1280)
+    pg.context.route("**/api/notbetrieb/**", api)
+    pg.reload(wait_until="domcontentloaded")
+    pg.wait_for_function("() => !document.getElementById('nb-platz-urteil').hidden")
+    alt = pg.input_value("#nb-std-mail")
+    assert not _sichtbar(pg, "#nb-fenster-verwerfen") and pg.is_disabled("#nb-fenster-btn")
+    pg.fill("#nb-std-mail", str(int(alt) + 7))
+    pg.wait_for_function("() => document.getElementById('nb-platz-urteil').innerText.includes('noch nicht gespeichert')")
+    assert gerechnet[-1]["fenster"]["mail"] == int(alt) + 7                  # gerechnet, nicht gespeichert
+    assert _sichtbar(pg, "#nb-fenster-verwerfen") and not pg.is_disabled("#nb-fenster-btn")
+    pg.click("#nb-fenster-verwerfen")
+    pg.wait_for_function("() => document.getElementById('nb-fenster-verwerfen').hidden")
+    assert pg.input_value("#nb-std-mail") == alt
+    pg.wait_for_function("() => document.getElementById('nb-fenster-btn').disabled")
+    assert "noch nicht gespeichert" not in pg.inner_text("#nb-platz-urteil")
+    pg.context.close()
+
+
 # ── Roter Faden: „Dein Notfall-Zugang“ statt Anmeldemaske ────────────────────
 
 _FAKTOR_NUR_APP = {"ok": True, "postfach": "max@firma.at", "aktiv": True, "totp": True, "seit": "2026-11-01",
