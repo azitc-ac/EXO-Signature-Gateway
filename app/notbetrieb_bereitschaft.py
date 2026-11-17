@@ -285,6 +285,17 @@ def _zweitfaktor() -> dict:
     elif not ab["eingerichtet"]:
         return _p("Zweiter Faktor", abnahme.OFFEN, befund + " — im Notfall könnte sich niemand anmelden.",
                   "Notbetrieb → Anmeldung: Link zum Einrichten an alle verteilen.")
+    elif ab["eingerichtet"] < ab["nutzer"]:
+        # Gelb, nicht offen: „1 von 18“ hieß bis 17.11.2026 grün „bereit“. Offen
+        # (und damit eine Daueraufgabe im Sammelpunkt, bis wirklich jede Person
+        # einen Faktor hat) wäre zu viel — `teilweise` färbt nur die Zeile.
+        fehlt = ab["nutzer"] - ab["eingerichtet"]
+        p = _p("Zweiter Faktor", abnahme.OK,
+               befund + f" — {fehlt} könnte{'' if fehlt == 1 else 'n'} sich im Notfall nicht anmelden.",
+               "Link zum Einrichten erneut verteilen — oder unter Anmeldung im Notbetrieb „im ausgerufenen "
+               "Notfall auch ohne eingerichteten Faktor“ zulassen.")
+        p["teilweise"] = True
+        return p
     return _p("Zweiter Faktor", abnahme.OK, befund + ".")
 
 

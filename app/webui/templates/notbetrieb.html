@@ -667,7 +667,8 @@ async function nbBereitschaft() {
   const t = document.getElementById('nb-bereit-tabelle');
   t.querySelector('tbody').innerHTML = d.punkte.map(p =>
     '<tr><td>' + esc(p.name) + '</td><td><span class="zustand-text" data-zustand="'
-    + (p.zustand === 'ok' ? 'ok' : 'warnung') + '">' + esc({ok: 'bereit', offen: 'offen', unbekannt: 'unklar'}[p.zustand] || p.zustand)
+    + (p.zustand === 'ok' && !p.teilweise ? 'ok' : 'warnung') + '">'
+    + esc(p.teilweise ? 'teilweise' : {ok: 'bereit', offen: 'offen', unbekannt: 'unklar'}[p.zustand] || p.zustand)
     + '</span></td><td>' + esc(p.befund) + (p.zu_tun ? '<br><span class="hint">' + esc(p.zu_tun) + '</span>' : '')
     + '</td></tr>').join('');
   t.hidden = false;

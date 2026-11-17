@@ -189,3 +189,26 @@ def test_abdeckung_zaehlt_nur_benutzerpostfaecher_ohne_gesperrte(faktor):
 def test_kopie_loeschen_laesst_faktoren_stehen(faktor):
     _einrichten()
     assert "schatten" not in str(nf._pfad()) and nf._pfad().parent != notbetrieb._db_pfad().parent
+
+
+def test_bereitschaft_teilweise_ist_gelb_nicht_gruen(monkeypatch):
+    """„1 von 18“ stand grün als „bereit“ da — 17 hätten sich im Notfall nicht
+    anmelden können. Jetzt `teilweise` (gelb in der Tabelle), ohne Daueraufgabe
+    im Sammelpunkt (Zustand bleibt ok)."""
+    import abnahme
+    import notbetrieb_bereitschaft as nbb
+    import notbetrieb_faktor as nbf
+    werte = {"eingerichtet": 1, "nutzer": 18}
+    monkeypatch.setattr(nbf, "pflicht", lambda: True)
+    monkeypatch.setattr(nbf, "im_notfall_ohne", lambda: False)
+    monkeypatch.setattr(nbf, "abdeckung", lambda: dict(werte))
+    z = nbb._zweitfaktor()
+    assert z["zustand"] == abnahme.OK and z.get("teilweise") is True
+    assert "17 könnten sich im Notfall nicht anmelden" in z["befund"] and z["zu_tun"]
+    werte["eingerichtet"] = 17
+    assert "1 könnte sich" in nbb._zweitfaktor()["befund"]
+    werte["eingerichtet"] = 18
+    assert not nbb._zweitfaktor().get("teilweise")
+    werte["eingerichtet"] = 1
+    monkeypatch.setattr(nbf, "im_notfall_ohne", lambda: True)          # im Notfall geht es auch ohne
+    assert not nbb._zweitfaktor().get("teilweise")
