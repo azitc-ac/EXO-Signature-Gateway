@@ -1030,7 +1030,7 @@ function renderMailboxTable(mailboxes) {
   // Hybrid-Nutzer: Postfach in der lokalen Organisation, in EXO nur ein MailUser.
   // S/MIME, Abwesenheit und Add-in setzen ein EXO-Postfach voraus (Speichern
   // erzwingt S/MIME aus, siehe api_save_mailboxes).
-  var HYBRID_HINWEIS = 'Postfach in der lokalen Organisation: Abwesenheit, S/MIME und Add-in nicht verfügbar';
+  var HYBRID_HINWEIS = 'Bei Hybrid nicht verfügbar';
   mailboxes.forEach(function(mb, i) {
     mb._idx = i;
     var isResource = (mb.type === 'room' || mb.type === 'equipment');
@@ -1048,8 +1048,7 @@ function renderMailboxTable(mailboxes) {
     var badge = _typeBadge[mb.type] || '';
     tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' + badge +
       (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '') +
-      (isResource ? '<br><span style="color:#94a3b8;font-size:10px">zählt nicht zur Lizenz</span>' : '') +
-      (isHybrid ? '<br><span style="color:#94a3b8;font-size:10px">' + esc(HYBRID_HINWEIS) + '</span>' : '');
+      (isResource ? '<br><span style="color:#94a3b8;font-size:10px">zählt nicht zur Lizenz</span>' : '');
 
     // Standardsignatur checkbox
     var tdSig = document.createElement('td');

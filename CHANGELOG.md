@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.56 — 2026-11-17 — Postfachliste: Hybrid-Hinweis kürzer
+
+Die Zeile unter dem Namen eines Hybrid-Nutzers entfällt. Die gesperrten
+Spalten (S/MIME, Abwesenheit, Add-in) nennen den Grund nur noch als Tooltip
+„Bei Hybrid nicht verfügbar“.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.55 — 2026-11-17 — Hybrid-Nutzer in der Postfachliste
 
 Neue Option unter *Einstellungen → Allgemein → Postfächer*: **Hybrid-Nutzer
