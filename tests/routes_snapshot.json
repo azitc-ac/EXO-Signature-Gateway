@@ -497,6 +497,13 @@
     "name": "api_entra_users_search"
   },
   {
+    "pfad": "/api/ews-onprem/test",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_ews_onprem_test"
+  },
+  {
     "pfad": "/api/health/audit-log",
     "methoden": [
       "GET"

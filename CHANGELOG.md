@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.60 — 2026-11-17 — Routentabelle nachgetragen
+
+Die Momentaufnahme der Routen (`tests/routes_snapshot.json`) enthält jetzt den
+Verbindungstest `POST /api/ews-onprem/test` aus v1.12.59. Keine Änderung am
+Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.59 — 2026-11-17 — Abwesenheit für Hybrid-Nutzer über Exchange lokal (EWS)
 
 Neue, optionale Anbindung an eine lokale Exchange-Organisation (2016, 2019,
