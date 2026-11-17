@@ -220,6 +220,11 @@ def create_implicit_session(redirect_uri: str, next_url: str = "/", login_hint: 
     # der Browser womöglich ein anderes angemeldetes Konto. Nur eine Adresse.
     if login_hint_gueltig(login_hint):
         params["login_hint"] = login_hint.strip()
+        # Mit select_account zeigt Microsoft trotz Hinweis nur die Kontoliste,
+        # ohne Vorauswahl (Klicktest Teams Desktop, 17.11.2026). Ohne prompt
+        # nimmt es das genannte Konto — andere Konten bleiben über „Anderes
+        # Konto“ erreichbar.
+        params.pop("prompt", None)
     auth_url = ("https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?"
                 + urllib.parse.urlencode(params))
     log.debug("PKCE implicit session created state=%s", state)

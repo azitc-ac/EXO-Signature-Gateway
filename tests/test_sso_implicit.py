@@ -51,7 +51,10 @@ def test_anmeldehinweis_nur_als_adresse(monkeypatch, hinweis, erwartet):
     import urllib.parse
     monkeypatch.setattr(pkce, "_get_client_id", lambda: "CID")
     _state, url = pkce.create_implicit_session("https://rp/cb", next_url="/x", login_hint=hinweis)
-    assert urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get("login_hint") == erwartet
+    q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+    assert q.get("login_hint") == erwartet
+    # Mit gültigem Hinweis keine erzwungene Kontoliste, sonst wie bisher.
+    assert q.get("prompt") == (None if erwartet else ["select_account"])
 
 
 def test_anmelderoute_reicht_den_hinweis_durch(monkeypatch):
