@@ -166,6 +166,9 @@ def hold(sender: str, recipients: list[str], raw_bytes: bytes,
     reason: "maintenance" (Wartungsmodus) oder "delivery_failed" (Zustellung nach
     Verarbeitung/Entschlüsselung endgültig gescheitert — Fallnetz gegen Verlust).
     """
+    import probelauf
+    if probelauf.aktiv():
+        return ""
     _ensure_dir()
 
     if reason == "delivery_failed":

@@ -114,7 +114,14 @@ a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); border-col
 .spalte { overflow: auto; }
 #ordnerspalte { padding: 2px 4px 8px 8px; }
 #listenspalte, #lesen { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 10px; box-shadow: var(--schatten); }
-#listenspalte { container-type: inline-size; display: flex; flex-direction: column; overflow: hidden; }
+#listenspalte { container-type: inline-size; display: flex; flex-direction: column; overflow: hidden;
+                /* Breite Liste: EIN Gitter für Kopfzeile und Mails (Spalten Von/Betreff ziehbar). */
+                --listengitter: 24px minmax(0, var(--s-von, 170px)) minmax(0, var(--s-betreff, 260px)) minmax(0, 1fr) auto auto; }
+#listenspalte[data-vorschautext="0"] { --listengitter: 24px minmax(0, var(--s-von, 170px)) minmax(0, 1fr) 0 auto auto; }
+/* Vorschautext aus: die dritte Zeile bzw. Spalte fehlt — außer sie nennt den
+   Grund eines Suchtreffers (An-Zeile). Kontakte, Termine, Entwürfe behalten sie. */
+#listenspalte[data-vorschautext="0"] #liste .eintrag:not(.kontakt):not(.ohne) > .vorschau:not(:has(.an)) { display: none; }
+.spaltenkopf { display: none; }
 #liste { flex: 1; overflow: auto; }
 /* Ordner: Zeilen mit Symbol, Auswahl mit Akzentstrich */
 #ordner .eintrag { display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin: 1px 0; border-radius: 6px;
@@ -181,7 +188,7 @@ textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--ak
 /* Breite Liste (großer Bildschirm, Trenner nach rechts gezogen): je Mail EINE
    Zeile wie in Outlook — Von │ Betreff │ Vorschau │ Datum. */
 @container (min-width: 620px) {
-  #liste .eintrag { grid-template-columns: 24px minmax(0, 11rem) minmax(0, 2fr) minmax(0, 3fr) auto auto;
+  #liste .eintrag { grid-template-columns: var(--listengitter);
                     gap: 12px; align-items: center; padding: 5px 12px 5px 9px; }
   #liste .kopf { display: contents; }
   /* Alle Zellen in Zeile 1: Das Datum (Spalte 6) steht im Markup vor dem Betreff
@@ -195,6 +202,17 @@ textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--ak
   #liste .datum { grid-column: 6; }
   #liste .kontakt > .betreff { grid-column: 2; }
   #liste .kontakt > .vorschau { grid-column: 3 / -1; }
+  #listenspalte[data-art="post"] .spaltenkopf { display: grid; grid-template-columns: var(--listengitter); gap: 12px;
+                padding: 5px 12px 5px 9px; border-left: 3px solid transparent; border-bottom: 1px solid var(--rand);
+                font-size: 12px; font-weight: 600; color: var(--leise); user-select: none; }
+  .spaltenkopf .sk { position: relative; min-width: 0; }
+  .spaltenkopf .t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .spaltenkopf .sk-datum { grid-column: 6; text-align: right; }
+  #listenspalte[data-vorschautext="0"] .spaltenkopf .sk-vorschau { visibility: hidden; }
+  /* Griff mitten im Spaltenabstand; Linie wie bei den Trennern der Spalten. */
+  .spaltenkopf .griff { position: absolute; top: -5px; bottom: -5px; right: -10px; width: 8px; cursor: col-resize; z-index: 1; }
+  .spaltenkopf .griff:hover, .spaltenkopf .griff:focus-visible, .spaltenkopf .griff[data-aktiv] {
+    background: linear-gradient(var(--akzent), var(--akzent)) center / 2px 100% no-repeat; outline: 0; }
 }
 .eintrag .ort { color: var(--leise); font-size: 12px; }
 .unterhaltung { margin-top: 10px; font-size: 13px; }
@@ -242,6 +260,11 @@ textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--ak
 #verfassen .zitat summary { cursor: pointer; color: var(--leise); }
 #verfassen .zitat .kopf { font-size: 12px; color: var(--leise); margin: 6px 0; overflow-wrap: anywhere; }
 #verfassen .zitat iframe { width: 100%; min-height: 260px; border: 1px solid var(--rand); border-radius: 6px; background: #fff; }
+/* Was das Gateway beim Senden anhängt — gerechnet vom Handler selbst (Probelauf). */
+#verfassen .sigvorschau summary { cursor: pointer; color: var(--leise); }
+#verfassen .sigvorschau iframe { display: block; width: 100%; height: 220px; margin-top: 6px; border: 1px solid var(--rand);
+                                 border-radius: 6px; background: #fff; resize: vertical; }
+#verfassen .sigvorschau .leise { margin-top: 6px; }
 #verfassen .zitat pre { white-space: pre-wrap; margin: 0; font: inherit; max-height: 50vh; overflow: auto;
                          border: 1px solid var(--rand); border-radius: 6px; padding: 8px; }
 #verfassen textarea { min-height: 260px; font: inherit; background: var(--flaeche); color: var(--text);
@@ -333,7 +356,7 @@ textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--ak
   {% if ausgerufen %}
   <p class="leise" style="margin:14px 0 0"><a href="/notfall/einrichten" id="zum-zugang"{% if im_teams %} target="_blank" rel="noopener" data-extern{% endif %}>Zweiten Faktor einrichten (braucht die Microsoft-Anmeldung)</a></p>
   {% else %}
-  <p class="leise" style="margin:14px 0 0"><a href="/notfall{% if im_teams %}?host=teams{% endif %}" id="zum-zugang">← Dein Notfall-Zugang</a></p>
+  <p class="leise" style="margin:14px 0 0"><a href="/notfall{% if im_teams %}?host=teams{% endif %}" id="zum-zugang">← Deinen Notfall-Zugang einrichten</a></p>
   {% endif %}
 </section>
 
@@ -355,7 +378,7 @@ textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--ak
 </section>
 
 <section class="anmeldung" id="einrichten" hidden>
-  <h1>Dein Notfall-Zugang</h1>
+  <h1>Deinen Notfall-Zugang einrichten</h1>
   <p class="leise" style="margin:0 0 10px">Fällt Exchange Online aus, liest und schreibst du hier weiter. Du meldest
     dich dann mit deinem Windows-Kennwort an und bestätigst mit einem Passkey (Fingerabdruck, Gesicht,
     Windows Hello) oder einem Code aus einer Authenticator-App. Eingerichtet wird jetzt, solange die
@@ -422,6 +445,16 @@ textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--ak
             data-ikon="papierkorb" disabled><span class="text">Löschen</span></button>
     <select class="nur-mail" id="b-verschieben" aria-label="Verschieben nach" disabled
             onchange="if (this.value) mailVerschieben(this.value, this)"></select>
+    <span class="strich nur-mail"></span>
+    <button class="befehl nur-mail" id="b-antworten" onclick="verfassen('antwort')" title="Antworten"
+            data-ikon="antworten" disabled><span class="text">Antworten</span></button>
+    <button class="befehl nur-mail" id="b-allen" onclick="verfassen('allen')" title="Allen antworten"
+            data-ikon="allen" disabled><span class="text">Allen antworten</span></button>
+    <button class="befehl nur-mail" id="b-weiterleiten" onclick="verfassen('weiterleiten')" title="Weiterleiten"
+            data-ikon="weiter" disabled><span class="text">Weiterleiten</span></button>
+    <span class="strich nur-mail"></span>
+    <button class="befehl nur-mail" id="b-gelesen" onclick="gelesenUmschalten(this)" data-ikon="umschlag"
+            disabled><span class="text">Als ungelesen markieren</span></button>
   </div>
   <nav class="spalte" id="ordnerspalte"><div id="ordner"></div></nav>
   <div class="trenner" data-spalte="ordner" role="separator" aria-orientation="vertical" tabindex="0"
@@ -438,6 +471,17 @@ textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--ak
       <label><input type="checkbox" id="f-ungelesen" onchange="listeLaden(0)"> Ungelesen</label>
       <label><input type="checkbox" id="f-anhang" onchange="listeLaden(0)"> Mit Anhang</label>
       <label><input type="checkbox" id="f-unterhaltungen" onchange="unterhaltungenMerken(this.checked)"> Unterhaltungen</label>
+      <label><input type="checkbox" id="f-vorschautext" checked onchange="vorschautextMerken(this.checked)"> Vorschautext</label>
+    </div>
+    <div class="spaltenkopf" id="spaltenkopf">
+      <span></span>
+      <span class="sk"><span class="t">Von</span><span class="griff" data-s="von" role="separator" aria-orientation="vertical"
+            tabindex="0" aria-label="Breite der Spalte Von ändern (Pfeiltasten, Doppelklick setzt zurück)"></span></span>
+      <span class="sk"><span class="t">Betreff</span><span class="griff" data-s="betreff" role="separator"
+            aria-orientation="vertical" tabindex="0"
+            aria-label="Breite der Spalte Betreff ändern (Pfeiltasten, Doppelklick setzt zurück)"></span></span>
+      <span class="sk sk-vorschau"><span class="t">Vorschau</span></span>
+      <span class="sk sk-datum"><span class="t">Datum</span></span>
     </div>
     <div id="liste"></div>
   </section>
@@ -522,6 +566,7 @@ const IKON = {
   weiter: '<path d="m14 6 6 6-6 6"/><path d="M20 12h-9a7 7 0 0 0-7 7"/>',
   anhang: '<path d="m20 11.5-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.2a1.7 1.7 0 0 1-2.4-2.4L15 7"/>',
   pfeil: '<path d="m9 6 6 6-6 6"/>',
+  umschlag: '<path d="M3.5 10.5 12 4l8.5 6.5V19a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/><path d="m3.5 10.5 8.5 6 8.5-6"/>',
 };
 function ikon(name) {
   return '<svg class="ikon" viewBox="0 0 24 24" aria-hidden="true">' + (IKON[name] || IKON.ordner) + '</svg>';
@@ -564,10 +609,15 @@ function datumGruppe(iso) {
   if (tage <= wochentag + 7) return 'Letzte Woche';
   return d.toLocaleDateString('de-DE', {month: 'long', year: 'numeric'});
 }
-// Löschen/Verschieben gelten der geöffneten Mail — ohne sie gesperrt.
+// Alle Befehle außer „Neu“ gelten der geöffneten Mail — ohne sie gesperrt.
 function befehleSetzen() {
   const offen = !!document.querySelector('#lesen .mailansicht');
-  document.getElementById('b-loeschen').disabled = !offen;
+  for (const id of ['b-loeschen', 'b-antworten', 'b-allen', 'b-weiterleiten', 'b-gelesen'])
+    document.getElementById(id).disabled = !offen;
+  const g = document.getElementById('b-gelesen'), text = nb.mailGelesen === false ? 'Als gelesen markieren'
+    : 'Als ungelesen markieren';
+  g.title = text;
+  g.querySelector('.text').textContent = text;
   const v = document.getElementById('b-verschieben');
   v.disabled = !offen;
   v.innerHTML = '<option value="">Verschieben…</option>' + (nb.ordnerliste || []).filter(o => o.id !== nb.ordner)
@@ -618,6 +668,10 @@ function anmeldungZeigen() {
 
 // Vom Zugang weiter: Läuft schon eine Sitzung, direkt zur Post, sonst anmelden.
 async function weiter() {
+  // Ab hier gilt die Adresse des Webmails: Ein Favorit, ein Neuladen nach der
+  // Anmeldung und der Notfall selbst landen dort — nicht auf der Einrichtung,
+  // die die Microsoft-Anmeldung braucht.
+  try { history.replaceState(null, '', '/notfall' + location.search); } catch (e) { /* Rahmen ohne Verlauf */ }
   const d = await getJSON('/notfall/api/ich');
   if (!d.ok) { anmeldungZeigen(); return; }
   document.getElementById('einrichten').hidden = true;
@@ -956,6 +1010,7 @@ async function ordnerLaden() {
 
 function ordnerWaehlen(id) {
   nb.ordner = id;
+  document.getElementById('listenspalte').dataset.art = id.startsWith('__') ? 'andere' : 'post';
   document.getElementById('suche').value = '';
   document.querySelectorAll('#ordner .eintrag').forEach(e => e.setAttribute('aria-current', e.dataset.id === id));
   document.getElementById('ordnerwahl').value = id;
@@ -1169,6 +1224,7 @@ function trifft(text, woerter) { return suchMuster(woerter).test(String(text || 
 
 async function listeLaden(seite) {
   clearTimeout(nb.suchTakt);
+  document.getElementById('listenspalte').dataset.art = 'post';
   const suche = feldWert('suche');
   const nr = nb.listeNr = (nb.listeNr || 0) + 1;
   const d = await getJSON('/notfall/api/liste?' + q({postfach: nb.postfach, ordner: suche ? '' : nb.ordner,
@@ -1219,6 +1275,7 @@ async function mailOeffnen(id) {
   if (!d.ok) { el.textContent = errText(d); return; }
   const zeile = document.querySelector('#liste .eintrag[data-id="' + CSS.escape(id) + '"]');
   if (zeile && zeile.dataset.ungelesen === '1') { zeile.dataset.ungelesen = '0'; ordnerLaden(); }
+  nb.mailGelesen = true;            // Öffnen markiert als gelesen (Server: notfall_mail)
   const p = q({postfach: nb.postfach, id: id});
   const w = nb.suchwoerter || [];
   nb.mail = id;
@@ -1275,10 +1332,40 @@ async function mailOeffnen(id) {
 // ── Spaltenbreiten ───────────────────────────────────────────────────────
 // Ziehen, Pfeiltasten oder Doppelklick (zurück auf die Vorgabe) — gemerkt nur
 // in diesem Browser. Dem Lesebereich bleiben immer LESEN_MIN Pixel.
+// Gemerkte Werte dieses Browsers; ohne Speicher (privat, Vorschau) die Vorgabe.
+function gemerkt(schluessel, vorgabe) {
+  try { return Object.assign({}, vorgabe, JSON.parse(localStorage.getItem(schluessel) || '{}')); }
+  catch (e) { return Object.assign({}, vorgabe); }
+}
+// Griff, der eine Breite zieht — EINE Stelle für Spaltentrenner und Listenspalten:
+// Ziehen, Pfeiltasten (±20 px), Doppelklick = Vorgabe. `setzen(px, merken)`
+// begrenzt selbst; nach dem Loslassen zählt, was wirklich steht.
+function ziehgriff(griff, zelle, setzen, vorgabe) {
+  griff.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    griff.setPointerCapture(ev.pointerId);
+    const app = document.getElementById('app'), links = zelle.getBoundingClientRect().left;
+    app.dataset.ziehen = '1'; griff.dataset.aktiv = '1';     // iframes fangen sonst die Maus
+    const ziehen = e => setzen(e.clientX - links, false);
+    const loslassen = () => {
+      griff.removeEventListener('pointermove', ziehen);
+      delete app.dataset.ziehen; delete griff.dataset.aktiv;
+      setzen(zelle.getBoundingClientRect().width, true);
+    };
+    griff.addEventListener('pointermove', ziehen);
+    griff.addEventListener('pointerup', loslassen, {once: true});
+    griff.addEventListener('pointercancel', loslassen, {once: true});
+  });
+  griff.addEventListener('keydown', ev => {
+    const schritt = {ArrowLeft: -20, ArrowRight: 20}[ev.key];
+    if (!schritt) return;
+    ev.preventDefault();
+    setzen(zelle.getBoundingClientRect().width + schritt, true);
+  });
+  griff.addEventListener('dblclick', () => setzen(vorgabe, true));
+}
 const SPALTE_VORGABE = {ordner: 240, liste: 360}, SPALTE_MIN = {ordner: 140, liste: 240}, LESEN_MIN = 320;
-let spaltenBreite = Object.assign({}, SPALTE_VORGABE);
-try { Object.assign(spaltenBreite, JSON.parse(localStorage.getItem('nf-spalten') || '{}')); }
-catch (e) { /* ohne Speicher: Vorgabe */ }
+let spaltenBreite = gemerkt('nf-spalten', SPALTE_VORGABE);
 function spaltenSetzen(merken) {
   const app = document.getElementById('app');
   const st = getComputedStyle(app), rand = (parseFloat(st.paddingLeft) || 0) + (parseFloat(st.paddingRight) || 0);
@@ -1293,31 +1380,7 @@ function spaltenSetzen(merken) {
 }
 document.querySelectorAll('.trenner').forEach(t => {
   const spalte = t.dataset.spalte, ziel = document.getElementById(spalte === 'ordner' ? 'ordnerspalte' : 'listenspalte');
-  t.addEventListener('pointerdown', ev => {
-    ev.preventDefault();
-    t.setPointerCapture(ev.pointerId);
-    const app = document.getElementById('app'), links = ziel.getBoundingClientRect().left;
-    app.dataset.ziehen = '1'; t.dataset.aktiv = '1';
-    const ziehen = e => { spaltenBreite[spalte] = e.clientX - links; spaltenSetzen(false); };
-    const loslassen = () => {
-      t.removeEventListener('pointermove', ziehen);
-      delete app.dataset.ziehen; delete t.dataset.aktiv;
-      spaltenBreite[spalte] = ziel.getBoundingClientRect().width;   // was nach dem Begrenzen wirklich steht
-      spaltenSetzen(true);
-    };
-    t.addEventListener('pointermove', ziehen);
-    t.addEventListener('pointerup', loslassen, {once: true});
-    t.addEventListener('pointercancel', loslassen, {once: true});
-  });
-  t.addEventListener('keydown', ev => {
-    const schritt = {ArrowLeft: -20, ArrowRight: 20}[ev.key];
-    if (!schritt) return;
-    ev.preventDefault();
-    spaltenBreite[spalte] = ziel.getBoundingClientRect().width + schritt;
-    spaltenSetzen(true);
-    spaltenBreite[spalte] = ziel.getBoundingClientRect().width;
-  });
-  t.addEventListener('dblclick', () => { spaltenBreite[spalte] = SPALTE_VORGABE[spalte]; spaltenSetzen(true); });
+  ziehgriff(t, ziel, (px, merken) => { spaltenBreite[spalte] = px; spaltenSetzen(merken); }, SPALTE_VORGABE[spalte]);
 });
 window.addEventListener('resize', () => spaltenSetzen(false));
 spaltenSetzen(false);
@@ -1329,6 +1392,35 @@ function kopfhoeheMerken() {
 }
 window.addEventListener('resize', kopfhoeheMerken);
 kopfhoeheMerken();
+
+// ── Spalten der breiten Liste: Von und Betreff ziehbar, Vorschautext ein/aus ──
+// Wie die Spaltentrenner: Ziehen, Pfeiltasten, Doppelklick = Vorgabe; gemerkt
+// nur in diesem Browser. Kopfzeile und Mails teilen EIN Gitter (--listengitter).
+const LSPALTE_VORGABE = {von: 170, betreff: 260}, LSPALTE_MIN = 70, LSPALTE_MAX = 640;
+let lspalten = gemerkt('nf-listenspalten', LSPALTE_VORGABE);
+function lspaltenSetzen(merken) {
+  const el = document.getElementById('listenspalte');
+  for (const k of ['von', 'betreff']) {
+    lspalten[k] = Math.max(LSPALTE_MIN, Math.min(LSPALTE_MAX, Math.round(+lspalten[k] || LSPALTE_VORGABE[k])));
+    el.style.setProperty('--s-' + k, lspalten[k] + 'px');
+    const g = el.querySelector('.griff[data-s="' + k + '"]');
+    if (g) g.setAttribute('aria-valuenow', lspalten[k]);
+  }
+  if (merken) { try { localStorage.setItem('nf-listenspalten', JSON.stringify(lspalten)); } catch (e) { /* privat */ } }
+}
+document.querySelectorAll('.spaltenkopf .griff').forEach(g => {
+  const k = g.dataset.s;
+  ziehgriff(g, g.parentElement, (px, merken) => { lspalten[k] = px; lspaltenSetzen(merken); }, LSPALTE_VORGABE[k]);
+});
+lspaltenSetzen(false);
+
+function vorschautextMerken(an) {
+  document.getElementById('listenspalte').dataset.vorschautext = an ? '1' : '0';
+  try { localStorage.setItem('nf-vorschautext', an ? '' : '0'); } catch (e) { /* privat: nur für jetzt */ }
+}
+try { if (localStorage.getItem('nf-vorschautext') === '0') document.getElementById('f-vorschautext').checked = false; }
+catch (e) { /* ohne Speicher: Vorgabe an */ }
+vorschautextMerken(document.getElementById('f-vorschautext').checked);
 
 // ── Verfassen ────────────────────────────────────────────────────────────
 // Unterhaltungen: Option, Vorgabe aus — gemerkt nur in diesem Browser.
@@ -1351,6 +1443,20 @@ async function mailVerschieben(ziel, el) {
   ansicht('liste');
   await ordnerLaden();
   listeLaden(0);
+}
+
+// Gelesen/ungelesen der geöffneten Mail — wie Löschen in der Kopie sofort,
+// nach Exchange im Hintergrund (für wen das Webmail zurückschreibt).
+async function gelesenUmschalten(knopf) {
+  const gelesen = nb.mailGelesen === false;
+  const d = await knopfAktion(knopf, 'Markiere…', () =>
+    postJSON('/notfall/api/gelesen', {postfach: nb.postfach, id: nb.mail, gelesen: gelesen}));
+  if (!d.ok) { alert(errText(d)); return; }
+  nb.mailGelesen = gelesen;
+  const zeile = document.querySelector('#liste .eintrag[data-id="' + CSS.escape(nb.mail) + '"]');
+  if (zeile) zeile.dataset.ungelesen = gelesen ? '0' : '1';
+  befehleSetzen();
+  ordnerLaden();
 }
 
 // art: '' (neu) | 'antwort' | 'allen' | 'weiterleiten' (bezieht sich auf nb.mail)
@@ -1377,7 +1483,7 @@ async function verfassen(art, entwurf) {
   const recht = {eigen: '', als: ' (senden als)', auftrag: ' (im Auftrag)'};
   const el = document.getElementById('lesen');
   el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
-    + '<form id="verfassen" onsubmit="absenden(event)" oninput="entwurfMerken()">'
+    + '<form id="verfassen" onsubmit="absenden(event)" oninput="entwurfMerken(); sigVorschauBald(event)">'
     + '<div class="zeile"><label for="vf-von">Von</label><select id="vf-von">' + nb.absender.map(a =>
         '<option value="' + escAttr(a.postfach) + '"' + (a.postfach === von ? ' selected' : '') + '>'
         + esc(a.postfach + recht[a.recht]) + '</option>').join('') + '</select></div>'
@@ -1387,6 +1493,8 @@ async function verfassen(art, entwurf) {
     + '<div class="zeile"><label for="vf-betreff">Betreff</label><input id="vf-betreff" value="' + escAttr(v.betreff) + '"></div>'
     + '<textarea id="vf-text" aria-label="Text">' + esc(v.text) + '</textarea>'
     + (zitat ? zitatVorschau(zitat, art, bezugPf || nb.postfach, bezug) : '')
+    + '<details class="sigvorschau" id="vf-sig" open><summary id="vf-sig-titel">Was beim Senden angehängt wird</summary>'
+    + '<div id="vf-sig-inhalt"><div class="leise">Wird berechnet…</div></div></details>'
     + '<div class="zeile"><label for="vf-dateien">Anhänge</label><input id="vf-dateien" type="file" multiple></div>'
     + '<div class="aktionen"><button class="haupt" id="vf-senden" type="submit">Senden</button>'
     + '<button type="button" onclick="verwerfen(this)">Verwerfen</button>'
@@ -1395,6 +1503,7 @@ async function verfassen(art, entwurf) {
     + '<div class="meldung" id="vf-meldung" hidden></div></form>';
   el.dataset.art = art || '';
   nb.entwurf = {id: entwurf ? entwurf.id : '', bezug: bezug || '', bezugPf: bezugPf || '', takt: null};
+  sigVorschau();
   ansicht('lesen');
   document.getElementById(art ? 'vf-text' : 'vf-an').focus();
 }
@@ -1411,6 +1520,43 @@ function zitatVorschau(z, art, postfach, id) {
          + escAttr(q({postfach: postfach, id: id})) + '"></iframe>'
        : '<pre>' + esc(z.text || '') + '</pre>')
     + '</details>';
+}
+
+// Signatur, Banner, Disclaimer: Der Server schickt den Entwurf als Probelauf
+// durch denselben Handler wie beim Senden (Absender, Empfänger intern/extern,
+// Betreff-Trigger, Original). Neu gerechnet, wenn sich davon etwas ändert —
+// nicht beim Tippen im Text, der ändert nichts daran.
+function sigVorschauBald(ev) {
+  if (!ev || ['vf-text', 'vf-dateien'].includes(ev.target.id)) return;
+  clearTimeout(nb.sigTakt);
+  nb.sigTakt = setTimeout(sigVorschau, 1000);
+}
+async function sigVorschau() {
+  if (!document.getElementById('vf-sig')) return;
+  const nr = nb.sigNr = (nb.sigNr || 0) + 1;
+  const art = document.getElementById('lesen').dataset.art || '';
+  const d = await postJSON('/notfall/api/vorschau', {
+    postfach: document.getElementById('vf-von').value, an: feldWert('vf-an'), cc: feldWert('vf-cc'),
+    bcc: feldWert('vf-bcc'), betreff: feldWert('vf-betreff'), bezug: art ? nb.entwurf.bezug : '',
+    art: art || 'neu', bezug_postfach: art ? nb.entwurf.bezugPf : ''});
+  const titel = document.getElementById('vf-sig-titel'), inhalt = document.getElementById('vf-sig-inhalt');
+  if (nr !== nb.sigNr || !titel) return;                // inzwischen neu gerechnet oder Formular weg
+  const hinweis = t => '<div class="leise">' + esc(t) + '</div>';
+  if (!d.ok) { titel.textContent = 'Was beim Senden angehängt wird'; inhalt.innerHTML = hinweis(errText(d)); return; }
+  titel.textContent = {
+    angehaengt: 'Diese Signatur, Banner und Disclaimer werden angehängt',
+    nichts: 'Es wird nichts angehängt',
+    verschluesselt: 'Die Mail wird verschlüsselt',
+    nicht_gesendet: 'So würde die Mail nicht gesendet'}[d.zustand] + (d.smime ? ' · S/MIME-signiert' : '');
+  inhalt.innerHTML = (d.url ? '<iframe sandbox="" referrerpolicy="no-referrer" title="Vorschau: was angehängt wird" src="'
+                       + escAttr(d.url) + '"></iframe>' : '')
+    + (d.zustand === 'nichts' ? hinweis('Für dieses Postfach und diese Empfänger hängt das Gateway weder Signatur '
+                                          + 'noch Banner oder Disclaimer an.') : '')
+    + (d.zustand === 'verschluesselt' ? hinweis('Signatur und Banner werden vor dem Verschlüsseln angehängt; '
+                                                 + 'eine Vorschau ist dann nicht möglich.') : '')
+    + (d.meldung ? hinweis(d.meldung) : '')
+    + (d.ohne_empfaenger ? hinweis('Noch keine Empfänger: gerechnet wie an externe. An interne Empfänger '
+                                     + 'kann es anders aussehen.') : '');
 }
 
 function dateiLesen(datei) {

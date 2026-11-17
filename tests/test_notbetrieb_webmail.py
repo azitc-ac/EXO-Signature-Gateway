@@ -425,6 +425,11 @@ import email as _email
 import email.policy as _policy
 
 import notbetrieb_senden as ns
+import mail_audit as _mail_audit  # noqa: E402
+import sig_thread as _sig_thread  # noqa: E402
+
+# Die echten Funktionen — die Fixture `postfix` ersetzt sie (test_vorschau_haelt_nichts_fest).
+_ECHT_LOG_EVENT, _ECHT_MERKEN = _mail_audit.log_event, _sig_thread.merken
 
 
 @pytest.fixture
@@ -790,6 +795,108 @@ def test_handler_weist_einlieferung_ohne_adresse_ab(postfix):
     antwort = asyncio.run(handler.SignatureHandler().handle_DATA(
         None, _Ohne(), ns._Umschlag("a@firma.at", ["kunde@extern.de"], b"Subject: x\r\n\r\nx\r\n")))
     assert antwort.startswith("554") and postfix == []
+
+
+def test_im_auftrag_signiert_mit_der_person_als_bearbeiter(postfix, schatten, monkeypatch):
+    """Wie bei Exchange: Umschlag = Person, From = Postfach, Sender = Person.
+    Nur so kennt der Handler die Person ({{ bearbeiter.* }}) — mit dem
+    Postfach als Umschlag stand dort das Postfach selbst."""
+    import signature_engine
+    schatten["MAILBOX_CONFIG"] = {"chef@firma.at": {"sig": True}}
+    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None, extra=None, **kw: (
+        f"<p>SIG {u.mail} BEARB {(extra or {}).get('bearbeiter').mail}</p>",
+        f"SIG {u.mail} BEARB {(extra or {}).get('bearbeiter').mail}"))
+    _senden("a@firma.at", "chef@firma.at", "kunde@extern.de", betreff="Termin", text="x")
+    von, _empf, inhalt = postfix[-1]
+    assert von == "a@firma.at"
+    assert "SIG chef@firma.at BEARB a@firma.at" in _teile(inhalt)[1]
+
+
+# ── Signatur-Vorschau: Probelauf durch denselben Handler ────────────────────
+
+def _vorschau(*a, **k):
+    return asyncio.run(ns.vorschau(*a, **k))
+
+
+def test_vorschau_zeigt_was_angehaengt_wird(postfix):
+    v = _vorschau("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="AW: Angebot",
+                  bezug_id="g-html", art="antwort")
+    assert v["zustand"] == "angehaengt" and not v["ohne_empfaenger"]
+    html = v["html"]
+    assert "SIG Anna Muster" in html and ns.VORSCHAU_TEXT in html
+    # Das Original ersetzt ein Hinweis; die Signatur steht davor.
+    assert "Rabattcode XK42" not in html and html.index("SIG Anna Muster") < html.index("[Ursprüngliche Nachricht]")
+    # Nichts ging hinaus, nichts liegt unter „Gesendet“.
+    assert postfix == [] and _lokal("a@firma.at", "sentitems") == []
+
+
+def test_vorschau_ohne_empfaenger_rechnet_wie_extern(postfix):
+    v = _vorschau("a@firma.at", "a@firma.at")
+    assert v["zustand"] == "angehaengt" and v["ohne_empfaenger"] and "SIG Anna Muster" in v["html"]
+
+
+def test_vorschau_ohne_freigabe_haengt_nichts_an(postfix, schatten):
+    schatten["MAILBOX_CONFIG"] = {"b@firma.at": {"sig": True}}
+    assert _vorschau("a@firma.at", "a@firma.at", "kunde@extern.de")["zustand"] == "nichts"
+
+
+def test_vorschau_verschluesselung_ohne_zertifikat_sagt_warum(postfix, schatten, monkeypatch):
+    import smime_store
+    schatten["MAILBOX_CONFIG"] = {"a@firma.at": {"sig": True, "smime": True}}
+    monkeypatch.setattr(smime_store, "get_recipient_cert_path", lambda r: None)
+    v = _vorschau("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="geheim #enc")
+    assert v["zustand"] == "nicht_gesendet" and "Verschlüsselungszertifikat" in v["meldung"]
+    assert postfix == []
+
+
+def test_vorschau_haelt_nichts_fest(postfix, monkeypatch):
+    """Mailprotokoll, Zähler und „von dir signiert“ an ihrem Ausgang
+    beobachtet — mit den ECHTEN Funktionen (die Fixture ersetzt sie sonst).
+    Gegenprobe: Der echte Versand hinterlässt dieselben Spuren."""
+    import mail_audit
+    import sig_thread
+    import stats
+    spur = []
+
+    class _Aus:
+        def __init__(self, wer):
+            self.wer = wer
+
+        def __call__(self, *a, **k):
+            spur.append(self.wer)
+            raise RuntimeError("Spur")
+    monkeypatch.setattr(mail_audit, "log_event", _ECHT_LOG_EVENT)
+    monkeypatch.setattr(sig_thread, "merken", _ECHT_MERKEN)
+    monkeypatch.setattr(mail_audit, "_initialised", True)
+    monkeypatch.setattr(mail_audit, "_conn", _Aus("protokoll"))
+    monkeypatch.setattr(sig_thread, "_conn", _Aus("signiert"))
+    monkeypatch.setattr(stats, "_persist_total", lambda: spur.append("zaehler"))
+    monkeypatch.setattr(stats, "_increment_daily", lambda k: None)
+    v = _vorschau("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="x")
+    assert v["zustand"] == "angehaengt" and spur == []
+    _senden("a@firma.at", "a@firma.at", "kunde@extern.de", betreff="x", text="x")
+    assert {"protokoll", "signiert", "zaehler"} <= set(spur), spur
+
+
+def test_vorschau_und_gelesen_endpunkte(client, postfix):
+    _anmelden(client)
+    d = client.post("/notfall/api/vorschau", json={"postfach": "a@firma.at", "an": "kunde@extern.de"}).json()
+    assert d["ok"] and d["zustand"] == "angehaengt" and "html" not in d
+    r = client.get(d["url"])
+    assert r.status_code == 200 and "SIG Anna Muster" in r.text
+    assert "sandbox" in r.headers["content-security-policy"] and "img-src data:" in r.headers["content-security-policy"]
+    assert client.get("/notfall/vorschau", params={"k": "erfunden"}).status_code == 404
+    assert client.post("/notfall/api/vorschau", json={"postfach": "team@firma.at"}).status_code == 400
+    # Gelesen/ungelesen in der Kopie
+    for gelesen in (True, False):
+        r = client.post("/notfall/api/gelesen", json={"postfach": "a@firma.at", "id": "g-text", "gelesen": gelesen})
+        assert r.status_code == 200
+        m = {x["graph_id"]: x for x in notbetrieb_lesen.liste("a@firma.at", "ord-in")["mails"]}
+        assert m["g-text"]["gelesen"] == (1 if gelesen else 0)
+    assert client.post("/notfall/api/gelesen", json={"postfach": "a@firma.at", "id": "gibtsnicht",
+                                                     "gelesen": True}).status_code == 404
+    assert client.post("/notfall/api/gelesen", json={"postfach": "b@firma.at", "id": "g-b",
+                                                     "gelesen": True}).status_code == 403
 
 
 # ── Kalender, Kontakte, Adresshilfe ─────────────────────────────────────────
@@ -1365,7 +1472,7 @@ def test_berichtende_csp_nutzt_dieselbe_liste():
 def test_seite_kennt_lage_und_teams(client, schatten):
     normal = client.get("/notfall").text
     assert "const AUSGERUFEN = false" in normal and "Notfall-Anmeldung" in normal
-    assert "Dein Notfall-Zugang" in normal and "MicrosoftTeams.min.js" not in normal
+    assert "Deinen Notfall-Zugang einrichten" in normal and "MicrosoftTeams.min.js" not in normal
     schatten["NOTBETRIEB_AUSGERUFEN"] = True
     notfall = client.get("/notfall").text
     assert "const AUSGERUFEN = true" in notfall and "Exchange Online ist gestört" in notfall

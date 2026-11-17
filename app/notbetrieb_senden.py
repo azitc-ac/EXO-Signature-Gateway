@@ -39,6 +39,7 @@ Bcc steht nur in der Kopie unter „Gesendet“, nie in der übertragenen Mail.
 from __future__ import annotations
 
 import asyncio
+import base64
 import html
 import logging
 import threading
@@ -125,6 +126,10 @@ def _drossel(benutzer: str) -> None:
 AUSGABE = mime_policy.SMTP_REINJECT
 
 _SCHRIFT = "font-family:Calibri,Arial,sans-serif;font-size:11pt"
+# Signatur-Vorschau: Platzhalter für Empfänger, Text und Original.
+VORSCHAU_EMPFAENGER = "empfaenger@vorschau.invalid"
+VORSCHAU_TEXT = "[Dein Text]"
+ZITAT_ANFANG, ZITAT_ENDE = "<!--nf-zitat-anfang-->", "<!--nf-zitat-ende-->"
 _WOCHENTAGE = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
 _MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September",
            "Oktober", "November", "Dezember")
@@ -192,7 +197,7 @@ def html_zu_text(dokument: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", t).strip()
 
 
-def _als_html(text: str, zitat: dict | None = None) -> str:
+def _als_html(text: str, zitat: dict | None = None, marken: bool = False) -> str:
     """Eigener Text als HTML, darunter das Original wie bei Outlook: Trennlinie
     `border:none;border-top:solid #E1E1E1 1.0pt` mit Kopfblock — genau das Muster,
     an dem `mail_processor._append_html_sig` die Antwortstelle erkennt. Die
@@ -206,7 +211,8 @@ def _als_html(text: str, zitat: dict | None = None) -> str:
         else:
             rumpf = f'<div style="{_SCHRIFT}">{_zeilen_html(zitat.get("text") or "")}</div>'
         unten = ('<div style="border:none;border-top:solid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm">'
-                 f'<p style="margin:0;{_SCHRIFT}">{kopf}</p></div><div><br></div>{rumpf}')
+                 f'<p style="margin:0;{_SCHRIFT}">{kopf}</p></div><div><br></div>'
+                 + (f"{ZITAT_ANFANG}{rumpf}{ZITAT_ENDE}" if marken else rumpf))
     return ('<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8">' + stile
             + f'</head><body><div style="{_SCHRIFT}">{_zeilen_html(text)}</div>' + unten + "</body></html>")
 
@@ -225,7 +231,7 @@ _ALTES_ZITAT = re.compile(r"(?m)^Am .+ schrieb .+:\n> ")
 
 
 def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text: str,
-           anhaenge: list, bezug: dict | None, zitat: dict | None = None) -> EmailMessage:
+           anhaenge: list, bezug: dict | None, zitat: dict | None = None, marken: bool = False) -> EmailMessage:
     msg = EmailMessage(policy=AUSGABE)
     msg["From"] = von
     if sender:
@@ -246,7 +252,7 @@ def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text:
         # wandelt alternative nicht in related um (nur umgekehrt).
         koerper = MIMEPart(policy=AUSGABE)
         koerper.set_content(_als_text(text or "", zitat))
-        koerper.add_alternative(_als_html(text or "", zitat), subtype="html")
+        koerper.add_alternative(_als_html(text or "", zitat, marken), subtype="html")
         teile = [koerper]
         for cid, typ, daten in zitat["bilder"]:
             haupt, _, unter = typ.partition("/")
@@ -259,7 +265,7 @@ def _bauen(von: str, sender: str | None, an: list, cc: list, betreff: str, text:
         msg.set_payload(teile)
     else:
         msg.set_content(_als_text(text or "", zitat))
-        msg.add_alternative(_als_html(text or "", zitat), subtype="html")
+        msg.add_alternative(_als_html(text or "", zitat, marken), subtype="html")
     for name, typ, daten in anhaenge:
         name = _dateiname(name)
         if typ == "message/rfc822":
@@ -292,6 +298,57 @@ async def senden(benutzer: str, postfach: str, an: str, cc: str = "", bcc: str =
             "ueber": ueber}
 
 
+async def vorschau(benutzer: str, postfach: str, an: str = "", cc: str = "", bcc: str = "",
+                   betreff: str = "", bezug_id: str = "", art: str = "neu",
+                   bezug_postfach: str = "") -> dict:
+    """Was der Handler an diesen Entwurf hängen würde — Signatur, Banner,
+    Disclaimer — durch DENSELBEN Handler wie beim Senden, als Probelauf
+    (probelauf.py: nichts wird festgehalten, nichts geht hinaus).
+
+    Gerechnet wird mit Absender, Empfängern (intern/extern), Betreff
+    (#nosig …) und dem Original (Antwort-Signatur, wenn deine Signatur schon
+    darin steht); statt deines Texts steht ein Platzhalter darin, statt des
+    Originals ein Hinweis. Ergebnis:
+      zustand  "angehaengt" | "nichts" | "verschluesselt" | "nicht_gesendet"
+      html     die Mail mit Platzhaltern (nur bei "angehaengt"), Bilder als data:
+      meldung  Begründung des Handlers (bei "nicht_gesendet")
+      smime    True, wenn die Mail S/MIME-signiert hinausginge
+      ohne_empfaenger  noch niemand eingetragen — gerechnet wie an Externe"""
+    import probelauf
+    recht, alle, msg, _bcc, _i, _e = await asyncio.to_thread(
+        _vorbereiten, benutzer, postfach, an, cc, bcc, betreff, VORSCHAU_TEXT, [], bezug_id, art,
+        bezug_postfach, True)
+    ohne = alle == [VORSCHAU_EMPFAENGER]
+    roh = msg.as_bytes(policy=AUSGABE)
+    # Verglichen wird, was durch die Bytes ging — auf beiden Seiten gleich gelesen.
+    vorher = notbetrieb_lesen._html_und_bilder(email.message_from_bytes(roh, policy=email.policy.default))[0]
+    with probelauf.an():
+        antwort, zustellungen = await _durch_den_handler(benutzer, postfach.strip().lower(), recht, alle, roh)
+    erg = {"ok": True, "ohne_empfaenger": ohne, "smime": False, "html": "", "meldung": ""}
+    haupt = next((z for z in zustellungen if _message_id(z[2]) == msg["Message-ID"]), None)
+    if not antwort.startswith("250") or haupt is None:
+        meldung = antwort if not antwort.startswith("250") else next(
+            (_klartext(z[2]) for z in zustellungen), "")
+        return {**erg, "zustand": "nicht_gesendet", "meldung": meldung}
+    raus = email.message_from_bytes(haupt[2], policy=email.policy.default)
+    if raus.get_content_type() == "multipart/signed":
+        erg["smime"] = True
+        raus = next(iter(raus.iter_parts()))
+    if raus.get_content_type() in ("application/pkcs7-mime", "application/x-pkcs7-mime"):
+        return {**erg, "zustand": "verschluesselt"}
+    inhalt, bilder = notbetrieb_lesen._html_und_bilder(raus)
+    if inhalt is None or re.sub(r"\s+", "", inhalt) == re.sub(r"\s+", "", vorher or ""):
+        return {**erg, "zustand": "nichts"}
+    # Das Original ersetzt ein Hinweis — die Vorschau zeigt, was ANGEHÄNGT wird.
+    inhalt = re.sub(re.escape(ZITAT_ANFANG) + r".*?" + re.escape(ZITAT_ENDE),
+                    lambda m: f'<div style="{_SCHRIFT};color:#888">[Ursprüngliche Nachricht]</div>',
+                    inhalt, count=1, flags=re.S)
+    cids = {cid.lower(): f"data:{typ};base64,{base64.b64encode(daten).decode()}" for cid, typ, daten in bilder}
+    if cids:
+        inhalt = notbetrieb_lesen._CID.sub(lambda m: cids.get(m.group(1).lower(), m.group(0)), inhalt)
+    return {**erg, "zustand": "angehaengt", "html": inhalt}
+
+
 def versand_hindernis(benutzer: str, alle: list) -> tuple:
     """(Einordnung, Grund oder None) — EINE Vorprüfung für jeden Sendeweg des
     Notbetriebs (Webmail, Mailprogramme). Dieselbe Einordnung wie
@@ -315,7 +372,10 @@ def versand_hindernis(benutzer: str, alle: list) -> tuple:
 
 
 def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betreff: str, text: str,
-                 anhaenge: list | None, bezug_id: str, art: str, bezug_postfach: str = "") -> tuple:
+                 anhaenge: list | None, bezug_id: str, art: str, bezug_postfach: str = "",
+                 probe: bool = False) -> tuple:
+    """Prüfen und bauen. `probe` (Signatur-Vorschau): ohne Drossel und
+    Versandprüfung, ohne die Anhänge des Originals, das Zitat mit Marken."""
     anhaenge = list(anhaenge or [])
     postfach = postfach.strip().lower()
     recht = senderecht(benutzer, postfach)
@@ -323,6 +383,8 @@ def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betre
         raise SendeFehler("Aus diesem Postfach darfst du nicht senden.")
     an_l, cc_l, bcc_l = _adressen(an), _adressen(cc), _adressen(bcc)
     alle = list(dict.fromkeys(a.lower() for a in an_l + cc_l + bcc_l))
+    if not alle and probe:
+        an_l = alle = [VORSCHAU_EMPFAENGER]   # noch niemand eingetragen: wie an Externe
     if not alle:
         raise SendeFehler("Mindestens einen Empfänger angeben.")
     if len(alle) > MAX_EMPFAENGER:
@@ -341,7 +403,7 @@ def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betre
         if not zitat:
             raise SendeFehler("Bezugsmail nicht gefunden.")
         bezug = {"art": art, "message_id": zitat["message_id"], "references": zitat.get("references", "")}
-        if art == "weiterleiten":
+        if art == "weiterleiten" and not probe:
             if zitat["zerlegbar"]:
                 # Wie Outlook: Original im Text, seine Anhänge als Anhänge.
                 anhaenge += zitat["anhaenge_daten"]
@@ -358,14 +420,16 @@ def _vorbereiten(benutzer: str, postfach: str, an: str, cc: str, bcc: str, betre
     if zitat and groesse + sum(len(b[2]) for b in zitat["bilder"]) > MAX_GROESSE:
         zitat = {**zitat, "bilder": []}       # Zitat dann ohne Bilder, statt gar nicht zu senden
 
-    einordnung, hindernis = versand_hindernis(benutzer, alle)
-    if hindernis:
-        raise SendeFehler(hindernis)
-    intern, extern = einordnung.intern, einordnung.extern
-
-    _drossel(benutzer)
+    if probe:
+        intern = extern = []
+    else:
+        einordnung, hindernis = versand_hindernis(benutzer, alle)
+        if hindernis:
+            raise SendeFehler(hindernis)
+        intern, extern = einordnung.intern, einordnung.extern
+        _drossel(benutzer)
     sender = benutzer if recht == "auftrag" else None
-    msg = _bauen(postfach, sender, an_l, cc_l, betreff or "", text or "", anhaenge, bezug, zitat)
+    msg = _bauen(postfach, sender, an_l, cc_l, betreff or "", text or "", anhaenge, bezug, zitat, marken=probe)
     return recht, alle, msg, bcc_l, intern, extern
 
 
@@ -379,12 +443,7 @@ async def _hinaus(benutzer: str, postfach: str, recht: str, alle: list, inhalt: 
     überhaupt hinausgab (Verschlüsselung ohne Zertifikat …), und Zusätze des
     Normalbetriebs, die eine Outlook-Kopie voraussetzen (SENT_ITEMS_UPDATE),
     bleiben aus. Zugestellt wird danach je nach Weg."""
-    import handler
-    import reinject
-    zustellungen: list[tuple[str, list, bytes]] = []
-    with reinject.umleiten(lambda von, empf, inhalt: zustellungen.append((von, empf, inhalt))):
-        antwort = await handler.SignatureHandler().handle_DATA(
-            None, _Sitzung(), _Umschlag(postfach, alle, inhalt))
+    antwort, zustellungen = await _durch_den_handler(benutzer, postfach, recht, alle, inhalt)
     if not str(antwort).startswith("250"):
         raise SendeFehler(f"Nicht gesendet: {antwort}")
     haupt = next((z for z in zustellungen if _message_id(z[2]) == mid), None)
@@ -395,6 +454,24 @@ async def _hinaus(benutzer: str, postfach: str, recht: str, alle: list, inhalt: 
         raise SendeFehler("Nicht gesendet." + (f" {meldung}" if meldung else ""))
     return await asyncio.to_thread(_zustellen, benutzer, postfach, recht, alle, zustellungen, haupt, mid,
                                    bcc_l, weg)
+
+
+async def _durch_den_handler(benutzer: str, postfach: str, recht: str, alle: list,
+                             inhalt: bytes) -> tuple[str, list]:
+    """Den Handler laufen lassen, was er hinausgäbe einsammeln — EINE Stelle
+    für Versand und Vorschau. Umschlag-Absender wie bei Exchange: „im Auftrag
+    von“ ist die PERSON (From = Postfach, Sender = Person), „als“ und eigen
+    das Postfach. Nur so erkennt der Handler die Person als Bearbeiter
+    ({{ bearbeiter.* }} in der Signatur des geteilten Postfachs); bis
+    Notbetrieb-Stand 17.11.2026 blieb sie hier leer."""
+    import handler
+    import reinject
+    zustellungen: list[tuple[str, list, bytes]] = []
+    umschlag = benutzer if recht == "auftrag" else postfach
+    with reinject.umleiten(lambda von, empf, roh: zustellungen.append((von, empf, roh))):
+        antwort = await handler.SignatureHandler().handle_DATA(
+            None, _Sitzung(), _Umschlag(umschlag, alle, inhalt))
+    return str(antwort), zustellungen
 
 
 def _zustellen(benutzer: str, postfach: str, recht: str, alle: list, zustellungen: list, haupt: tuple,

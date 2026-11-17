@@ -2499,6 +2499,13 @@
     "name": "notfall_passkey_entfernen"
   },
   {
+    "pfad": "/notfall/api/gelesen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_gelesen"
+  },
+  {
     "pfad": "/notfall/api/ich",
     "methoden": [
       "GET"
@@ -2562,6 +2569,13 @@
     "name": "notfall_vorlage"
   },
   {
+    "pfad": "/notfall/api/vorschau",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_vorschau"
+  },
+  {
     "pfad": "/notfall/app.webmanifest",
     "methoden": [
       "GET"
@@ -2581,6 +2595,13 @@
       "GET"
     ],
     "name": "notfall_inhalt"
+  },
+  {
+    "pfad": "/notfall/vorschau",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_vorschau_inhalt"
   },
   {
     "pfad": "/outlook-addin",

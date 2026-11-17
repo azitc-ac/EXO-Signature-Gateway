@@ -140,6 +140,9 @@ def beantwortete(msg) -> list[str]:
 
 def merken(postfach: str, message_id: str) -> None:
     """Diese Nachricht wurde für dieses Postfach signiert."""
+    import probelauf
+    if probelauf.aktiv():
+        return
     if not postfach or not message_id:
         return
     try:

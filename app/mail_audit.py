@@ -97,6 +97,9 @@ def log_event(
     relay_ip: str = "",
     relay_id: str = "",
 ) -> None:
+    import probelauf
+    if probelauf.aktiv():
+        return
     if not _initialised:
         log.warning("mail_audit: log_event(%s) dropped — DB not yet initialised", action)
         return

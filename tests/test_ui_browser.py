@@ -1965,6 +1965,89 @@ def test_notfall_termine_ohne_leere_kreisspalte(browser, server, monkeypatch):
     pg.context.close()
 
 
+_VERFASSEN = _SENDER | {
+    "vorlage": {"ok": True, "an": "hans@firma.at", "cc": "", "bcc": "", "betreff": "AW: Termin", "text": "",
+                "zitat": None},
+    "vorschau": {"ok": True, "zustand": "angehaengt", "smime": True, "ohne_empfaenger": False, "meldung": "",
+                 "url": "/notfall/vorschau?k=probe"}}
+
+
+def test_notfall_befehlsleiste_antworten_und_ungelesen(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300, zusatz=_VERFASSEN)
+    for k in ("#b-antworten", "#b-allen", "#b-weiterleiten", "#b-gelesen"):
+        assert pg.is_disabled(k), k
+    pg.click('#liste .eintrag[data-id="m1"]')
+    pg.wait_for_selector("#lesen .mailansicht")
+    assert not pg.is_disabled("#b-antworten") and pg.inner_text("#b-gelesen") == "Als ungelesen markieren"
+    pg.click("#b-gelesen")
+    pg.wait_for_function("() => document.querySelector('#b-gelesen').innerText === 'Als gelesen markieren'")
+    assert pg.get_attribute('#liste .eintrag[data-id="m1"]', "data-ungelesen") == "1"
+    pg.click("#b-gelesen")
+    pg.wait_for_function("() => document.querySelector('#b-gelesen').innerText === 'Als ungelesen markieren'")
+    assert [(r["id"], r["gelesen"]) for t, r in pg.gesendet if t == "gelesen"] == [("m1", False), ("m1", True)]
+    # Antworten aus der Leiste: Formular mit Vorschau dessen, was angehängt wird.
+    pg.click("#b-antworten")
+    pg.wait_for_function("() => (document.getElementById('vf-sig-titel') || {textContent: ''}).textContent.startsWith('Diese')")
+    assert pg.inner_text("#vf-sig-titel") == "Diese Signatur, Banner und Disclaimer werden angehängt · S/MIME-signiert"
+    assert pg.get_attribute("#vf-sig iframe", "src") == "/notfall/vorschau?k=probe"
+    assert pg.get_attribute("#vf-sig iframe", "sandbox") == ""
+    erste = [r for t, r in pg.gesendet if t == "vorschau"]
+    assert erste[0]["art"] == "antwort" and erste[0]["bezug"] == "m1"
+    # Text tippen rechnet nicht neu, Empfänger ändern schon.
+    pg.fill("#vf-text", "Danke!")
+    pg.wait_for_timeout(1400)
+    assert len([1 for t, _ in pg.gesendet if t == "vorschau"]) == 1
+    pg.fill("#vf-cc", "erika@firma.at")
+    pg.wait_for_timeout(1400)
+    zweite = [r for t, r in pg.gesendet if t == "vorschau"]
+    assert len(zweite) == 2 and zweite[1]["cc"] == "erika@firma.at"
+    pg.context.close()
+
+
+def test_notfall_befehlsleiste_passt_aufs_handy(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 393, zusatz=_VERFASSEN)
+    pg.click('#liste .eintrag[data-id="m2"]')
+    pg.wait_for_selector("#lesen .mailansicht")
+    assert _sichtbar(pg, "#b-gelesen") and _sichtbar(pg, "#b-antworten")
+    assert pg.evaluate("document.documentElement.scrollWidth") <= 393
+    pg.context.close()
+
+
+def test_notfall_listenspalten_ziehbar_und_vorschautext(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1600, speicher={"liste": 1000},
+                        zusatz=_SENDER | {"kalender": {"ok": True, "termine": []}})
+    assert _sichtbar(pg, "#spaltenkopf")
+    links = lambda sel: pg.eval_on_selector(sel, "e => Math.round(e.getBoundingClientRect().left)")
+    breite = lambda sel: pg.eval_on_selector(sel, "e => Math.round(e.getBoundingClientRect().width)")
+    # Kopfzeile und Mails teilen das Gitter: Spalten stehen bündig.
+    assert abs(links("#spaltenkopf .sk:nth-child(3)") - links('#liste .eintrag[data-id="m1"] .betreff')) <= 1
+    assert breite("#spaltenkopf .sk:nth-child(2)") == 170
+    griff = pg.locator('.griff[data-s="von"]').bounding_box()
+    x, y = griff["x"] + griff["width"] / 2, griff["y"] + griff["height"] / 2
+    pg.mouse.move(x, y); pg.mouse.down(); pg.mouse.move(x + 80, y, steps=4); pg.mouse.up()
+    assert 245 <= breite("#spaltenkopf .sk:nth-child(2)") <= 262     # Griff sitzt mitten im Spaltenabstand
+    assert abs(breite('#liste .eintrag[data-id="m1"] .von') - breite("#spaltenkopf .sk:nth-child(2)")) <= 1
+    assert abs(links("#spaltenkopf .sk:nth-child(3)") - links('#liste .eintrag[data-id="m1"] .betreff')) <= 1
+    assert "von" in pg.evaluate("localStorage.getItem('nf-listenspalten')")
+    pg.dblclick('.griff[data-s="von"]')
+    assert breite("#spaltenkopf .sk:nth-child(2)") == 170
+    # Vorschautext aus: weg, und gemerkt.
+    assert _sichtbar(pg, '#liste .eintrag[data-id="m1"] .vorschau')
+    pg.click("label:has(#f-vorschautext)")
+    assert not _sichtbar(pg, '#liste .eintrag[data-id="m1"] .vorschau')
+    assert pg.evaluate("localStorage.getItem('nf-vorschautext')") == "0"
+    # Kalender & Co. haben keine Von/Betreff-Spalten.
+    pg.evaluate("ordnerWaehlen('__kalender')")
+    assert not _sichtbar(pg, "#spaltenkopf")
+    pg.context.close()
+
+
+def test_notfall_schmale_liste_ohne_spaltenkopf(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1100)
+    assert not _sichtbar(pg, "#spaltenkopf")
+    pg.context.close()
+
+
 # ── Roter Faden: „Dein Notfall-Zugang“ statt Anmeldemaske ────────────────────
 
 _FAKTOR_NUR_APP = {"ok": True, "postfach": "max@firma.at", "aktiv": True, "totp": True, "seit": "2026-11-01",
@@ -2012,7 +2095,7 @@ def _sichtbar(pg, sel):
 def test_notfall_normalbetrieb_startet_beim_zugang(browser, server, monkeypatch):
     pg = _notfall_start(browser, server, monkeypatch, faktor=None)
     assert _sichtbar(pg, "#einrichten") and not _sichtbar(pg, "#anmeldung")
-    assert pg.inner_text("#einrichten h1") == "Dein Notfall-Zugang"
+    assert pg.inner_text("#einrichten h1") == "Deinen Notfall-Zugang einrichten"
     assert "/auth/login/microsoft?next=/notfall/einrichten" in pg.get_attribute("#ein-anmelden a", "href")
     # Anmeldung ausprobieren: ohne Sitzung zur Anmeldemaske, mit Weg zurück.
     pg.click("#ein-weiter")
@@ -2020,6 +2103,16 @@ def test_notfall_normalbetrieb_startet_beim_zugang(browser, server, monkeypatch)
     assert _sichtbar(pg, "#anmeldung") and not _sichtbar(pg, "#einrichten")
     assert pg.inner_text("#anmeldung h1") == "Notfall-Anmeldung"
     assert _sichtbar(pg, "#zum-zugang")
+    pg.context.close()
+
+
+def test_notfall_ausprobieren_setzt_die_adresse_des_webmails(browser, server, monkeypatch):
+    """Ein Favorit nach „ausprobieren“ muss auf /notfall zeigen — die
+    Einrichtung braucht die Microsoft-Anmeldung, die im Notfall fehlt."""
+    pg = _notfall_start(browser, server, monkeypatch, faktor=None, pfad="/notfall/einrichten?host=teams")
+    pg.click("#ein-weiter")
+    pg.wait_for_selector("#anmeldung:not([hidden])", timeout=5000)
+    assert pg.url.endswith("/notfall?host=teams"), pg.url
     pg.context.close()
 
 

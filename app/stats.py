@@ -266,6 +266,9 @@ def increment_um(key: str, n: int) -> None:
 
 
 def increment(key: str) -> None:
+    import probelauf
+    if probelauf.aktiv():
+        return
     with _lock:
         _stats[key] = _stats.get(key, 0) + 1
         _persist_total()

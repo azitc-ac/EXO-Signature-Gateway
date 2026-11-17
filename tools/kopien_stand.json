@@ -4,7 +4,7 @@
   "app/webui/templates/_testmail.html": 60,
   "app/webui/templates/abwesenheit.html": 275,
   "app/webui/templates/base.html": 144,
-  "app/webui/templates/notfall.html": 75,
+  "app/webui/templates/notfall.html": 79,
   "app/webui/templates/preview.html": 63,
   "app/webui/templates/relay.html": 186,
   "app/webui/templates/self.html": 275,
@@ -35,6 +35,12 @@
    "von": 63,
    "auf": 146,
    "grund": "Gegenstück zu notfall.html: TYPE_LABELS gleicht in der Form der neuen Symboltabelle IKON des Webmails; an template_editor.html selbst hat sich nichts geändert."
+  },
+  {
+   "datei": "app/webui/templates/notfall.html",
+   "von": 75,
+   "auf": 79,
+   "grund": "Dieselbe Fundstelle wie 0 → 75: IKON bekam das Symbol „umschlag“ (Gelesen/Ungelesen) und gleicht TYPE_LABELS damit um einen Eintrag länger. Die Zieh-Logik der neuen Listenspalten ist dagegen KEINE Kopie mehr — sie teilt sich ziehgriff() mit den Spaltentrennern."
   }
  ]
 }

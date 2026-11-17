@@ -608,6 +608,71 @@ async def notfall_senden(request: Request, benutzer: str = Depends(_sender)):
     return JSONResponse(erg)
 
 
+# ── Signatur-Vorschau: was der Handler anhängen würde ──────────────────────
+# Das Ergebnis ist HTML aus Vorlagen und Original — es läuft wie jede Mail im
+# Lesebereich NUR unter INHALT_CSP (eigene Route, iframe ohne Rechte). Gemerkt
+# im Speicher, je Person, kurz: Es ist eine Ansicht, kein Datensatz.
+_VORSCHAU_S, _VORSCHAU_MAX = 600, 200
+_vorschauen: dict[str, tuple[str, str, float]] = {}
+
+
+@router.post("/notfall/api/vorschau")
+async def notfall_vorschau(request: Request, benutzer: str = Depends(_sender)):
+    import secrets
+    import time
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        return JSONResponse({"ok": False, "error": "Ungültige Anfrage."}, status_code=400)
+    try:
+        erg = await notbetrieb_senden.vorschau(
+            benutzer, str(body.get("postfach") or ""), str(body.get("an") or ""), str(body.get("cc") or ""),
+            str(body.get("bcc") or ""), str(body.get("betreff") or "")[:500], str(body.get("bezug") or ""),
+            str(body.get("art") or "neu"), str(body.get("bezug_postfach") or ""))
+    except notbetrieb_senden.SendeFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    jetzt = time.monotonic()
+    for k in [k for k, (_, _, ts) in _vorschauen.items() if jetzt - ts > _VORSCHAU_S]:
+        _vorschauen.pop(k, None)
+    while len(_vorschauen) >= _VORSCHAU_MAX:
+        _vorschauen.pop(next(iter(_vorschauen)))
+    html = erg.pop("html")
+    if html:
+        k = secrets.token_urlsafe(16)
+        _vorschauen[k] = (benutzer, html, jetzt)
+        erg["url"] = "/notfall/vorschau?k=" + k
+    return JSONResponse(erg)
+
+
+@router.get("/notfall/vorschau")
+async def notfall_vorschau_inhalt(k: str, benutzer: str = Depends(_sender)):
+    eintrag = _vorschauen.get(k)
+    if not eintrag or eintrag[0] != benutzer:
+        raise HTTPException(404)
+    return HTMLResponse(eintrag[1], headers={"Content-Security-Policy": notbetrieb_lesen.INHALT_CSP + "; "
+                                             + frame_ancestors(),
+                                             "X-Frame-Options": "SAMEORIGIN", "Cache-Control": "no-store"})
+
+
+# ── Gelesen / ungelesen (in der Kopie, zurück nach Exchange) ────────────────
+
+@router.post("/notfall/api/gelesen")
+async def notfall_gelesen(request: Request, benutzer: str = Depends(_leser)):
+    """Wie das Öffnen einer Mail (_leser): Wer nur zur Vorschau liest, ändert
+    damit nur die Kopie; zurückgeschrieben wird für den, der im Webmail
+    arbeitet (notbetrieb_aenderungen.merken entscheidet)."""
+    import notbetrieb_aenderungen
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    pf = await _postfach(benutzer, str(body.get("postfach") or ""))
+    if not await asyncio.to_thread(notbetrieb_aenderungen.merken, benutzer, pf, str(body.get("id") or ""),
+                                   notbetrieb_aenderungen.GELESEN, "1" if body.get("gelesen") else "0"):
+        raise HTTPException(404)
+    return JSONResponse({"ok": True})
+
+
 # ── Löschen und Verschieben (in der Kopie, zurück nach Exchange) ────────────
 
 @router.post("/notfall/api/verschieben")
