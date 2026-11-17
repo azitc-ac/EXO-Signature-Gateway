@@ -706,6 +706,11 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
 
     checks: dict = {}
 
+    import exo_mailboxes
+    if exo_mailboxes.ist_hybrid(email):
+        checks = await _checks_hybrid(email, cfg, exo_data)
+        return _ergebnis_speichern(email, checks)
+
     # 1. exo_mailbox (sync, wrapped in executor)
     loop = asyncio.get_event_loop()
     checks["exo_mailbox"] = await loop.run_in_executor(None, _check_exo_mailbox_sync, email)
@@ -798,6 +803,10 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
     else:
         checks["kv_sign"] = _make_result("skip", "Kein Key-Vault-Schlüssel für dieses Postfach")
 
+    return _ergebnis_speichern(email, checks)
+
+
+def _ergebnis_speichern(email: str, checks: dict) -> dict:
     overall = _compute_overall(checks)
     result = {
         "last_checked": _now_str(),
@@ -812,6 +821,51 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
 
     log.info("health_check: %s → overall=%s", email, overall)
     return result
+
+
+_LOKAL = "Postfach in der lokalen Organisation"
+
+
+async def _checks_hybrid(email: str, cfg: dict, exo_data: dict | None) -> dict:
+    """Prüfungen für einen Hybrid-Nutzer (Postfach in der lokalen Exchange-
+    Organisation). Graph-Zugriff, Abwesenheit, IMAP, Add-ins und S/MIME setzen
+    ein EXO-Postfach voraus und entfallen. Geprüft werden Bestand in EXO,
+    Verteilerliste (nur solange die Option wirkt — sonst nähme die Selbstheilung
+    ein Postfach auf, dessen Post das Gateway nicht zurückgeben kann) und Vorlage."""
+    import exo_mailboxes
+    checks: dict = {}
+    aktiv = exo_mailboxes.hybrid_aktiv()
+    if not aktiv:
+        checks["exo_mailbox"] = _make_result(
+            "warn", "Hybrid-Nutzer: Option aus oder Rückweg nicht SMTP — wird nicht bearbeitet")
+        checks["dg_member"] = _make_result("skip", "Hybrid-Option nicht wirksam")
+    else:
+        if email in exo_mailboxes.hybrid_addresses():
+            checks["exo_mailbox"] = _make_result("ok", f"Hybrid-Nutzer ({_LOKAL})")
+        else:
+            checks["exo_mailbox"] = _make_result(
+                "error", "Hybrid-Nutzer nicht (mehr) in EXO gefunden")
+        loop = asyncio.get_event_loop()
+        if exo_data is None:
+            exo_data = await loop.run_in_executor(None, _check_exo_batch_sync, [email])
+        data = (exo_data or {}).get(email, {})
+        if data.get("error"):
+            checks["dg_member"] = _make_result("error", f"PS-Fehler: {data['error']}")
+        elif data.get("dg_fixed"):
+            checks["dg_member"] = _make_result("fixed", "Fehlte — automatisch hinzugefügt")
+            _append_audit("dg_member_added", email, "Automatisch zur DG hinzugefügt")
+        elif data.get("dg_member"):
+            checks["dg_member"] = _make_result("ok", "Mitglied der Distribution Group")
+        else:
+            checks["dg_member"] = _make_result("error", "Nicht in Distribution Group")
+    for name in ("imap_permission", "addin_verfassen", "addin_knopf",
+                 "graph_postfach", "abwesenheit", "smime_cert", "smime_key", "kv_sign"):
+        checks[name] = _make_result("skip", _LOKAL)
+    if cfg.get("sig"):
+        checks["template"] = await _check_template(email, cfg)
+    else:
+        checks["template"] = _make_result("skip", "Signatur nicht aktiviert")
+    return checks
 
 
 # ── All mailboxes ─────────────────────────────────────────────────────────────
@@ -862,9 +916,14 @@ async def run_all_checks(emails: list[str] | None = None) -> dict:
     log.info("health_check: running checks for %d mailbox(es): %s",
              len(emails), ", ".join(emails))
 
-    # Run the EXO batch PS check once for all emails
+    # Run the EXO batch PS check once for all emails — ohne Hybrid-Nutzer, deren
+    # Option gerade nicht wirkt: Der Sammellauf nimmt fehlende Mitglieder
+    # selbsttätig in die Verteilerliste auf (siehe _checks_hybrid).
+    import exo_mailboxes
+    _hybrid_wirkt = exo_mailboxes.hybrid_aktiv()
+    sammel = [e for e in emails if _hybrid_wirkt or not exo_mailboxes.ist_hybrid(e)]
     loop = asyncio.get_event_loop()
-    exo_data = await loop.run_in_executor(None, _check_exo_batch_sync, emails)
+    exo_data = await loop.run_in_executor(None, _check_exo_batch_sync, sammel) if sammel else {}
     _verteilung_vormerken(exo_data)
 
     results = {}

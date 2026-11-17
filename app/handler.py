@@ -1777,9 +1777,13 @@ class SignatureHandler:
             # sender can't read their own sent mails. Always patch it with the
             # pre-encryption plaintext body so Sent Items stay readable.
             mid = msg.get("Message-ID", "").strip()
+            import exo_mailboxes as _exo_hy
             _do_cleanup = (
                 mid and _is_first_for_mid(sender, mid)
                 and (wants_encryption or settings_store.get("SENT_ITEMS_UPDATE"))
+                # Hybrid-Nutzer: „Gesendete Elemente“ liegen in der lokalen
+                # Organisation, Graph erreicht sie nicht.
+                and not _exo_hy.ist_hybrid(sender)
             )
             if _do_cleanup:
                 # Nur-Text bleibt Nur-Text: Bis v1.12.16 wurde der Rumpf als

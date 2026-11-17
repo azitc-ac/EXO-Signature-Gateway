@@ -269,6 +269,10 @@ DEFAULTS: dict = {
     "DKIM_DOMAINS": {},       # {"example.com": "gw202610"} — Schlüssel in data/dkim/<domain>.<selektor>.pem
     "ONPREM_MAILUSERS": [],   # ["max.mustermann@zarenko.net", …] — via EXO Get-MailUser
     "ONPREM_MAILUSERS_TS": "", # ISO8601 des letzten erfolgreichen Abgleichs
+    # Hybrid-Nutzer (Postfach in der lokalen Exchange-Organisation, in EXO als
+    # dir-synchronisierter MailUser) in die Postfachliste aufnehmen — Signatur,
+    # Banner, Disclaimer. Wirkt nur im Rückweg `smtp` (exo_mailboxes.hybrid_aktiv).
+    "HYBRID_POSTFAECHER": False,
     # Parameter des on-prem-Koexistenz-Connectors (Hybrid). NUR zum erneuten
     # Erzeugen des Auf-/Abbau-Skripts (coexistence.py) — das Gateway führt on-prem
     # nichts aus. {"gateway_name","source_ip","servers":[...]}

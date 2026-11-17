@@ -1141,6 +1141,8 @@ def _aktive_postfaecher(mailbox_cfg: dict) -> list[tuple[str, dict]]:
             continue
         if not (cfg.get("sig") or cfg.get("smime")):
             continue
+        if cfg.get("hybrid"):
+            continue    # Postfach in der lokalen Organisation: kein Graph-Zugriff
         upn = (cfg.get("primary") or key or "").strip()
         if upn and "@" in upn:
             out.append((upn, cfg))
