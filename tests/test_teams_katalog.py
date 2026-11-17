@@ -275,6 +275,8 @@ def test_seite_wartet_nicht_auf_graph_wenn_ein_stand_gemerkt_ist(werte, monkeypa
         return {"zustand": "ok", "version": "9.9.9"}
     monkeypatch.setattr(graph_client, "teams_katalog", fake)
     monkeypatch.setattr(teams_katalog, "_gelesen", {})
+    # Kurz nach dem Systemstart (monotonic klein) — wie ein frischer CI-Runner.
+    monkeypatch.setattr(teams_katalog.time, "monotonic", lambda: 5.0)
     teams_katalog.merken("notfall", {"zustand": "ok", "version": "1.11.9"})
 
     async def ablauf():

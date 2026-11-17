@@ -99,7 +99,11 @@ async def stand(app: str, base: str, warten: bool = False) -> dict:
         katalog = await _lesen(app, m["id"])
     else:
         katalog = {"zustand": gemerkt.get("zustand"), "version": gemerkt.get("version")}
-        if time.monotonic() - _gelesen.get(app, 0.0) > FRISCH_S and app not in _laeuft:
+        # Nie gelesen heisst None, nicht 0: monotonic() zählt ab Systemstart —
+        # in den ersten zehn Minuten nach einem Neustart hätte 0 als frisch
+        # gegolten (in der CI aufgefallen).
+        zuletzt = _gelesen.get(app)
+        if (zuletzt is None or time.monotonic() - zuletzt > FRISCH_S) and app not in _laeuft:
             _laeuft.add(app)
             aufgabe = asyncio.get_running_loop().create_task(_im_hintergrund(app, m["id"]))
             _aufgaben.add(aufgabe)
