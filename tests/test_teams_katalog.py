@@ -262,3 +262,45 @@ def test_seitenabruf_merkt_den_stand(werte, monkeypatch):
     assert s["katalog"]["aktuell"] is False
     assert werte["_TEAMS_KATALOG"]["signatur"]["version"] == "1.11.9"
     assert teams_katalog.pruefung("signatur")["zustand"] == abnahme.OFFEN
+
+
+def test_seite_wartet_nicht_auf_graph_wenn_ein_stand_gemerkt_ist(werte, monkeypatch):
+    """Eine Katalog-Abfrage dauert ~1 s (gemessen 17.11.2026) — die Seite
+    zeigt das Gemerkte; ist es älter als FRISCH_S, liest das Gateway im
+    Hintergrund neu und merkt das Ergebnis für den nächsten Aufruf."""
+    abrufe = []
+
+    async def fake(externe_id):
+        abrufe.append(externe_id)
+        return {"zustand": "ok", "version": "9.9.9"}
+    monkeypatch.setattr(graph_client, "teams_katalog", fake)
+    monkeypatch.setattr(teams_katalog, "_gelesen", {})
+    teams_katalog.merken("notfall", {"zustand": "ok", "version": "1.11.9"})
+
+    async def ablauf():
+        s = await teams_katalog.stand("notfall", "https://gw.firma.at")
+        gezeigt = s["katalog"]["version"]
+        await asyncio.sleep(0)                      # Hintergrund-Abruf darf laufen
+        await asyncio.gather(*list(teams_katalog._aufgaben))
+        return gezeigt
+    assert asyncio.run(ablauf()) == "1.11.9"        # sofort aus dem Gemerkten
+    assert len(abrufe) == 1                         # … und im Hintergrund nachgelesen
+    assert werte["_TEAMS_KATALOG"]["notfall"]["version"] == "9.9.9"
+    # Frisch gelesen: kein weiterer Abruf.
+    s = asyncio.run(teams_katalog.stand("notfall", "https://gw.firma.at"))
+    assert s["katalog"]["version"] == "9.9.9" and len(abrufe) == 1
+
+
+def test_taeglicher_abgleich_liest_immer_live(werte, monkeypatch):
+    abrufe = []
+
+    async def fake(externe_id):
+        abrufe.append(externe_id)
+        return {"zustand": "ok", "version": "1.11.9"}
+    monkeypatch.setattr(graph_client, "teams_katalog", fake)
+    import aussenadresse
+    monkeypatch.setattr(aussenadresse, "basis", lambda: "https://gw.firma.at")
+    teams_katalog.merken("signatur", {"zustand": "ok", "version": "1.11.9"})
+    teams_katalog.merken("notfall", {"zustand": "ok", "version": "1.11.9"})
+    asyncio.run(teams_katalog.auffrischen())
+    assert len(abrufe) == 2

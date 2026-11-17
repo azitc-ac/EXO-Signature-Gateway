@@ -15,7 +15,9 @@ aktualisieren“ merkt `merken()` die neue Fassung sofort.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 
 import settings_store
@@ -26,6 +28,14 @@ MERK = "_TEAMS_KATALOG"          # {app: {"zustand", "version", "ts"}}
 NAME = {"signatur": "Teams-App „Signatur & Abwesenheit“", "notfall": "Teams-App „Notfall-Mail“"}
 STAND = {"signatur": "_TEAMS_APP_STAND", "notfall": "_TEAMS_NOTFALL_STAND"}   # Paketfassung (addin._manifest_version)
 LINK = {"signatur": "/setup#teams-app-schalter", "notfall": "/notbetrieb#nb-teams-app"}
+# Seitenaufbau wartet nicht auf Graph: Eine Katalog-Abfrage dauert rund 1 s
+# (gemessen 17.11.2026, exohv) — die Notbetrieb-Seite brauchte deshalb 1,1 s
+# statt 0,02 s. Jünger als FRISCH_S gilt das Gemerkte, älter wird im
+# Hintergrund neu gelesen (der nächste Aufruf zeigt es).
+FRISCH_S = 600
+_gelesen: dict[str, float] = {}            # app → monotonic des letzten Lesens
+_laeuft: set[str] = set()
+_aufgaben: set = set()                     # Referenz halten, sonst kann die Aufgabe verschwinden
 
 
 def aktiv(app: str) -> bool:
@@ -61,15 +71,41 @@ def merken(app: str, katalog: dict) -> None:
     aufgaben.vergessen()
 
 
-async def stand(app: str, base: str) -> dict:
-    """Paketfassung und — live gelesen — Fassung im Katalog; das Ergebnis wird
-    gemerkt. Für Einrichtung und Notbetrieb-Seite (EINE Rechnung von `aktuell`)."""
+async def _lesen(app: str, katalog_id: str) -> dict:
     import graph_client
+    katalog = await graph_client.teams_katalog(katalog_id)
+    _gelesen[app] = time.monotonic()
+    merken(app, katalog)
+    return katalog
+
+
+async def _im_hintergrund(app: str, katalog_id: str) -> None:
+    try:
+        await _lesen(app, katalog_id)
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("Teams-Katalog (%s) im Hintergrund nicht gelesen: %s", app, exc)
+    finally:
+        _laeuft.discard(app)
+
+
+async def stand(app: str, base: str, warten: bool = False) -> dict:
+    """Paketfassung und Fassung im Katalog, mit `aktuell` — EINE Rechnung für
+    Einrichtung und Notbetrieb-Seite. Ohne `warten` aus dem Gemerkten (älter
+    als FRISCH_S: im Hintergrund neu lesen); live nur, wenn noch nie gelesen
+    wurde oder `warten` (täglicher Abgleich)."""
     m = _manifest(app, base)
-    katalog = await graph_client.teams_katalog(m["id"])
+    gemerkt = (settings_store.get(MERK) or {}).get(app)
+    if warten or not gemerkt:
+        katalog = await _lesen(app, m["id"])
+    else:
+        katalog = {"zustand": gemerkt.get("zustand"), "version": gemerkt.get("version")}
+        if time.monotonic() - _gelesen.get(app, 0.0) > FRISCH_S and app not in _laeuft:
+            _laeuft.add(app)
+            aufgabe = asyncio.get_running_loop().create_task(_im_hintergrund(app, m["id"]))
+            _aufgaben.add(aufgabe)
+            aufgabe.add_done_callback(_aufgaben.discard)
     v = katalog.get("version")
     katalog["aktuell"] = bool(v) and _versionstupel(v) >= _versionstupel(m["version"])
-    merken(app, katalog)
     return {"version": m["version"], "seit": (settings_store.get(STAND[app]) or {}).get("seit", ""),
             "katalog": katalog}
 
@@ -84,7 +120,7 @@ async def auffrischen() -> None:
     for app in NAME:
         if aktiv(app):
             try:
-                await stand(app, base)
+                await stand(app, base, warten=True)
             except Exception as exc:                          # noqa: BLE001
                 log.warning("Teams-Katalog (%s) nicht gelesen: %s", app, exc)
 
