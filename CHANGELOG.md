@@ -5,6 +5,114 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.54 — 2026-11-17 — Tests zu v1.12.52 berichtigt
+
+Zwei Browsertests zu v1.12.52 bedienten die globale Schriftauswahl in einem
+zugeklappten Bereich und lasen die Vorschau aus einem eingebetteten Rahmen per
+`innerText`. Sie prüfen jetzt aufgeklappt und an der Anfrage; der Schrifttest
+lädt dazu eine gespeicherte Baukasten-Vorlage und prüft, was beim Speichern
+gesendet wird. Am Produkt ändert sich nichts.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.52 — 2026-11-17 — Baukasten: Schriftauswahl, bearbeiter.-Vorschläge, Vorschau „Schreibt“
+
+**Schriftart als Auswahl.** In den globalen Einstellungen und im Baustein
+Freitext steht die Schriftart jetzt als Auswahl gängiger Schriften (Calibri,
+Aptos, Arial, Segoe UI, Verdana, Tahoma, Trebuchet MS, Georgia, Cambria,
+Times New Roman, Courier New), jeweils mit Ersatzschriften für Empfänger, bei
+denen sie fehlt. Unter **Eigene …** bleibt das Freitextfeld wie bisher.
+Gespeichert wird unverändert der Text; eine gespeicherte Schrift, die in
+keiner Vorgabe steht, erscheint als „Eigene …“ mit ihrem Wert.
+
+**Vorschläge für `bearbeiter.`** Die Vorschlagsliste beim Tippen kannte nur
+`user.`, `custom.` und `oof.`, obwohl Hinweistext und Feldauswahl
+`bearbeiter.*` anboten. Die erkannten Präfixe ergeben sich jetzt aus der
+Liste der Felder selbst.
+
+**Vorschau mit getrennter Person.** Live-Vorschau im Baukasten und die Seite
+*Vorschau* haben eine Auswahl **Schreibt**. Mit einer anderen Person als dem
+Inhaber zeigt die Vorschau, was beim Schreiben „im Auftrag von“ eines
+geteilten Postfachs entsteht: `bearbeiter.*` aus dieser Person und die
+Bedingung „nur wenn jemand für das Postfach schreibt“ erfüllt. Banner und
+Disclaimer bleiben beim Inhaber, wie im Mailweg. Bisher setzte die Vorschau
+immer den Inhaber ein. Die Auswahl erscheint nur bei Signaturvorlagen.
+
+**Zu tun:** nichts.
+
+## v1.12.51 — 2026-11-16 — Kampagnen: wählbar, welche Postfächer den Banner bekommen
+
+Der Schalter „Übernahme erzwingen“ aus v1.12.49 unterschied nur, ob ein
+Postfach Richtlinien übernimmt. Er erfasste damit den eigentlichen Fall nicht:
+Ein Postfach oder eine Gruppe, für die bewusst kein Banner gilt, soll auch
+während einer Kampagne ohne bleiben, alle anderen sollen den Banner der
+Kampagne bekommen.
+
+Unter *Signaturen → Kampagnen* steht jetzt **Übernahme erzwingen für** mit
+drei Kästchen:
+
+- **alle mit Richtlinien-Banner**: Postfächer mit Richtlinien-Übernahme, deren
+  Richtlinie einen Banner hat
+- **alle mit individuellem Banner**: Postfächer ohne Richtlinien-Übernahme
+  mit eigenem Banner
+- **alle ohne Banner**: Postfächer, die ohne Kampagne keinen Banner hätten,
+  gleich ob über die Richtlinie oder einzeln
+
+Maßgeblich ist der Banner, den das Postfach ohne Kampagne bekäme. Vorgabe
+sind die ersten beiden, also alle Postfächer mit einem Banner. Mindestens ein
+Kästchen muss gewählt sein. Die Kampagnenliste zeigt die Auswahl je Kampagne.
+
+**Zu tun:** nichts. Bestehende Kampagnen gelten nach dem Update für alle
+Postfächer mit Banner; Postfächer ohne Banner erreichen sie nicht mehr. Hatte
+eine Kampagne in v1.12.49 „Übernahme erzwingen“ gesetzt, gilt sie weiter für
+alle. Soll eine Kampagne auch Postfächer ohne Banner erreichen, öffne sie unter
+*Signaturen → Kampagnen → Bearbeiten* und setze „alle ohne Banner“.
+
+## v1.12.50 — 2026-11-16 — Baukasten: mehr Platz für Freitext und HTML-Code
+
+Die Eingabefelder der Bausteine **Freitext** und **HTML-Code** waren 60 px
+hoch und standen neben einer 110 px breiten Beschriftung, in einer Spalte von
+rund 400 px. Längere Texte und Disclaimer ließen sich darin kaum bearbeiten.
+
+Jetzt steht die Beschriftung über dem Feld, das Feld nutzt die volle Breite
+der Karte und ist mindestens fünf (Freitext) bzw. acht Zeilen (HTML-Code)
+hoch. Beim Öffnen richtet sich die Höhe nach dem vorhandenen Text, beim
+Tippen wächst das Feld mit, bis 60 % der Fensterhöhe; danach rollt es. Der
+HTML-Code erscheint in Festbreitenschrift, ohne Rechtschreibprüfung.
+
+Neu ist **Groß bearbeiten** neben beiden Feldern: Die Eingabe öffnet sich fast
+bildschirmfüllend (auf dem Telefon ganz). Jede Änderung geht sofort in den
+Baustein; *Fertig*, Esc oder ein Klick daneben schließen. Die
+Variablen-Vorschläge (`user.`, `custom.`) funktionieren auch dort und bleiben
+im sichtbaren Bereich.
+
+**Zu tun:** nichts.
+
+## v1.12.49 — 2026-11-16 — Banner-Kampagnen respektieren Postfächer ohne Richtlinien
+
+Ein Postfach, bei dem „Vorlagen-Richtlinien“ abgeschaltet ist, bekam trotzdem
+den Banner jeder aktiven Kampagne, auch wenn dort kein Banner ausgewählt war.
+Die Kampagne stand vor der Postfach-Einstellung und fragte nicht danach, ob
+das Postfach Richtlinien übernimmt. Wer ein Postfach bewusst aus den
+Richtlinien nahm, konnte es so nicht vor Kampagnen schützen.
+
+Jetzt erreicht eine Kampagne solche Postfächer nur, wenn sie **Übernahme
+erzwingen** trägt (neuer Schalter unter *Signaturen → Kampagnen*). Ohne den
+Schalter behält das Postfach seinen eigenen Banner bzw. bleibt ohne. Für
+Postfächer mit Richtlinien-Übernahme ändert sich nichts. Die Vorschauen
+(Self-Service, Vorlagen) folgen derselben Regel.
+
+Die Protokollzeile „HTML-Auto-Signatur unterdrückt …“ nennt jetzt die
+tatsächlich angehängten Vorlagen (`angehängt: Banner …, Disclaimer …`). Bisher
+stand dort immer `(banner+disclaimer)`, auch wenn eines davon gar nicht
+zugewiesen war.
+
+**Zu tun:** nichts. Soll eine laufende Kampagne weiterhin auch Postfächer ohne
+Richtlinien-Übernahme erreichen, öffne sie unter *Signaturen → Kampagnen →
+Bearbeiten* und setze „Übernahme erzwingen“.
+
 ## v1.12.48 — 2026-11-16 — Antwort-Signatur nur, wenn die EIGENE Signatur im Zitat steht
 
 Ob eine Antwort die volle oder die Antwort-Signatur bekommt, hängt daran, ob

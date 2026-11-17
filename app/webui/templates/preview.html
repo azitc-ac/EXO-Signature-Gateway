@@ -13,6 +13,14 @@
     </select>
   </div>
   <div>
+    <!-- Wer schreibt: bei „im Auftrag von“ eines geteilten Postfachs eine
+         andere Person als der Inhaber — füllt bearbeiter.*. -->
+    <label for="bearbeiter-sel" style="display:block;font-size:13px;color:#555;margin-bottom:4px">Schreibt</label>
+    <select id="bearbeiter-sel" style="width:280px" onchange="loadPreview()">
+      <option value="">— Inhaber selbst —</option>
+    </select>
+  </div>
+  <div>
     <label for="oof-sel" style="display:block;font-size:13px;color:#555;margin-bottom:4px">Abwesenheit</label>
     <select id="oof-sel" style="width:190px" onchange="loadPreview()"></select>
   </div>
@@ -99,6 +107,9 @@
       o.textContent = m.name !== m.email ? `${m.name} <${m.email}>` : m.email;
       emailSel.appendChild(o);
     });
+    // „Schreibt“ bietet dieselben Postfächer an (ohne die Leerzeile).
+    const schreibt = document.getElementById('bearbeiter-sel');
+    Array.from(emailSel.options).slice(1).forEach(o => schreibt.appendChild(o.cloneNode(true)));
     // Eine Adresse aus der Aufrufadresse hat Vorrang — sie ist die Absicht des
     // Augenblicks. Sonst: zuletzt gewähltes Postfach, sonst das erste.
     const adressen = mbs.map(m => m.email);
@@ -149,6 +160,8 @@
         email, template: werte.signatur, banner: werte.banner,
         disclaimer: werte.disclaimer, oof: werte.oof, explizit: '1',
       });
+      const bearbeiter = feldWert('bearbeiter-sel');
+      if (bearbeiter) p.set('bearbeiter', bearbeiter);
       const d = await getJSON('/api/preview-data?' + p.toString());
       if (!d.ok) throw new Error(errText(d));
 

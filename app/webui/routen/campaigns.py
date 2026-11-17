@@ -24,7 +24,10 @@ router = APIRouter()
 
 def _ansicht() -> dict:
     now = datetime.now(timezone.utc)
-    camps = [{**c, "status": banner_campaigns.status(c, now)}
+    # `fuer` immer ausgeschrieben — auch für Kampagnen, die es noch nicht
+    # gespeichert haben; die Oberfläche zeigt dieselbe Lesart wie der Mailweg.
+    camps = [{**c, "status": banner_campaigns.status(c, now),
+              "fuer": banner_campaigns.fuer(c)}
              for c in banner_campaigns.liste()]
     return {
         "campaigns": camps,

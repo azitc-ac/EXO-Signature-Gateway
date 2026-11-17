@@ -2179,3 +2179,190 @@ def test_webmail_hat_konto_menue(browser, server, monkeypatch):
     assert pg.get_attribute("#konto-link", "href") == "/notfall/einrichten"
     assert pg.inner_text("#konto-link") == "Anmeldung & Sicherheit"
     pg.context.close()
+
+
+# ── Baukasten: lange Eingaben (Freitext, HTML-Code) ──────────────────────────
+# Anlass: Beide Felder waren 60px hoch und standen neben einer 110px-Beschriftung
+# in einer rund 400px breiten Spalte — längere Texte waren kaum zu bearbeiten.
+
+@pytest.mark.parametrize("typ,feld", [("text", "text"), ("freetext", "html")])
+@pytest.mark.parametrize("breite", [1280, 393])
+def test_lange_eingabe_breit_hoch_und_gross_bearbeitbar(seite, typ, feld, breite):
+    pg = seite("/template", breite=breite)
+    pg.evaluate("t => addBlock(t)", typ)
+    pg.locator(".block-card").last.locator(".block-type-badge").click()
+    karte = pg.locator(".block-card").last
+    ta = karte.locator(f"textarea[name={feld}]")
+    mass = ta.evaluate("""el => {
+        const k = el.closest('.block-card-body').getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        return {anteil: r.width / k.width, hoehe: r.height};
+    }""")
+    assert mass["anteil"] > 0.85, f"Feld nutzt nur {mass['anteil']:.0%} der Kartenbreite"
+    assert mass["hoehe"] >= 100, f"Feld nur {mass['hoehe']:.0f}px hoch"
+
+    # Höhe wächst mit dem Inhalt
+    ta.fill("\n".join(f"Zeile {i}" for i in range(14)))
+    assert ta.evaluate("el => el.getBoundingClientRect().height") > mass["hoehe"] + 40
+
+    # Groß bearbeiten: deckt fast das Fenster, jede Eingabe landet sofort im Baustein
+    karte.get_by_role("button", name="Groß bearbeiten").click()
+    gross = pg.locator("#gross-feld")
+    assert gross.is_visible()
+    flaeche = gross.evaluate("el => el.getBoundingClientRect().width * el.getBoundingClientRect().height"
+                             " / (innerWidth * innerHeight)")
+    assert flaeche > 0.5, f"großes Feld deckt nur {flaeche:.0%} des Fensters"
+    gross.fill("Neu\nZweite Zeile")
+    # Die Kopfzeile der Karte wird aus dem Baustein-Objekt gebildet
+    # (blockSummary) — steht der neue Text dort, ist er im Baustein angekommen.
+    assert "Neu" in karte.locator(".block-card-header").inner_text()
+    pg.keyboard.press("Escape")
+    assert not gross.is_visible()
+    assert ta.input_value() == "Neu\nZweite Zeile"
+    pg.context.close()
+
+
+# ── Kampagnen: „Übernahme erzwingen für“ kommt beim Speichern an ─────────────
+# Fehlt `fuer` in der Anfrage, greift still die Vorgabe (Postfächer mit
+# Banner) — ein gewähltes „ohne Banner“ ginge ohne Meldung verloren.
+
+def test_kampagne_speichert_die_gewaehlten_postfacharten(seite):
+    import settings_store
+    vorher = settings_store.get("BANNER_CAMPAIGNS")
+    settings_store.update({"BANNER_CAMPAIGNS": [
+        {"id": "kmp_alt001", "name": "Alt", "banner": "x", "start": "", "end": "",
+         "group": "", "enabled": True}]})
+    try:
+        pg = seite("/kampagnen", breite=1280)
+        pg.wait_for_selector("#kampagnen-body button")
+        # Altkampagne ohne `fuer`: zeigt die Lesart des Mailwegs
+        assert "Richtlinien-Banner, individueller Banner" in pg.inner_text("#kampagnen-body")
+        pg.get_by_role("button", name="Bearbeiten").click()
+        gesetzt = pg.eval_on_selector_all(".k-fuer", "l => l.filter(c => c.checked).map(c => c.value)")
+        assert gesetzt == ["richtlinie", "eigen"]
+        pg.locator(".k-fuer[value=richtlinie]").uncheck()
+        pg.locator(".k-fuer[value=eigen]").uncheck()
+        pg.locator(".k-fuer[value=ohne]").check()
+        if not pg.locator("#k-banner option[value=x]").count():
+            pg.evaluate("""() => { const o = document.createElement('option');
+                o.value = o.textContent = 'x'; document.getElementById('k-banner').appendChild(o);
+                document.getElementById('k-banner').value = 'x'; }""")
+        pg.get_by_role("button", name="Speichern").click()
+        pg.wait_for_function("() => /Gespeichert/.test(document.getElementById('k-result').innerText)")
+        gespeichert = settings_store.get("BANNER_CAMPAIGNS")
+        assert [c.get("fuer") for c in gespeichert] == [["ohne"]]
+        # keine Auswahl: abgelehnt, nichts geschrieben
+        pg.get_by_role("button", name="Bearbeiten").click()
+        pg.locator(".k-fuer[value=ohne]").uncheck()
+        pg.get_by_role("button", name="Speichern").click()
+        pg.wait_for_function("() => /mindestens eine/i.test(document.getElementById('k-result').innerText)")
+        assert [c.get("fuer") for c in settings_store.get("BANNER_CAMPAIGNS")] == [["ohne"]]
+        pg.context.close()
+    finally:
+        settings_store.update({"BANNER_CAMPAIGNS": vorher or []})
+
+
+# ── Baukasten: Schriftart-Auswahl, bearbeiter.-Vorschläge, Vorschau „Schreibt“ ──
+
+def test_schriftart_auswahl_mit_freitext(seite, monkeypatch, tmp_path):
+    """Gespeicherte Werte erscheinen richtig (Ladeweg), die Auswahl landet beim
+    Speichern im Baustein und in den globalen Einstellungen (Speicherweg)."""
+    import json
+    import config
+    import signature_engine
+    (tmp_path / "schrift.html").write_text("<p>x</p>", encoding="utf-8")
+    (tmp_path / "schrift.meta.json").write_text(json.dumps({
+        "version": 1, "kind": "signatur",
+        "global": {"font_family": "Lato, sans-serif"},
+        "blocks": [{"id": "1", "type": "text", "text": "eins", "font": "verdana,geneva , sans-serif"},
+                   {"id": "2", "type": "text", "text": "zwei", "font": ""}],
+    }), encoding="utf-8")
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    signature_engine._reload_env()
+
+    pg = seite("/template?name=schrift", breite=1280)
+    gesendet = []
+
+    def speichern(route):
+        if route.request.method == "POST":
+            gesendet.append(json.loads(route.request.post_data))
+            route.fulfill(json={"ok": True})
+        else:
+            route.continue_()
+    pg.route("**/api/templates/schrift/meta", speichern)
+    pg.wait_for_selector(".block-card")
+
+    # global: gespeicherter Wert ohne Vorgabe → „Eigene …“ mit dem Wert
+    pg.evaluate("() => document.getElementById('g-font-wahl').closest('details').open = true")
+    wahl, feld = pg.locator("#g-font-wahl"), pg.locator("#g-font")
+    assert wahl.input_value() == "__eigen" and feld.is_visible()
+    assert feld.input_value() == "Lato, sans-serif"
+    wahl.select_option("Georgia, serif")
+    assert not feld.is_visible() and feld.input_value() == "Georgia, serif"
+
+    # Baustein 1: Schreibweise egal, trifft die Vorgabe; Baustein 2: leer = wie global
+    karten = pg.locator(".block-card")
+    karten.nth(0).locator(".block-type-badge").click()
+    karten.nth(1).locator(".block-type-badge").click()
+    w1, f1 = karten.nth(0).locator(".schrift-wahl select"), karten.nth(0).locator("input[name=font]")
+    w2, f2 = karten.nth(1).locator(".schrift-wahl select"), karten.nth(1).locator("input[name=font]")
+    assert w1.input_value() == "Verdana, Geneva, sans-serif" and not f1.is_visible()
+    assert w2.input_value() == "" and not f2.is_visible()
+    w1.select_option("Tahoma, Geneva, sans-serif")
+    w2.select_option("__eigen")
+    assert f2.is_visible()
+    f2.fill("Lato, Arial, sans-serif")
+    f2.dispatch_event("change")
+
+    pg.locator("#save-builder-btn").click()
+    for _ in range(50):
+        if gesendet:
+            break
+        pg.wait_for_timeout(100)
+    assert gesendet, "nichts gespeichert"
+    meta = gesendet[-1]
+    assert meta["global"]["font_family"] == "Georgia, serif"
+    assert [b.get("font") for b in meta["blocks"]] == ["Tahoma, Geneva, sans-serif",
+                                                       "Lato, Arial, sans-serif"]
+    pg.context.close()
+    signature_engine._reload_env()
+
+
+def test_vorschlag_kennt_bearbeiter(seite):
+    pg = seite("/template", breite=1280)
+    pg.evaluate("() => addBlock('text')")
+    pg.locator(".block-card").last.locator(".block-type-badge").click()
+    ta = pg.locator(".block-card").last.locator("textarea[name=text]")
+    ta.click()
+    ta.press_sequentially("{{ bearbeiter.disp")
+    box = pg.locator("#var-ac")
+    box.wait_for(state="visible")
+    assert box.inner_text().strip() == "bearbeiter.displayName"
+    pg.keyboard.press("Enter")
+    assert ta.input_value() == "{{ bearbeiter.displayName"
+    pg.context.close()
+
+
+def test_vorschau_schickt_wer_schreibt(seite):
+    pg = seite("/template", breite=1280)
+    def abfangen(route):
+        route.fulfill(json={"html": "<p>x</p>", "banner_html": "", "disclaimer_html": ""})
+    pg.route("**/api/preview-data*", abfangen)
+    pg.evaluate("""() => {
+        for (const id of ['preview-email-sel', 'preview-bearbeiter-sel']) {
+            const s = document.getElementById(id);
+            for (const a of ['info@example.org', 'max@example.org']) {
+                const o = document.createElement('option'); o.value = o.textContent = a; s.appendChild(o);
+            }
+        }
+        document.getElementById('preview-email-sel').value = 'info@example.org';
+    }""")
+    # Die Vorschau steht in einem iframe (sigVorschau) — auf die Anfrage warten
+    with pg.expect_request("**/api/preview-data*") as anfrage:
+        pg.locator("#preview-bearbeiter-sel").select_option("max@example.org")
+    assert "bearbeiter=max%40example.org" in anfrage.value.url
+    with pg.expect_request("**/api/preview-data*") as anfrage:
+        pg.locator("#preview-bearbeiter-sel").select_option("")
+    assert "email=info%40example.org" in anfrage.value.url
+    assert "bearbeiter=" not in anfrage.value.url
+    pg.context.close()

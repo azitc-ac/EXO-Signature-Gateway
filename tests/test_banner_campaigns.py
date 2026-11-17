@@ -174,9 +174,12 @@ def test_banner_fuer_ohne_kampagne_regulaer(store):
 
 
 def test_banner_fuer_kampagne_auch_ohne_regulaeren_banner(store):
-    # Wie bisher im Handler: Eine Kampagne gilt auch für Postfächer ohne Banner.
-    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer")]
+    # Postfächer ohne Banner erreicht eine Kampagne nur, wenn sie „ohne“ wählt
+    # (seit v1.12.51; vorher immer).
+    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer", fuer=["ohne"])]
     assert bc.banner_fuer("a@x.de", "", NOW) == "sommer"
+    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer")]
+    assert bc.banner_fuer("a@x.de", "", NOW) == ""
 
 
 def test_banner_fuer_gruppe_ueber_postfachschluessel(store):
@@ -185,6 +188,86 @@ def test_banner_fuer_gruppe_ueber_postfachschluessel(store):
     store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer", group="Vertrieb")]
     assert bc.banner_fuer("A@x.de", "regulaer", NOW) == "sommer"
     assert bc.banner_fuer("b@x.de", "regulaer", NOW) == "regulaer"
+
+
+# ── Übernahme erzwingen für: Richtlinien-Banner / eigener / ohne ────────────
+# Anlass: Ein Postfach ohne Richtlinien-Übernahme und ohne eigenen Banner bekam
+# bis v1.12.48 den Banner jeder Kampagne. Gewünscht: Wer bewusst keinen Banner
+# hat (einzeln oder als Gruppe), bleibt auch während der Kampagne ohne; wer
+# einen hat, bekommt den der Kampagne.
+
+def _postfaecher(store):
+    store["MAILBOX_CONFIG"] = {
+        "guid-r": {"primary": "r@x.de", "use_policy": True},     # Richtlinien-Banner
+        "guid-e": {"primary": "e@x.de", "use_policy": False},    # eigener Banner
+        "guid-o": {"primary": "o@x.de", "use_policy": False},    # keiner
+        "guid-p": {"primary": "p@x.de", "use_policy": True},     # Richtlinie ohne Banner
+    }
+    # regulärer Banner je Postfach, wie policies.aufloesen ihn liefert
+    return {"r@x.de": "richtlinie-banner", "e@x.de": "eigen-banner",
+            "o@x.de": "", "p@x.de": ""}
+
+
+def _erhalten(store, **kampagne):
+    regulaer = _postfaecher(store)
+    store["BANNER_CAMPAIGNS"] = [_kmp(banner="sommer", **kampagne)]
+    return {a: bc.banner_fuer(a, r, NOW) for a, r in regulaer.items()}
+
+
+def test_vorgabe_nur_wer_einen_banner_hat():
+    """Ohne Angabe (Altkampagne): alle mit Banner, niemand ohne."""
+    assert bc.fuer({}) == ["richtlinie", "eigen"]
+
+
+def test_postfach_ohne_banner_bleibt_ohne(store):
+    got = _erhalten(store, fuer=["richtlinie", "eigen"])
+    assert got == {"r@x.de": "sommer", "e@x.de": "sommer", "o@x.de": "", "p@x.de": ""}
+
+
+def test_altkampagne_ohne_angabe_wie_vorgabe(store):
+    got = _erhalten(store)
+    assert got == {"r@x.de": "sommer", "e@x.de": "sommer", "o@x.de": "", "p@x.de": ""}
+
+
+def test_nur_ohne_banner(store):
+    got = _erhalten(store, fuer=["ohne"])
+    assert got == {"r@x.de": "richtlinie-banner", "e@x.de": "eigen-banner",
+                   "o@x.de": "sommer", "p@x.de": "sommer"}
+
+
+def test_eigener_banner_bleibt_wenn_nicht_gewaehlt(store):
+    got = _erhalten(store, fuer=["richtlinie"])
+    assert got["e@x.de"] == "eigen-banner" and got["r@x.de"] == "sommer"
+
+
+def test_alle_drei_wie_vor_v1_12_49(store):
+    got = _erhalten(store, fuer=["richtlinie", "eigen", "ohne"])
+    assert set(got.values()) == {"sommer"}
+
+
+def test_erzwingen_aus_v1_12_49_heisst_alle(store):
+    got = _erhalten(store, erzwingen=True)
+    assert set(got.values()) == {"sommer"}
+
+
+def test_erste_passende_gewinnt_je_art(store):
+    regulaer = _postfaecher(store)
+    store["BANNER_CAMPAIGNS"] = [_kmp(id="kmp_aaaaaa", banner="mit", fuer=["richtlinie", "eigen"]),
+                                 _kmp(id="kmp_bbbbbb", banner="leer", fuer=["ohne"])]
+    assert bc.banner_fuer("r@x.de", regulaer["r@x.de"], NOW) == "mit"
+    assert bc.banner_fuer("o@x.de", regulaer["o@x.de"], NOW) == "leer"
+
+
+def test_speichern_merkt_fuer(store):
+    assert bc.speichern({"name": "A", "banner": "b"})["fuer"] == ["richtlinie", "eigen"]
+    rec = bc.speichern({"name": "B", "banner": "b", "fuer": ["ohne", "unsinn", "richtlinie"]})
+    assert rec["fuer"] == ["richtlinie", "ohne"]          # bereinigt, feste Reihenfolge
+
+
+def test_speichern_ohne_auswahl_abgelehnt(store):
+    with pytest.raises(ValueError, match="Mindestens eine"):
+        bc.speichern({"name": "A", "banner": "b", "fuer": []})
+    assert "BANNER_CAMPAIGNS" not in store
 
 
 # Jede Stelle, die den Banner eines Postfachs aus policies.aufloesen() liest,

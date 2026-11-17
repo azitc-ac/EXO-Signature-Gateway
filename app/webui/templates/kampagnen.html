@@ -9,7 +9,9 @@
   optional nur einer <strong>Zielgruppe</strong>. Ist zum Sendezeitpunkt eine
   passende Kampagne aktiv, gewinnt ihr Banner über das sonst zugewiesene. Ohne
   aktive Kampagne bleibt alles wie eingestellt — kein Eingriff in den Mailfluss,
-  nur der Banner-Teil der Signatur.
+  nur der Banner-Teil der Signatur. Unter <strong>Übernahme erzwingen für</strong>
+  legst du fest, welche Postfächer den Banner der Kampagne bekommen — je
+  nachdem, welchen Banner sie sonst hätten.
 </p>
 
 <!-- ── Kampagnen-Liste ─────────────────────────────────────────────────────── -->
@@ -57,6 +59,15 @@
         <label class="checkbox-label" style="margin:0"><input type="checkbox" id="k-enabled" checked> aktiviert</label>
       </div>
     </div>
+    <fieldset style="border:0;padding:0;margin:12px 0 0">
+      <legend style="font-size:12px;color:#555;margin:0 0 4px;padding:0">Übernahme erzwingen für</legend>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 18px">
+        <label class="checkbox-label" style="margin:0"><input type="checkbox" class="k-fuer" value="richtlinie" checked> alle mit Richtlinien-Banner</label>
+        <label class="checkbox-label" style="margin:0"><input type="checkbox" class="k-fuer" value="eigen" checked> alle mit individuellem Banner</label>
+        <label class="checkbox-label" style="margin:0"><input type="checkbox" class="k-fuer" value="ohne"> alle ohne Banner</label>
+      </div>
+      <p class="hint" style="margin:4px 0 0">Maßgeblich ist der Banner, den das Postfach ohne Kampagne hätte: aus der Richtlinie, eigener am Postfach (Richtlinien-Übernahme aus) oder keiner.</p>
+    </fieldset>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button type="button" class="btn secondary" onclick="kampagneSpeichern(this)">Speichern</button>
       <button type="button" class="btn secondary" onclick="kampagneFormLeeren()" id="k-abbrechen" style="display:none">Abbrechen</button>
@@ -119,7 +130,8 @@ function zeichneKampagnen(liste) {
       '<td>' + esc(k.name || '—') + '</td>'
       + '<td><code>' + esc(k.banner || '—') + '</code></td>'
       + '<td style="font-size:12px;color:#555;white-space:nowrap">' + zeitraumText(k) + '</td>'
-      + '<td style="font-size:12px">' + (k.group ? esc(k.group) : '<span style="color:#94a3b8">alle</span>') + '</td>'
+      + '<td style="font-size:12px">' + (k.group ? esc(k.group) : '<span style="color:#94a3b8">alle</span>')
+        + '<br><span class="hint">' + esc(fuerText(k.fuer)) + '</span></td>'
       + '<td style="font-weight:600;color:' + st.farbe + '">' + st.text + '</td>'
       + '<td style="white-space:nowrap">'
         + '<button class="btn secondary btn-sm" onclick="kampagneBearbeiten(' + escAttr(JSON.stringify(k)) + ')">Bearbeiten</button> '
@@ -127,6 +139,16 @@ function zeichneKampagnen(liste) {
       + '</td>';
     tb.appendChild(tr);
   });
+}
+
+const _FUER = { richtlinie: 'Richtlinien-Banner', eigen: 'individueller Banner', ohne: 'ohne Banner' };
+function fuerText(liste) {
+  const l = liste || [];
+  if (l.length === 3) return 'für alle';
+  return 'für: ' + l.map(function (a) { return _FUER[a] || a; }).join(', ');
+}
+function fuerSetzen(liste) {
+  document.querySelectorAll('.k-fuer').forEach(function (c) { c.checked = liste.indexOf(c.value) >= 0; });
 }
 
 function zeitraumText(k) {
@@ -175,6 +197,7 @@ function kampagneBearbeiten(k) {
   document.getElementById('k-start').value = isoZuLokalInput(k.start);
   document.getElementById('k-end').value = isoZuLokalInput(k.end);
   document.getElementById('k-enabled').checked = k.enabled !== false;
+  fuerSetzen(k.fuer || []);
   document.getElementById('form-titel').textContent = 'Kampagne bearbeiten';
   document.getElementById('k-abbrechen').style.display = '';
   document.getElementById('k-name').focus();
@@ -186,6 +209,7 @@ function kampagneFormLeeren() {
   });
   document.getElementById('k-group').value = '';
   document.getElementById('k-enabled').checked = true;
+  fuerSetzen(['richtlinie', 'eigen']);
   document.getElementById('form-titel').textContent = 'Neue Kampagne';
   document.getElementById('k-abbrechen').style.display = 'none';
 }
@@ -203,8 +227,11 @@ async function kampagneSpeichern(btn) {
     group: document.getElementById('k-group').value || '',
     start: lokalInputZuIso(document.getElementById('k-start').value),
     end: lokalInputZuIso(document.getElementById('k-end').value),
-    enabled: document.getElementById('k-enabled').checked
+    enabled: document.getElementById('k-enabled').checked,
+    fuer: Array.prototype.filter.call(document.querySelectorAll('.k-fuer'), function (c) { return c.checked; })
+      .map(function (c) { return c.value; })
   };
+  if (!payload.fuer.length) { showAlert(box, 'error', 'Bitte mindestens eine Art von Postfächern wählen.'); return; }
   const r = await knopfAktion(btn, null, () => postJSON('/api/campaigns', payload));
   if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
   showAlert(box, 'success', 'Gespeichert.');

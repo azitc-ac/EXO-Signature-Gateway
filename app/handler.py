@@ -1563,6 +1563,9 @@ class SignatureHandler:
             # und Antworten in einer Kette (KETTE_BEHAELT); sonst beide.
             _zusatz = zusatz_umfang(_per_nosig, _in_kette)
             _zusatz_html, _zusatz_txt = "", ""
+            # Was WIRKLICH angehängt wurde (Vorlagenname je Teil) — für die
+            # Protokollzeile. `_zusatz` sagt nur, was angehängt werden DARF.
+            _angehaengt: list[str] = []
             _banner_tpl = _vorlagen["banner"] if "banner" in _zusatz else ""
             # Banner-Kampagne (Zeitfenster + optionale Zielgruppe) hat Vorrang:
             # ist zum Sendezeitpunkt eine passende Kampagne aktiv, gewinnt ihr
@@ -1585,6 +1588,8 @@ class SignatureHandler:
                     _zusatz_html = _zusatz_html + _banner_html
                 if _banner_txt.strip():
                     _zusatz_txt = _txt_anhaengen(_zusatz_txt, _banner_txt)
+                if _banner_html or _banner_txt.strip():
+                    _angehaengt.append(f"Banner {_banner_tpl}")
             _disclaimer_tpl = _vorlagen["disclaimer"] if "disclaimer" in _zusatz else ""
             if _disclaimer_tpl:
                 _disclaimer_html, _disclaimer_txt = signature_engine.render(
@@ -1593,6 +1598,8 @@ class SignatureHandler:
                     _zusatz_html = _zusatz_html + _disclaimer_html
                 if _disclaimer_txt.strip():
                     _zusatz_txt = _txt_anhaengen(_zusatz_txt, _disclaimer_txt)
+                if _disclaimer_html or _disclaimer_txt.strip():
+                    _angehaengt.append(f"Disclaimer {_disclaimer_tpl}")
             if not suppress_html_sig:
                 sig_html = sig_html + _zusatz_html
                 if _zusatz_txt.strip():
@@ -1610,8 +1617,8 @@ class SignatureHandler:
                 modified = mail_processor.inject(msg, _zusatz_html, _zusatz_txt,
                                                   use_cid_images=_use_cid, zusatz=True)
                 outbound = _smtp_bytes(modified)
-                log.info("HTML-Auto-Signatur unterdrückt für %s — Banner/Disclaimer angehängt (%s)",
-                         sender, "+".join(sorted(_zusatz)))
+                log.info("HTML-Auto-Signatur unterdrückt für %s — angehängt: %s",
+                         sender, ", ".join(_angehaengt))
             elif suppress_html_sig:
                 modified = msg
                 outbound = _smtp_bytes(msg)
