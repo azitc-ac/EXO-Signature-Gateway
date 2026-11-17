@@ -2048,6 +2048,37 @@ def test_notfall_schmale_liste_ohne_spaltenkopf(browser, server, monkeypatch):
     pg.context.close()
 
 
+# ── Notbetrieb-Seite: Lage, Abläufe, Geräte ─────────────────────────────────
+
+def test_notbetrieb_lage_knopf_und_vollstaendige_ablaeufe(seite, monkeypatch):
+    """Der Notfall ist ein Knopf mit Rückfrage, kein Kästchen wie jedes andere;
+    die Abläufe stehen nummeriert und vollständig da (nicht nach zwei Zeilen
+    gekürzt); „Auch senden“ ist ohne „für alle lesbar“ gesperrt; die Geräte
+    sind zugeklappt, ein Anker öffnet seinen Abschnitt."""
+    import notbetrieb
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    pg = seite("/notbetrieb", breite=1280)
+    assert pg.get_attribute("#nb-lage", "data-lage") == "normal"
+    assert pg.inner_text("#nb-ausrufen-btn").strip() == "Notfall ausrufen …"
+    gespeichert = []
+    pg.route("**/settings", lambda r: (gespeichert.append(r.request.post_data_json),
+                                       r.fulfill(status=200, content_type="application/json", body='{"ok": true}')))
+    pg.evaluate("window.location.reload = () => {}")
+    pg.click("#nb-ausrufen-btn")                               # Rückfrage: die Fixture bestätigt
+    pg.wait_for_function("() => document.getElementById('nb-ausrufen-btn').disabled === false")
+    assert gespeichert and gespeichert[-1].get("NOTBETRIEB_AUSGERUFEN") is True, gespeichert
+    schritte = pg.locator(".nb-schritte li")
+    assert schritte.count() == 8
+    assert pg.locator(".nb-ablauf .hint-toggle").count() == 0
+    assert "Zurückspielen" in schritte.nth(7).inner_text()
+    assert pg.is_disabled("#nb-senden-alle") != pg.is_checked("#nb-lesen-alle")
+    for k in ("nb-geraete-windows", "nb-teams-app", "nb-geraete-handys"):
+        assert pg.get_attribute(f"#{k}", "open") is None, k
+    pg.evaluate("location.hash = '#nb-teams-app'")
+    pg.wait_for_function("() => document.getElementById('nb-teams-app').open")
+    pg.context.close()
+
+
 # ── Roter Faden: „Dein Notfall-Zugang“ statt Anmeldemaske ────────────────────
 
 _FAKTOR_NUR_APP = {"ok": True, "postfach": "max@firma.at", "aktiv": True, "totp": True, "seit": "2026-11-01",

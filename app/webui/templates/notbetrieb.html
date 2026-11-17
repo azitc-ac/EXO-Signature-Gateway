@@ -16,69 +16,78 @@
   [data-theme="dark"] .nb-tabelle th, [data-theme="dark"] .nb-tabelle td { border-bottom-color:#334155 }
   .nb-tabelle th { font-weight:600; color:#555; font-size:12px }
   .nb-tage { width:5em }
+  /* Einklappbarer Abschnitt einer Karte: Kopf wie eine h3, Pfeil davor. Der
+     Kopf darf einen Zustand tragen (.nb-klapp-zustand), damit er auch
+     zugeklappt sichtbar bleibt. Ein Anker aufs <details> öffnet es (base.html). */
+  /* Lage des Notfalls: Zustand und EIN Knopf — der folgenreichste Schalter
+     des Gateways sah vorher aus wie jedes andere Kästchen. */
+  .nb-lage { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:12px 14px; border-radius:8px;
+             border:1px solid #bbf7d0; background:#f0fdf4; color:#166534 }
+  .nb-lage[data-lage="notfall"] { border-color:#fca5a5; background:#fef2f2; color:#991b1b }
+  [data-theme="dark"] .nb-lage { border-color:#166534; background:#0a1f10; color:#86efac }
+  [data-theme="dark"] .nb-lage[data-lage="notfall"] { border-color:#991b1b; background:#1f0a0a; color:#fca5a5 }
+  .nb-lage-text { flex:1 1 320px; display:flex; flex-direction:column; gap:2px; font-size:13px }
+  .nb-lage-text strong { font-size:15px }
+  .nb-ablauf { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:4px 28px; margin-top:6px }
+  .nb-schritte { margin:0; padding-left:20px; font-size:13px; line-height:1.6 }
+  .nb-schritte li { margin-bottom:2px }
+  .nb-eingerueckt { padding-left:26px }
+  .nb-zusatz { display:inline }
+  .nb-klapp { border-top:1px solid #e5e7eb; padding:2px 0 }
+  [data-theme="dark"] .nb-klapp { border-top-color:#334155 }
+  .nb-klapp > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+                        padding:10px 0; font-size:13px; font-weight:600 }
+  .nb-klapp > summary::-webkit-details-marker { display:none }
+  .nb-klapp > summary::before { content:"\25B8"; width:1em }
+  .nb-klapp[open] > summary::before { content:"\25BE" }
+  .nb-klapp > summary .hint { font-weight:400; margin:0 }
+  .nb-klapp-inhalt { padding:0 0 10px 1.6em }
+  .nb-klapp-zustand { margin-left:0; white-space:normal; font-weight:400 }
 </style>
 
 <!-- Notfall -->
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Notfall</h2>
-  {% if ausgerufen %}
-  <div class="alert error" style="margin-bottom:10px">
-    Der Notfall ist <strong>ausgerufen</strong>. Was das Gateway sonst an Exchange übergibt, landet
-    in der Kopie bzw. geht per Direktversand hinaus. Nach der Störung ausschalten und zurückspielen.
-  </div>
-  {% endif %}
-  <p class="hint" style="margin-top:0">
-    Schalte um, wenn Exchange Online ausgefallen ist. Interne Empfänger bekommen ihre Post dann in
-    die Kopie (lesbar im Notfall-Webmail), externe über den Direktversand. Ohne Direktversand bleibt
-    Post an externe Empfänger in der Warteschlange.
-  </p>
-  <div class="settings-row">
-    <label class="checkbox-label">
-      <input type="checkbox" id="nb-ausgerufen" {% if ausgerufen %}checked{% endif %}
-             {% if not aktiv %}disabled{% endif %} onchange="nbAusrufen(this)"> Notfall ausgerufen
-    </label>
+  <div class="nb-lage" id="nb-lage" data-lage="{{ 'notfall' if ausgerufen else 'normal' }}">
+    <div class="nb-lage-text">
+      {% if ausgerufen %}
+      <strong>Notfall ausgerufen</strong>
+      <span>Post geht nicht an Exchange: Interne Empfänger bekommen sie in die Kopie (Notfall-Webmail),
+        externe über den Direktversand. Nach der Störung beenden und zurückspielen.</span>
+      {% else %}
+      <strong>Normalbetrieb</strong>
+      <span>Post läuft wie gewohnt über Exchange Online. Ruf den Notfall erst aus, wenn Exchange Online
+        ausgefallen ist.</span>
+      {% endif %}
+    </div>
+    <button type="button" class="btn {{ 'secondary' if ausgerufen else 'danger' }}" id="nb-ausrufen-btn"
+            {% if not aktiv %}disabled{% endif %} onclick="nbAusrufen({{ 'false' if ausgerufen else 'true' }})">
+      {{ 'Notfall beenden …' if ausgerufen else 'Notfall ausrufen …' }}</button>
   </div>
   <div class="msg" id="nb-ausgerufen-msg" hidden></div>
+  <p class="hint" style="margin:10px 0 0">Ohne Direktversand bleibt Post an externe Empfänger im Notfall in der
+    Warteschlange.</p>
 
-  <h3>Vor dem Notfall</h3>
-  <p class="hint" style="margin-top:0">
-    Anmelden kann sich jeder jederzeit — so lässt sich der Zugang vorab auf allen Geräten einrichten.
-    Ohne den Schalter unten zeigt das Webmail vor dem Notfall nur der Probegruppe Inhalte; alle anderen
-    sehen „bereit“.
-  </p>
-  <div class="settings-row">
-    <label class="checkbox-label">
-      <input type="checkbox" id="nb-lesen-alle" {% if lesen_alle %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbSchalter(this, {NOTBETRIEB_LESEN_ALLE: this.checked}, 'nb-lesen-alle-msg')"> Kopie schon im Normalbetrieb für alle lesbar
-    </label>
-    <span class="hint">im Webmail, nur lesen</span>
-  </div>
-  <div class="msg" id="nb-lesen-alle-msg" hidden></div>
-  <div class="settings-row">
-    <label class="checkbox-label">
-      <input type="checkbox" id="nb-senden-alle" {% if senden_alle %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
-             onchange="nbSchalter(this, {NOTBETRIEB_SENDEN_ALLE: this.checked}, 'nb-senden-alle-msg')"> … und senden, über Exchange
-    </label>
-    <span class="hint">Wirkt nur zusammen mit „für alle lesbar“</span>
-  </div>
-  <div class="msg" id="nb-senden-alle-msg" hidden></div>
-  <p class="hint">
-    So sieht jeder jederzeit, was im Ausfall da wäre, und kennt die Oberfläche schon. Das Webmail zeigt
-    dabei oben, wie alt die Kopie ist und wie viele Tage sie zurückreicht. Gesendet wird im Normalbetrieb
-    über Exchange wie jede Mail des Gateways; die Kopie unter „Gesendete Elemente“ legt das Gateway selbst
-    nach Exchange zurück — derselbe Weg wie nach einer Störung, nur laufend.
-  </p>
-  <p class="hint">Probegruppe — sendet schon jetzt wie im Notfall, am Exchange vorbei (Probealarm:
-    externe per Direktversand, interne nur in die Kopie). Eine Adresse je Zeile.</p>
-  <div class="settings-row">
-    <label for="nb-probegruppe">Probegruppe</label>
-    <div class="settings-control"><textarea id="nb-probegruppe" rows="3" style="width:100%"
-      placeholder="max.mustermann@firma.at">{{ probegruppe | join('\n') }}</textarea></div>
-  </div>
-  <div class="settings-row">
-    <button class="btn secondary" id="nb-probe-btn" data-wache="nb-probegruppe"
-            data-wache-hinweis="nb-probe-result" onclick="nbProbeSpeichern()">Speichern</button>
-    <span id="nb-probe-result"></span>
+  <div class="nb-ablauf">
+    <div>
+      <h3>Im Ernstfall</h3>
+      <ol class="nb-schritte">
+        <li><strong>Notfall ausrufen</strong> (oben) — ab dann geht Post in die Kopie statt an Exchange.</li>
+        <li>Beim DNS-Anbieter den <strong>MX</strong> jeder Domäne auf dieses Gateway stellen (kurze TTL vorab hilft).</li>
+        <li>In der Firewall <strong>Port 25 aus dem Internet</strong> zum Gateway öffnen (sonst nur Microsoft).</li>
+        <li>Den Mitarbeitern das Notfall-Webmail nennen: <code>{{ webmail_url }}</code></li>
+        <li>Unter Bereitschaft <strong>„Jetzt prüfen“</strong>: Der MX muss auf das Gateway zeigen.</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Nach der Störung</h3>
+      <ol class="nb-schritte">
+        <li>MX zurück auf Exchange Online, Port 25 wieder nur für Microsoft.</li>
+        <li><strong>Notfall beenden</strong> (oben).</li>
+        <li>Unter Kopie für den Ernstfall <strong>„Zurückspielen“</strong> — Post aus dem Notbetrieb geht nach
+          Exchange; doppelt Eingespieltes wird erkannt.</li>
+      </ol>
+    </div>
   </div>
 </div>
 
@@ -89,7 +98,7 @@
     Würde der Notbetrieb jetzt funktionieren? Geprüft werden Kopie, Rechte, Profile, Anmeldung am
     Domänencontroller, Versand nach außen und Zertifikat — dazu, wohin der MX jeder Domäne zeigt.
   </p>
-  <div style="display:flex;gap:6px;flex-wrap:wrap">
+  <div style="margin-top:10px">
     <button class="btn secondary btn-sm" id="nb-bereit-btn" onclick="nbBereitschaft()">Jetzt prüfen</button>
   </div>
   <div class="tabellen-rollbereich">
@@ -103,21 +112,53 @@
   </table>
   </div>
   <div class="msg" id="nb-bereit-msg" style="margin-top:6px" hidden></div>
+</div>
 
-  <h3>Ablauf im Ernstfall</h3>
-  <ol class="hint" style="margin:0 0 0 18px;padding:0;line-height:1.6">
-    <li>Oben <strong>Notfall ausrufen</strong> — ab dann geht Post nicht mehr an Exchange, sondern in die Kopie.</li>
-    <li>Beim DNS-Anbieter den <strong>MX</strong> jeder Domäne auf dieses Gateway stellen (kurze TTL vorab hilft).</li>
-    <li>In der Firewall <strong>Port 25 aus dem Internet</strong> zum Gateway öffnen (im Normalbetrieb nur Microsoft).</li>
-    <li>Den Mitarbeitern die Adresse des Notfall-Webmails geben: <code>/notfall</code> auf diesem Gateway.</li>
-    <li>„Jetzt prüfen“: Der MX muss auf das Gateway zeigen.</li>
-  </ol>
-  <h3>Nach der Störung</h3>
-  <ol class="hint" style="margin:0 0 0 18px;padding:0;line-height:1.6">
-    <li>MX zurück auf Exchange Online, Port 25 wieder nur für Microsoft.</li>
-    <li>Den Notfall beenden.</li>
-    <li><strong>Zurückspielen</strong> — Post aus dem Notbetrieb geht nach Exchange (doppelt Eingespieltes erkennt es).</li>
-  </ol>
+<!-- Vor dem Notfall -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Vor dem Notfall: kennenlernen und üben</h2>
+  <p class="hint" style="margin:0 0 10px">
+    Anmelden kann sich jeder jederzeit — so richten alle den Zugang vorab auf ihren Geräten ein. Inhalte zeigt
+    das Webmail vor dem Notfall nur der Probegruppe; alle anderen sehen „bereit“ — außer du gibst die Kopie unten
+    für alle frei.
+  </p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-lesen-alle" {% if lesen_alle %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
+             onchange="nbSchalter(this, {NOTBETRIEB_LESEN_ALLE: this.checked}, 'nb-lesen-alle-msg'); nbSendenFreigeben()">
+      Kopie schon im Normalbetrieb für alle lesbar <span class="hint nb-zusatz">— im Webmail, nur lesen</span>
+    </label>
+  </div>
+  <div class="msg" id="nb-lesen-alle-msg" hidden></div>
+  <div class="settings-row nb-eingerueckt">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-senden-alle" {% if senden_alle %}checked{% endif %}
+             {% if not aktiv or not lesen_alle %}disabled{% endif %}
+             onchange="nbSchalter(this, {NOTBETRIEB_SENDEN_ALLE: this.checked}, 'nb-senden-alle-msg')">
+      Auch senden <span class="hint nb-zusatz">— über Exchange, wie jede Mail des Gateways</span>
+    </label>
+  </div>
+  <div class="msg" id="nb-senden-alle-msg" hidden></div>
+  <p class="hint">
+    So sieht jeder, was im Ausfall da wäre, und kennt die Oberfläche schon. Das Webmail zeigt oben, wie alt die
+    Kopie ist und wie weit sie zurückreicht. Gesendetes legt das Gateway selbst unter „Gesendete Elemente“ nach
+    Exchange zurück — derselbe Weg wie nach einer Störung, nur laufend.
+  </p>
+
+  <div class="settings-row" style="margin-top:12px">
+    <label for="nb-probegruppe">Probegruppe</label>
+    <div class="settings-control">
+      <textarea id="nb-probegruppe" rows="3" style="width:100%"
+        placeholder="max.mustermann@firma.at">{{ probegruppe | join('\n') }}</textarea>
+      <div class="hint" style="margin-top:4px">Eine Adresse je Zeile. Sendet schon jetzt wie im Notfall, am
+        Exchange vorbei (Probealarm: externe per Direktversand, interne nur in die Kopie).</div>
+    </div>
+  </div>
+  <div class="settings-row">
+    <button class="btn secondary" id="nb-probe-btn" data-wache="nb-probegruppe"
+            data-wache-hinweis="nb-probe-result" onclick="nbProbeSpeichern()">Speichern</button>
+    <span id="nb-probe-result"></span>
+  </div>
 </div>
 
 <!-- Stand -->
@@ -334,7 +375,9 @@
     geht{% endif %}.{% if not zweitfaktor.pflicht %} Er ist derzeit nicht vorgeschrieben.{% endif %}
   </p>
 
-  <h3>Windows-PCs (Microsoft Edge)</h3>
+  <details class="nb-klapp" id="nb-geraete-windows">
+  <summary>Windows-PCs (Microsoft Edge) <span class="hint">— empfohlen, still per Richtlinie</span></summary>
+  <div class="nb-klapp-inhalt">
   <p class="hint" style="margin-top:0">
     Die Edge-Richtlinie <em>Configure list of force-installed Web Apps</em> (<code>WebAppInstallForceList</code>)
     installiert die App still bei allen Nutzern, mit Eintrag im Startmenü und Verknüpfung auf dem Desktop.
@@ -358,8 +401,16 @@
     Ohne Richtlinie: In Edge auf das App-Symbol in der Adressleiste → „Installieren“.
     Die Edge-App hängt an nichts von Microsoft 365 — sie ist der robuste Weg.
   </p>
+  </div>
+  </details>
 
-  <h3 id="nb-teams-app">Teams (Alternative zur Edge-App)</h3>
+  {% set k = teams_notfall.katalog if teams_notfall else {} %}
+  <details class="nb-klapp" id="nb-teams-app">
+  <summary>Teams <span class="hint">— Alternative zur Edge-App</span>
+    {% if k.zustand == 'ok' and k.aktuell %}<span class="speicher-hinweis nb-klapp-zustand" data-zustand="fertig">✓ Fassung {{ k.version }} im Katalog</span>
+    {% elif k.zustand == 'ok' %}<span class="speicher-hinweis nb-klapp-zustand" data-zustand="offen">⚠ Katalog veraltet</span>{% endif %}
+  </summary>
+  <div class="nb-klapp-inhalt">
   <p class="hint" style="margin-top:0">
     Die Teams-App „Notfall-Mail“ zeigt dieselbe Seite als Reiter in Teams — bequem im Alltag und bei einem
     Ausfall nur von Exchange Online. Sie braucht aber Teams und damit die Microsoft-Anmeldung: Fällt
@@ -374,7 +425,6 @@
     Erstes Hochladen: Teams Admin Center → <em>Teams-Apps → Apps verwalten → Hochladen</em> oder
     <em>Integrierte Apps</em>, dann zuweisen.
   </p>
-  {% set k = teams_notfall.katalog %}
   <p style="margin:0 0 8px;font-size:12.5px">
   {% if k.zustand == 'ok' and k.aktuell %}
     <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fertig" id="nb-teams-katalog-stand">✓ Im Teams-Katalog: Fassung {{ k.version }}, aktuell</span>
@@ -397,8 +447,12 @@
   {% else %}
   <p class="hint">Für das Paket fehlt die Außenadresse des Gateways (Einrichtung → Außenadresse).</p>
   {% endif %}
+  </div>
+  </details>
 
-  <h3>Handys und Tablets</h3>
+  <details class="nb-klapp" id="nb-geraete-handys">
+  <summary>Handys und Tablets <span class="hint">— als App auf den Home-Bildschirm</span></summary>
+  <div class="nb-klapp-inhalt">
   <p class="hint" style="margin-top:0">
     Auf dem Handy lässt sich die Notfall-Mail als App auf den Home-Bildschirm legen (Safari: Teilen →
     „Zum Home-Bildschirm“; Chrome/Edge: „App installieren“).
@@ -410,6 +464,8 @@
     über die Zuweisung <em>Uninstall</em> wieder entfernen. „Require a managed browser“ öffnet den Link in
     Microsoft Edge — nur nötig, wenn eure App-Schutzrichtlinien das verlangen.
   </p>
+  </div>
+  </details>
 </div>
 
 <!-- Anmeldung -->
@@ -582,14 +638,20 @@ async function nbFensterSpeichern() {
 // ── Notfall ──────────────────────────────────────────────────────────────
 // Reiner Schalter → speichert sofort; er lenkt den ganzen Mailfluss um, daher
 // mit Rückfrage. Danach neu laden, damit Hinweis und Stand zusammenpassen.
-async function nbAusrufen(el) {
-  const an = el.checked;
+async function nbAusrufen(an) {
   const frage = an
     ? 'Notfall ausrufen? Post geht dann NICHT mehr an Exchange, sondern in die Kopie bzw. per Direktversand hinaus.'
     : 'Notfall beenden? Post geht wieder an Exchange. Spiele danach zurück, was im Notbetrieb angenommen wurde.';
-  if (!confirm(frage)) { el.checked = !an; return; }
-  if (!await savePartial({NOTBETRIEB_AUSGERUFEN: an}, 'nb-ausgerufen-msg')) { el.checked = !an; return; }
-  location.reload();
+  if (!confirm(frage)) return;
+  const d = await knopfAktion('nb-ausrufen-btn', an ? 'Rufe aus…' : 'Beende…',
+    async () => ({ok: await savePartial({NOTBETRIEB_AUSGERUFEN: an}, 'nb-ausgerufen-msg')}));
+  if (d.ok) location.reload();
+}
+
+// „Auch senden“ wirkt nur zusammen mit „für alle lesbar“ — ohne es gesperrt.
+function nbSendenFreigeben() {
+  const lesen = document.getElementById('nb-lesen-alle');
+  document.getElementById('nb-senden-alle').disabled = lesen.disabled || !lesen.checked;
 }
 
 // ── Bereitschaft ─────────────────────────────────────────────────────────
