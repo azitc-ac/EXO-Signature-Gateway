@@ -209,9 +209,12 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "regel_wartet": regel_wartet(cfg) and not cfg.get("hybrid"),
             })
     result.sort(key=lambda r: _namens_schluessel(r.get("name") or r["email"]))
+    import abwesenheit
     return {"mailboxes": result,
             "hybrid_eingeschaltet": exo_mailboxes.hybrid_eingeschaltet(),
-            "hybrid_aktiv": exo_mailboxes.hybrid_aktiv()}
+            "hybrid_aktiv": exo_mailboxes.hybrid_aktiv(),
+            # Abwesenheit für Hybrid-Nutzer nur mit Anbindung an Exchange lokal (EWS).
+            "hybrid_abwesenheit": abwesenheit.ews_verfuegbar()}
 
 
 @router.get("/api/mailboxes/namen")

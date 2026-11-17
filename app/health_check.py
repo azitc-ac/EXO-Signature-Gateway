@@ -658,6 +658,21 @@ async def _check_abwesenheit(email: str, token: str | None) -> dict:
     return _make_result("warn", "Abwesenheit nicht lesbar (siehe Protokoll)")
 
 
+async def _check_ews_zugriff(email: str) -> dict:
+    """Hybrid-Nutzer mit Anbindung an Exchange lokal: Kann das Gateway die
+    Abwesenheit per EWS lesen (GetUserOofSettings)? Nur mit eingeschalteter
+    zentraler Abwesenheit — wie die Graph-Prüfung."""
+    if not settings_store.get("ABWESENHEIT_AKTIV"):
+        return _make_result("skip", "Zentrale Abwesenheit ausgeschaltet")
+    import ews_onprem
+    erg = await asyncio.to_thread(ews_onprem.verbindung_testen, email)
+    if erg["ok"]:
+        return _make_result("ok", "EWS-Zugriff: Abwesenheit lesbar (Exchange lokal)")
+    stufe = ("error" if erg["code"] in ews_onprem.KEIN_ZUGRIFF_CODES
+             or erg["code"] in ("anmeldung", "tls", "konfiguration") else "warn")
+    return _make_result(stufe, f"EWS-Zugriff: {erg['detail']}"[:300])
+
+
 # Die Sign-API-Probe kostet je Postfach einen Key-Vault-Aufruf. Ein Erfolg gilt
 # einen Tag; ein Fehler wird bei jedem Lauf neu geprüft, damit die Behebung
 # sofort sichtbar wird.
@@ -829,7 +844,9 @@ _LOKAL = "Postfach in der lokalen Organisation"
 async def _checks_hybrid(email: str, cfg: dict, exo_data: dict | None) -> dict:
     """Prüfungen für einen Hybrid-Nutzer (Postfach in der lokalen Exchange-
     Organisation). Graph-Zugriff, Abwesenheit, IMAP, Add-ins und S/MIME setzen
-    ein EXO-Postfach voraus und entfallen. Geprüft werden Bestand in EXO,
+    ein EXO-Postfach voraus und entfallen — die Abwesenheit nur, solange keine
+    Anbindung an Exchange lokal (EWS) eingerichtet ist; mit ihr wird der
+    EWS-Zugriff geprüft. Geprüft werden Bestand in EXO,
     Verteilerliste (nur solange die Option wirkt — sonst nähme die Selbstheilung
     ein Postfach auf, dessen Post das Gateway nicht zurückgeben kann) und Vorlage."""
     import exo_mailboxes
@@ -858,8 +875,13 @@ async def _checks_hybrid(email: str, cfg: dict, exo_data: dict | None) -> dict:
             checks["dg_member"] = _make_result("ok", "Mitglied der Distribution Group")
         else:
             checks["dg_member"] = _make_result("error", "Nicht in Distribution Group")
+    import abwesenheit
+    ueber_ews = abwesenheit.ews_verfuegbar()
     for name in ("imap_permission", "addin_verfassen", "addin_knopf",
                  "graph_postfach", "abwesenheit", "smime_cert", "smime_key", "kv_sign"):
+        if name == "abwesenheit" and ueber_ews:
+            checks[name] = await _check_ews_zugriff(email)
+            continue
         checks[name] = _make_result("skip", _LOKAL)
     if cfg.get("sig"):
         checks["template"] = await _check_template(email, cfg)

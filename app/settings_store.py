@@ -273,6 +273,12 @@ DEFAULTS: dict = {
     # dir-synchronisierter MailUser) in die Postfachliste aufnehmen — Signatur,
     # Banner, Disclaimer. Wirkt nur im Rückweg `smtp` (exo_mailboxes.hybrid_aktiv).
     "HYBRID_POSTFAECHER": False,
+    # Anbindung an die lokale Exchange-Organisation per EWS (ews_onprem.py) —
+    # optional. Leer = aus; dann bleibt die Abwesenheit für Hybrid-Nutzer gesperrt.
+    "EWS_ONPREM_URL": "",        # https://exchange.firma.at/EWS/Exchange.asmx
+    "EWS_ONPREM_KONTO": "",      # DOMÄNE\\konto oder UPN des Dienstkontos (NTLM)
+    "EWS_ONPREM_KENNWORT": "",   # Geheimnis (SECRET_KEYS)
+    "EWS_ONPREM_VERBINDEN": "",  # optional IP für Split-DNS; TLS prüft weiter den Hostnamen
     # Parameter des on-prem-Koexistenz-Connectors (Hybrid). NUR zum erneuten
     # Erzeugen des Auf-/Abbau-Skripts (coexistence.py) — das Gateway führt on-prem
     # nichts aus. {"gateway_name","source_ip","servers":[...]}
@@ -458,6 +464,7 @@ SECRET_KEYS = frozenset({
     "RELAY_PASSWORD",
     "RELAY_TARGET_PW",            # {ziel_id: klartext} — SMTP-AUTH-Passwörter der Routing-Ziele
     "DIREKT_SMARTHOST_PW",        # SMTP-AUTH am Smarthost des Direktversands
+    "EWS_ONPREM_KENNWORT",        # Dienstkonto der lokalen Exchange (EWS, NTLM)
     "SMIME_KEY_PASSWORD",         # entschlüsselt die S/MIME-Privatschlüssel
     "SMTP_SUBMIT_CLIENT_SECRET",
     "SMTP_SUBMIT_PASSWORD",

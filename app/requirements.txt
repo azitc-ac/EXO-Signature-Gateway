@@ -38,6 +38,10 @@ pyspf==2.0.14
 
 # ── Microsoft-Anbindung ──────────────────────────────────────────────────────
 msal==1.37.0
+# EWS an die lokale Exchange (ews_onprem.py, NTLM) — reines Python, nur bei
+# eingerichteter Anbindung geladen
+requests_ntlm==1.3.0
+pyspnego==0.12.4
 
 # ── Web-UI ───────────────────────────────────────────────────────────────────
 fastapi==0.139.0

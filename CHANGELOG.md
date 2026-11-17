@@ -5,6 +5,56 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.59 — 2026-11-17 — Abwesenheit für Hybrid-Nutzer über Exchange lokal (EWS)
+
+Neue, optionale Anbindung an eine lokale Exchange-Organisation (2016, 2019,
+Subscription Edition) per Exchange Web Services. Erste Funktion: die
+**Abwesenheit für Hybrid-Nutzer** (v1.12.55). Ihr Postfach liegt lokal, Graph
+erreicht es nicht — bisher war die Abwesenheit für sie gesperrt. Mit der
+Anbindung bekommen sie dieselbe Funktion wie EXO-Postfächer: zentraler
+Firmentext im Abgleich, Übersicht und Editor unter *Abwesenheit*, Self-Service,
+Wahl der Abwesenheitsvorlage in der Postfachliste. Kalender-Automatik und
+Ankündigung künftiger Abwesenheiten lesen den Kalender per Graph und entfallen
+für Hybrid-Nutzer.
+
+Einrichten unter *Einstellungen → Allgemein → Exchange lokal (EWS)*: EWS-Adresse
+(`https://…/EWS/Exchange.asmx`), Dienstkonto (`DOMÄNE\konto` oder UPN), Kennwort,
+optional eine IP-Adresse für Split-DNS (die Verbindung geht an diese Adresse,
+das Zertifikat wird weiter gegen den Hostnamen geprüft). *Verbindung testen*
+liest die Abwesenheit einer Adresse und meldet das Ergebnis am Knopf. Die
+Gesundheitsprüfung zeigt bei Hybrid-Nutzern dann „EWS-Zugriff“ statt
+„übersprungen“.
+
+Voraussetzungen bei der lokalen Exchange:
+
+* ein Dienstkonto mit der Rolle ApplicationImpersonation
+  (`New-ManagementRoleAssignment -Role ApplicationImpersonation -User <Konto>`),
+  empfohlen eingeschränkt per Management Scope auf die Hybrid-Nutzer
+  (`-CustomRecipientWriteScope`). Ein Postfach außerhalb des Scopes meldet
+  „Dienstkonto darf dieses Postfach nicht“;
+* EWS vom Gateway aus per HTTPS erreichbar, Anmeldung per NTLM;
+* ein Zertifikat, dem das Gateway vertraut. Die TLS-Prüfung ist immer an.
+
+Technik: Anfragen mit `RequestServerVersion Exchange2016` und
+`ExchangeImpersonation` auf das Zielpostfach, SOAP ausschließlich über einen
+XML-Parser gebaut und gelesen (Sonderzeichen, HTML und leere Nachrichten bleiben
+erhalten). Nach jedem Setzen liest das Gateway die Abwesenheit zurück und
+vergleicht künftig gegen diese Fassung — wie beim Graph-Weg, damit der Abgleich
+nicht bei jedem Lauf neu schreibt und die Antwort „einmal je Absender“ nicht
+zurücksetzt. Zeitlimit je Aufruf 20 s; das Protokoll nennt nach jedem Aufruf
+den Ausgang. Neue Abhängigkeiten: `requests_ntlm` 1.3.0 und `pyspnego` 0.12.4
+(reines Python).
+
+Ohne Anbindung (Felder leer) bleibt alles wie bisher: Die Abwesenheit für
+Hybrid-Nutzer ist gesperrt, und kein Aufruf geht an die lokale Exchange.
+EXO-Postfächer laufen nie über EWS. Das Kennwort wird nie in die Seite
+geschrieben, in der Oberfläche maskiert und nicht exportiert.
+
+**Zu tun:** nichts — die Anbindung ist optional. Wer die Abwesenheit für
+Hybrid-Nutzer möchte, richtet sie unter *Einstellungen → Allgemein* ein.
+
+---
+
 ## v1.12.58 — 2026-11-17 — Test ohne festes Datum
 
 Der Grenzwerttest der Marke „wirkt in bis zu 3 h“ rechnet jetzt relativ zur

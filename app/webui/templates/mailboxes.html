@@ -815,6 +815,7 @@ async function _postfaecherLaden(silent) {
     var data = await getJSON('/api/mailboxes' + (silent ? '' : '?refresh=1'));
     if (!data.ok) return {ok: false, error: errText(data)};
     _mbData = data.mailboxes || [];
+    _hybridAbwesenheit = data.hybrid_abwesenheit === true;
     await loadPolicies();       // policy selects must be filled before row rendering reads them
     // Status-Spalte immer zeigen: /api/mailboxes liefert den letzten
     // bekannten Gesundheitsstand aus MAILBOX_HEALTH mit; die Spalte ist damit
@@ -875,6 +876,8 @@ async function refreshMailboxStatus() {
 var STANDARD_WAHL = '__standard__';
 // Funktion „Zentrale Abwesenheiten verwalten" (Assistent) — steuert die Spalte.
 var _abwesenheitAktiv = {{ abwesenheit_aktiv() | tojson }};
+// Anbindung an Exchange lokal (EWS) eingerichtet → Abwesenheit auch für Hybrid-Nutzer.
+var _hybridAbwesenheit = false;
 // Zelle mit einer Signatur-Wahl, die am Signatur-Haken hängt (Antwort-,
 // interne Signatur). Ohne Haken ausgegraut — gleiche Regel wie die Standardsignatur.
 function _signaturWahlZelle(idx, klasse, mb, slot, feld) {
@@ -1038,8 +1041,9 @@ function renderMailboxTable(mailboxes) {
     'hybrid':    '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#fef3c7;color:#92400e;vertical-align:middle" title="Postfach in der lokalen Exchange-Organisation">Hybrid</span>',
   };
   // Hybrid-Nutzer: Postfach in der lokalen Organisation, in EXO nur ein MailUser.
-  // S/MIME, Abwesenheit und Add-in setzen ein EXO-Postfach voraus (Speichern
-  // erzwingt S/MIME aus, siehe api_save_mailboxes).
+  // S/MIME und Add-in setzen ein EXO-Postfach voraus (Speichern erzwingt S/MIME
+  // aus, siehe api_save_mailboxes); die Abwesenheit geht nur mit der Anbindung
+  // an Exchange lokal (EWS, _hybridAbwesenheit).
   var HYBRID_HINWEIS = 'Bei Hybrid nicht verfügbar';
   var REGEL_WARTET_TIPP = 'Exchange übernimmt neue Mitglieder der Verteilerliste mit Verzögerung — meist schneller, verlassen kann man sich darauf nicht';
   mailboxes.forEach(function(mb, i) {
@@ -1159,7 +1163,7 @@ function renderMailboxTable(mailboxes) {
       _richtlinienStand(bannerSel, sig, pol, mb.banner_template, 'policy-banner-tpl');
       _richtlinienStand(disclaimerSel, sig, pol, mb.disclaimer_template, 'policy-disclaimer-tpl');
       // Abwesenheit greift für aktivierte Postfächer (Signatur ODER S/MIME).
-      var oofAus = !(sig || smime) || isHybrid;
+      var oofAus = !(sig || smime) || (isHybrid && !_hybridAbwesenheit);
       oofSel.disabled = oofAus;
       oofSel.style.opacity = oofAus ? '0.4' : '1';
       var addinAus = !sig || pol || isHybrid;
@@ -1180,8 +1184,10 @@ function renderMailboxTable(mailboxes) {
       oofSel.disabled = true; oofSel.style.opacity = '0.4';
       addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
     }
-    if (isHybrid) {
+    if (isHybrid && !_hybridAbwesenheit) {
       oofSel.disabled = true; oofSel.style.opacity = '0.4'; oofSel.title = HYBRID_HINWEIS;
+    }
+    if (isHybrid) {
       addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
       addinCtrl.title = HYBRID_HINWEIS;
     }

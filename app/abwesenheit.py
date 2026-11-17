@@ -454,6 +454,7 @@ def _oof_anhang(user_data, sender: str, mailbox_cfg: dict, sender_cfg: dict) -> 
 ZUGRIFF_GEDULD_STUNDEN = 2
 RICHTLINIE = "richtlinie"      # Zugriffsrichtlinie der App (Scope-Gruppe)
 ZUSTIMMUNG = "zustimmung"      # Berechtigung fehlt (Admin-Zustimmung)
+EWS_IMPERSONATION = "ews"      # lokale Exchange: Dienstkonto darf das Postfach nicht
 
 
 def _zugriff_datei():
@@ -488,9 +489,9 @@ def zugriff_ursache(fehlertext: str) -> str:
     return RICHTLINIE if ("RAOP" in t or "AccessPolicy" in t) else ZUSTIMMUNG
 
 
-def _zugriff_merken(upn: str, fehlertext: str) -> None:
+def _zugriff_merken(upn: str, fehlertext: str, grund: str | None = None) -> None:
     from datetime import datetime, timezone
-    grund = zugriff_ursache(fehlertext)
+    grund = grund or zugriff_ursache(fehlertext)
     d = _zugriff_laden()
     e = d.get(upn.lower())
     if e and e.get("grund") == grund:
@@ -531,6 +532,9 @@ def zugriff_meldung(upn: str) -> str:
     EINE Quelle für Admin-Seite und Self-Service (bis v1.11.31 stand dort fest
     „Consent fehlt“, auch wenn es die Zugriffsrichtlinie war)."""
     e = _zugriff_laden().get(upn.lower()) or {}
+    if e.get("grund") == EWS_IMPERSONATION:
+        return ("Kein Zugriff auf die Abwesenheit: Das Dienstkonto der lokalen Exchange darf "
+                "dieses Postfach nicht (Management Scope/ApplicationImpersonation).")
     if e.get("grund") == RICHTLINIE:
         return ("Kein Zugriff auf die Postfacheinstellungen: Die Zugriffsrichtlinie der "
                 "Gateway-App sperrt dieses Postfach. Nach einer neuen Freigabe dauert es bei "
@@ -551,13 +555,65 @@ def zugriff_gemeldet() -> dict | None:
     gruppe = f"{settings_store.get('GATEWAY_NAME') or 'EXO Signature Gateway'} - App Scope"
     return {"anzahl": len(lange), "postfaecher": [e["upn"] for e in lange[:3]], "gruppe": gruppe,
             "richtlinie": sum(e["grund"] == RICHTLINIE for e in lange),
-            "zustimmung": sum(e["grund"] == ZUSTIMMUNG for e in lange)}
+            "zustimmung": sum(e["grund"] == ZUSTIMMUNG for e in lange),
+            "ews": sum(e["grund"] == EWS_IMPERSONATION for e in lange)}
 
 
 # ── Graph: lesen / schreiben ──────────────────────────────────────────────────
 
+def ews_verfuegbar() -> bool:
+    """Ist die Anbindung an die lokale Exchange (EWS) eingerichtet? Dann bekommen
+    Hybrid-Nutzer dieselbe Abwesenheitsfunktion wie EXO-Postfächer."""
+    import ews_onprem
+    return ews_onprem.konfiguriert()
+
+
+def _ueber_ews(upn: str) -> bool:
+    """DIE Weiche: Geht die Abwesenheit dieses Postfachs über EWS statt Graph?
+
+    Nur für Hybrid-Nutzer (Postfach in der lokalen Organisation) UND nur bei
+    eingerichteter Anbindung. Ein EXO-Postfach geht NIE über EWS
+    (exo_mailboxes.ist_hybrid ist für jedes bekannte EXO-Postfach falsch). Ohne
+    Anbindung wird ist_hybrid gar nicht erst befragt — der Graph-Weg bleibt
+    byte-gleich wie vorher. Alle Lese-/Schreibwege der Abwesenheit (Abgleich,
+    Übersicht, Admin-Editor, Self-Service, Gesundheitsprüfung) laufen über
+    _get_setting/_patch_setting und damit über diese eine Stelle."""
+    if not ews_verfuegbar():
+        return False
+    import exo_mailboxes
+    return exo_mailboxes.ist_hybrid(upn)
+
+
+async def _ews_get(upn: str) -> tuple[str, dict | None]:
+    import ews_onprem
+    try:
+        oof = await asyncio.to_thread(ews_onprem.oof_lesen, upn)
+    except ews_onprem.EwsFehler as exc:
+        if exc.kein_zugriff:
+            _zugriff_merken(upn, exc.detail, grund=EWS_IMPERSONATION)
+            return "kein_zugriff", None
+        return "fehler", None          # ews_onprem hat den Ausgang bereits protokolliert
+    except Exception as exc:                                       # noqa: BLE001
+        log.warning("OOO lesen (EWS) für %s fehlgeschlagen: %s", upn, exc)
+        return "fehler", None
+    _zugriff_ok(upn)
+    return "ok", ews_onprem.als_graph(oof)
+
+
+async def _ews_patch(upn: str, setting: dict, inner: dict) -> dict | None:
+    """Wie der Graph-PATCH: nur die genannten Felder ändern. EWS ersetzt die
+    Einstellung als Ganzes, darum wird mit dem gelesenen Stand zusammengeführt.
+    Zurück kommt der von Exchange gespeicherte Stand (Rücklesen) — kanonisch."""
+    import ews_onprem
+    voll = ews_onprem.aus_graph(setting, inner)
+    oof = await asyncio.to_thread(ews_onprem.oof_setzen, upn, **voll)
+    return ews_onprem.als_graph(oof)
+
+
 async def _get_setting(upn: str, token: str) -> tuple[str, dict | None]:
     """(status, automaticRepliesSetting) lesen. status ∈ {ok, kein_zugriff, fehler}."""
+    if _ueber_ews(upn):
+        return await _ews_get(upn)
     url = f"{_GRAPH}/users/{upn}/mailboxSettings/automaticRepliesSetting"
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -591,6 +647,8 @@ async def _patch_setting(upn: str, token: str, setting: dict, html: str,
         inner["scheduledStartDateTime"] = start
     if ende:
         inner["scheduledEndDateTime"] = ende
+    if _ueber_ews(upn):
+        return await _ews_patch(upn, setting, inner)
     rumpf = {"automaticRepliesSetting": inner}
     url = f"{_GRAPH}/users/{upn}/mailboxSettings"
     async with httpx.AsyncClient(timeout=15) as client:
@@ -773,6 +831,11 @@ async def kalender_events(upn: str, token: str, state: dict,
     Cache-Eintrag — ein späteres Einschalten liest frisch."""
     from datetime import datetime, timezone
     if not kalender_lesen():
+        return []
+    if _ueber_ews(upn):
+        # Hybrid-Nutzer über EWS: Der Kalender liegt in der lokalen Organisation,
+        # Graph erreicht ihn nicht. Kalender-Automatik und Ankündigung entfallen;
+        # kein Cache-Eintrag (ohne Zeitstempel nimmt die Rücknahme nichts zurück).
         return []
     merk = state.get(upn.lower())
     if merk is None:
@@ -1141,8 +1204,8 @@ def _aktive_postfaecher(mailbox_cfg: dict) -> list[tuple[str, dict]]:
             continue
         if not (cfg.get("sig") or cfg.get("smime")):
             continue
-        if cfg.get("hybrid"):
-            continue    # Postfach in der lokalen Organisation: kein Graph-Zugriff
+        if cfg.get("hybrid") and not ews_verfuegbar():
+            continue    # Postfach in der lokalen Organisation: ohne EWS kein Zugriff
         upn = (cfg.get("primary") or key or "").strip()
         if upn and "@" in upn:
             out.append((upn, cfg))
