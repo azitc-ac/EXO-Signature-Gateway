@@ -693,6 +693,11 @@ async def _kalender_oof_events(upn: str, token: str) -> list[dict]:
     from datetime import datetime, timezone, timedelta
     min_h = float(settings_store.get("OOO_CALENDAR_MIN_HOURS") or 8)
     jetzt = datetime.now(timezone.utc)
+    if _ueber_ews(upn):
+        # Hybrid-Nutzer: Kalender in der lokalen Organisation. Dieselben Felder in
+        # derselben Form wie Graph — die Auswertung unten bleibt EINE.
+        events = await _ews_kalender(upn, jetzt, jetzt + timedelta(days=_LOOKAHEAD_TAGE))
+        return _qualifizierende(events, min_h)
     von = jetzt.strftime("%Y-%m-%dT%H:%M:%S")
     bis = (jetzt + timedelta(days=_LOOKAHEAD_TAGE)).strftime("%Y-%m-%dT%H:%M:%S")
     url = (f"{_GRAPH}/users/{upn}/calendarView?startDateTime={von}&endDateTime={bis}"
@@ -715,6 +720,32 @@ async def _kalender_oof_events(upn: str, token: str) -> list[dict]:
     except Exception as exc:                                       # noqa: BLE001
         log.warning("OOO-Kalender lesen für %s fehlgeschlagen: %s", upn, exc)
         raise      # echter Fehler → NICHT cachen (siehe Docstring)
+    return _qualifizierende(events, min_h)
+
+
+async def _ews_kalender(upn: str, von, bis) -> list[dict]:
+    """Kalender eines Hybrid-Nutzers per EWS, übersetzt in die Graph-Form.
+    Fehlerverhalten wie der Graph-Weg: verweigerter Zugriff → PermissionError
+    (gecacht mit Fehlermarke), alles andere wird geworfen (nicht gecacht)."""
+    import ews_onprem
+    from zoneinfo import ZoneInfo
+    try:
+        zone = ZoneInfo(settings_store.get("LOG_TIMEZONE") or "UTC")
+    except Exception:                                              # noqa: BLE001
+        from datetime import timezone
+        zone = timezone.utc
+    try:
+        termine = await asyncio.to_thread(ews_onprem.kalender_lesen, upn, von, bis)
+    except ews_onprem.EwsFehler as exc:
+        if exc.kein_zugriff:
+            raise PermissionError(f"Kalender {upn}: {exc.detail}") from None
+        raise              # ews_onprem hat den Ausgang bereits protokolliert
+    return ews_onprem.kalender_als_graph(termine, zone)
+
+
+def _qualifizierende(events: list[dict], min_h: float) -> list[dict]:
+    """Aus calendarView-Einträgen (Graph-Form) die „Abwesend“-Termine ab der
+    Mindestdauer — für Graph und EWS dieselbe Auswertung."""
     out: list[dict] = []
     for ev in events:
         if ev.get("showAs") != "oof":
@@ -831,11 +862,6 @@ async def kalender_events(upn: str, token: str, state: dict,
     Cache-Eintrag — ein späteres Einschalten liest frisch."""
     from datetime import datetime, timezone
     if not kalender_lesen():
-        return []
-    if _ueber_ews(upn):
-        # Hybrid-Nutzer über EWS: Der Kalender liegt in der lokalen Organisation,
-        # Graph erreicht ihn nicht. Kalender-Automatik und Ankündigung entfallen;
-        # kein Cache-Eintrag (ohne Zeitstempel nimmt die Rücknahme nichts zurück).
         return []
     merk = state.get(upn.lower())
     if merk is None:

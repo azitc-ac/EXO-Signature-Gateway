@@ -5,6 +5,53 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.61 — 2026-11-18 — Exchange lokal: eigene CA und Kalender-Automatik für Hybrid-Nutzer
+
+Zwei Ergänzungen zur Anbindung an Exchange lokal (EWS, v1.12.59).
+
+**Eigene CA.** Lokale Exchange-Server tragen oft ein Zertifikat einer internen
+CA. Bisher vertraute die Anbindung nur den öffentlichen CAs (certifi), der
+Verbindungstest scheiterte dann mit „TLS-Prüfung fehlgeschlagen“. Neu in der
+Karte *Einstellungen → Allgemein → Exchange lokal (EWS)*: das Feld **Eigene CA
+(optional)** — PEM einfügen oder eine Datei laden (PEM oder DER/.cer, wird im
+Browser in PEM umgewandelt), gespeichert mit demselben Knopf wie die übrigen
+Felder. Das Zertifikat ergänzt die öffentlichen CAs, es ersetzt sie nicht; die
+TLS-Prüfung und die Prüfung des Hostnamens bleiben immer an. Ohne Eintrag ist
+die Verbindung unverändert.
+
+Beim Speichern wird geprüft: Jeder Block muss ein lesbares X.509-Zertifikat
+sein, gültig zum jetzigen Zeitpunkt, und entweder ein CA-Zertifikat oder
+selbstsigniert (etwa das Standardzertifikat einer frisch installierten
+Exchange). Ein von der CA ausgestelltes Serverzertifikat wird abgelehnt — die
+Meldung nennt die ausstellende CA, deren Zertifikat stattdessen hineingehört.
+Ein privater Schlüssel wird nie angenommen. Gespeichert werden nur die
+Zertifikate selbst, Begleittext (etwa „Bag Attributes“) fällt weg. Das Feld ist
+kein Geheimnis und erscheint in Sicherung und Export wie die übrigen Felder.
+
+Scheitert die TLS-Prüfung, nennt der Verbindungstest jetzt zusätzlich, ob ein
+eigenes CA-Zertifikat hinterlegt ist.
+
+**Kalender-Automatik und Ankündigung für Hybrid-Nutzer.** Beides las den
+Kalender nur per Graph und entfiel deshalb für Hybrid-Nutzer. Mit eingerichteter
+Anbindung liest das Gateway ihren Kalender jetzt per EWS (`FindItem` mit
+`CalendarView`, dasselbe Zeitfenster von 120 Tagen, Serientermine als einzelne
+Vorkommen) und übersetzt die Termine in dieselbe Form wie der Graph-Weg. Die
+Auswertung ist für beide Wege eine: Status „Abwesend“ (`OOF`) ab der
+Mindestdauer, privat und vertraulich markierte Termine gelten als privat wie bei
+Graph, ganztägige Termine beginnen um Mitternacht der Anzeige-Zeitzone. Gelesen
+werden nur Beginn, Ende, Status, Ganztägig und Vertraulichkeit — kein Betreff,
+kein Text. Verweigert die lokale Exchange den Zugriff (Management Scope), wird
+das wie eine fehlende Graph-Berechtigung gemerkt und nicht als „keine Termine“
+gelesen; andere Fehler lassen den zuletzt gelesenen Stand stehen.
+EXO-Postfächer lesen ihren Kalender unverändert per Graph.
+
+**Zu tun:** nichts — beides ist optional. Hast du die Anbindung eingerichtet
+und das Exchange-Zertifikat stammt von einer internen CA, trage deren
+Zertifikat unter *Eigene CA* ein. Die Kalender-Automatik folgt für
+Hybrid-Nutzer denselben Schaltern wie für alle anderen Postfächer.
+
+---
+
 ## v1.12.60 — 2026-11-17 — Routentabelle nachgetragen
 
 Die Momentaufnahme der Routen (`tests/routes_snapshot.json`) enthält jetzt den

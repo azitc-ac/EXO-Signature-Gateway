@@ -363,8 +363,20 @@
          value="{{ s.EWS_ONPREM_VERBINDEN or '' }}" placeholder="10.99.0.20">
       <small class="hint" style="display:block;margin-top:2px">Nur bei Split-DNS: IP des Exchange-Servers. Das Zertifikat wird weiter gegen den Hostnamen geprüft.</small></div>
   </div>
+  <div class="settings-row">
+    <label for="ews-ca">Eigene CA (optional)</label>
+    <div class="settings-control">
+      <textarea id="ews-ca" rows="4" spellcheck="false" style="width:360px;max-width:100%;font-family:monospace;font-size:11px"
+                placeholder="-----BEGIN CERTIFICATE-----">{{ s.EWS_ONPREM_CA or '' }}</textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px">
+        <input type="file" id="ews-ca-datei" accept=".pem,.crt,.cer,.cert" style="font-size:12px;max-width:100%"
+               onchange="ewsCaDatei(this)" aria-label="CA-Zertifikat aus Datei laden">
+      </div>
+      <small class="hint" style="display:block;margin-top:2px">Nur bei einem Exchange-Zertifikat einer internen CA: deren Zertifikat (PEM oder .cer). Ergänzt die öffentlichen CAs, ersetzt sie nicht.</small>
+    </div>
+  </div>
   <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
-    <button class="btn secondary" id="ews-btn" data-wache="ews-url,ews-konto,ews-kennwort,ews-verbinden"
+    <button class="btn secondary" id="ews-btn" data-wache="ews-url,ews-konto,ews-kennwort,ews-verbinden,ews-ca"
             onclick="saveEwsOnprem()">Speichern</button>
   </div>
   <div class="settings-row" style="margin-top:12px">
@@ -397,10 +409,33 @@ async function saveEwsOnprem() {
     EWS_ONPREM_URL: url,
     EWS_ONPREM_KONTO: feldWert('ews-konto'),
     EWS_ONPREM_VERBINDEN: feldWert('ews-verbinden'),
+    EWS_ONPREM_CA: feldWert('ews-ca'),
     ...(kw.value ? {EWS_ONPREM_KENNWORT: kw.value} : {}),
   }, null, 'settings:ews');
   if (ok && kw.value) { kw.value = ''; kw.placeholder = 'gespeichert — leer lassen = unverändert'; }
   wacheFertig('ews-btn', ok);
+}
+
+// CA-Zertifikat aus Datei ins Textfeld: PEM wie gelesen, DER (.cer aus Windows)
+// als PEM verpackt. Gespeichert wird erst mit „Speichern“ — geprüft vom Server.
+async function ewsCaDatei(eingabe) {
+  const datei = eingabe.files && eingabe.files[0];
+  if (!datei) return;
+  const bytes = new Uint8Array(await datei.arrayBuffer());
+  // Byte für Byte, nicht TextDecoder('latin1'): Browser lesen das als
+  // windows-1252, und 0x80–0x9F würden für btoa unbrauchbar.
+  let text = '';
+  for (let i = 0; i < bytes.length; i++) text += String.fromCharCode(bytes[i]);
+  let pem = text;
+  if (text.indexOf('-----BEGIN') < 0) {
+    const b64 = btoa(text);
+    pem = '-----BEGIN CERTIFICATE-----\n' + (b64.match(/.{1,64}/g) || []).join('\n')
+        + '\n-----END CERTIFICATE-----\n';
+  }
+  const feld = document.getElementById('ews-ca');
+  feld.value = pem.trim();
+  feld.dispatchEvent(new Event('input', {bubbles: true}));
+  eingabe.value = '';
 }
 
 async function testEwsOnprem() {

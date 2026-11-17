@@ -301,7 +301,17 @@ def _ews_onprem_pruefen(clean: dict) -> str:
         if f:
             return f
     if clean.get("EWS_ONPREM_VERBINDEN"):
-        return ews_onprem.verbinden_pruefen(clean["EWS_ONPREM_VERBINDEN"])
+        f = ews_onprem.verbinden_pruefen(clean["EWS_ONPREM_VERBINDEN"])
+        if f:
+            return f
+    if "EWS_ONPREM_CA" in clean:
+        # Mehrzeilig (PEM) — darum nicht in der Zeilenumbruch-Prüfung oben.
+        # Gespeichert wird die geprüfte, neu kodierte Fassung.
+        roh = clean["EWS_ONPREM_CA"] if isinstance(clean["EWS_ONPREM_CA"], str) else ""
+        pem, f = ews_onprem.ca_pruefen(roh)
+        if f:
+            return f
+        clean["EWS_ONPREM_CA"] = pem
     return ""
 
 

@@ -315,6 +315,7 @@ DEFAULTS: dict = {
     "EWS_ONPREM_KONTO": "",      # DOMÄNE\\konto oder UPN des Dienstkontos (NTLM)
     "EWS_ONPREM_KENNWORT": "",   # Geheimnis (SECRET_KEYS)
     "EWS_ONPREM_VERBINDEN": "",  # optional IP für Split-DNS; TLS prüft weiter den Hostnamen
+    "EWS_ONPREM_CA": "",         # optional eigene CA (PEM) ZUSÄTZLICH zu certifi — kein Geheimnis
     # Parameter des on-prem-Koexistenz-Connectors (Hybrid). NUR zum erneuten
     # Erzeugen des Auf-/Abbau-Skripts (coexistence.py) — das Gateway führt on-prem
     # nichts aus. {"gateway_name","source_ip","servers":[...]}
