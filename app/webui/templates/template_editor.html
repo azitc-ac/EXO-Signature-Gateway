@@ -1132,7 +1132,7 @@ function buildBlockForm(b) {
         <span style="font-size:11px;color:#6b7280;display:block;margin:2px 0 6px">
           ${isEmbed ? '✓ Eingebettet (Base64 Data-URI)' : 'oder URL eingeben:'}
         </span>
-        ${isEmbed ? '' : `<input type="text" name="url" value="${escAttr(b.url||'')}" placeholder="https://…/logo.png"
+        ${isEmbed ? '' : `<input spellcheck="false" autocorrect="off" autocapitalize="none" type="text" name="url" value="${escAttr(b.url||'')}" placeholder="https://…/logo.png"
           data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)"
           style="padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;width:100%;box-sizing:border-box">`}
         ${previewImg}

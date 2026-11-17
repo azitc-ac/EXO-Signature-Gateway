@@ -347,7 +347,7 @@ textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--ak
   {% endif %}
   <form onsubmit="anmelden(event)">
     <label for="name">Anmeldename</label>
-    <input id="name" autocomplete="username" placeholder="max.mustermann@firma.at" required>
+    <input autocapitalize="none" autocorrect="off" spellcheck="false" id="name" autocomplete="username" placeholder="max.mustermann@firma.at" required>
     <label for="kennwort">Kennwort</label>
     <input id="kennwort" type="password" autocomplete="current-password" required>
     <div style="margin-top:14px"><button class="haupt" id="anmelde-knopf" type="submit">Anmelden</button></div>
@@ -495,7 +495,7 @@ textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--ak
 
 <dialog id="adressbuch" aria-labelledby="ab-titel">
   <div class="kopf"><strong id="ab-titel">Adressbuch</strong></div>
-  <div class="kopf"><input id="ab-suche" type="search" placeholder="Name oder Adresse" aria-label="Im Adressbuch suchen"
+  <div class="kopf"><input id="ab-suche" type="search" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Name oder Adresse" aria-label="Im Adressbuch suchen"
                            autocomplete="off" oninput="adressbuchSuchen()"></div>
   <div id="ab-liste" role="group" aria-label="Einträge" onchange="adressbuchWahl(event)"></div>
   <div class="fuss"><span class="leise" id="ab-zahl" aria-live="polite"></span>
@@ -1515,9 +1515,9 @@ async function verfassen(art, entwurf) {
     + '<div class="zeile"><label for="vf-von">Von</label><select id="vf-von">' + nb.absender.map(a =>
         '<option value="' + escAttr(a.postfach) + '"' + (a.postfach === von ? ' selected' : '') + '>'
         + esc(a.postfach + recht[a.recht]) + '</option>').join('') + '</select></div>'
-    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-an" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">An</button><input id="vf-an" aria-label="An" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.an) + '"></div>'
-    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-cc" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">Cc</button><input id="vf-cc" aria-label="Cc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.cc) + '"></div>'
-    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-bcc" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">Bcc</button><input id="vf-bcc" aria-label="Bcc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.bcc || '') + '"><datalist id="vf-vorschlaege"></datalist></div>'
+    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-an" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">An</button><input id="vf-an" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="An" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.an) + '"></div>'
+    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-cc" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">Cc</button><input id="vf-cc" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Cc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.cc) + '"></div>'
+    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-bcc" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">Bcc</button><input id="vf-bcc" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Bcc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.bcc || '') + '"><datalist id="vf-vorschlaege"></datalist></div>'
     + '<div class="zeile"><label for="vf-betreff">Betreff</label><input id="vf-betreff" value="' + escAttr(v.betreff) + '"></div>'
     + '<textarea id="vf-text" aria-label="Text">' + esc(v.text) + '</textarea>'
     + (zitat ? zitatVorschau(zitat, art, bezugPf || nb.postfach, bezug) : '')

@@ -285,7 +285,7 @@
   <div class="settings-row" data-adv="smime" style="display:none">
     <label for="smime-harvest-rcpt">Sammeladresse</label>
     <div class="settings-control">
-      <input type="text" id="smime-harvest-rcpt" style="width:320px;max-width:100%"
+      <input spellcheck="false" autocorrect="off" autocapitalize="none" type="text" id="smime-harvest-rcpt" style="width:320px;max-width:100%"
              placeholder="z.B. zertifikate@ihre-domain.de"
              value="{{ s.SMIME_HARVEST_RCPT or '' }}">
       <span class="hint">
