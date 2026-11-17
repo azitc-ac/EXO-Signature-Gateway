@@ -319,8 +319,8 @@
     Nutzer, deren Postfach noch in der lokalen Exchange-Organisation liegt, erscheinen in
     der Postfachliste und lassen sich für Signatur, Banner und Disclaimer aktivieren.
     Aktivierte Hybrid-Nutzer kommen in die Verteilerliste des Gateways; ihre Post geht
-    über den Smarthost an Exchange Online zurück. Abwesenheit, S/MIME und das Outlook-Add-in
-    sind für sie nicht verfügbar.
+    über den Smarthost an Exchange Online zurück. S/MIME und das Outlook-Add-in sind für
+    sie nicht verfügbar, die Abwesenheit nur mit der Anbindung an Exchange lokal (unten).
   </p>
   {% if reinject_mode != "smtp" %}
   <p class="hint" style="margin:6px 0 0;color:#b45309">
@@ -331,10 +331,83 @@
   {% endif %}
 </div>
 
+<!-- Exchange lokal (EWS): Abwesenheit für Hybrid-Nutzer -->
+<div class="settings-card" id="exchange-lokal-ews">
+  <h2>Exchange lokal (EWS)</h2>
+  <p class="hint" style="margin:0 0 10px">
+    Optional. Damit verwaltet das Gateway die Abwesenheit der Hybrid-Nutzer in der lokalen
+    Exchange-Organisation (2016/2019/SE). Leer lassen = aus.
+    Lokal nötig: ein Dienstkonto mit
+    <code>New-ManagementRoleAssignment -Role ApplicationImpersonation -User &lt;Konto&gt;</code>,
+    empfohlen mit <code>-CustomRecipientWriteScope</code> auf die Hybrid-Nutzer; EWS mit NTLM erreichbar.
+  </p>
+  <div class="settings-row">
+    <label for="ews-url">EWS-Adresse</label>
+    <div class="settings-control"><input type="url" id="ews-url" style="width:360px;max-width:100%"
+         value="{{ s.EWS_ONPREM_URL or '' }}" placeholder="https://exchange.firma.at/EWS/Exchange.asmx"></div>
+  </div>
+  <div class="settings-row">
+    <label for="ews-konto">Dienstkonto</label>
+    <div class="settings-control"><input type="text" id="ews-konto" style="width:260px;max-width:100%"
+         value="{{ s.EWS_ONPREM_KONTO or '' }}" placeholder="FIRMA\svc-gateway" autocomplete="off"></div>
+  </div>
+  <div class="settings-row">
+    <label for="ews-kennwort">Kennwort</label>
+    <div class="settings-control"><input type="password" id="ews-kennwort" style="width:260px;max-width:100%"
+         autocomplete="new-password"
+         placeholder="{{ 'gespeichert — leer lassen = unverändert' if s.EWS_ONPREM_KENNWORT else '' }}"></div>
+  </div>
+  <div class="settings-row">
+    <label for="ews-verbinden">Verbinden mit (optional)</label>
+    <div class="settings-control"><input type="text" id="ews-verbinden" style="width:160px;max-width:100%"
+         value="{{ s.EWS_ONPREM_VERBINDEN or '' }}" placeholder="10.99.0.20">
+      <small class="hint" style="display:block;margin-top:2px">Nur bei Split-DNS: IP des Exchange-Servers. Das Zertifikat wird weiter gegen den Hostnamen geprüft.</small></div>
+  </div>
+  <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+    <button class="btn secondary" id="ews-btn" data-wache="ews-url,ews-konto,ews-kennwort,ews-verbinden"
+            onclick="saveEwsOnprem()">Speichern</button>
+  </div>
+  <div class="settings-row" style="margin-top:12px">
+    <label for="ews-test-adresse">Verbindung testen</label>
+    <div class="settings-control">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <input type="email" id="ews-test-adresse" style="width:240px;max-width:100%" placeholder="max.mustermann@firma.at">
+        <button class="btn secondary btn-sm" id="ews-test-btn" onclick="testEwsOnprem()">Testen</button>
+        <span id="ews-test-result" style="font-size:12px"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 
 async function saveHybridPostfaecher(an) {
   await savePartial({HYBRID_POSTFAECHER: an}, 'hybrid-postfaecher-result', 'settings:hybrid');
+}
+
+// Kennwort: leer = unverändert (Geheimnis wird nie in die Seite gerendert).
+async function saveEwsOnprem() {
+  const url = feldWert('ews-url');
+  if (url && url.indexOf('https://') !== 0) {
+    wacheFertig('ews-btn', false, '✗ Die EWS-Adresse muss mit https:// beginnen');
+    return;
+  }
+  const kw = document.getElementById('ews-kennwort');
+  const ok = await savePartial({
+    EWS_ONPREM_URL: url,
+    EWS_ONPREM_KONTO: feldWert('ews-konto'),
+    EWS_ONPREM_VERBINDEN: feldWert('ews-verbinden'),
+    ...(kw.value ? {EWS_ONPREM_KENNWORT: kw.value} : {}),
+  }, null, 'settings:ews');
+  if (ok && kw.value) { kw.value = ''; kw.placeholder = 'gespeichert — leer lassen = unverändert'; }
+  wacheFertig('ews-btn', ok);
+}
+
+async function testEwsOnprem() {
+  const el = document.getElementById('ews-test-result');
+  const d = await knopfAktion('ews-test-btn', null,
+    () => postJSON('/api/ews-onprem/test', {adresse: feldWert('ews-test-adresse')}));
+  showMsg(el, d.ok ? '✓ ' + d.detail + ' (' + d.dauer + ' s)' : '✗ ' + errText(d), d.ok);
 }
 
 // savePartial() steht in common.js — eine Fassung fuer alle Seiten.

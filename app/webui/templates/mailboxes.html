@@ -4,6 +4,16 @@
 {% block content %}
 <h1>Postfächer</h1>
 
+<style>
+  /* Marke am Postfach (JS setzt data-marke). 'wartet' = frisch aktiviert, die
+     Transportregel greift erst nach bis zu ~3 h. Hier statt in style.css/
+     dark-mode.css: beide sind mit dem SMTP-Relay gespiegelt. */
+  .mb-marke { display:inline-block; font-size:10px; font-weight:600; padding:1px 6px;
+              border-radius:8px; margin-left:5px; vertical-align:middle; cursor:help }
+  .mb-marke[data-marke="wartet"] { background:#e0f2fe; color:#0369a1 }
+  [data-theme="dark"] .mb-marke[data-marke="wartet"] { background:#0a1827; color:#7dd3fc }
+</style>
+
 <!-- Fair-Use-Zähler -->
 <div id="fairuse-counter" style="display:none;margin-bottom:16px">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -805,6 +815,7 @@ async function _postfaecherLaden(silent) {
     var data = await getJSON('/api/mailboxes' + (silent ? '' : '?refresh=1'));
     if (!data.ok) return {ok: false, error: errText(data)};
     _mbData = data.mailboxes || [];
+    _hybridAbwesenheit = data.hybrid_abwesenheit === true;
     await loadPolicies();       // policy selects must be filled before row rendering reads them
     // Status-Spalte immer zeigen: /api/mailboxes liefert den letzten
     // bekannten Gesundheitsstand aus MAILBOX_HEALTH mit; die Spalte ist damit
@@ -865,6 +876,8 @@ async function refreshMailboxStatus() {
 var STANDARD_WAHL = '__standard__';
 // Funktion „Zentrale Abwesenheiten verwalten" (Assistent) — steuert die Spalte.
 var _abwesenheitAktiv = {{ abwesenheit_aktiv() | tojson }};
+// Anbindung an Exchange lokal (EWS) eingerichtet → Abwesenheit auch für Hybrid-Nutzer.
+var _hybridAbwesenheit = false;
 // Zelle mit einer Signatur-Wahl, die am Signatur-Haken hängt (Antwort-,
 // interne Signatur). Ohne Haken ausgegraut — gleiche Regel wie die Standardsignatur.
 function _signaturWahlZelle(idx, klasse, mb, slot, feld) {
@@ -1028,9 +1041,11 @@ function renderMailboxTable(mailboxes) {
     'hybrid':    '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#fef3c7;color:#92400e;vertical-align:middle" title="Postfach in der lokalen Exchange-Organisation">Hybrid</span>',
   };
   // Hybrid-Nutzer: Postfach in der lokalen Organisation, in EXO nur ein MailUser.
-  // S/MIME, Abwesenheit und Add-in setzen ein EXO-Postfach voraus (Speichern
-  // erzwingt S/MIME aus, siehe api_save_mailboxes).
-  var HYBRID_HINWEIS = 'Postfach in der lokalen Organisation: Abwesenheit, S/MIME und Add-in nicht verfügbar';
+  // S/MIME und Add-in setzen ein EXO-Postfach voraus (Speichern erzwingt S/MIME
+  // aus, siehe api_save_mailboxes); die Abwesenheit geht nur mit der Anbindung
+  // an Exchange lokal (EWS, _hybridAbwesenheit).
+  var HYBRID_HINWEIS = 'Bei Hybrid nicht verfügbar';
+  var REGEL_WARTET_TIPP = 'Exchange übernimmt neue Mitglieder der Verteilerliste mit Verzögerung — meist schneller, verlassen kann man sich darauf nicht';
   mailboxes.forEach(function(mb, i) {
     mb._idx = i;
     var isResource = (mb.type === 'room' || mb.type === 'equipment');
@@ -1046,10 +1061,12 @@ function renderMailboxTable(mailboxes) {
     var tdEmail = document.createElement('td');
     tdEmail.style.padding = '6px 8px';
     var badge = _typeBadge[mb.type] || '';
+    // Frisch aktiviert: Die Transportregel erfasst neue Mitglieder der
+    // Verteilerliste erst nach bis zu ~3 h (Server: regel_wartet).
+    if (mb.regel_wartet) badge += '<span class="mb-marke" data-marke="wartet" title="' + REGEL_WARTET_TIPP + '">wirkt in bis zu 3 h</span>';
     tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' + badge +
       (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '') +
-      (isResource ? '<br><span style="color:#94a3b8;font-size:10px">zählt nicht zur Lizenz</span>' : '') +
-      (isHybrid ? '<br><span style="color:#94a3b8;font-size:10px">' + esc(HYBRID_HINWEIS) + '</span>' : '');
+      (isResource ? '<br><span style="color:#94a3b8;font-size:10px">zählt nicht zur Lizenz</span>' : '');
 
     // Standardsignatur checkbox
     var tdSig = document.createElement('td');
@@ -1146,7 +1163,7 @@ function renderMailboxTable(mailboxes) {
       _richtlinienStand(bannerSel, sig, pol, mb.banner_template, 'policy-banner-tpl');
       _richtlinienStand(disclaimerSel, sig, pol, mb.disclaimer_template, 'policy-disclaimer-tpl');
       // Abwesenheit greift für aktivierte Postfächer (Signatur ODER S/MIME).
-      var oofAus = !(sig || smime) || isHybrid;
+      var oofAus = !(sig || smime) || (isHybrid && !_hybridAbwesenheit);
       oofSel.disabled = oofAus;
       oofSel.style.opacity = oofAus ? '0.4' : '1';
       var addinAus = !sig || pol || isHybrid;
@@ -1167,8 +1184,10 @@ function renderMailboxTable(mailboxes) {
       oofSel.disabled = true; oofSel.style.opacity = '0.4';
       addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
     }
-    if (isHybrid) {
+    if (isHybrid && !_hybridAbwesenheit) {
       oofSel.disabled = true; oofSel.style.opacity = '0.4'; oofSel.title = HYBRID_HINWEIS;
+    }
+    if (isHybrid) {
       addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
       addinCtrl.title = HYBRID_HINWEIS;
     }
@@ -1348,7 +1367,7 @@ async function saveMailboxes() {
     refreshFairUse();
     wacheFertig('mb-save-btn', true);
     result.className = 'alert';
-    result.innerHTML = 'Lokal gespeichert. Die Verteilerliste wird bei EXO im Hintergrund aktualisiert (5–15 Min.) — du kannst weiterarbeiten.';
+    result.innerHTML = 'Gespeichert. Die Verteilerliste wird im Hintergrund aktualisiert, neu aktivierte Postfächer wirken nach bis zu ~3 h.';
     result.style.display = 'block';
     _pollDgStatus(result);
   } else if (d.ok) {
@@ -1368,7 +1387,8 @@ async function saveMailboxes() {
 // Pollt den Hintergrundlauf der Verteilerlisten-Aktualisierung. Läuft, bis der
 // Server "done" meldet; der Sicherheitsdeckel (~160 s) bricht das Warten ab,
 // ohne es als Fehler zu werten — der Lauf kann serverseitig weiterlaufen, und
-// bis Exchange die Liste überall kennt, vergehen ohnehin 5–15 Min.
+// bis die Transportregel neue Mitglieder erfasst, vergehen ohnehin bis zu
+// ~3 Stunden, oft weniger.
 async function _pollDgStatus(result) {
   for (var i = 0; i < 80; i++) {
     await warten(2000);

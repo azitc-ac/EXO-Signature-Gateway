@@ -5,6 +5,120 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.60 — 2026-11-17 — Routentabelle nachgetragen
+
+Die Momentaufnahme der Routen (`tests/routes_snapshot.json`) enthält jetzt den
+Verbindungstest `POST /api/ews-onprem/test` aus v1.12.59. Keine Änderung am
+Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.59 — 2026-11-17 — Abwesenheit für Hybrid-Nutzer über Exchange lokal (EWS)
+
+Neue, optionale Anbindung an eine lokale Exchange-Organisation (2016, 2019,
+Subscription Edition) per Exchange Web Services. Erste Funktion: die
+**Abwesenheit für Hybrid-Nutzer** (v1.12.55). Ihr Postfach liegt lokal, Graph
+erreicht es nicht — bisher war die Abwesenheit für sie gesperrt. Mit der
+Anbindung bekommen sie dieselbe Funktion wie EXO-Postfächer: zentraler
+Firmentext im Abgleich, Übersicht und Editor unter *Abwesenheit*, Self-Service,
+Wahl der Abwesenheitsvorlage in der Postfachliste. Kalender-Automatik und
+Ankündigung künftiger Abwesenheiten lesen den Kalender per Graph und entfallen
+für Hybrid-Nutzer.
+
+Einrichten unter *Einstellungen → Allgemein → Exchange lokal (EWS)*: EWS-Adresse
+(`https://…/EWS/Exchange.asmx`), Dienstkonto (`DOMÄNE\konto` oder UPN), Kennwort,
+optional eine IP-Adresse für Split-DNS (die Verbindung geht an diese Adresse,
+das Zertifikat wird weiter gegen den Hostnamen geprüft). *Verbindung testen*
+liest die Abwesenheit einer Adresse und meldet das Ergebnis am Knopf. Die
+Gesundheitsprüfung zeigt bei Hybrid-Nutzern dann „EWS-Zugriff“ statt
+„übersprungen“.
+
+Voraussetzungen bei der lokalen Exchange:
+
+* ein Dienstkonto mit der Rolle ApplicationImpersonation
+  (`New-ManagementRoleAssignment -Role ApplicationImpersonation -User <Konto>`),
+  empfohlen eingeschränkt per Management Scope auf die Hybrid-Nutzer
+  (`-CustomRecipientWriteScope`). Ein Postfach außerhalb des Scopes meldet
+  „Dienstkonto darf dieses Postfach nicht“;
+* EWS vom Gateway aus per HTTPS erreichbar, Anmeldung per NTLM;
+* ein Zertifikat, dem das Gateway vertraut. Die TLS-Prüfung ist immer an.
+
+Technik: Anfragen mit `RequestServerVersion Exchange2016` und
+`ExchangeImpersonation` auf das Zielpostfach, SOAP ausschließlich über einen
+XML-Parser gebaut und gelesen (Sonderzeichen, HTML und leere Nachrichten bleiben
+erhalten). Nach jedem Setzen liest das Gateway die Abwesenheit zurück und
+vergleicht künftig gegen diese Fassung — wie beim Graph-Weg, damit der Abgleich
+nicht bei jedem Lauf neu schreibt und die Antwort „einmal je Absender“ nicht
+zurücksetzt. Zeitlimit je Aufruf 20 s; das Protokoll nennt nach jedem Aufruf
+den Ausgang. Neue Abhängigkeiten: `requests_ntlm` 1.3.0 und `pyspnego` 0.12.4
+(reines Python).
+
+Ohne Anbindung (Felder leer) bleibt alles wie bisher: Die Abwesenheit für
+Hybrid-Nutzer ist gesperrt, und kein Aufruf geht an die lokale Exchange.
+EXO-Postfächer laufen nie über EWS. Das Kennwort wird nie in die Seite
+geschrieben, in der Oberfläche maskiert und nicht exportiert.
+
+**Zu tun:** nichts — die Anbindung ist optional. Wer die Abwesenheit für
+Hybrid-Nutzer möchte, richtet sie unter *Einstellungen → Allgemein* ein.
+
+---
+
+## v1.12.58 — 2026-11-17 — Test ohne festes Datum
+
+Der Grenzwerttest der Marke „wirkt in bis zu 3 h“ rechnet jetzt relativ zur
+aktuellen Zeit statt mit einem festen Datum (Prüfung gegen Zeitbomben in
+Tests). Keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.57 — 2026-11-17 — Postfachliste: „wirkt in bis zu 3 h“ nach dem Aktivieren
+
+Ein frisch aktiviertes Postfach zeigt in der Postfachliste drei Stunden lang
+die Marke **wirkt in bis zu 3 h** (Tooltip: Exchange übernimmt neue Mitglieder
+der Verteilerliste mit Verzögerung — meist schneller, verlassen kann man sich
+darauf nicht).
+
+Herleitung: Die Mitgliedsliste der Verteilerliste ist nach wenigen Minuten
+aktuell, die Transportregel (`FromMemberOf`) erfasst ein neues Mitglied aber
+erst nach bis zu rund drei Stunden — manchmal deutlich schneller, aber nicht
+verlässlich (gemessen in zwei Tenants; Exchange hält die Auflösung der Gruppe
+zwischengespeichert). In dieser Zeit erreicht die Post des Postfachs das
+Gateway noch nicht, und es wirkte, als sei das Postfach falsch eingerichtet.
+
+Dafür speichert *Postfächer → Speichern* je Postfach den Zeitpunkt der
+Aktivierung (`aktiviert_seit`, UTC) — nur beim Übergang „weder Signatur noch
+S/MIME → eines von beiden an“. Erneutes Speichern behält ihn, Aus- und
+Wiedereinschalten setzt ihn neu. Postfächer, die schon vor dieser Fassung
+aktiv waren, haben keinen Zeitpunkt und bekommen keine Marke.
+
+Die Zeitangabe „5–15 Min.“ in der Meldung nach dem Speichern bezog sich auf
+die Verteilerliste und war für den Regel-Treffer zu kurz; sie lautet jetzt
+„bis zu ~3 Stunden, oft weniger“. Die Angaben zu Änderungen an der
+Transportregel selbst (*Einstellungen → Signatur*) bleiben unverändert.
+
+Dasselbe gilt für Hybrid-Nutzer (v1.12.55): Auch sie kommen über die
+Verteilerliste zur Transportregel, und auch bei ihnen dauert es bis zu drei
+Stunden, bis ihre Post das Gateway erreicht. Die Marke erscheint bei ihnen
+ebenso, neben der Marke **Hybrid** (Tooltip-Hinweise seit v1.12.56).
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.56 — 2026-11-17 — Postfachliste: Hybrid-Hinweis kürzer
+
+Die Zeile unter dem Namen eines Hybrid-Nutzers entfällt. Die gesperrten
+Spalten (S/MIME, Abwesenheit, Add-in) nennen den Grund nur noch als Tooltip
+„Bei Hybrid nicht verfügbar“.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.55 — 2026-11-17 — Hybrid-Nutzer in der Postfachliste
 
 Neue Option unter *Einstellungen → Allgemein → Postfächer*: **Hybrid-Nutzer

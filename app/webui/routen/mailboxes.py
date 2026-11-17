@@ -19,13 +19,18 @@ Verteilerliste. Beides gehört zusammen — steht ein Postfach in der
 Konfiguration, aber nicht in der Verteilerliste, erreicht seine Post das
 Gateway nie; umgekehrt läuft sie durch, ohne verarbeitet zu werden.
 
-Die Verteilerliste braucht nach einer Änderung **5–15 Minuten**, bis Exchange
-sie überall kennt. Wer direkt danach prüft und nichts sieht, hat nicht
-zwangsläufig einen Fehler gefunden.
+Die Mitgliedsliste der Verteilerliste ist nach wenigen Minuten aktuell, die
+Transportregel (`FromMemberOf`) erfasst ein neues Mitglied aber erst nach bis
+zu **~3 Stunden**, oft schneller (gemessen 17.11.2026 in zwei Tenants;
+Exchange hält die Gruppen-Expansion zwischengespeichert). Wer direkt danach
+prüft und nichts sieht, hat nicht zwangsläufig einen Fehler gefunden. Darum
+merkt sich das Speichern den Zeitpunkt der Aktivierung (`aktiviert_seit`), und
+die Postfachliste zeigt in dieser Zeit eine Marke (`regel_wartet`).
 """
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -40,6 +45,36 @@ from webui.deps import (
 )
 
 router = APIRouter()
+
+
+# ── Verzögerung der Transportregel nach der Aktivierung ──────────────────────
+# Gemessen 17.11.2026 (zwei Tenants): Ein neues Mitglied der Verteilerliste
+# steht nach Minuten in der Liste, die FromMemberOf-Regel greift aber erst nach
+# bis zu ~3 Stunden. In diesem Fenster ist „kommt nicht am Gateway an" kein
+# Fehler. Bestandseinträge ohne `aktiviert_seit` gelten als lange aktiv.
+REGEL_VERZOEGERUNG = timedelta(hours=3)
+
+
+def _ist_aktiv(eintrag) -> bool:
+    """Aktiv = Signatur oder S/MIME an (nur dann ist das Postfach in der Liste)."""
+    return isinstance(eintrag, dict) and bool(eintrag.get("sig") or eintrag.get("smime"))
+
+
+def regel_wartet(eintrag, jetzt: datetime | None = None) -> bool:
+    """True, solange ein aktives Postfach jünger als REGEL_VERZOEGERUNG ist."""
+    if not _ist_aktiv(eintrag):
+        return False
+    seit = eintrag.get("aktiviert_seit")
+    if not isinstance(seit, str) or not seit:
+        return False
+    try:
+        t = datetime.fromisoformat(seit.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    jetzt = jetzt or datetime.now(timezone.utc)
+    return timedelta(0) <= jetzt - t < REGEL_VERZOEGERUNG
 
 
 # ── Verteilerlisten-Aktualisierung: Hintergrundlauf ──────────────────────────
@@ -136,6 +171,8 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
             "health_checked": h.get("last_checked"),
             "health_checks": h.get("checks", {}),
             "bookings_url": bookings_map.get(email, ""),
+            "aktiviert_seit": cfg.get("aktiviert_seit"),
+            "regel_wartet": regel_wartet(cfg),
         })
     # Also include configured mailboxes Graph didn't return (removed users / guid-keyed).
     for key, cfg in config_map.items():
@@ -166,11 +203,18 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "health_checked": h.get("last_checked"),
                 "health_checks": h.get("checks", {}),
                 "bookings_url": bookings_map.get(cemail, ""),
+                "aktiviert_seit": cfg.get("aktiviert_seit"),
+                # Hybrid-Eintrag hier = Option aus = nicht in der Verteilerliste:
+                # Es gibt nichts, worauf zu warten wäre.
+                "regel_wartet": regel_wartet(cfg) and not cfg.get("hybrid"),
             })
     result.sort(key=lambda r: _namens_schluessel(r.get("name") or r["email"]))
+    import abwesenheit
     return {"mailboxes": result,
             "hybrid_eingeschaltet": exo_mailboxes.hybrid_eingeschaltet(),
-            "hybrid_aktiv": exo_mailboxes.hybrid_aktiv()}
+            "hybrid_aktiv": exo_mailboxes.hybrid_aktiv(),
+            # Abwesenheit für Hybrid-Nutzer nur mit Anbindung an Exchange lokal (EWS).
+            "hybrid_abwesenheit": abwesenheit.ews_verfuegbar()}
 
 
 @router.get("/api/mailboxes/namen")
@@ -348,6 +392,7 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     # der Postfachseite eine neue Bestellung für alle aus.
     vorher = settings_store.get("MAILBOX_CONFIG") or {}
     smime_vorher = {a for a in _adressen_mit_smime(vorher)}
+    jetzt_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
     # address → EXO record (cached; empty on EXO failure → graceful e-mail-key fallback)
     # Mit Hybrid-Nutzern (nur solange die Option wirkt): auch sie werden an ihrer
     # ExchangeGuid verankert — sie überlebt eine spätere Migration nach EXO.
@@ -441,6 +486,16 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         # Eintrag übernehmen: Kalender-Automatik, Ankündigungs-Einstellungen und die
         # Self-Service-Vorlagenfreigabe.
         _alt = vorher.get(key, {})
+        # Aktivierungszeitpunkt: neu beim ÜBERGANG „nicht aktiv → aktiv", sonst
+        # übernommen. Den vorigen Eintrag auch über die Adresse suchen — beim
+        # Umschlüsseln (E-Mail → ExchangeGuid) fände `vorher.get(key)` ihn nicht,
+        # und das Postfach erschiene fälschlich als frisch aktiviert.
+        _vor = _alt if isinstance(_alt, dict) and _alt else (
+            vorher.get(mailbox_match.match_sender_key(vorher, email)) or {})
+        if not _ist_aktiv(_vor):
+            entry["aktiviert_seit"] = jetzt_iso
+        elif _vor.get("aktiviert_seit"):
+            entry["aktiviert_seit"] = _vor["aktiviert_seit"]
         for _f in ("ooo_calendar", "oof_announce", "oof_announce_mode",
                    "oof_announce_x", "oof_announce_privat", "oof_announce_extern",
                    "self_templates", *_ohne_angabe):

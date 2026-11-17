@@ -268,6 +268,9 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
             clean["HOSTS_EINTRAEGE"] = namensaufloesung.normalisieren(str(clean["HOSTS_EINTRAEGE"] or ""))
         except ValueError as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    fehler = _ews_onprem_pruefen(clean)
+    if fehler:
+        return JSONResponse({"ok": False, "error": fehler}, status_code=400)
     settings_store.update(clean)
     if "HYBRID_POSTFAECHER" in clean or "REINJECT_MODE" in clean:
         # Das PowerShell-Skript der Postfachliste hängt an beiden (Get-MailUser
@@ -281,6 +284,47 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
     aufgaben.vergessen()        # der Sammelpunkt soll die Änderung gleich zeigen
     log.info("Settings updated by %s: %s", user, list(clean.keys()))
     return JSONResponse({"ok": True})
+
+
+def _ews_onprem_pruefen(clean: dict) -> str:
+    """Anbindung an Exchange lokal: Adresse/IP prüfen, Werte trimmen. Fehlertext oder ""."""
+    import ews_onprem
+    for k in ("EWS_ONPREM_URL", "EWS_ONPREM_KONTO", "EWS_ONPREM_VERBINDEN", "EWS_ONPREM_KENNWORT"):
+        if k not in clean:
+            continue
+        v = clean[k] if isinstance(clean[k], str) else ""
+        if any(c in v for c in "\r\n"):
+            return "Kein Zeilenumbruch in den Feldern der Anbindung an Exchange lokal"
+        clean[k] = v if k == "EWS_ONPREM_KENNWORT" else v.strip()
+    if clean.get("EWS_ONPREM_URL"):
+        f = ews_onprem.url_pruefen(clean["EWS_ONPREM_URL"])
+        if f:
+            return f
+    if clean.get("EWS_ONPREM_VERBINDEN"):
+        return ews_onprem.verbinden_pruefen(clean["EWS_ONPREM_VERBINDEN"])
+    return ""
+
+
+@router.post("/api/ews-onprem/test")
+async def api_ews_onprem_test(request: Request, user: str = Depends(_require_admin)):
+    """„Verbindung testen“: GetUserOofSettings auf eine Adresse — mit der
+    GESPEICHERTEN Anbindung. Liest nur, ändert nichts."""
+    import asyncio
+    import ews_onprem
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    adresse = (body.get("adresse") or "").strip() if isinstance(body, dict) else ""
+    if not ews_onprem.konfiguriert():
+        return JSONResponse({"ok": False, "code": "konfiguration",
+                             "error": "Erst EWS-Adresse, Dienstkonto und Kennwort speichern."})
+    erg = await asyncio.to_thread(ews_onprem.verbindung_testen, adresse)
+    log.info("EWS-Verbindungstest durch %s für %s: %s", user, adresse,
+             "ok" if erg["ok"] else erg["code"])
+    if not erg["ok"]:
+        erg["error"] = erg["detail"]
+    return JSONResponse(erg)
 
 
 # ── Separates SMTP-Listener-Zertifikat (Erweitert) ───────────────────────────

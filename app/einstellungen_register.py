@@ -223,6 +223,10 @@ REGISTER: dict[str, E] = {
     "ONPREM_MAILUSERS": E(art=ZUSTAND),      # via Get-MailUser abgeglichen, nicht von Hand
     "ONPREM_MAILUSERS_TS": E(art=ZUSTAND),   # Zeitpunkt des letzten Abgleichs
     "HYBRID_POSTFAECHER": E(art=OPTION, ort="settings.html"),  # Hybrid-Nutzer in die Postfachliste
+    "EWS_ONPREM_URL": E(art=OPTION, ort="settings.html"),        # EWS der lokalen Exchange
+    "EWS_ONPREM_KONTO": E(art=OPTION, ort="settings.html"),      # Dienstkonto (NTLM)
+    "EWS_ONPREM_KENNWORT": E(art=GEHEIMNIS, ort="settings.html"),  # Kennwort des Dienstkontos
+    "EWS_ONPREM_VERBINDEN": E(art=OPTION, ort="settings.html"),  # IP für Split-DNS
     "RELAY_USER": E(
         art=NOTNAGEL,
         grund="Benutzername für einen vorgeschalteten Relay, der eine Anmeldung "

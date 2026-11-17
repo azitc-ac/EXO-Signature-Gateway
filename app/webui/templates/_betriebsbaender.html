@@ -141,7 +141,9 @@
     {% if _ooo_zg.richtlinie %}Die Zugriffsrichtlinie der Gateway-App sperrt
     {{ 'es' if _ooo_zg.richtlinie == 1 else 'sie' }}: Speichere unter Postfächer, damit das Gateway
     {{ 'es' if _ooo_zg.richtlinie == 1 else 'sie' }} in die Gruppe „{{ _ooo_zg.gruppe }}“ einträgt.{% endif %}
-    {% if _ooo_zg.zustimmung %}Die Berechtigung MailboxSettings.ReadWrite fehlt (Admin-Zustimmung).{% endif %}</span>
+    {% if _ooo_zg.zustimmung %}Die Berechtigung MailboxSettings.ReadWrite fehlt (Admin-Zustimmung).{% endif %}
+    {% if _ooo_zg.ews %}Das Dienstkonto der lokalen Exchange darf
+    {{ 'es' if _ooo_zg.ews == 1 else 'sie' }} nicht (Management Scope/ApplicationImpersonation).{% endif %}</span>
   <a href="/abwesenheit" style="color:#92400e;font-weight:700;margin-left:auto">Zur Abwesenheit</a>
 </div>
 {% endif %}
