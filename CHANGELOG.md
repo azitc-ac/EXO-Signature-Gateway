@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.88 — 2026-11-18 — Mindestbreite der Tabellen aus v1.12.87 wiederhergestellt
+
+v1.12.87 nahm zwei Tabellen (*Standards und Richtlinien*, *Übersicht →
+Zertifikate*) die Mindestbreite, damit sie auf dem Telefon nicht abgeschnitten
+werden. Ohne Mindestbreite quetscht sich eine Tabelle aber zusammen, statt zu
+rollen. Beide haben jetzt eine kleine Mindestbreite (300 bzw. 320 px), die auch
+auf einem 393-px-Bildschirm Platz hat.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.87 — 2026-11-18 — Nachbesserungen: Telefonansicht, Texte, Fassung des Knopf-Add-ins
 
 * **Einrichtung → Outlook Add-in → Knopf** zeigt jetzt wie das Verfassen-Add-in
