@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.81 — 2026-11-18 — Identitätstoken: msexchuid als reine GUID
+
+Exchange Server SE (15.2.2562) liefert `msexchuid` im Exchange-Identitätstoken
+als reine GUID ohne den Zusatz `@<Server>`. Gemessen mit Classic Outlook und
+einem Konto auf Exchange lokal. Das Gateway nimmt jetzt beide Formen an. Die
+Zuordnung zum Hybrid-Postfach über dessen GUID bleibt unverändert streng.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.80 — 2026-11-18 — Identitätstoken: Ablehnung nennt die Form
 
 Lehnt das Gateway ein Exchange-Identitätstoken ab, weil `msexchuid` nicht die

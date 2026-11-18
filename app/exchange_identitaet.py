@@ -41,7 +41,8 @@ IDENTITÄT
 ---------
 Das Token nennt KEINE Adresse: `appctx` hat nur `msexchuid`, `version`,
 `amurl` (MS Learn, Tabelle „appctx“). `msexchuid` hat die Form
-`<GUID>@<Server>`. Annahme (Fremdquelle, nicht von Microsoft dokumentiert):
+eine GUID — gemessen an Exchange SE 15.2.2562 OHNE Zusatz, laut Fremdquelle
+auch `<GUID>@<Server>`; beides wird angenommen. Annahme (nicht von Microsoft dokumentiert):
 die GUID ist die msExchMailboxGuid = ExchangeGuid des Postfachs. Die
 Zuordnung ist deshalb streng: Die GUID muss der ExchangeGuid eines
 Hybrid-Eintrags gehören (Zwischenspeicher `exo_mailboxes`, Typ MailUser, oder
@@ -80,8 +81,11 @@ METADATEN_GILT_S = 3600                   # Zwischenspeicher je Dokument
 NEU_LADEN_PAUSE_S = 300                   # unbekanntes x5t: frühestens dann neu laden
 ZEITLIMIT_S = 10
 
+# Gemessen 18.11.2026 (Exchange SE 15.2.2562, Classic Outlook): msexchuid ist eine
+# REINE GUID (Form 8-4-4-4-12), ohne „@Server“. Die Form <GUID>@<Server> aus der
+# Fremdquelle bleibt zugelassen (ältere Fassungen); geprüft wird nur die GUID.
 _GUID_RE = re.compile(r"^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
-                      r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12})@[^@\s]{1,253}$")
+                      r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:@[^@\s]{1,253})?$")
 _lock = threading.Lock()
 _metadaten: dict[str, tuple[float, dict]] = {}
 
@@ -319,7 +323,7 @@ def postfach_zuordnen(msexchuid, appctx_schluessel=None) -> str:
     import mailbox_match
     m = _GUID_RE.match(msexchuid if isinstance(msexchuid, str) else "")
     if not m:
-        raise Abgelehnt("msexchuid fehlt oder hat nicht die Form <GUID>@<Server> "
+        raise Abgelehnt("msexchuid fehlt oder ist keine GUID (auch nicht <GUID>@<Server>) "
                         f"(Form: {form_beschreiben(msexchuid)}; appctx-Schlüssel: "
                         f"{', '.join(sorted(appctx_schluessel or [])) or '-'})")
     guid = m.group(1).lower()

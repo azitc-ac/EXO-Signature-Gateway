@@ -373,9 +373,17 @@ def test_ablehnung_nennt_form_aber_nicht_den_wert():
     """Die Ablehnung zeigt die Form von msexchuid und die appctx-Schlüssel, nicht
     die Kennung selbst (Diagnose der ersten Live-Probe, 18.11.2026)."""
     from exchange_identitaet import Abgelehnt, postfach_zuordnen
-    geheim = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+    geheim = "3f2504e0-4f89-11d3-9a0c-0305e82c3301x"      # keine GUID-Form
     with pytest.raises(Abgelehnt) as fehler:
         postfach_zuordnen(geheim, ["amurl", "msexchuid", "version"])
     text = str(fehler.value)
-    assert "8-4-4-4-12" in text and "amurl, msexchuid, version" in text
+    assert "8-4-4-4-13" in text and "amurl, msexchuid, version" in text
     assert geheim not in text and "3f2504e0" not in text
+
+
+def test_reine_guid_wie_exchange_se(umgebung):
+    """Gemessen 18.11.2026, Exchange SE 15.2.2562: msexchuid ist eine reine GUID
+    ohne „@Server“ (Form 8-4-4-4-12). Sie muss zugeordnet werden."""
+    assert _pruefen(_token(ctx={"msexchuid": G_HYBRID})) == HYBRID
+    assert _pruefen(_token(ctx={"msexchuid": G_HYBRID.upper()})) == HYBRID
+
