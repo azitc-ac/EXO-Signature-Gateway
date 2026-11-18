@@ -363,6 +363,19 @@ def test_fair_use_zaehlt_hybrid_mit(speicher):
     assert license.enabled_mailbox_count() == 2
 
 
+def test_fair_use_ohne_wirksame_option_zaehlt_hybrid_nicht(speicher):
+    """Ausgeschaltet bzw. Rückweg nicht smtp: Das Gateway bedient den
+    Hybrid-Eintrag nicht — er zählt nicht zur Lizenz (Entscheidung 18.11.)."""
+    import license
+    store, modus = speicher
+    store["MAILBOX_CONFIG"] = CFG
+    store["HYBRID_POSTFAECHER"] = False
+    assert license.enabled_mailbox_count() == 1
+    store["HYBRID_POSTFAECHER"] = True
+    modus["wert"] = "graph"
+    assert license.enabled_mailbox_count() == 1
+
+
 def test_imap_grant_und_abwesenheit_ohne_hybrid(speicher):
     import abwesenheit
     import regel_split

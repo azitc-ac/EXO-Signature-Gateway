@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.79 — 2026-11-18 — Hybrid-Postfächer zählen nur, wenn das Gateway sie bedient
+
+Für die Postfachzählung der Lizenz (Fair Use) zählen Hybrid-Postfächer nur
+noch, solange die Option *Hybrid-Nutzer einbeziehen* wirkt, also eingeschaltet
+und mit Rückweg SMTP Port 25. Ist sie aus, bleiben die Einträge gespeichert und
+kommen beim Wiedereinschalten zurück. Das Gateway nimmt sie dann aber weder in
+die Verteilerliste auf noch versieht es ihre Post mit einer Signatur. Bisher
+wurden sie trotzdem mitgezählt.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.78 — 2026-11-18 — Sicherheitsprüfung: Fingerabdruck im Identitätstoken
 
 Der SHA-1-Fingerabdruck (`x5t`) im Exchange-Identitätstoken aus v1.12.77 ist

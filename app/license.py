@@ -114,10 +114,18 @@ def enabled_mailbox_count() -> int:
     ("leer = alle") — das widersprach dem Handler und meldete auf frisch
     eingerichteten Gateways ohne aktiviertes Postfach fälschlich eine
     Fair-Use-Auslastung (in großen Tenants sogar eine Überschreitung).
+
+    Hybrid-Einträge zählen nur, solange die Hybrid-Option WIRKT
+    (`exo_mailboxes.hybrid_aktiv`): Ist sie aus (oder der Rückweg nicht smtp),
+    bleibt der Eintrag zwar gespeichert, das Gateway bedient das Postfach aber
+    nicht — weder Verteilerliste noch Signatur (Entscheidung 18.11.2026).
     """
+    import exo_mailboxes
+    hybrid_zaehlt = exo_mailboxes.hybrid_aktiv()
     mc = settings_store.get("MAILBOX_CONFIG") or {}
     return sum(1 for cfg in mc.values()
-               if isinstance(cfg, dict) and (cfg.get("sig") or cfg.get("smime")))
+               if isinstance(cfg, dict) and (cfg.get("sig") or cfg.get("smime"))
+               and (hybrid_zaehlt or not cfg.get("hybrid")))
 
 
 def fair_use_state() -> dict:
