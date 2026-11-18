@@ -1127,3 +1127,76 @@ async def run_all_checks(emails: list[str] | None = None) -> dict:
         _ergebnisse_schreiben(puffer)
 
     return results
+
+
+# ── Nach einer Änderung der Anbindung an Exchange lokal (seit v1.12.72) ───────
+#
+# Die Prüfungen „Abwesenheit“ (EWS-Zugriff) und „Postfach lesen (EWS)“ der
+# Hybrid-Nutzer hängen an EWS_ONPREM_*. Ohne neuen Lauf zeigte der Status nach
+# dem Einrichten weiter „entfällt“ (Stand von vor der Einrichtung) — bis zum
+# nächsten Prüflauf oder „Status aktualisieren“. Ein Erfolg gilt sonst sechs
+# Stunden (_EWS_GUELTIG): Ein „OK“ der ALTEN Anbindung darf eine neue, kaputte
+# nicht überdecken — deshalb werden beide Einträge vor dem Lauf verworfen.
+
+EWS_SCHLUESSEL = ("EWS_ONPREM_URL", "EWS_ONPREM_KONTO", "EWS_ONPREM_KENNWORT",
+                  "EWS_ONPREM_VERBINDEN", "EWS_ONPREM_CA")
+EWS_PRUEFUNGEN = ("abwesenheit", "postfach_lesen")
+_ews_lauf: set = set()            # höchstens EIN Nachlauf (Referenz gegen den GC)
+
+
+def ews_geaendert(neu: dict, alt_get) -> bool:
+    """Ändert `neu` (bereinigte Einstellungen vor dem Speichern) die Anbindung?
+    `alt_get` liest den gespeicherten Stand (settings_store.get)."""
+    return any(k in neu and (neu[k] or "") != (alt_get(k) or "") for k in EWS_SCHLUESSEL)
+
+
+def _hybrid_konfiguriert() -> list[str]:
+    import exo_mailboxes
+    import mailbox_match
+    cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    return [e for e in mailbox_match.configured_addresses(cfg) if exo_mailboxes.ist_hybrid(e)]
+
+
+def _ews_ergebnisse_verwerfen(emails: list[str]) -> None:
+    with settings_store._lock:
+        health = dict(settings_store.get("MAILBOX_HEALTH") or {})
+        geaendert = False
+        for e in emails:
+            eintrag = health.get(e)
+            if not isinstance(eintrag, dict) or not isinstance(eintrag.get("checks"), dict):
+                continue
+            checks = dict(eintrag["checks"])
+            weg = [n for n in EWS_PRUEFUNGEN if checks.pop(n, None) is not None]
+            if weg:      # Liste, nicht any(Generator): der bräche nach dem ersten ab
+                health[e] = {**eintrag, "checks": checks}
+                geaendert = True
+        if geaendert:
+            settings_store.force_update({"MAILBOX_HEALTH": health})
+
+
+def nach_ews_aenderung() -> str:
+    """Hybrid-Nutzer im Hintergrund neu prüfen. Aus dem Speicherweg
+    (POST /settings), im Event-Loop. → "gestartet" | "laeuft" | "keine".
+    Gedrosselt: Läuft schon ein Nachlauf, startet kein zweiter — er liest die
+    Anbindung ohnehin erst beim jeweiligen Postfach."""
+    if _ews_lauf:
+        log.info("health_check: Anbindung an Exchange lokal geändert — Nachlauf läuft schon")
+        return "laeuft"
+    emails = _hybrid_konfiguriert()
+    if not emails:
+        return "keine"
+    _ews_ergebnisse_verwerfen(emails)
+
+    async def _lauf():
+        try:
+            await run_all_checks(emails)
+            log.info("health_check: Nachlauf nach Änderung der Anbindung an Exchange lokal "
+                     "— %d Hybrid-Nutzer geprüft", len(emails))
+        except Exception as exc:                               # noqa: BLE001
+            log.warning("health_check: Nachlauf nach Änderung der Anbindung gescheitert — %s", exc)
+    aufgabe = asyncio.get_running_loop().create_task(_lauf())
+    _ews_lauf.add(aufgabe)
+    aufgabe.add_done_callback(_ews_lauf.discard)
+    log.info("health_check: Anbindung an Exchange lokal geändert — %d Hybrid-Nutzer werden "
+             "neu geprüft", len(emails))
+    return "gestartet"

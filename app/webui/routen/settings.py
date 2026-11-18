@@ -267,7 +267,13 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
     fehler = _ews_onprem_pruefen(clean)
     if fehler:
         return JSONResponse({"ok": False, "error": fehler}, status_code=400)
+    import health_check
+    ews_neu = health_check.ews_geaendert(clean, settings_store.get)
     settings_store.update(clean)
+    if ews_neu:
+        # Status der Hybrid-Nutzer (Abwesenheit, Postfach lesen) hängt an der
+        # Anbindung — neu prüfen statt „entfällt“ von vorher stehen zu lassen.
+        health_check.nach_ews_aenderung()
     if "HYBRID_POSTFAECHER" in clean or "REINJECT_MODE" in clean:
         # Das PowerShell-Skript der Postfachliste hängt an beiden (Get-MailUser
         # nur bei wirksamer Hybrid-Option) — der nächste Abruf fragt EXO frisch.
