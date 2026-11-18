@@ -730,8 +730,12 @@ def knopf_manifest_xml(base: str, lokal: bool = False) -> str:
 # with redirections are not supported“). Hauptweg ist -FileData: Im Lab
 # (Exchange SE, 18.11.2026) scheiterte -Url mit „The app couldn't be
 # downloaded.“, obwohl Invoke-WebRequest auf demselben Server die Adresse
-# abrief und die Route ohne Anmeldung 200 + XML ohne Umleitung liefert —
-# Ursache offen.
+# abrief und die Route ohne Anmeldung 200 + XML ohne Umleitung liefert.
+# Gegenprobe (Remove-App, dann nur -Url): erneut gescheitert, und weder das
+# Gateway-Protokoll (manifest_abruf_loggen) noch der vorgeschaltete Proxy sah
+# eine Verbindung — der Exchange-Dienst scheitert VOR dem Netz (eigener
+# Dienstkontext/WinHTTP statt Sitzungs-Proxy; genaue Ursache offen). „AppId
+# schon vorhanden“ ist damit widerlegt.
 # Manifeste: Verfassen-Add-in unverändert (verlangt höchstens Mailbox 1.5, lokal
 # eingespielt ✓). Knopf-Add-in in eigener Fassung ohne Mailbox 1.13
 # (knopf_manifest_xml(lokal=True), KNOPF_LOKAL_PFAD) — die Exchange-Online-

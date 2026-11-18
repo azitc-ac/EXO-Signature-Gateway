@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.83 — 2026-11-18 — Hinweis zu `New-App -Url` präzisiert
+
+Unter *Einrichtung → Outlook Add-in → Exchange lokal* heißt es jetzt deutlicher:
+`-Url` lädt das Manifest aus dem Exchange-Dienst heraus, nicht über die
+Proxy-Einstellung deiner Sitzung. Im Lab baute der Exchange-Dienst bei `-Url`
+keine Verbindung auf. Weder das Gateway noch der vorgeschaltete Proxy sahen eine
+Anfrage, obwohl dieselbe Adresse aus der Verwaltungsshell abrufbar war. Der
+empfohlene Weg bleibt `-FileData`.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.82 — 2026-11-18 — Identitätstoken: Zuordnung belegt
 
 Die Annahme aus v1.12.77 ist live bestätigt: `msexchuid` im Exchange-Identitätstoken
