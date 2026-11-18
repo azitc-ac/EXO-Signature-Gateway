@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.75 — 2026-11-18 — Abruf der Add-in-Manifeste im Protokoll
+
+Jeder Abruf eines Add-in-Manifests (Knopf, Knopf für Exchange lokal,
+Verfassen) erscheint jetzt im Protokoll, mit IP, weitergereichter IP und
+Programm. Damit lässt sich prüfen, ob `New-App -Url` den Gateway überhaupt
+erreicht. Meldet Exchange „The app couldn't be downloaded“, ohne dass eine
+solche Zeile erscheint, kam die Anfrage nie an (z. B. Proxy des
+Exchange-Servers).
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.74 — 2026-11-18 — Neue Mail aus Outlook im Web (Exchange lokal) bekam eine zweite Signatur; Knopf-Add-in für Exchange lokal
 
 **Neue Mail aus dem klassischen Outlook im Web: keine zweite Signatur mehr.**

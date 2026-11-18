@@ -89,6 +89,8 @@ def addin_id(hostname: str) -> str:
 
 @router.get("/addin/verfassen/manifest.xml")
 async def verfassen_manifest(request: Request):
+    from webui.routen import addin as _addin
+    _addin.manifest_abruf_loggen(request, "Verfassen")
     return Response(content=verfassen_manifest_xml(_addin_base_url(request)),
                     media_type="application/xml")
 
