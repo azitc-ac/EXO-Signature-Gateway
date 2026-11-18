@@ -938,7 +938,8 @@ function nbPostfaecherFiltern() {
     if (passt) sichtbar++;
   });
   document.getElementById('nb-pf-zahl').textContent = !zeilen.length ? ''
-    : (q ? sichtbar + ' von ' + zeilen.length : zeilen.length) + ' Postfächer';
+    : q ? sichtbar + ' von ' + zeilen.length + ' Postfächern'
+        : zeilen.length + (zeilen.length === 1 ? ' Postfach' : ' Postfächer');
 }
 
 // ── Platzbedarf ──────────────────────────────────────────────────────────
