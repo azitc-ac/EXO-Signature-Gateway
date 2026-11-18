@@ -9,9 +9,11 @@
     Idempotent, bei jeder Postfach-Änderung aufrufbar:
       1. Security-Gruppe (mail-enabled) sicherstellen — ApplicationAccessPolicy
          verlangt eine Security-Gruppe, keine Distribution-Gruppe.
-      2. Mitglieder auf die übergebene Liste synchronisieren
-         (`-BypassSecurityGroupManagerCheck`, da die App-only-Identität nicht
-         Gruppen-Manager ist). Nicht existierende Adressen werden übersprungen.
+      2. Mitglieder auf die übergebene Liste synchronisieren — gemeinsamer
+         Abgleich Sync-DgMitglieder (dg_mitglieder.ps1) mit
+         `-UmgehtManagerPruefung` (= -BypassSecurityGroupManagerCheck, da die
+         App-only-Identität nicht Gruppen-Manager ist). Nicht existierende
+         Adressen werden übersprungen (Fehler je Mitglied, Lauf geht weiter).
       3. Policy anlegen (RestrictAccess), falls noch keine für die App existiert.
       4. RBAC for Applications: Management-Scope auf DIESELBE Gruppe + die Rollen
          Application Mail.Send/Mail.ReadWrite der App zuweisen. Postfächer mit
@@ -37,6 +39,8 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+. (Join-Path $PSScriptRoot 'dg_mitglieder.ps1')
 
 function Write-Step([string]$m) { Write-Host "[AAP] $m"  -ForegroundColor Cyan }
 function Write-OK([string]$m)   { Write-Host "[OK] $m"   -ForegroundColor Green }
@@ -65,20 +69,17 @@ try {
     Set-DistributionGroup -Identity $GroupName -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
 
     # ── 2. Mitglieder synchronisieren ─────────────────────────────────────────
-    $current = @(Get-DistributionGroupMember -Identity $GroupName -ResultSize Unlimited |
-        ForEach-Object { $_.PrimarySmtpAddress.ToLower() })
+    # Gemeinsamer Abgleich mit den Verteilerlisten (dg_mitglieder.ps1): ab vielen
+    # Aenderungen EIN Update-DistributionGroupMember statt je Mitglied ein Aufruf
+    # (hunderte Postfaecher liefen sonst in die Zeitgrenze). Das Cmdlet gilt laut
+    # Microsoft auch fuer mail-enabled Security-Gruppen. Leere Ziel-Liste: der
+    # Abgleich wird gar nicht gerufen — er wuerde einzeln leeren.
     if ($desired.Count -eq 0) {
         Write-Warn "Keine Ziel-Postfaecher — Mitglieder werden NICHT geleert (RestrictAccess wuerde sonst ALLES sperren)."
     } else {
-        $want = @($desired | ForEach-Object { $_.ToLower() })
-        foreach ($m in ($want | Where-Object { $_ -notin $current })) {
-            try { Add-DistributionGroupMember -Identity $GroupName -Member $m -BypassSecurityGroupManagerCheck -ErrorAction Stop; Write-OK "  + $m" }
-            catch { if ($_.Exception.Message -like "*already*"){Write-OK "  = $m"} else {Write-Warn "  uebersprungen $m : $($_.Exception.Message)"} }
-        }
-        foreach ($m in ($current | Where-Object { $_ -notin $want })) {
-            try { Remove-DistributionGroupMember -Identity $GroupName -Member $m -BypassSecurityGroupManagerCheck -Confirm:$false -ErrorAction Stop; Write-OK "  - $m" }
-            catch { Write-Warn "  entfernen fehlgeschlagen $m : $($_.Exception.Message)" }
-        }
+        # Fehler je Mitglied (etwa eine nicht existierende Adresse) bleiben
+        # Warnungen im Protokoll ([DG-SYNC]-Zeile), der Lauf geht weiter.
+        $null = Sync-DgMitglieder -Identity $GroupName -Soll $desired -UmgehtManagerPruefung
     }
 
     # ── 3. Policy sicherstellen (nur bei befuellter Gruppe) ────────────────────
