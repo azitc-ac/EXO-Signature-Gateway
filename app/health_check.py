@@ -111,12 +111,22 @@ def _check_exo_mailbox_sync(email: str) -> dict:
 
 # ── Check 2+3: dg_member + imap_permission (single PS run for all mailboxes) ─
 
-def _check_exo_batch_sync(emails: list[str]) -> dict:
+def _check_exo_batch_sync(emails: list[str], ohne_app: set[str] | None = None) -> dict:
     """
     Run a single PowerShell session for all emails at once.
     Returns dict: {email: {"dg_member": bool, "dg_fixed": bool,
                             "imap_perm": bool, "imap_fixed": bool}}
+
+    `ohne_app`: Adressen ohne Get-App-Abfrage — Hybrid-Nutzer. Get-App braucht
+    ein EXO-Postfach; für einen MailUser scheitert jeder Aufruf, und
+    `_checks_hybrid` wertet die Add-ins ohnehin nicht aus. Bis v1.12.66 lief er
+    trotzdem: je Hybrid-Nutzer und Add-in ein Aufruf (0,8–1,3 s), bei 500
+    Hybrid-Nutzern und zwei Add-ins rund eine Viertelstunde je Prüflauf.
     """
+    if ohne_app is None:
+        import exo_mailboxes
+        ohne_app = {e for e in emails if exo_mailboxes.ist_hybrid(e)}
+    ohne_app = {e.lower() for e in ohne_app}
     import config as _config
 
     app_id = _config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
@@ -142,6 +152,7 @@ def _check_exo_batch_sync(emails: list[str]) -> dict:
     import ps_text
     ps_check_imap = "1" if check_imap else "0"
     addin_ids_json = json.dumps([a["id"] for a in _addin_soll()])
+    ohne_app_json = json.dumps(sorted(ohne_app))
 
     ps_script = f"""
 $ErrorActionPreference = 'SilentlyContinue'
@@ -161,6 +172,7 @@ $checkImap = [int]'{ps_check_imap}'
 $emailsJson = '{ps_text.lit(emails_json)}'
 $emails = $emailsJson | ConvertFrom-Json
 $addinIds = @('{ps_text.lit(addin_ids_json)}' | ConvertFrom-Json)
+$ohneApp = @('{ps_text.lit(ohne_app_json)}' | ConvertFrom-Json)
 
 # Get SP for IMAP permission checks
 $sp = $null
@@ -243,7 +255,7 @@ foreach ($email in $emails) {{
     # (Drosselung, Sitzung weg) kommt als "!<Meldung>" zurück — bis v1.12.42
     # verschluckte SilentlyContinue ihn, und aus „nicht abfragbar“ wurde
     # „nicht installiert“ bzw. in der Abnahme „entfällt“.
-    foreach ($aid in $addinIds) {{
+    foreach ($aid in $(if ($ohneApp -contains $emailLow) {{ @() }} else {{ $addinIds }})) {{
         try {{
             $app = Get-App -Mailbox $email -Identity $aid -ErrorAction Stop
             $addins[$aid] = if ($app) {{ [string]$app.AppVersion }} else {{ "" }}
@@ -281,7 +293,8 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
             # Get-App ist ein Aufruf je Postfach und Add-in (VM 18.10.2026: 0,8–1,3 s) —
             # die feste Grenze reichte für große Tenants nicht mehr.
             capture_output=True, text=True,
-            timeout=180 + 2 * len(emails) * len(_addin_soll()),
+            timeout=180 + 2 * len([e for e in emails if e.lower() not in ohne_app])
+            * len(_addin_soll()),
         )
         Path(ps_path).unlink(missing_ok=True)
 
@@ -664,6 +677,9 @@ async def _check_ews_zugriff(email: str) -> dict:
     zentraler Abwesenheit — wie die Graph-Prüfung."""
     if not settings_store.get("ABWESENHEIT_AKTIV"):
         return _make_result("skip", "Zentrale Abwesenheit ausgeschaltet")
+    alt = _frisch(_alt_check(email, "abwesenheit"), _EWS_GUELTIG)
+    if alt and str(alt.get("detail", "")).startswith("EWS-Zugriff"):
+        return alt
     import ews_onprem
     erg = await asyncio.to_thread(ews_onprem.verbindung_testen, email)
     if erg["ok"]:
@@ -684,6 +700,9 @@ async def _check_postfach_lesen(email: str, smime_active) -> dict:
     if ews_onprem.postfach_weg(email) != ews_onprem.WEG_EWS:
         return _make_result("skip", "Zertifikatsbezug nur per Import — Anbindung an "
                                     "Exchange lokal (EWS) nicht eingerichtet")
+    alt = _frisch(_alt_check(email, "postfach_lesen"), _EWS_GUELTIG)
+    if alt:
+        return alt
     try:
         await asyncio.to_thread(ews_onprem.posteingang_suchen, email, 1)
     except ews_onprem.EwsFehler as exc:
@@ -702,15 +721,35 @@ _KV_GUELTIG = 24 * 3600
 
 
 def _kv_frisch(alt: dict | None) -> dict | None:
+    return _frisch(alt, _KV_GUELTIG)
+
+
+def _frisch(alt: dict | None, gueltig: float) -> dict | None:
+    """Das letzte Ergebnis, wenn es OK war und jünger als `gueltig` Sekunden."""
     if not alt or alt.get("status") != "ok" or not alt.get("checked_at"):
         return None
     try:
         t = datetime.strptime(alt["checked_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     except ValueError:
         return None
-    if (datetime.now(timezone.utc) - t).total_seconds() < _KV_GUELTIG:
+    if (datetime.now(timezone.utc) - t).total_seconds() < gueltig:
         return alt
     return None
+
+
+# Die EWS-Proben der Hybrid-Nutzer (Abwesenheit lesbar, Posteingang lesbar)
+# kosten je Postfach einen Aufruf an die lokale Exchange (Lab: 0,30 s median).
+# Bei 500 Hybrid-Nutzern mit S/MIME rund fünf Minuten je Prüflauf im
+# Scheduler-Faden, alle 30 Minuten. Ein Erfolg gilt deshalb sechs Stunden; ein
+# Fehler wird bei jedem Lauf neu geprüft (Behebung sofort sichtbar). Ob der
+# Zugriff im Betrieb noch geht, zeigt ohnehin der Abwesenheitsabgleich alle
+# 10 Minuten („kein Zugriff“ in seiner Zählung).
+_EWS_GUELTIG = 6 * 3600
+
+
+def _alt_check(email: str, name: str) -> dict | None:
+    return (((settings_store.get("MAILBOX_HEALTH") or {}).get(email) or {})
+            .get("checks", {}).get(name))
 
 
 # ── Overall status ────────────────────────────────────────────────────────────
@@ -726,17 +765,24 @@ def _compute_overall(checks: dict) -> str:
 
 # ── Single mailbox check ──────────────────────────────────────────────────────
 
-async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> dict:
+async def run_checks_for_mailbox(email: str, exo_data: dict | None = None,
+                                 _cfg: dict | None = None, _puffer: dict | None = None) -> dict:
     """
     Run all checks for a single mailbox.
     exo_data: pre-fetched result from _check_exo_batch_sync (avoids duplicate PS sessions).
     Updates settings_store under MAILBOX_HEALTH[email].
     Returns the check result dict for this mailbox.
+
+    `_cfg`/`_puffer` nur aus `run_all_checks`: der vorab aufgelöste Eintrag
+    (ein Index statt n Indexaufbauten) und der Schreibpuffer (siehe dort).
     """
     import mailbox_match
     email = email.lower().strip()
-    mailbox_config: dict = settings_store.get("MAILBOX_CONFIG") or {}
-    cfg = mailbox_match.match_sender(mailbox_config, email)
+    if _cfg is None:
+        mailbox_config: dict = settings_store.get("MAILBOX_CONFIG") or {}
+        cfg = mailbox_match.match_sender(mailbox_config, email)
+    else:
+        cfg = _cfg
     reinject_mode = settings_store.reinject_mode()
     kv_url = (settings_store.get("KEYVAULT_URL") or "").strip()
     smime_active = cfg.get("smime_sign") or cfg.get("smime_encrypt") or cfg.get("smime")
@@ -746,7 +792,7 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
     import exo_mailboxes
     if exo_mailboxes.ist_hybrid(email):
         checks = await _checks_hybrid(email, cfg, exo_data)
-        return _ergebnis_speichern(email, checks)
+        return _ergebnis_speichern(email, checks, _puffer)
 
     # 1. exo_mailbox (sync, wrapped in executor)
     loop = asyncio.get_event_loop()
@@ -804,7 +850,7 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
     checks["abwesenheit"] = await _check_abwesenheit(email, token)
 
     checks.update(await _checks_smime(email, smime_active, kv_url))
-    return _ergebnis_speichern(email, checks)
+    return _ergebnis_speichern(email, checks, _puffer)
 
 
 async def _checks_smime(email: str, smime_active, kv_url: str) -> dict:
@@ -850,35 +896,52 @@ async def _checks_smime(email: str, smime_active, kv_url: str) -> dict:
     return checks
 
 
-def _ergebnis_speichern(email: str, checks: dict) -> dict:
+def _ergebnis_speichern(email: str, checks: dict, puffer: dict | None = None) -> dict:
+    """Ergebnis eines Postfachs ablegen. Ohne `puffer` sofort (Einzelprüfung);
+    mit `puffer` (Sammellauf) erst beim nächsten `_puffer_schreiben`.
+
+    Anlass für den Puffer (18.11.2026): `settings.json` trägt MAILBOX_CONFIG
+    und MAILBOX_HEALTH aller Postfächer — gemessen 1,7 MB bei 700 Postfächern,
+    328 ms je Schreiben auf dem Raspi. Je Postfach geschrieben waren das rund
+    vier Minuten und gut 1 GB Schreiblast je Prüflauf (alle 30 min)."""
+    result = {"last_checked": _now_str(), "overall": _compute_overall(checks),
+              "checks": checks}
+    if puffer is None:
+        _ergebnisse_schreiben({email: result})
+    else:
+        puffer[email] = result
+    log.info("health_check: %s → overall=%s%s", email, result["overall"],
+             " (Schreiben gesammelt)" if puffer is not None else "")
+    return result
+
+
+def _ergebnisse_schreiben(ergebnisse: dict) -> None:
+    """Ergebnisse in MAILBOX_HEALTH übernehmen — EIN Schreibvorgang.
+
+    Die Regelprobe läuft nur auf Knopfdruck, nie in dieser Prüfung: Ihr letztes
+    Ergebnis wird übernommen, solange es noch gilt (aktives Postfach, Probe nach
+    der letzten Aktivierung). Gelesen wird es HIER, unter der Sperre, nicht beim
+    Prüfen — eine Probe kann parallel in denselben Eintrag schreiben
+    (regel_probe.speichern), auch während ein Sammellauf puffert."""
+    if not ergebnisse:
+        return
     import mailbox_match
     import regel_probe
-    # RLock: Lesen und Schreiben als ein Schritt — eine Regelprobe kann parallel
-    # ihr Ergebnis in denselben Eintrag schreiben (regel_probe.speichern).
-    with settings_store._lock:
+    with settings_store._lock:          # RLock: Lesen und Schreiben als ein Schritt
         health: dict = dict(settings_store.get("MAILBOX_HEALTH") or {})
-        # Die Regelprobe läuft nur auf Knopfdruck, nie in dieser Prüfung: Ihr
-        # letztes Ergebnis wird übernommen, solange es noch gilt (aktives
-        # Postfach, Probe nach der letzten Aktivierung).
-        probe = (health.get(email) or {}).get("regel_probe")
-        cfg = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, email)
-        if regel_probe.aktuell(probe, cfg):
-            checks["regel_greift"] = regel_probe.als_pruefung(probe)
-        else:
-            probe = None
-        overall = _compute_overall(checks)
-        result = {
-            "last_checked": _now_str(),
-            "overall": overall,
-            "checks": checks,
-        }
-        if probe:
-            result["regel_probe"] = probe
-        health[email] = result
+        adr_idx = mailbox_match.build_address_index(settings_store.get("MAILBOX_CONFIG") or {})
+        for email, result in ergebnisse.items():
+            probe = (health.get(email) or {}).get("regel_probe")
+            checks = result["checks"]
+            if regel_probe.aktuell(probe, adr_idx.get(email.lower(), {})):
+                checks["regel_greift"] = regel_probe.als_pruefung(probe)
+                result["regel_probe"] = probe
+            else:
+                checks.pop("regel_greift", None)
+                result.pop("regel_probe", None)
+            result["overall"] = _compute_overall(checks)
+            health[email] = result
         settings_store.force_update({"MAILBOX_HEALTH": health})
-
-    log.info("health_check: %s → overall=%s", email, overall)
-    return result
 
 
 _LOKAL = "Postfach in der lokalen Organisation"
@@ -972,6 +1035,9 @@ def _verteilung_vormerken(exo_data: dict) -> None:
                 av.gesehen(a["art"], a["version"], ((daten.get("addins") or {}).get(a["id"]) or ""))
 
 
+SCHREIB_TAKT = 25      # Sammellauf: so viele Ergebnisse je Schreibvorgang
+
+
 async def run_all_checks(emails: list[str] | None = None) -> dict:
     """
     Run checks for all configured mailboxes (or given list).
@@ -997,19 +1063,34 @@ async def run_all_checks(emails: list[str] | None = None) -> dict:
     _hybrid_wirkt = exo_mailboxes.hybrid_aktiv()
     sammel = [e for e in emails if _hybrid_wirkt or not exo_mailboxes.ist_hybrid(e)]
     loop = asyncio.get_event_loop()
+    # Ohne Get-App für Hybrid-Nutzer: bestimmt _check_exo_batch_sync selbst.
     exo_data = await loop.run_in_executor(None, _check_exo_batch_sync, sammel) if sammel else {}
     _verteilung_vormerken(exo_data)
 
+    # Ein Index statt eines Indexaufbaus je Postfach (mailbox_match.match_sender).
+    adr_idx = mailbox_match.build_address_index(mailbox_config)
+    # Gesammelt schreiben: alle SCHREIB_TAKT Postfächer und am Ende (auch nach
+    # einem Abbruch) — siehe _ergebnis_speichern. Die Übersicht füllt sich so
+    # weiter schrittweise, ohne je Postfach die ganze settings.json zu schreiben.
+    puffer: dict = {}
     results = {}
-    for email in emails:
-        try:
-            results[email] = await run_checks_for_mailbox(email, exo_data=exo_data)
-        except Exception as exc:
-            log.error("health_check: error for %s: %s", email, exc)
-            results[email] = {
-                "last_checked": _now_str(),
-                "overall": "error",
-                "checks": {"exo_mailbox": _make_result("error", str(exc))},
-            }
+    try:
+        for email in emails:
+            try:
+                results[email] = await run_checks_for_mailbox(
+                    email, exo_data=exo_data,
+                    _cfg=adr_idx.get(email.lower().strip(), {}), _puffer=puffer)
+            except Exception as exc:
+                log.error("health_check: error for %s: %s", email, exc)
+                results[email] = {
+                    "last_checked": _now_str(),
+                    "overall": "error",
+                    "checks": {"exo_mailbox": _make_result("error", str(exc))},
+                }
+            if len(puffer) >= SCHREIB_TAKT:
+                _ergebnisse_schreiben(puffer)
+                puffer.clear()
+    finally:
+        _ergebnisse_schreiben(puffer)
 
     return results

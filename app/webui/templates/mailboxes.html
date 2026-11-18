@@ -186,8 +186,23 @@ async function ankerAnwenden() {
         <button class="btn secondary btn-sm" onclick="setAllVisible('smime', true)">Alle</button>
         <button class="btn secondary btn-sm" onclick="setAllVisible('smime', false)">Kein</button>
       </span>
+      <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap"
+            title="Setzt die Auswahl in allen sichtbaren Zeilen, in denen die Spalte bedienbar ist. Gespeichert wird erst mit „Speichern“.">
+        Vorlage für Sichtbare:
+        <select id="mb-massen-spalte" onchange="massenVorlagenListe()" aria-label="Spalte für die Sammelauswahl"
+                style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;max-width:100%">
+          <option value="mb-template|signatur">Standardsignatur</option>
+          <option value="mb-min-sig|signatur|leer">Antwort-Signatur</option>
+          <option value="mb-intern|signatur|leer">Interne Signatur</option>
+          {% if abwesenheit_aktiv() %}<option value="mb-oof|oof|leer">Abwesenheit</option>{% endif %}
+        </select>
+        <select id="mb-massen-vorlage" aria-label="Vorlage für die Sammelauswahl"
+                style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;max-width:100%"></select>
+        <button class="btn secondary btn-sm" onclick="massenVorlageSetzen()">Setzen</button>
+      </span>
+      <span id="mb-massen-status" hidden style="font-size:12px"></span>
       <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px"
-            title="Je Postfach eine Prüfmail an sich selbst: Greift die Transportregel schon? Nur sichtbare, gespeichert aktivierte Postfächer, ohne Hybrid-Nutzer.">
+            title="Je Postfach eine Prüfmail: Greift die Transportregel schon? Nur sichtbare, gespeichert aktivierte Postfächer. Hybrid-Nutzer senden über Exchange lokal an das Absender-Postfach der Benachrichtigungen.">
         Transportregel:
         <button class="btn secondary btn-sm" id="regel-probe-alle-btn" onclick="regelPruefenSichtbare()">Sichtbare prüfen</button>
       </span>
@@ -827,6 +842,7 @@ async function _postfaecherLaden(silent) {
     // bekannten Gesundheitsstand aus MAILBOX_HEALTH mit; die Spalte ist damit
     // sofort da (Werte oder „–"), nicht erst nach Knopfdruck.
     _hasHealthData = true;
+    massenVorlagenListe();
     renderMailboxTable(_mbData);
     document.getElementById('th-status').style.display = '';
     document.getElementById('mb-table-wrap').style.display = '';
@@ -1020,8 +1036,12 @@ function showHealthModal(mb) {
     '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">Transportregel</div>';
   if (mb.sig || mb.smime) {
     regelHtml += '<div style="font-size:11px;color:#64748b;margin-bottom:6px">' +
-      'Sendet eine Prüfmail an das Postfach selbst. Greift die Regel, verwirft das Gateway sie; ' +
-      'sonst löscht es sie aus dem Posteingang. Dauert meist unter 3 Minuten, höchstens 10.</div>' +
+      (mb.type === 'hybrid'
+        ? 'Sendet über Exchange lokal eine Prüfmail an das Absender-Postfach der Benachrichtigungen. '
+          + 'Greift die Regel, verwirft das Gateway sie; sonst löscht es sie dort. '
+        : 'Sendet eine Prüfmail an das Postfach selbst. Greift die Regel, verwirft das Gateway sie; '
+          + 'sonst löscht es sie aus dem Posteingang. ') +
+      'Dauert meist unter 3 Minuten, höchstens 10.</div>' +
       '<button class="btn secondary btn-sm" id="regel-probe-btn" onclick="regelPruefenEins(\'' +
       escJsAttr(mb.email) + '\')">Regel prüfen</button> <span id="regel-probe-ergebnis" hidden></span>';
   } else {
@@ -1269,6 +1289,43 @@ function filterMailboxes() {
   }
 }
 
+// Sammelauswahl „Vorlage für Sichtbare“: dieselben Werte wie die Zeilen-Auswahl
+// (_buildWahlSelect) — Standard, ggf. „keine“, die Vorlagen der Art.
+function massenVorlagenListe() {
+  var teile = feldWert('mb-massen-spalte').split('|');
+  var sel = document.getElementById('mb-massen-vorlage');
+  if (!sel || teile.length < 2) return;
+  // aktuell '' — STANDARD_WAHL hier übergeben, landete es als „Vorlage“ in der Liste.
+  _fuelleVorlagenSelect(sel, teile[1], '', {mitLeer: teile[2] === 'leer', leerText: '— keine —'});
+  var o = document.createElement('option');
+  o.value = STANDARD_WAHL;
+  o.textContent = 'Standard (je Postfach)';
+  sel.insertBefore(o, sel.firstChild);
+  sel.value = STANDARD_WAHL;
+}
+
+function massenVorlageSetzen() {
+  var klasse = feldWert('mb-massen-spalte').split('|')[0];
+  var wert = (document.getElementById('mb-massen-vorlage') || {}).value;
+  if (!klasse || wert === undefined) return;
+  var gesetzt = 0, gesperrt = 0;
+  document.querySelectorAll('#mb-tbody tr').forEach(function(tr) {
+    if (tr.style.display === 'none') return;
+    var sel = tr.querySelector('.' + klasse);
+    if (!sel) return;
+    var vorhanden = Array.prototype.some.call(sel.options, function(o) { return o.value === wert; });
+    if (sel.disabled || !vorhanden) { gesperrt++; return; }
+    if (sel.value !== wert) {
+      sel.value = wert;
+      sel.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+    gesetzt++;
+  });
+  showMsg('mb-massen-status', gesetzt + ' Zeile(n) gesetzt'
+    + (gesperrt ? ', ' + gesperrt + ' übersprungen (Spalte gesperrt, etwa ohne Signatur-Haken)' : '')
+    + ' — wirksam nach „Speichern“.', gesetzt > 0);
+}
+
 function setAllVisible(type, state) {
   // Nur Zeilen, die aktuell nicht durch den Filter ausgeblendet sind (tr.style.display !== 'none')
   var cls = type === 'sig' ? '.mb-sig' : '.mb-smime';
@@ -1343,14 +1400,16 @@ async function regelPruefenSichtbare() {
     var cb = tr.querySelector('.mb-sig');
     var mb = cb ? _mbData[parseInt(cb.dataset.idx)] : null;
     // Gespeicherter Stand zählt: Nur er steht in der Verteilerliste.
-    if (mb && (mb.sig || mb.smime) && mb.type !== 'hybrid') emails.push(mb.email);
+    // Hybrid-Nutzer gehen über Exchange lokal; geht das nicht, nennt der Server den Grund.
+    if (mb && (mb.sig || mb.smime)) emails.push(mb.email);
   });
   if (!emails.length) {
     showMsg('regel-probe-alle-status', 'Keine sichtbaren aktivierten Postfächer.', false);
     return;
   }
   if (!confirm('Transportregel für ' + emails.length + ' Postfach/Postfächer prüfen?\n\n'
-      + 'Je Postfach geht eine Prüfmail an sich selbst. Greift die Regel, verwirft das Gateway '
+      + 'Je Postfach geht eine Prüfmail an sich selbst (Hybrid-Nutzer: über Exchange lokal an das '
+      + 'Absender-Postfach der Benachrichtigungen). Greift die Regel, verwirft das Gateway '
       + 'sie; sonst löscht es sie aus dem Posteingang. Höchstens 3 gleichzeitig, '
       + 'je Postfach bis zu 10 Minuten.')) return;
   var d = await _regelProbe(emails, 'regel-probe-alle-btn', 'regel-probe-alle-status');
@@ -1496,13 +1555,15 @@ async function saveMailboxes() {
 }
 
 // Pollt den Hintergrundlauf der Verteilerlisten-Aktualisierung. Läuft, bis der
-// Server "done" meldet; der Sicherheitsdeckel (~160 s) bricht das Warten ab,
+// Server "done" meldet: 160 s lang alle 2 s, danach alle 10 s bis ~20 min — bei
+// hunderten Postfächern braucht der Lauf Minuten (Server: dg_zeitlimit). Der
+// Sicherheitsdeckel bricht das Warten ab,
 // ohne es als Fehler zu werten — der Lauf kann serverseitig weiterlaufen, und
 // bis die Transportregel neue Mitglieder erfasst, vergehen ohnehin bis zu
 // ~3 Stunden, oft weniger.
 async function _pollDgStatus(result) {
-  for (var i = 0; i < 80; i++) {
-    await warten(2000);
+  for (var i = 0; i < 190; i++) {
+    await warten(i < 80 ? 2000 : 10000);
     // Netzhaken/HTTP-Fehler liefern {ok:false, error} ohne `state` → weiterversuchen.
     var s = await getJSON('/api/mailboxes/dg-status');
     if (s.state !== 'done') continue;

@@ -59,6 +59,17 @@ def data_dir(tmp_path):
             pass
 
 
+@pytest.fixture(autouse=True)
+def _ews_ausfallsperre_leeren():
+    """Die Ausfallsperre der EWS-Anbindung (ews_onprem._ausfall) ist Prozesszustand.
+    Ein Test, der eine gestörte Verbindung nachstellt, darf den nächsten nicht
+    ohne Netzaufruf scheitern lassen. Nur leeren, wenn das Modul schon geladen ist."""
+    m = sys.modules.get("ews_onprem")
+    if m is not None and hasattr(m, "_ausfall"):
+        m._ausfall.clear()
+    yield
+
+
 def mode_of(path: Path) -> str:
     """Rechte als dreistellige Oktalzeichenkette, z.B. '600'."""
     import stat

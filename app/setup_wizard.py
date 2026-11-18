@@ -1290,6 +1290,16 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
         Path(ps_path).unlink(missing_ok=True)
 
 
+def dg_zeitlimit(basis: int, mitglieder: int) -> int:
+    """Zeitgrenze eines Verteilerlisten-Laufs: mindestens `basis`, dazu 2 s je
+    Mitglied. Ab vielen Änderungen setzt dg_mitglieder.ps1 die Liste in EINEM
+    Aufruf; scheitert der, gleicht es einzeln ab — rund ein Aufruf je Mitglied
+    (Annahme ~1 s, wie Get-App 0,8–1,3 s, VM 18.10.2026), im Modus Graph++
+    zusätzlich je Mitglied der FullAccess-Grant. Eine feste Grenze von 180 s
+    brach bei hunderten Postfächern mitten im Abgleich ab."""
+    return max(basis, 120 + 2 * mitglieder)
+
+
 def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -> dict:
     """
     Create/update 'EXO Signature Gateway - Enabled Mailboxes' DG and
@@ -1330,7 +1340,7 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
         cmd.append("-GrantImapFullAccess")
 
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=dg_zeitlimit(180, len(members)))
         output = (proc.stdout + "\n" + proc.stderr).strip()
         if proc.returncode == 0:
             log.info("Mailbox DG update succeeded (%d members)", len(members))
@@ -1374,7 +1384,8 @@ def run_rule_split_setup(app_id: str, tenant_domain: str,
     if smime_members:
         cmd += ["-SmimeMembers", ",".join(smime_members)]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=dg_zeitlimit(
+            300, len(sig_members) + len(smime_members)))
         output = (proc.stdout + "\n" + proc.stderr).strip()
         if proc.returncode == 0:
             log.info("Rule split ok (sig=%d, smime=%d)", len(sig_members), len(smime_members))

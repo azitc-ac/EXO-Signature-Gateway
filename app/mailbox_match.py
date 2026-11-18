@@ -6,8 +6,9 @@ e-mail keys to ExchangeGuid anchors without ever touching this matcher again:
   - e-mail-keyed  {"user@dom": cfg}                       → the key IS the address
   - guid-keyed    {"<guid>": {known_addresses:[...], ...}} → match any known address
 
-The index is tiny (a handful of mailboxes × few aliases), so it is rebuilt per
-call — no cache, no invalidation bugs.
+The index is rebuilt per call — no cache, no invalidation bugs. For ONE
+lookup that is cheap; in a loop over many mailboxes it is n² (700 mailboxes:
+seconds). Loops build the index ONCE: `build_address_index` / `build_key_index`.
 """
 
 
@@ -54,6 +55,37 @@ def match_sender_key(mailbox_config: dict, sender: str) -> str:
             if sender_l in [str(a).lower() for a in cfg.get("known_addresses", [])]:
                 return key
     return ""
+
+
+def build_key_index(mailbox_config: dict) -> dict[str, str]:
+    """address(lower) → MAILBOX_CONFIG-Schlüssel, EINMAL gebaut — für Schleifen
+    über viele Postfächer (Postfachliste, Gesundheitsprüfung).
+
+    Liefert für jede Adresse genau das, was `match_sender_key` liefern würde:
+    Dort gewinnt der ERSTE Eintrag in Einfügereihenfolge, der die Adresse
+    trägt (Primäradresse vor den bekannten Adressen desselben Eintrags) —
+    deshalb `setdefault`. `build_address_index` dagegen lässt den LETZTEN
+    gewinnen; beide Regeln bleiben, wie sie sind (tests/test_postfach_index.py).
+
+    Anlass (18.11.2026): `match_sender`/`match_sender_key` bauen bei JEDEM
+    Aufruf den ganzen Index neu. In einer Schleife über n Postfächer ist das
+    n² — gemessen 700 Postfächer: 3,7 s für GET /api/mailboxes auf dem Raspi,
+    im Event-Loop des Webservers."""
+    idx: dict[str, str] = {}
+    for key, cfg in (mailbox_config or {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        if "@" in key:
+            idx.setdefault(key.lower(), key)
+            continue
+        primary = (cfg.get("primary") or "").lower()
+        if primary:
+            idx.setdefault(primary, key)
+        for a in cfg.get("known_addresses", []):
+            a = str(a).lower()
+            if a:
+                idx.setdefault(a, key)
+    return idx
 
 
 def selbes_postfach(mailbox_config: dict, a: str, b: str) -> bool:

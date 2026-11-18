@@ -300,7 +300,7 @@ def test_status_nicht_mehr_konfigurierter_postfaecher_wird_entfernt(monkeypatch)
     monkeypatch.setattr(settings_store, "force_update", lambda d: daten.update(d))
     monkeypatch.setattr(health_check, "_check_exo_batch_sync", lambda e: {})
 
-    async def pruefe(email, exo_data=None):
+    async def pruefe(email, exo_data=None, **_kw):
         return {"overall": "ok"}
     monkeypatch.setattr(health_check, "run_checks_for_mailbox", pruefe)
     asyncio.run(health_check.run_all_checks())

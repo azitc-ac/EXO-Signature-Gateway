@@ -406,7 +406,7 @@ def test_gesundheit_ohne_wirksame_option_keine_dg_selbstheilung(speicher, monkey
                         lambda e: sammel.append(list(e)) or {})
     monkeypatch.setattr(health_check, "_veraltete_entfernen", lambda e: None)
 
-    async def einzeln(email, exo_data=None):
+    async def einzeln(email, exo_data=None, **_kw):
         return {}
     monkeypatch.setattr(health_check, "run_checks_for_mailbox", einzeln)
     asyncio.run(health_check.run_all_checks())

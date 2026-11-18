@@ -44,6 +44,20 @@ _TTL = 3600                       # cache lifetime (s)
 _lock = threading.RLock()
 _cache: list[dict] = []
 _cache_ts: float = 0.0
+_fehl_ts: float = 0.0             # letzter GESCHEITERTER Abruf (monotonic), 0 = keiner
+
+# Zeitgrenze des PowerShell-Abrufs. Ohne Hybrid-Nutzer wie bisher 180 s. Mit
+# ihnen holt dieselbe Sitzung zusätzlich `Get-MailUser -ResultSize Unlimited`
+# — ALLE MailUser des Tenants (auch Teams-Objekte und nur in der Cloud
+# angelegte; gefiltert wird erst danach). Bei hunderten Hybrid-Nutzern reichten
+# 180 s nicht verlässlich (Annahme: Laufzeit wächst mit der Objektzahl; die
+# tatsächliche steht nach jedem Abruf im Protokoll, siehe fetch_mailboxes).
+ZEITLIMIT_S = 180
+ZEITLIMIT_HYBRID_S = 600
+# Nach einem gescheiterten Abruf nicht bei JEDEM Aufruf neu fragen: Solange
+# ein (alter) Stand vorliegt, frühestens nach dieser Pause. Ohne sie lief jede
+# Postfachliste erneut bis zur Zeitgrenze — unter der Sperre, alle Aufrufer.
+FEHL_PAUSE_S = 300
 
 HYBRID_TYP = "MailUser"           # RecipientTypeDetails eines Hybrid-Nutzers
 NULL_GUID = "00000000-0000-0000-0000-000000000000"
@@ -205,12 +219,19 @@ def fetch_mailboxes() -> list[dict]:
     if not (app_id and org and _AUTH_CERT_PATH.exists()):
         log.warning("EXO mailbox fetch skipped — CLIENT_ID/TENANT_DOMAIN/auth cert missing")
         return []
+    hybrid = hybrid_aktiv()
+    grenze = ZEITLIMIT_HYBRID_S if hybrid else ZEITLIMIT_S
     with tempfile.NamedTemporaryFile(suffix=".ps1", mode="w", delete=False) as f:
-        f.write(_ps_script(app_id, org, hybrid_aktiv()))
+        f.write(_ps_script(app_id, org, hybrid))
         ps_path = f.name
+    t0 = time.monotonic()
     try:
         proc = subprocess.run(["pwsh", "-NoProfile", "-NonInteractive", "-File", ps_path],
-                              capture_output=True, text=True, timeout=180)
+                              capture_output=True, text=True, timeout=grenze)
+    except subprocess.TimeoutExpired:
+        log.error("EXO-Postfachabruf: Zeitgrenze %d s überschritten (%s) — der bisherige "
+                  "Stand bleibt", grenze, "mit Hybrid-Nutzern" if hybrid else "ohne Hybrid-Nutzer")
+        return []
     except Exception as exc:
         log.error("EXO mailbox fetch failed: %s", exc)
         return []
@@ -225,20 +246,32 @@ def fetch_mailboxes() -> list[dict]:
     out = proc.stdout or ""
     # ConvertTo-Json may be preceded by warnings — start at the first [ or {.
     starts = [x for x in (out.find("["), out.find("{")) if x >= 0]
-    return _parse_mailboxes(out[min(starts):] if starts else out)
+    erg = _parse_mailboxes(out[min(starts):] if starts else out)
+    # Laufzeit sichtbar: Daran lässt sich ablesen, wie nah ein Tenant an der
+    # Zeitgrenze liegt — bevor sie greift.
+    n_hy = sum(1 for m in erg if _ist_hybrid_eintrag(m))
+    log.info("EXO-Postfachabruf: %d Postfächer, %d Hybrid-Nutzer in %.1f s (Grenze %d s)",
+             len(erg) - n_hy, n_hy, time.monotonic() - t0, grenze)
+    return erg
 
 
 def list_mailboxes(force: bool = False) -> list[dict]:
     """Cached authoritative mailbox list (TTL 1h). Falls back to stale cache on
     a failed refresh so a transient EXO hiccup doesn't empty the world."""
-    global _cache, _cache_ts
+    global _cache, _cache_ts, _fehl_ts
     with _lock:
-        if not force and _cache and (time.monotonic() - _cache_ts) < _TTL:
+        jetzt = time.monotonic()
+        if not force and _cache and (jetzt - _cache_ts) < _TTL:
             return _nur_postfaecher(_cache)
+        if not force and _cache and _fehl_ts and (jetzt - _fehl_ts) < FEHL_PAUSE_S:
+            return _nur_postfaecher(_cache)        # eben gescheitert: alten Stand zeigen
         mbs = fetch_mailboxes()
         if mbs:
             _cache = mbs
             _cache_ts = time.monotonic()
+            _fehl_ts = 0.0
+        else:
+            _fehl_ts = time.monotonic()
         return _nur_postfaecher(mbs or _cache)
 
 
@@ -269,9 +302,10 @@ def invalidate_cache() -> None:
     """Cache als abgelaufen markieren — der nächste `list_mailboxes()` fragt EXO
     frisch. Nach dem Anlegen eines Postfachs aufrufen, damit es (sobald EXO es
     propagiert hat) auch ohne erzwungenen Abruf erscheint."""
-    global _cache_ts
+    global _cache_ts, _fehl_ts
     with _lock:
         _cache_ts = 0.0
+        _fehl_ts = 0.0
 
 
 def known_addresses() -> set[str]:
@@ -342,6 +376,22 @@ def ist_hybrid(email: str) -> bool:
     return bool(eintrag.get("hybrid"))
 
 
+def adressen_von(email: str, hybrid: bool) -> list[str]:
+    """Alle Adressen DES Eintrags, der `email` trägt — nur aus dem vorhandenen
+    Zwischenspeicher (nie ein Abruf). `hybrid` wählt die Art: True nur
+    Hybrid-Nutzer, False nur EXO-Postfächer. [] = nicht im Speicher.
+    Für die Bindung der Regelprobe (regel_probe): Umschlag-Absender und
+    -Empfänger dürfen jede Adresse genau dieses einen Eintrags tragen."""
+    e = (email or "").strip().lower()
+    with _lock:
+        for m in _cache:
+            if _ist_hybrid_eintrag(m) != hybrid:
+                continue
+            if e == m.get("primary") or e in (m.get("addresses") or []):
+                return sorted({m["primary"], *(m.get("addresses") or [])} - {""})
+    return []
+
+
 def resolve_guid(email: str) -> str | None:
     """ExchangeGuid for ANY of a mailbox's SMTP addresses (primary or alias).
     This is what makes config survive rename/address changes.
@@ -368,6 +418,7 @@ def as_sender_list() -> list[dict]:
 
 def invalidate() -> None:
     """Force the next list_mailboxes() to re-query EXO."""
-    global _cache_ts
+    global _cache_ts, _fehl_ts
     with _lock:
         _cache_ts = 0.0
+        _fehl_ts = 0.0

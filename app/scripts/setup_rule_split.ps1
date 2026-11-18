@@ -41,6 +41,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Gemeinsame Mitgliederpflege (Sammelaufruf ab vielen Aenderungen) — eine Fassung.
+. (Join-Path $PSScriptRoot 'dg_mitglieder.ps1')
 function Write-Step([string]$m) { Write-Host "[SPLIT] $m" -ForegroundColor Cyan }
 function Write-OK([string]$m)   { Write-Host "[OK] $m"     -ForegroundColor Green }
 function Write-Warn([string]$m) { Write-Host "[WARN] $m"   -ForegroundColor Yellow }
@@ -74,17 +76,8 @@ function Sync-Dg([string]$dgName, [string[]]$desired) {
     }
     # Aus den Adresslisten ausblenden: Betriebs-DG, im Adressbuch irrelevant.
     Set-DistributionGroup -Identity $dgName -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
-    $current = @(Get-DistributionGroupMember -Identity $dgName -ResultSize Unlimited |
-        ForEach-Object { $_.PrimarySmtpAddress.ToLower() })
-    $want = @($desired | ForEach-Object { $_.ToLower() })
-    foreach ($m in ($want | Where-Object { $_ -notin $current })) {
-        try { Add-DistributionGroupMember -Identity $dgName -Member $m -ErrorAction Stop; Write-OK "  + $m" }
-        catch { Write-Host "[ERROR] add $m : $_" -ForegroundColor Red }
-    }
-    foreach ($m in ($current | Where-Object { $_ -notin $want })) {
-        try { Remove-DistributionGroupMember -Identity $dgName -Member $m -Confirm:$false -ErrorAction Stop; Write-OK "  - $m" }
-        catch { Write-Host "[ERROR] remove $m : $_" -ForegroundColor Red }
-    }
+    # Abgleich (einzeln oder als Sammelaufruf ab vielen Aenderungen): dg_mitglieder.ps1.
+    $null = Sync-DgMitglieder -Identity $dgName -Soll $desired
 }
 
 # ── Regel: Gate IMMER auf die DG, Aktivierung nach Mitgliederzahl ─────────────

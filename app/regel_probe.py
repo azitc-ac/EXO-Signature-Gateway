@@ -37,7 +37,11 @@ SICHERHEIT
 ----------
 Nur eine vom Gateway ausgestellte, noch offene, unverbrauchte Kennung führt
 zum Verwerfen — und nur, wenn Umschlag-Absender UND einziger Empfänger das
-Postfach sind, für das sie ausgestellt wurde. Das Geheimnis ist zufällig
+Postfach sind, für das sie ausgestellt wurde. Bei Hybrid-Nutzern ist der
+einzige zulässige Empfänger das Prüfpostfach: gebunden an die Adressen GENAU
+dieses einen Postfachs (Absender: die des Hybrid-Nutzers), festgelegt beim
+Ausstellen. Für EXO-Postfächer bleibt es bei der einen Adresse, an die die
+Probe ging — Absender und Empfänger identisch. Das Geheimnis ist zufällig
 (secrets, 192 Bit) und liegt nur als SHA-256 im Speicher; verglichen wird mit
 hmac.compare_digest. Ein HMAC über einen Schlüssel brächte nichts hinzu: Es
 gibt keinen Zustand ausserhalb dieses Prozesses, den er schützen müsste.
@@ -50,9 +54,15 @@ GRENZEN
 * Offene Kennungen liegen nur im Speicher. Startet das Gateway während einer
   Probe neu, verarbeitet es eine danach eintreffende Probe wie jede andere
   Mail (signiert zugestellt) — sichtbar, nicht verloren.
-* Hybrid-Nutzer: keine Probe. Eine Mail an sich selbst stellt die LOKALE
-  Exchange direkt zu; sie erreicht Exchange Online und damit die Regel nie.
-  Eine Probe hiesse dort immer „greift nicht“ — auch wenn die Regel greift.
+* Hybrid-Nutzer (seit v1.12.67): Eine Mail an sich selbst stellte die LOKALE
+  Exchange direkt zu; sie erreichte Exchange Online und die Regel nie. Die
+  Probe geht deshalb per EWS (`ews_onprem.regelprobe_senden`, CreateItem
+  SendOnly mit Impersonation) aus dem lokalen Postfach an das
+  Benachrichtigungs-Absenderpostfach (NOTIFICATION_MAILBOX, ein Postfach in
+  Exchange Online): lokal → Hybrid-Connector → EXO → FromMemberOf-Regel →
+  Gateway. Greift die Regel nicht, liegt sie in DIESEM Postfach und wird dort
+  per Graph gesucht und gelöscht. Ohne Anbindung an Exchange lokal, ohne
+  Prüfpostfach oder ohne wirksame Hybrid-Option: „entfällt“ mit Grund.
 * Webserver (uvicorn) und SMTP-Listener laufen in verschiedenen Threads mit
   eigenen Event-Loops: Der Zustand ist deshalb mit threading.Lock geschützt,
   nicht mit asyncio-Mitteln.
@@ -111,15 +121,22 @@ def _aufraeumen(jetzt: float) -> None:
         del _offen[k]
 
 
-def ausstellen(adresse: str) -> tuple[str, str]:
-    """Neue Kennung für `adresse` → (probe_id, geheimnis)."""
+def ausstellen(adresse: str, absender=None, empfaenger=None) -> tuple[str, str]:
+    """Neue Kennung für `adresse` → (probe_id, geheimnis).
+
+    Bindung: Umschlag-Absender ∈ `absender`, einziger Empfänger ∈ `empfaenger`.
+    Ohne Angabe beide = {adresse} — die Probe eines EXO-Postfachs an sich selbst
+    (Stand bis v1.12.66, unverändert streng)."""
     probe_id = secrets.token_hex(6)
     geheim = secrets.token_urlsafe(24)          # 32 Zeichen, 192 Bit
     jetzt = time.monotonic()
+    eigen = adresse.strip().lower()
     with _lock:
         _aufraeumen(jetzt)
         _offen[probe_id] = {
-            "adresse": adresse.strip().lower(),
+            "adresse": eigen,
+            "absender": frozenset(a.strip().lower() for a in (absender or [eigen]) if a),
+            "empfaenger": frozenset(a.strip().lower() for a in (empfaenger or [eigen]) if a),
             "geheim_sha": _sha(geheim),
             "gesendet": jetzt,
             "ablauf": jetzt + GESAMT_FRIST_S + NACHLAUF_S,
@@ -180,7 +197,7 @@ def erkennen(kopf, betreff: str, absender: str, empfaenger: list[str]) -> dict |
             grund = "schon verbraucht"
         elif not hmac.compare_digest(e["geheim_sha"], _sha(geheim)):
             grund = "Geheimnis passt nicht"
-        elif abs_ != e["adresse"] or rcpt != [e["adresse"]]:
+        elif abs_ not in e["absender"] or len(rcpt) != 1 or rcpt[0] not in e["empfaenger"]:
             grund = "an ein anderes Postfach gebunden"
         else:
             e["angekommen"] = round(jetzt - e["gesendet"], 1)
@@ -202,6 +219,10 @@ def _betreff(probe_id: str, geheim: str) -> str:
     return f"{BETREFF} {probe_id}.{geheim}"
 
 
+_TEXT = ("Prüfmail des Signatur-Gateways: Greift die Transportregel für dieses Postfach? "
+         "Wird automatisch entfernt.")
+
+
 async def _senden(adresse: str, probe_id: str, geheim: str) -> str:
     """sendMail als `adresse` an `adresse`. "" bei Erfolg (202), sonst Fehlertext."""
     token = await _token()
@@ -211,8 +232,7 @@ async def _senden(adresse: str, probe_id: str, geheim: str) -> str:
         "message": {
             "subject": _betreff(probe_id, geheim),
             "body": {"contentType": "Text",
-                     "content": "Prüfmail des Signatur-Gateways: Greift die Transportregel "
-                                "für dieses Postfach? Wird automatisch entfernt."},
+                     "content": _TEXT},
             "toRecipients": [{"emailAddress": {"address": adresse}}],
             "internetMessageHeaders": [{"name": KOPF, "value": f"{probe_id}.{geheim}"}],
         },
@@ -227,6 +247,18 @@ async def _senden(adresse: str, probe_id: str, geheim: str) -> str:
     if r.status_code == 202:
         return ""
     return f"sendMail HTTP {r.status_code}: {r.text[:200]}"
+
+
+async def _senden_ews(adresse: str, postfach: str, probe_id: str, geheim: str) -> str:
+    """Hybrid-Nutzer: aus dem LOKALEN Postfach `adresse` per EWS an das
+    Prüfpostfach `postfach` (Exchange Online). "" bei Erfolg, sonst Fehlertext."""
+    import ews_onprem
+    try:
+        await asyncio.to_thread(ews_onprem.regelprobe_senden, adresse, postfach,
+                                _betreff(probe_id, geheim), KOPF, f"{probe_id}.{geheim}", _TEXT)
+    except ews_onprem.EwsFehler as exc:
+        return f"EWS ({exc.code}): {exc.detail}"[:240]
+    return ""
 
 
 async def _im_posteingang(adresse: str, probe_id: str, ab: datetime) -> dict | None:
@@ -341,35 +373,86 @@ def speichern(adresse: str, probe: dict) -> None:
         settings_store.force_update({"MAILBOX_HEALTH": alle})
 
 
-def nicht_moeglich(adresse: str) -> str:
-    """Grund, warum für `adresse` keine Probe laufen kann — oder ""."""
+HYBRID_INAKTIV = ("Hybrid-Nutzer: Die Hybrid-Option wirkt nicht (ausgeschaltet oder Rückweg "
+                  "nicht SMTP Port 25) — das Postfach steht nicht in der Verteilerliste.")
+HYBRID_OHNE_EWS = ("Hybrid-Nutzer: Die Probe geht aus dem lokalen Postfach über Exchange lokal "
+                   "(EWS) — die Anbindung ist nicht eingerichtet (Einstellungen → Allgemein → "
+                   "Exchange lokal). Eine Mail an sich selbst bliebe in der lokalen Organisation "
+                   "und erreichte die Regel nie.")
+HYBRID_OHNE_POSTFACH = ("Hybrid-Nutzer: Die Probe braucht als Empfänger ein Postfach in Exchange "
+                        "Online — das Absender-Postfach der Benachrichtigungen ist nicht gesetzt "
+                        "oder kein bekanntes Postfach in Exchange Online (Einstellungen → "
+                        "Benachrichtigungen → Absender; Postfachliste laden).")
+# „entfällt“: Ergebnis wird gespeichert (skip), keine Mail. Alles andere aus
+# nicht_moeglich ist eine Ablehnung (nichts gespeichert).
+ENTFAELLT = (HYBRID_INAKTIV, HYBRID_OHNE_EWS, HYBRID_OHNE_POSTFACH)
+
+
+def entfaellt(grund: str) -> bool:
+    return grund in ENTFAELLT
+
+
+def pruefpostfach() -> str:
+    """Empfänger der Probe eines Hybrid-Nutzers: das Absender-Postfach der
+    Benachrichtigungen, sofern es ein bekanntes EXO-Postfach ist (Graph liest
+    und löscht dort). "" = keines."""
+    import exo_mailboxes
+    pf = (settings_store.get("NOTIFICATION_MAILBOX") or "").strip().lower()
+    if not pf or not exo_mailboxes.adressen_von(pf, hybrid=False):
+        return ""
+    return pf
+
+
+def _plan(adresse: str) -> tuple[str, dict | None]:
+    """(Grund, Plan). Grund "" → Plan {hybrid, postfach, absender, empfaenger}:
+    wohin die Probe geht (`postfach`, dort wird gesucht und gelöscht) und woran
+    die Kennung gebunden wird."""
     cfg = _cfg(adresse)
     if not (cfg.get("sig") or cfg.get("smime")):
         return ("Postfach nicht aktiviert (Signatur und S/MIME aus) — die Regel gilt nur "
-                "für Mitglieder der Verteilerliste")
+                "für Mitglieder der Verteilerliste"), None
     import exo_mailboxes
-    if exo_mailboxes.ist_hybrid(adresse):
-        return HYBRID
-    return ""
+    if not exo_mailboxes.ist_hybrid(adresse):
+        return "", {"hybrid": False, "postfach": adresse, "absender": [adresse],
+                    "empfaenger": [adresse]}
+    import ews_onprem
+    if not exo_mailboxes.hybrid_aktiv():
+        return HYBRID_INAKTIV, None
+    if not ews_onprem.konfiguriert():
+        return HYBRID_OHNE_EWS, None
+    pf = pruefpostfach()
+    if not pf:
+        return HYBRID_OHNE_POSTFACH, None
+    absender = set(exo_mailboxes.adressen_von(adresse, hybrid=True)) | {adresse.lower()}
+    return "", {"hybrid": True, "postfach": pf, "absender": sorted(absender),
+                "empfaenger": exo_mailboxes.adressen_von(pf, hybrid=False)}
 
 
-HYBRID = ("Hybrid-Nutzer: Eine Probe an sich selbst stellt die lokale Exchange direkt zu "
-          "und erreicht Exchange Online nie — die Regel lässt sich so nicht prüfen.")
+def nicht_moeglich(adresse: str) -> str:
+    """Grund, warum für `adresse` keine Probe laufen kann — oder ""."""
+    return _plan(adresse)[0]
 
 
 # ── Ablauf ───────────────────────────────────────────────────────────────────
 
-async def _durchlauf(adresse: str) -> dict:
-    """Eine Probe von Senden bis Ergebnis. Schliesst die Kennung immer."""
-    probe_id, geheim = ausstellen(adresse)
+async def _durchlauf(adresse: str, plan: dict | None = None) -> dict:
+    """Eine Probe von Senden bis Ergebnis. Schliesst die Kennung immer.
+    Ohne `plan`: EXO-Postfach an sich selbst (Graph)."""
+    plan = plan or {"hybrid": False, "postfach": adresse}
+    postfach = plan["postfach"]
+    probe_id, geheim = ausstellen(adresse, plan.get("absender"), plan.get("empfaenger"))
     ab = datetime.now(timezone.utc) - timedelta(minutes=1)
     t0 = time.monotonic()
     try:
-        fehler = await _senden(adresse, probe_id, geheim)
+        if plan["hybrid"]:
+            fehler = await _senden_ews(adresse, postfach, probe_id, geheim)
+        else:
+            fehler = await _senden(adresse, probe_id, geheim)
         if fehler:
             log.warning("Regelprobe %s für %s: nicht gesendet — %s", probe_id, adresse, fehler)
             return _ergebnis("fehler", "warn", f"Probe nicht gesendet: {fehler}")
-        log.info("Regelprobe %s für %s: gesendet", probe_id, adresse)
+        log.info("Regelprobe %s für %s: gesendet%s", probe_id, adresse,
+                 f" (über Exchange lokal an {postfach})" if plan["hybrid"] else "")
         naechste_suche = t0 + ANKUNFT_FRIST_S
         suchfehler = ""
         while True:
@@ -385,14 +468,14 @@ async def _durchlauf(adresse: str) -> dict:
             if jetzt >= naechste_suche:
                 naechste_suche = jetzt + SUCHE_TAKT_S
                 try:
-                    fund = await _im_posteingang(adresse, probe_id, ab)
+                    fund = await _im_posteingang(postfach, probe_id, ab)
                 except Exception as exc:                        # noqa: BLE001
                     suchfehler = str(exc)[:160]
                     log.warning("Regelprobe %s für %s: Suche im Posteingang gescheitert — %s",
                                 probe_id, adresse, suchfehler)
                     fund = None
                 if fund is not None:
-                    return await _nicht_gegriffen(adresse, probe_id, fund)
+                    return await _nicht_gegriffen(adresse, probe_id, fund, postfach)
             await asyncio.sleep(TAKT_S)
         log.warning("Regelprobe %s für %s: weder am Gateway noch im Posteingang (%d s)",
                     probe_id, adresse, GESAMT_FRIST_S)
@@ -405,10 +488,13 @@ async def _durchlauf(adresse: str) -> dict:
         schliessen(probe_id)
 
 
-async def _nicht_gegriffen(adresse: str, probe_id: str, fund: dict) -> dict:
-    fehler = await _loeschen(adresse, fund["id"])
-    weg = ("aus dem Posteingang gelöscht" if not fehler
-           else f"Löschen gescheitert ({fehler}) — die Probe liegt im Posteingang")
+async def _nicht_gegriffen(adresse: str, probe_id: str, fund: dict,
+                           postfach: str | None = None) -> dict:
+    postfach = postfach or adresse
+    fehler = await _loeschen(postfach, fund["id"])
+    wo = "Posteingang" if postfach == adresse else f"Posteingang von {postfach}"
+    weg = (f"aus dem {wo} gelöscht" if not fehler
+           else f"Löschen gescheitert ({fehler}) — die Probe liegt im {wo}")
     log.info("Regelprobe %s für %s: im Posteingang (%s)", probe_id, adresse,
              "gelöscht" if not fehler else f"Löschen gescheitert: {fehler}")
     if fund.get("ueber_gateway"):
@@ -428,14 +514,14 @@ async def pruefen(adresse: str) -> dict:
     """Eine Probe für `adresse`, Ergebnis gespeichert. Der Aufrufer hat die
     Adresse in `_laufend` eingetragen (`anmelden`); hier wird sie ausgetragen."""
     try:
-        grund = await asyncio.to_thread(nicht_moeglich, adresse)
-        if grund == HYBRID:
+        grund, plan = await asyncio.to_thread(_plan, adresse)
+        if entfaellt(grund):
             probe = _ergebnis("nicht_moeglich", "skip", grund)
         elif grund:
             return {"ergebnis": "abgelehnt", "detail": grund}
         else:
             try:
-                probe = await _durchlauf(adresse)
+                probe = await _durchlauf(adresse, plan)
             except Exception as exc:                            # noqa: BLE001
                 log.exception("Regelprobe für %s: unerwarteter Fehler", adresse)
                 probe = _ergebnis("fehler", "warn", f"Probe abgebrochen: {str(exc)[:160]}")

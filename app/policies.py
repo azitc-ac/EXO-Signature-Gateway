@@ -53,13 +53,19 @@ def _gruppen_overrides(sender: str, mailbox_cfg: dict) -> dict[str, str]:
         return {}
     groups = gruppen.interne_gruppen()
     sender_key = mailbox_match.match_sender_key(mailbox_cfg, sender)
+    return _overrides_aus(custom, groups, sender_key)
+
+
+def _overrides_aus(custom: list, groups: dict, sender_key: str) -> dict[str, str]:
+    """Kern von `_gruppen_overrides` mit vorab bestimmten Gruppen und Schlüssel
+    — auch für `standards_alle` (eine Auflösung für viele Postfächer)."""
     if not sender_key:
         return {}
     overrides: dict[str, str] = {}
     for pol in custom:
         if not isinstance(pol, dict) or pol.get("condition_type") != "group":
             continue
-        if sender_key in (groups.get(pol.get("group_name", "")) or []):
+        if sender_key in (groups.get(pol.get("group_name", "")) or ()):
             slot = pol.get("applies_to", "")
             if slot == "addin":
                 continue        # Auswahlliste, kein Einzelwert — addin_freigabe()
@@ -125,6 +131,31 @@ def standards(sender: str, mailbox_cfg: dict | None = None) -> dict[str, str]:
     tp = settings_store.get("TEMPLATE_POLICIES") or {}
     over = _gruppen_overrides(sender, mailbox_cfg)
     return {slot: _norm(slot, over.get(slot, tp.get(slot))) for slot in SLOT_FELD}
+
+
+def standards_alle(adressen, mailbox_cfg: dict) -> dict[str, dict[str, str]]:
+    """`standards()` für viele Adressen auf einmal — {adresse: {slot: vorlage}}.
+
+    Gleiches Ergebnis wie `standards(a, mailbox_cfg)` je Adresse
+    (tests/test_postfach_index.py), aber Gruppen, Schlüsselindex und
+    Richtlinien werden EINMAL gelesen: In der Postfachliste kostete die
+    Einzelfassung mit einer Gruppenregel je Zeile einen Lauf über alle Einträge
+    und eine Kopie aller Gruppenlisten — n² bei hunderten Postfächern."""
+    tp = settings_store.get("TEMPLATE_POLICIES") or {}
+    custom = settings_store.get("CUSTOM_POLICIES") or []
+    groups: dict = {}
+    keys: dict[str, str] = {}
+    if custom:
+        # Nur Zeichenketten: ein Schlüssel ist immer eine, und set() vertrüge
+        # nichts Unhashbares aus einer verbogenen gespeicherten Gruppe.
+        groups = {n: {x for x in (m or ()) if isinstance(x, str)}
+                  for n, m in gruppen.interne_gruppen().items()}
+        keys = mailbox_match.build_key_index(mailbox_cfg)
+    ergebnis: dict[str, dict[str, str]] = {}
+    for a in adressen:
+        over = _overrides_aus(custom, groups, keys.get((a or "").lower(), "")) if custom else {}
+        ergebnis[a] = {slot: _norm(slot, over.get(slot, tp.get(slot))) for slot in SLOT_FELD}
+    return ergebnis
 
 
 def hat_eigene_wahl(sender_cfg: dict | None, slot: str) -> bool:

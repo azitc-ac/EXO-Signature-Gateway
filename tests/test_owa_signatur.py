@@ -491,3 +491,43 @@ def test_knopf_route(client, monkeypatch):
             break
         time.sleep(0.02)
     assert aufrufe[-1] == (True, "")
+
+
+# ── Hunderte Hybrid-Nutzer (v1.12.67) ────────────────────────────────────────
+
+def test_pause_nur_vor_einem_ews_aufruf(abgleich, exchange, monkeypatch):
+    """Bis v1.12.66 schlief der Lauf vor JEDEM Postfach, auch vor unveränderten
+    (500 Hybrid-Nutzer: 100 s je Stunde im Scheduler-Faden). Jetzt nur zwischen
+    zwei Aufrufen an die lokale Exchange."""
+    werte, inhalte = abgleich
+    for i in range(8):
+        u = f"weitere{i}@firma.at"
+        werte["MAILBOX_CONFIG"][f"w{i}"] = {"sig": True, "hybrid": True, "primary": u}
+        inhalte[u] = SIG
+    monkeypatch.setattr(owa_signatur, "PAUSE_S", 0.000123)   # unverwechselbar
+    pausen = []
+    echt = asyncio.sleep
+
+    async def schlafen(s, *a, **k):
+        if s == owa_signatur.PAUSE_S:
+            pausen.append(s)
+        return await echt(0)
+    monkeypatch.setattr(owa_signatur.asyncio, "sleep", schlafen)
+    erg = _lauf()                                   # erster Lauf: 10 Postfächer schreiben
+    assert erg["gesetzt"] == 10 and len(pausen) == 9
+    pausen.clear()
+    erg = _lauf()                                   # alles unverändert: kein EWS, keine Pause
+    assert erg["unveraendert"] == 10 and pausen == [] and owa_signatur._fortschritt == {}
+
+
+def test_fortschritt_waehrend_des_laufs(abgleich, exchange, monkeypatch):
+    gesehen = []
+    echt = owa_signatur.inhalt
+
+    async def inhalt(upn, mailbox_cfg, cfg):
+        gesehen.append(dict(owa_signatur.uebersicht()["laeuft"]))
+        return await echt(upn, mailbox_cfg, cfg)
+    monkeypatch.setattr(owa_signatur, "inhalt", inhalt)
+    _lauf()
+    assert [g["erledigt"] for g in gesehen] == [0, 1] and {g["gesamt"] for g in gesehen} == {2}
+    assert owa_signatur.uebersicht()["laeuft"] == {}, "nach dem Lauf leer"

@@ -325,7 +325,8 @@ async def api_ews_onprem_test(request: Request, user: str = Depends(_require_adm
     if not ews_onprem.konfiguriert():
         return JSONResponse({"ok": False, "code": "konfiguration",
                              "error": "Erst EWS-Adresse, Dienstkonto und Kennwort speichern."})
-    erg = await asyncio.to_thread(ews_onprem.verbindung_testen, adresse)
+    # Der Knopf geht immer hinaus, auch während der Ausfallsperre (ews_onprem).
+    erg = await asyncio.to_thread(ews_onprem.verbindung_testen, adresse, True)
     log.info("EWS-Verbindungstest durch %s für %s: %s", user, adresse,
              "ok" if erg["ok"] else erg["code"])
     if not erg["ok"]:

@@ -5,6 +5,102 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.67 — 2026-11-18 — Hunderte Hybrid-Nutzer; Regelprobe auch für Hybrid-Nutzer
+
+Durchsicht aller Abläufe, die mit der Zahl der Postfächer wachsen, für den
+Betrieb mit hunderten Hybrid-Nutzern (v1.12.55). Gemessen mit erfundenen
+Daten auf einem Raspberry Pi 4 und gegen eine lokale Exchange SE im Testnetz.
+
+**Postfachliste.** Die Liste suchte für jede Zeile den Eintrag in der ganzen
+Konfiguration neu (Index je Zeile neu gebaut). Bei 700 Postfächern dauerte die
+Abfrage 3,7 s, mit einer Gruppenregel 3,4 s, und blockierte währenddessen den
+Webserver. Der Index wird jetzt einmal je Abfrage gebaut: 0,3 s bzw. 0,2 s,
+gleiches Ergebnis. Neu über der Tabelle: **Vorlage für Sichtbare** — wählt für
+alle sichtbaren Zeilen Standardsignatur, Antwort-Signatur, interne Signatur
+oder Abwesenheit (etwa nach dem Filter „Hybrid“), wirksam nach *Speichern*.
+Gesperrte Zellen (ohne Signatur-Haken) bleiben unberührt; die Meldung nennt,
+wie viele.
+
+**Postfächer laden.** Mit Hybrid-Nutzern holt die Abfrage zusätzlich alle
+MailUser des Tenants. Ihre Zeitgrenze steigt dafür von 180 auf 600 s, das
+Protokoll nennt nach jedem Abruf Anzahl und Dauer. Scheitert ein Abruf, bleibt
+der bisherige Stand stehen, und der nächste Versuch folgt erst nach fünf
+Minuten (*Postfächer laden* fragt immer sofort). Bisher löste nach einem
+Fehlschlag jede Anzeige der Liste erneut einen Abruf bis zur Zeitgrenze aus.
+
+**Verteilerliste.** Bisher je Mitglied ein Aufruf
+`Add-`/`Remove-DistributionGroupMember`; hunderte neu aktivierte Postfächer
+überschritten die feste Zeitgrenze von 180 s mitten im Abgleich. Ab 20
+Änderungen setzt jetzt ein `Update-DistributionGroupMember` die ganze
+Soll-Liste auf einmal (nie mit leerer Liste). Scheitert er, wird die Liste neu
+gelesen und wie bisher einzeln abgeglichen, mit Fehler je Mitglied. Eine Zeile
+`[DG-SYNC]` fasst jeden Lauf zusammen (Soll, hinzugefügt, entfernt, Fehler,
+Sammelaufruf). Die Zeitgrenze wächst mit der Zahl der Mitglieder (2 s je
+Mitglied, mindestens wie bisher), die Postfachseite wartet bis zu 20 Minuten
+auf das Ergebnis. Beide Wege (eine Regel und getrennte Regeln für Signatur und
+S/MIME) nutzen denselben Abgleich. Die Transportregel und ihr Gate auf die
+Verteilerliste bleiben unberührt.
+
+**Gesundheitsprüfung.** Drei Engpässe behoben:
+* Die Abfrage der Outlook-Add-ins (`Get-App`) lief auch für Hybrid-Nutzer,
+  obwohl sie ein Postfach in Exchange Online voraussetzt und für sie nicht
+  ausgewertet wird: je Hybrid-Nutzer und Add-in ein Aufruf von rund einer
+  Sekunde. Sie entfällt für Hybrid-Nutzer.
+* Jedes Ergebnis schrieb die ganze `settings.json` neu (700 Postfächer: 1,7 MB,
+  0,33 s je Schreiben, rund vier Minuten und gut 1 GB Schreiblast je Lauf). Der
+  Sammellauf schreibt jetzt alle 25 Postfächer und am Ende. Ein parallel
+  eingetroffenes Ergebnis der Regelprobe bleibt erhalten.
+* Die EWS-Proben der Hybrid-Nutzer (*EWS-Zugriff*, *Postfach lesen (EWS)*)
+  gelten nach einem Erfolg sechs Stunden; Fehler werden bei jedem Lauf neu
+  geprüft.
+
+**Exchange lokal nicht erreichbar.** Bisher wartete jeder Aufruf je Postfach
+bis zum Fehler (im Testnetz 3 s bei abgelehnter Verbindung, bis 20 s bei
+verworfenen Paketen). Bei hunderten Hybrid-Nutzern standen Gesundheitsprüfung,
+Abwesenheitsabgleich und OWA-Abgleich damit bis zu Stunden, und mit ihnen die
+übrigen Aufgaben des Zeitplans, etwa die Wiederholung zurückgehaltener Post.
+Nach einem Fehler, der die Anbindung betrifft (keine Verbindung, TLS,
+Anmeldung, „Server ausgelastet“), schlagen weitere Aufrufe 60 s lang sofort
+fehl; danach geht wieder einer hinaus, ein Erfolg hebt die Sperre auf. Fehler
+eines einzelnen Postfachs (Management Scope) lösen sie nicht aus. *Verbindung
+testen* geht immer hinaus, und eine geänderte Anbindung gilt sofort.
+
+**OWA-Signatur.** Der stündliche Abgleich pausierte vor jedem Postfach, auch
+wenn sich nichts geändert hatte (500 Hybrid-Nutzer: 100 s je Stunde ohne
+einen Aufruf). Die Pause gilt jetzt nur zwischen zwei Aufrufen an die lokale
+Exchange. Während eines Laufs zeigt die Karte den Fortschritt.
+
+**Lizenz.** Unverändert: Jedes gespeichert aktivierte Postfach zählt, auch ein
+Hybrid-Nutzer.
+
+**Regelprobe für Hybrid-Nutzer.** Bisher „entfällt“: Eine Mail an sich selbst
+bleibt in der lokalen Organisation. Jetzt sendet das Gateway die Prüfmail über
+die Anbindung an Exchange lokal (EWS `CreateItem`, nur senden, keine Kopie in
+„Gesendete Elemente“) aus dem lokalen Postfach an das Absender-Postfach der
+Benachrichtigungen (*Einstellungen → Benachrichtigungen → Absender*, ein
+Postfach in Exchange Online). Sie nimmt damit den Weg jeder Mail des Nutzers:
+lokal → Exchange Online → Transportregel → Gateway. Greift die Regel, verwirft
+das Gateway sie; sonst sucht und löscht es sie in diesem Postfach per Graph.
+Die Schnellaktion *Transportregel: Sichtbare prüfen* schließt Hybrid-Nutzer
+jetzt ein. Ohne Anbindung, ohne Absender-Postfach oder bei nicht wirksamer
+Hybrid-Option entfällt die Probe weiter, mit dem Grund im Gesundheitsstatus.
+
+Sicherheit: Verworfen wird eine Probe eines Hybrid-Nutzers nur, wenn der
+Absender eine Adresse genau dieses Nutzers und der einzige Empfänger eine
+Adresse genau dieses Postfachs in Exchange Online ist — beides beim Ausstellen
+der Kennung festgelegt. Für Postfächer in Exchange Online bleibt die Bindung,
+wie sie war: Absender und einziger Empfänger sind das Postfach selbst.
+
+Voraussetzung: Das Dienstkonto der Anbindung darf das Postfach per
+ApplicationImpersonation öffnen (wie für die Abwesenheit), und Exchange lokal
+stellt Post an Postfächer in Exchange Online über den Hybrid-Connector zu.
+
+**Zu tun:** nichts. Willst du die Regel für Hybrid-Nutzer prüfen, richte die
+Anbindung an Exchange lokal ein und wähle unter *Einstellungen →
+Benachrichtigungen* ein Absender-Postfach.
+
+---
+
 ## v1.12.66 — 2026-11-18 — Kopien-Prüfung: Begründung nachtragbar
 
 Die Prüfung des Kopien-Stands (`tests/test_kopien_stand.py`) erkennt jetzt
