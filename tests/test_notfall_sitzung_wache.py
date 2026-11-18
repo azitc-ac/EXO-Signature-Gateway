@@ -88,3 +88,18 @@ def test_start_kehrt_in_den_gemerkten_ordner_zurueck():
     wahl = s[s.index("async function postfachWaehlen(pf, ordnerWunsch)"):]
     wahl = wahl[:wahl.index("\n}\n")]
     assert "ordnerWaehlen(gewuenscht || erster.id)" in wahl
+
+
+def test_sonderordner_werden_wiederhergestellt():
+    """Klicktest 18.11.: gemerkt war "__entwuerfe", nach der Anmeldung kam der
+    Posteingang — die festen Bereiche stehen nicht in der Ordnerliste."""
+    s = SEITE.read_text(encoding="utf-8")
+    sonder = s[s.index("const SONDERORDNER = ["):]
+    sonder = sonder[:sonder.index("];")]
+    zweige = s[s.index("function ordnerWaehlen(id)"):]
+    zweige = zweige[:zweige.index("\n}\n")]
+    import re
+    for sid in re.findall(r"id === '(__[a-z]+)'", zweige):
+        assert f"'{sid}'" in sonder, f"{sid} fehlt in SONDERORDNER"
+    wahl = s[s.index("async function postfachWaehlen(pf, ordnerWunsch)"):]
+    assert "SONDERORDNER.includes(ordnerWunsch)" in wahl[:wahl.index("\n}\n")]

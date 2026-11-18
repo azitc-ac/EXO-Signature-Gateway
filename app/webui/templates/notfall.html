@@ -1029,7 +1029,10 @@ async function postfachWaehlen(pf, ordnerWunsch) {
   nb.postfach = pf; nb.ordner = '';
   vorschauZeigen();
   const erster = await ordnerLaden();
-  const gewuenscht = ordnerWunsch && (nb.ordnerliste || []).some(o => o.id === ordnerWunsch) ? ordnerWunsch : null;
+  // Auch die festen Bereiche (Entwürfe, Kalender, Kontakte) — sie stehen nicht
+  // in der Ordnerliste des Postfachs.
+  const gewuenscht = ordnerWunsch && (SONDERORDNER.includes(ordnerWunsch)
+    || (nb.ordnerliste || []).some(o => o.id === ordnerWunsch)) ? ordnerWunsch : null;
   if (gewuenscht || erster) ordnerWaehlen(gewuenscht || erster.id);
 }
 
@@ -1073,6 +1076,7 @@ async function ordnerLaden() {
   return d.ordner.find(o => o.wk === 'inbox') || d.ordner[0] || null;
 }
 
+const SONDERORDNER = ['__entwuerfe', '__kalender', '__kontakte'];
 function ordnerWaehlen(id) {
   nb.ordner = id;
   document.getElementById('listenspalte').dataset.art = id.startsWith('__') ? 'andere' : 'post';
