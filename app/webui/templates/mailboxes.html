@@ -34,6 +34,15 @@
   /* Hinweis unter einer von einer Gruppe festgeschriebenen Auswahl (Farbe: .muted). */
   .wahl-fest { display:block; font-size:10px; line-height:1.3; margin-top:2px;
                max-width:130px; margin-left:auto; margin-right:auto; white-space:normal }
+  /* Ausnahme: Ein Wahl-Slot weicht vom Standard ab (JS setzt nur data-ausnahme
+     am Select, _ausnahmeStand). Die Marke steht direkt dahinter und erscheint nur
+     über diesen Selektor — Farbe allein hier, hell und dunkel. */
+  .wahl-ausnahme { display:none; font-size:10px; font-weight:600; padding:0 6px;
+                   border-radius:8px; margin:2px auto 0; width:max-content; cursor:help }
+  select[data-ausnahme="1"] + .wahl-ausnahme { display:block; background:#fef3c7; color:#92400e }
+  [data-theme="dark"] select[data-ausnahme="1"] + .wahl-ausnahme { background:#1a1200; color:#fbbf24 }
+  select[data-ausnahme="1"] { border-color:#fcd34d }
+  [data-theme="dark"] select[data-ausnahme="1"] { border-color:#92400e }
 </style>
 
 <!-- Fair-Use-Zähler -->
@@ -195,6 +204,10 @@ async function ankerAnwenden() {
         <option value="an">S/MIME aktiviert</option>
         <option value="aus">S/MIME nicht aktiviert</option>
       </select>
+      <label class="checkbox-label" style="font-size:13px;margin:0"
+             title="Nur Postfächer, bei denen mindestens eine Vorlage (Signatur, Antwort-, interne Signatur, Abwesenheit) bewusst vom Standard abweicht. Festgelegte Vorlagen zählen nicht.">
+        <input type="checkbox" id="mb-ausnahme-filter" onchange="filterMailboxes()"> nur Ausnahmen
+      </label>
       <span id="mb-filter-count" style="font-size:12px;color:#64748b"></span>
     </div>
     <div style="display:flex;gap:18px;margin-bottom:10px;flex-wrap:wrap">
@@ -222,6 +235,11 @@ async function ankerAnwenden() {
                 style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;max-width:100%"></select>
         <button class="btn secondary btn-sm" onclick="massenVorlageSetzen()">Setzen</button>
       </span>
+      <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px"
+            title="Setzt in allen sichtbaren Zeilen Signatur, Antwort-, interne Signatur und Abwesenheit auf „Standard“ — die Ausnahmen entfallen. Festgelegte Vorlagen bleiben. Gespeichert wird erst mit „Speichern“.">
+        Ausnahmen:
+        <button class="btn secondary btn-sm" onclick="massenAufStandard()">Sichtbare auf Standard</button>
+      </span>
       <span id="mb-massen-status" hidden style="font-size:12px"></span>
       <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px"
             title="Je Postfach eine Prüfmail: Greift die Transportregel schon? Nur sichtbare, gespeichert aktivierte Postfächer. Hybrid-Nutzer senden über Exchange lokal an das Absender-Postfach der Benachrichtigungen.">
@@ -239,7 +257,10 @@ async function ankerAnwenden() {
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:90px">Signatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
-              title="Wenn aktiv: Banner, Disclaimer und Add-in-Auswahl kommen aus der Richtlinie. Signatur, Antwort-Signatur und Abwesenheit sind davon unabhängig. Ob eine Banner-Kampagne ein Postfach erreicht, legt die Kampagne fest (Übernahme erzwingen für).">Vorlagen-Richtlinien</th>
+              title="Wenn aktiv: Banner, Disclaimer und Add-in-Auswahl kommen aus der Richtlinie. Signatur, Antwort-, interne Signatur und Abwesenheit sind davon unabhängig. Ob eine Banner-Kampagne ein Postfach erreicht, legt die Kampagne fest (Übernahme erzwingen für).">
+            Banner/Disclaimer nach Richtlinie
+            <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block;margin-top:2px">auch Add-in-Auswahl</span>
+          </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Standardsignatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
               title="Signatur ab der ZWEITEN eigenen Mail im Thread. Die erste Antwort (und neue Mails) bekommen weiter die Standardsignatur.">
@@ -296,8 +317,9 @@ async function ankerAnwenden() {
     <strong>Signatur, Antwort-Signatur und Abwesenheit</strong> sind eine Wahl je Postfach: Hier steht der
     <em>Standard</em> für alle Postfächer ohne eigene Wahl (eine Gruppen-Regel unten kann ihn je Gruppe ändern).
     Abweichen lässt sich in der Postfach-Tabelle oder — falls freigegeben — im Self-Service.<br>
-    <strong>Banner und Disclaimer</strong> sind verbindlich: Sie gelten für alle Postfächer mit aktivierter
-    <em>Vorlagen-Richtlinien</em>-Option; nur wer sie dort abschaltet, bekommt eigene.
+    <strong>Banner und Disclaimer</strong> sind verbindlich: Sie gelten für alle Postfächer mit angehaktem
+    <em>Banner/Disclaimer nach Richtlinie</em> (Spalte der Postfach-Tabelle, steuert auch die Add-in-Auswahl);
+    nur wer den Haken dort abschaltet, bekommt eigene.
   </p>
   <p class="hint" style="margin-bottom:14px;line-height:1.6">
     <strong>Antwort-Signatur:</strong> Antwortet ein Absender in einem Thread, in dem er <em>schon geschrieben</em> hat
@@ -445,36 +467,39 @@ async function ankerAnwenden() {
             onclick="saveSelfRechtstexte()">Speichern</button>
     <span id="self-recht-result" style="font-size:12px"></span>
   </div>
-  <!-- Vorlagenwahl im Self-Service: standardmäßig AUS. Pro Gruppe freischaltbar. -->
-  <div class="settings-row" style="margin-top:12px" id="self-tpl-groups-row">
-    <label for="self-tpl-groups">Vorlagenwahl erlauben (Gruppen)</label>
-    <div class="settings-control">
-      <select id="self-tpl-groups" multiple size="4" onchange="saveSelfTplGroups()"
-              style="min-width:220px">
-        {% for g in internal_group_names %}
-        <option value="{{ g }}" {% if g in self_template_groups %}selected{% endif %}>{{ g }}</option>
-        {% endfor %}
-      </select>
-      <span id="self-tpl-groups-result" style="font-size:12px;margin-left:8px"></span>
-    </div>
+  <!-- Vorlagenwahl im Self-Service: ohne angehakte Gruppe darf niemand wählen.
+       Kästchen je Gruppe (reine Schalter, speichern sofort — Speicher-Linie Regel 4).
+       Was gerade gilt, sagt #self-tpl-stand (selfTplStandZeigen). -->
+  <h3 style="font-size:12px;font-weight:600;color:#374151;margin:12px 0 4px">Vorlagenwahl erlauben für (interne Gruppen)
+    <span id="self-tpl-groups-result" style="font-size:12px;font-weight:400;margin-left:8px"></span></h3>
+  {% for g in internal_group_names %}
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" class="self-tpl-gruppe" value="{{ g }}" onchange="saveSelfTplGroups()"
+             {% if g in self_template_groups %}checked{% endif %}> {{ g }}
+    </label>
   </div>
+  {% endfor %}
   <p class="hint" style="margin:4px 0 0;max-width:640px">
-    Standardmäßig können Nutzer ihre Vorlagen <strong>nicht</strong> selbst wählen
-    (nur an/aus/Zeitraum). Mitglieder der hier gewählten internen Gruppen dürfen
-    zusätzlich wählen — welche Kategorien, legen die Schalter darunter fest. Einzelne
-    Postfächer lassen sich über das Feld <code>self_templates</code> im Postfach-Eintrag
-    freischalten. Banner und Disclaimer sind nie wählbar.
+    Mitglieder der angehakten Gruppen wählen im Self-Service ihre Vorlagen selbst,
+    alle anderen nur an/aus/Zeitraum — welche Kategorien, legen die Schalter darunter
+    fest. Einzelne Postfächer lassen sich über das Feld <code>self_templates</code> im
+    Postfach-Eintrag freischalten. Banner und Disclaimer sind nie wählbar, ebenso
+    eine Vorlage, die eine Gruppen-Regel <em>fest</em> vorgibt.
   </p>
   <h3 style="font-size:12px;font-weight:600;color:#374151;margin:12px 0 4px">Wählbare Kategorien
     <span id="self-tpl-kat-result" style="font-size:12px;font-weight:400;margin-left:8px"></span></h3>
   {% for kat, text in [("sig", "Signatur"), ("min", "Antwort-Signatur"), ("oof", "Abwesenheitsnotiz")] if kat != "oof" or abwesenheit_aktiv() %}
   <div class="settings-row">
     <label class="checkbox-label">
-      <input type="checkbox" class="self-tpl-kat" value="{{ kat }}" onchange="saveSelfTplKategorien()"
+      <input type="checkbox" class="self-tpl-kat" value="{{ kat }}" data-text="{{ text }}"
+             onchange="saveSelfTplKategorien()"
              {% if kat in self_template_kategorien %}checked{% endif %}> {{ text }}
     </label>
   </div>
   {% endfor %}
+  <p class="hint" id="self-tpl-stand" data-einzeln="{{ self_template_einzeln }}" aria-live="polite"
+     style="margin:6px 0 0;max-width:640px;font-weight:600"></p>
 
   <!-- Interne Gruppen -->
   <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
@@ -518,7 +543,7 @@ async function ankerAnwenden() {
       <em>fest</em> (Signatur, Antwort-, interne Signatur, Abwesenheit): Die Vorlage gilt
       auch, wenn das Postfach eine eigene gewählt hat. Die Auswahl ist dann im
       Self-Service und in der Postfachliste gesperrt; eine eigene Wahl bleibt gespeichert
-      und gilt wieder, sobald <em>fest</em> entfällt. Der Haken <em>Vorlagen-Richtlinien</em> eines
+      und gilt wieder, sobald <em>fest</em> entfällt. Der Haken <em>Banner/Disclaimer nach Richtlinie</em> eines
       Postfachs hebt <em>fest</em> nicht auf.
     </p>
     <p class="hint" style="margin:0 0 6px;max-width:640px">
@@ -791,6 +816,7 @@ async function savePolicies() {
 
 // Die OOF-/Kalender-/Anhang-Schalter sind auf die Seite \u201eAbwesenheit" umgezogen.
 async function selfServiceUmschalten(cb) {
+  selfTplStandZeigen();
   await savePartial({ SELF_SERVICE_ENABLED: cb.checked }, 'self-service-result');
 }
 async function saveSelfRechtstexte() {
@@ -807,16 +833,44 @@ async function saveSelfRechtstexte() {
   }
   wacheFertig('self-recht-btn', await savePartial(werte, 'self-recht-result'));
 }
+// Werte (bzw. mit feld 'text' die Anzeigenamen) angehakter Kästchen.
+function _angehakt(kaestchen, feld) {
+  return Array.prototype.map.call(kaestchen, function (cb) { return feld === 'text' ? cb.dataset.text : cb.value; });
+}
 async function saveSelfTplKategorien() {
-  var gewaehlt = Array.prototype.map.call(
-    document.querySelectorAll('.self-tpl-kat:checked'), function (cb) { return cb.value; });
-  await savePartial({ SELF_TEMPLATE_KATEGORIEN: gewaehlt }, 'self-tpl-kat-result');
+  selfTplStandZeigen();
+  await savePartial({ SELF_TEMPLATE_KATEGORIEN: _angehakt(document.querySelectorAll('.self-tpl-kat:checked')) }, 'self-tpl-kat-result');
 }
 async function saveSelfTplGroups() {
-  var sel = document.getElementById('self-tpl-groups');
-  var gewaehlt = Array.prototype.filter.call(sel.options, function (o) { return o.selected; })
-                      .map(function (o) { return o.value; });
-  await savePartial({ SELF_TEMPLATE_GROUPS: gewaehlt }, 'self-tpl-groups-result');
+  selfTplStandZeigen();
+  await savePartial({ SELF_TEMPLATE_GROUPS: _angehakt(document.querySelectorAll('.self-tpl-gruppe:checked')) }, 'self-tpl-groups-result');
+}
+
+// Was im Self-Service GERADE gilt — aus den Kästchen, nicht aus der Vorgabe.
+// Bis v1.12.90 stand hier nur „Standardmäßig können Nutzer … nicht“, auch wenn
+// längst Gruppen freigeschaltet waren. Serverseitig entscheidet
+// selfservice._freigegeben: Gruppe (oder self_templates am Postfach) UND
+// Kategorie in SELF_TEMPLATE_KATEGORIEN; die Seite /self selbst nur bei
+// SELF_SERVICE_ENABLED.
+function _selfTplStandText(gruppen, kategorien, einzeln, selfAn) {
+  var wer = gruppen.slice();
+  if (einzeln > 0) wer.push(einzeln + (einzeln === 1 ? ' einzeln freigeschaltetes Postfach'
+                                                     : ' einzeln freigeschaltete Postfächer'));
+  var text;
+  if (!wer.length) text = 'Derzeit darf niemand Vorlagen wählen.';
+  else if (!kategorien.length) text = 'Derzeit darf niemand Vorlagen wählen — freigeschaltet ist '
+    + wer.join(', ') + ', aber keine Kategorie ist wählbar.';
+  else text = 'Derzeit dürfen wählen: ' + wer.join(', ') + ' — Kategorien: ' + kategorien.join(', ') + '.';
+  if (!selfAn) text += ' Der Self-Service selbst ist ausgeschaltet (Schalter oben).';
+  return text;
+}
+function selfTplStandZeigen() {
+  var zeile = document.getElementById('self-tpl-stand');
+  if (!zeile) return;
+  var selfCb = document.getElementById('self-service');
+  zeile.textContent = _selfTplStandText(_angehakt(document.querySelectorAll('.self-tpl-gruppe:checked')),
+                                        _angehakt(document.querySelectorAll('.self-tpl-kat:checked'), 'text'),
+                                        parseInt(zeile.dataset.einzeln, 10) || 0, !!(selfCb && selfCb.checked));
 }
 
 // ── Postfächer ───────────────────────────────────────────────────────────────
@@ -910,7 +964,7 @@ async function refreshMailboxStatus() {
 }
 
 // Wahl-Slots (Signatur, Antwort-Signatur, Abwesenheit) gehören dem Nutzer und
-// gelten unabhängig von der Richtlinien-Option (policies.py). Erste Auswahl ist
+// gelten unabhängig vom Haken „Banner/Disclaimer nach Richtlinie“ (use_policy, policies.py). Erste Auswahl ist
 // „Standard (X)": kein eigener Wert, das Postfach folgt dem Gruppen- bzw.
 // globalen Default und wandert mit, wenn der Betreiber ihn ändert.
 var STANDARD_WAHL = '__standard__';
@@ -925,9 +979,35 @@ function _signaturWahlZelle(idx, klasse, mb, slot, feld) {
   td.style.cssText = 'text-align:center;padding:6px 8px';
   var sel = _buildWahlSelect(idx, klasse, 'signatur', mb, slot, feld, '— keine —');
   _wahlStand(sel, !mb.sig);
-  td.appendChild(sel);
-  _festHinweis(td, mb, slot, feld);
+  _wahlInZelle(td, sel, mb, slot, feld);
   return td;
+}
+
+// EIN Weg, eine Wahl-Auswahl in ihre Zelle zu setzen: Auswahl, Ausnahme-Marke
+// (direkt dahinter — der CSS-Selektor `select[data-ausnahme] + .wahl-ausnahme`
+// braucht die Nachbarschaft) und ggf. der Festgelegt-Hinweis.
+function _wahlInZelle(td, sel, mb, slot, feld) {
+  td.appendChild(sel);
+  var marke = document.createElement('span');
+  marke.className = 'wahl-ausnahme';
+  marke.textContent = 'Ausnahme';
+  marke.title = 'Eigene Wahl dieses Postfachs — folgt nicht dem Standard (Gruppe bzw. global).';
+  td.appendChild(marke);
+  _festHinweis(td, mb, slot, feld);
+  _ausnahmeStand(sel);
+  sel.addEventListener('change', function() { _ausnahmeStand(sel); });
+}
+
+// Ausnahme = eine bewusste eigene Wahl: nicht „Standard (…)“ und nicht von
+// einer Gruppen-Regel festgeschrieben (dort zeigt die Auswahl den Gruppenwert).
+// Auch „— keine —“ ist eine eigene Wahl. Gilt unabhängig davon, ob die Auswahl
+// gerade gesperrt ist (Signatur-Haken aus): Der Wert steht im Eintrag.
+function _istAusnahme(sel) {
+  return sel.dataset.fest !== '1' && sel.value !== STANDARD_WAHL;
+}
+function _ausnahmeStand(sel) {
+  if (_istAusnahme(sel)) sel.dataset.ausnahme = '1';
+  else delete sel.dataset.ausnahme;
 }
 
 // Von einer Gruppen-Regel festgeschrieben (mb.fest = {slot: gruppe},
@@ -1178,7 +1258,7 @@ function renderMailboxTable(mailboxes) {
     if (isResource) { sigCb.disabled = true; sigCb.title = 'Raum-/Geräte-Postfächer können nicht aktiviert werden'; }
     tdSig.appendChild(sigCb);
 
-    // Vorlagenrichtlinien übernehmen checkbox
+    // Haken „Banner/Disclaimer nach Richtlinie“ (use_policy)
     var policyActive = (mb.use_policy !== false); // default true
     var tdPolicy = document.createElement('td');
     tdPolicy.style.cssText = 'text-align:center;padding:6px 8px';
@@ -1187,17 +1267,16 @@ function renderMailboxTable(mailboxes) {
     policyCb.className = 'mb-policy';
     policyCb.dataset.idx = String(i);
     policyCb.checked = policyActive;
-    policyCb.title = 'Banner, Disclaimer und Add-in-Auswahl aus der Richtlinie übernehmen';
+    policyCb.title = 'Banner/Disclaimer nach Richtlinie: Banner, Disclaimer und Add-in-Auswahl kommen aus der Richtlinie. Signatur, Antwort-, interne Signatur und Abwesenheit betrifft der Haken nicht.';
     if (isResource) policyCb.disabled = true;
     tdPolicy.appendChild(policyCb);
 
-    // Signatur (Wahl-Slot, unabhängig von der Richtlinien-Option)
+    // Signatur (Wahl-Slot, unabhängig von use_policy)
     var tdTpl = document.createElement('td');
     tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
     var tplSel = _buildWahlSelect(i, 'mb-template', 'signatur', mb, 'sig', 'template', null);
     _wahlStand(tplSel, !mb.sig);
-    tdTpl.appendChild(tplSel);
-    _festHinweis(tdTpl, mb, 'sig', 'template');
+    _wahlInZelle(tdTpl, tplSel, mb, 'sig', 'template');
 
     // Antwort-Signatur (ab 2. eigener Mail im Thread) und interne Signatur
     // (alle Empfänger intern) — Wahl-Slots, die am Signatur-Haken hängen.
@@ -1219,8 +1298,7 @@ function renderMailboxTable(mailboxes) {
     tdOof.style.cssText = 'text-align:center;padding:6px 8px';
     var oofSel = _buildWahlSelect(i, 'mb-oof', 'oof', mb, 'oof', 'oof_template', '— keine —');
     _wahlStand(oofSel, !(mb.sig || mb.smime));
-    tdOof.appendChild(oofSel);
-    _festHinweis(tdOof, mb, 'oof', 'oof_template');
+    _wahlInZelle(tdOof, oofSel, mb, 'oof', 'oof_template');
     // Kalender-Automatik je Postfach wird jetzt im Abwesenheits-Dashboard gesetzt.
 
     // Add-in Vorlagen — greyed when policyActive
@@ -1284,7 +1362,7 @@ function renderMailboxTable(mailboxes) {
     }
     if (isHybrid && !addinCtrl.title) addinCtrl.title = HYBRID_ADDIN;
 
-    // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Banner, Disclaimer, Abwesenheit, Outlook Add-In
+    // Column order: Status, Postfach, Signatur, S/MIME, Banner/Disclaimer nach Richtlinie (use_policy), Standardsignatur, Minimalsignatur, Banner, Disclaimer, Abwesenheit, Outlook Add-In
     tr.appendChild(tdStatus);
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
@@ -1311,6 +1389,7 @@ function filterMailboxes() {
   var typ = typF ? typF.value : '';
   var sigF = (document.getElementById('mb-sig-filter') || {}).value || '';
   var smimeF = (document.getElementById('mb-smime-filter') || {}).value || '';
+  var nurAusnahmen = !!(document.getElementById('mb-ausnahme-filter') || {}).checked;
   // Haken in der Zeile, nicht der gespeicherte Stand: Eine noch nicht
   // gespeicherte Änderung soll der Filter so zeigen, wie sie gleich gilt.
   function haken(tr, cls, soll) {
@@ -1322,13 +1401,14 @@ function filterMailboxes() {
   var sichtbar = 0;
   zeilen.forEach(function(tr) {
     var passt = tr.dataset.search.includes(q) && (!typ || tr.dataset.mbtype === typ)
-      && haken(tr, '.mb-sig', sigF) && haken(tr, '.mb-smime', smimeF);
+      && haken(tr, '.mb-sig', sigF) && haken(tr, '.mb-smime', smimeF)
+      && (!nurAusnahmen || !!tr.querySelector('select[data-ausnahme="1"]'));
     tr.style.display = passt ? '' : 'none';
     if (passt) sichtbar++;
   });
   var zaehler = document.getElementById('mb-filter-count');
   if (zaehler) {
-    zaehler.textContent = (q || typ || sigF || smimeF)
+    zaehler.textContent = (q || typ || sigF || smimeF || nurAusnahmen)
       ? sichtbar + ' von ' + zeilen.length + ' Postfächern'
       : '';
   }
@@ -1369,6 +1449,33 @@ function massenVorlageSetzen() {
   showMsg('mb-massen-status', gesetzt + ' Zeile(n) gesetzt'
     + (gesperrt ? ', ' + gesperrt + ' übersprungen (Spalte gesperrt, etwa ohne Signatur-Haken oder durch eine Gruppe festgelegt)' : '')
     + ' — wirksam nach „Speichern“.', gesetzt > 0);
+}
+
+// Massenaktion „Sichtbare auf Standard“: alle Wahl-Slots der sichtbaren Zeilen
+// auf STANDARD_WAHL — die Ausnahmen entfallen. Festgeschriebene überspringt sie
+// (der Server nimmt dort ohnehin nichts an). Gesperrte ohne Signatur-Haken
+// setzt sie mit: Ihre Ausnahme steht im Eintrag, „nur Ausnahmen“ zeigt sie.
+// Wirksam erst mit „Speichern“, wie die übrigen Sammelauswahlen.
+var WAHL_SELEKTOR = 'select.mb-template, select.mb-min-sig, select.mb-intern, select.mb-oof';
+function massenAufStandard() {
+  var zeilen = 0, slots = 0, fest = 0;
+  document.querySelectorAll('#mb-tbody tr').forEach(function(tr) {
+    if (tr.style.display === 'none') return;
+    var getroffen = false;
+    tr.querySelectorAll(WAHL_SELEKTOR).forEach(function(sel) {
+      if (sel.dataset.fest === '1') { fest++; return; }
+      if (sel.value === STANDARD_WAHL) return;
+      sel.value = STANDARD_WAHL;
+      sel.dispatchEvent(new Event('change', {bubbles: true}));
+      slots++; getroffen = true;
+    });
+    if (getroffen) zeilen++;
+  });
+  showMsg('mb-massen-status', slots
+    ? slots + ' Vorlage(n) in ' + zeilen + ' Zeile(n) auf Standard gesetzt'
+      + (fest ? ', ' + fest + ' festgelegte übersprungen' : '') + ' — wirksam nach „Speichern“.'
+    : 'Keine Ausnahme in den sichtbaren Zeilen' + (fest ? ' (' + fest + ' festgelegte übersprungen)' : '') + '.',
+    slots > 0);
 }
 
 function setAllVisible(type, state) {
@@ -2147,6 +2254,7 @@ async function saveCustomPolicies() {
 // So ergibt sich der Abstand zum SEITENANFANG und das Ergebnis haengt nicht
 // davon ab, wie weit gerade gerollt ist.
 document.addEventListener('DOMContentLoaded', function() {
+  selfTplStandZeigen();
   loadMailboxes(true);
   // Regeln erst nach den Gruppen: Ihr Gruppenfeld bietet die Gruppen zur Wahl
   // und kennzeichnet eine gelöschte — vorher ist die Liste leer.

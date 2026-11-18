@@ -734,3 +734,26 @@ def test_jede_seite_zeigt_admins_die_admin_sicht(client, monkeypatch):
         app.dependency_overrides.update(gesichert)
     assert {"/setup", "/settings", "/mailboxes", "/template"} <= set(geprueft), geprueft
     assert not ohne, f"Admin sieht hier die Nicht-Admin-Sicht: {ohne}"
+
+
+# ── Self-Service-Zustandszeile: Gruppen als Kästchen, einzeln Freigeschaltete ──
+
+def test_self_service_gruppen_und_einzelfreigaben(client):
+    """Die Zustandszeile (mailboxes.html, selfTplStandZeigen) bekommt die Zahl der
+    Postfächer mit `self_templates: true` vom Server — sonst meldete sie „niemand“,
+    obwohl selfservice._darf_vorlagen_waehlen diese Postfächer zulässt."""
+    import settings_store
+    alt = {k: settings_store.get(k) for k in ("INTERNAL_GROUPS", "MAILBOX_CONFIG", "SELF_TEMPLATE_GROUPS")}
+    settings_store.update({
+        "INTERNAL_GROUPS": {"Vertrieb": [], "Technik": []},
+        "MAILBOX_CONFIG": {"g1": {"sig": True, "self_templates": True},
+                           "g2": {"sig": True, "self_templates": "ja"},   # nur echtes True zählt
+                           "g3": {"sig": True}},
+        "SELF_TEMPLATE_GROUPS": ["Technik"]})
+    try:
+        html = client.get("/mailboxes").text
+        assert 'data-einzeln="1"' in html
+        assert re.search(r'class="self-tpl-gruppe" value="Technik" onchange="saveSelfTplGroups\(\)"\s*checked', html)
+        assert re.search(r'class="self-tpl-gruppe" value="Vertrieb" onchange="saveSelfTplGroups\(\)"\s*>', html)
+    finally:
+        settings_store.update(alt)

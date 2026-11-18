@@ -5,6 +5,52 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.91 — 2026-11-19 — Postfachliste: Ausnahmen sichtbar, Haken „Banner/Disclaimer nach Richtlinie“
+
+**Haken umbenannt.** Die Spalte *Vorlagen-Richtlinien* der Postfach-Tabelle
+heißt jetzt **Banner/Disclaimer nach Richtlinie** (Zusatz: „auch
+Add-in-Auswahl“). Seit v1.9.113 steuert der Haken nur noch Banner, Disclaimer
+und die Add-in-Auswahl; Signatur, Antwort-, interne Signatur und Abwesenheit
+wählt jedes Postfach unabhängig davon. Der alte Name klang nach allen Vorlagen
+und legte nahe, die Auswahlfelder daneben seien bei gesetztem Haken
+wirkungslos. Kopfzeile, Tooltip und die Erläuterungen unter
+*Vorlagenrichtlinien* sind angeglichen. Gespeichert wird weiter dasselbe Feld
+(`use_policy`) — an deinen Einträgen ändert sich nichts.
+
+**Ausnahmen markiert.** „Standard (X)“ (das Postfach folgt Gruppe bzw.
+globalem Standard und wandert mit, wenn du ihn änderst) und eine bewusst
+gewählte Vorlage X sahen in der Zeile fast gleich aus. Weicht ein Postfach bei
+Signatur, Antwort-, interner Signatur oder Abwesenheit vom Standard ab — auch
+mit „— keine —“ —, trägt die Auswahl jetzt die Marke **Ausnahme**. Die Marke
+folgt jeder Änderung sofort, auch vor dem Speichern. Eine von einer
+Gruppen-Regel *fest* vorgegebene Vorlage ist keine Ausnahme; dort zeigt die
+Zeile weiter „festgelegt durch …“.
+
+**Filter „nur Ausnahmen“** in der Filterzeile: zeigt nur Postfächer mit
+mindestens einer Ausnahme.
+
+**Sammelaktion „Ausnahmen: Sichtbare auf Standard“:** setzt in allen
+sichtbaren Zeilen die vier Wahl-Vorlagen auf „Standard“ und meldet, wie viele
+Vorlagen in wie vielen Zeilen das waren. Festgelegte Vorlagen überspringt
+sie. Wie bei den übrigen Sammelaktionen gilt das erst nach **Speichern**.
+Zusammen mit dem Filter räumst du so gezielt die Ausnahmen auf, etwa vor
+einer Umstellung der Standards.
+
+**Self-Service: Gruppen als Kästchen, Stand statt Vorgabe.** Die Gruppen, die
+im Self-Service Vorlagen wählen dürfen, wählst du jetzt per Kästchen je
+interner Gruppe statt im Mehrfach-Auswahlfeld (dort ging mit einem Klick ohne
+Strg die bisherige Auswahl verloren, und gespeichert wurde sofort). Gespeichert
+wird weiter sofort. Darunter steht, was **gerade** gilt: „Derzeit dürfen
+wählen: … — Kategorien: …“ bzw. „Derzeit darf niemand Vorlagen wählen.“ —
+mitgezählt sind einzeln per `self_templates` freigeschaltete Postfächer, und
+die Zeile sagt, wenn keine Kategorie gewählt oder der Self-Service
+ausgeschaltet ist. Bisher stand dort nur die Vorgabe („Standardmäßig können
+Nutzer … nicht“), auch wenn längst Gruppen freigeschaltet waren. Neu im
+Hinweis: Eine von einer Gruppen-Regel *fest* vorgegebene Vorlage ist im
+Self-Service nie wählbar.
+
+**Zu tun:** nichts.
+
 ## v1.12.90 — 2026-11-19 — Gruppen-Regeln: alle Vorlagen in einer Regel, je Vorlage „fest“
 
 Unter **Postfächer → Vorlagenrichtlinien → Benutzerdefinierte Richtlinien** legt eine Regel

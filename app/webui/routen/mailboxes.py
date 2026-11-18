@@ -682,6 +682,11 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                  "self_nutzung_url": settings_store.get("SELF_NUTZUNGSBEDINGUNGEN_URL") or "",
                  "self_template_groups": settings_store.get("SELF_TEMPLATE_GROUPS") or [],
                  "self_template_kategorien": settings_store.get("SELF_TEMPLATE_KATEGORIEN") or [],
+                 # Postfächer mit `self_templates: true` (selfservice._darf_vorlagen_waehlen)
+                 # — die Zustandszeile darf sonst „niemand“ melden, obwohl jemand darf.
+                 "self_template_einzeln": sum(
+                     1 for e in (settings_store.get("MAILBOX_CONFIG") or {}).values()
+                     if isinstance(e, dict) and e.get("self_templates") is True),
                  "internal_group_names": sorted(gruppen.interne_gruppen().keys()),
                  "gruppe_alle": gruppen.ALLE,
                  "group_vars": settings_store.get("GROUP_VARS") or {},
