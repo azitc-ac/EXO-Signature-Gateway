@@ -211,7 +211,11 @@ def inhalt_pruefen(kopf: dict, nutzlast: dict, aud_erwartet: str,
 # ── Signatur ──────────────────────────────────────────────────────────────────
 
 def _x5t(der: bytes) -> str:
-    return base64.urlsafe_b64encode(hashlib.sha1(der).digest()).rstrip(b"=").decode("ascii")
+    """x5t ist per Definition (RFC 7515 §4.1.7) der SHA-1-Fingerabdruck des
+    Zertifikats — ein Bezeichner zum Auffinden, keine Sicherheitsfunktion. Die
+    Sicherheit trägt die RS256-Signaturprüfung mit dem so gefundenen Schlüssel."""
+    return base64.urlsafe_b64encode(
+        hashlib.sha1(der, usedforsecurity=False).digest()).rstrip(b"=").decode("ascii")
 
 
 def schluessel_waehlen(metadaten: dict, x5t: str):

@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.78 — 2026-11-18 — Sicherheitsprüfung: Fingerabdruck im Identitätstoken
+
+Der SHA-1-Fingerabdruck (`x5t`) im Exchange-Identitätstoken aus v1.12.77 ist
+als Bezeichner gekennzeichnet (`usedforsecurity=False`). Das Format schreibt
+SHA-1 vor (RFC 7515). Geprüft wird das Token über die RS256-Signatur mit dem
+so gefundenen Schlüssel. Keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.77 — 2026-11-18 — Verfassen-Add-in für Konten auf Exchange lokal (Exchange-Identitätstoken)
 
 **Ursache.** Im klassischen Outlook mit einem Konto auf Exchange lokal (ohne
