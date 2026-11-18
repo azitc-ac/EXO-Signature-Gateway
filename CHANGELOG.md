@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.84 — 2026-11-18 — CI: Browser-Tests auf Ubuntu 24.04 festgelegt
+
+Der GitHub-Runner `ubuntu-latest` wird auf Ubuntu 26.04 umgestellt. Playwright
+1.60 installiert dort kein Chromium, und der Job „Browser-Tests“ scheiterte schon
+beim Einrichten. Der Job läuft jetzt fest auf `ubuntu-24.04`. Die übrigen Jobs
+bleiben auf `ubuntu-latest`, sie laufen dort fehlerfrei. Das Gateway selbst
+ändert sich nicht.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.83 — 2026-11-18 — Hinweis zu `New-App -Url` präzisiert
 
 Unter *Einrichtung → Outlook Add-in → Exchange lokal* heißt es jetzt deutlicher:
