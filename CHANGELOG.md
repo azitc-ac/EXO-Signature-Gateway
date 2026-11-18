@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.73 — 2026-11-18 — Kommentar in der Regelprobe
+
+Ein Kommentar in `regel_probe.py` sah für die Prüfung der Wegnamen
+(`tests/test_wegnamen.py`) wie ein Verweis auf einen Knopf „nicht prüfbar“ aus.
+Umformuliert, keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.72 — 2026-11-18 — Regelprobe für Hybrid-Nutzer über die Koexistenz-Domäne; Status nach Einrichten der EWS-Anbindung
 
 **Regelprobe für Hybrid-Nutzer: Ziel ist die Routing-Adresse.** Die Probe

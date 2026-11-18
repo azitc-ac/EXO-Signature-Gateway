@@ -417,7 +417,7 @@ ROUTING_SUFFIX = ".mail.onmicrosoft.com"
 # JEDES EXO-Postfach trägt. Lokal ist sie keine Accepted Domain; Exchange lokal
 # schickt sie über den Send-Connector für smtp:* (im Hybrid-Szenario dieser
 # Funktion ohnehin Voraussetzung: die lokale Organisation versendet über EXO).
-# Fehlt dieser Weg, kommt eine Unzustellbarkeitsmeldung → „nicht prüfbar“.
+# Fehlt dieser Weg, kommt eine Unzustellbarkeitsmeldung, Ergebnis „nicht prüfbar“.
 RUECKFALL_SUFFIX = ".onmicrosoft.com"
 
 
