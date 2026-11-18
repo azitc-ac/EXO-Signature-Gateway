@@ -364,7 +364,10 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
         )
         subject = "Zustellung fehlgeschlagen: Kein Verschlüsselungszertifikat"
     msg = email.mime.text.MIMEText(body, "plain", "utf-8")
-    msg["Subject"] = subject
+    # Als RFC-2047-Wort: Der Betreff enthält „ü“, und die SMTP-Policy schreibt
+    # Kopfzeilen einer compat32-Nachricht nur als ASCII — roh eingesetzt brach
+    # as_bytes() mit UnicodeEncodeError ab, und die Meldung ging nie hinaus.
+    msg["Subject"] = email.header.Header(subject, "utf-8").encode()
     # Graph sendMail versendet immer als das angegebene Postfach — ein
     # abweichendes no-reply-From würde ErrorSendAsDenied auslösen. Die NDR
     # kommt daher vom Absender-Postfach selbst (existiert immer, ist intern).
@@ -390,15 +393,21 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
 
     # Primär: Graph sendMail — Port 25 outbound ist z.B. in Azure blockiert,
     # der SMTP-Smarthost-Weg schlug dort mit "Network is unreachable" fehl.
-    try:
-        import graph_reinject
-        if graph_reinject.send_via_graph_mime(original_sender, [original_sender], ndr_bytes):
-            log.info("NDR sent via Graph to %s for missing certs: %s",
-                     original_sender, missing_certs)
-            return
-        log.warning("NDR via Graph returned False — trying SMTP smarthost")
-    except Exception as exc:
-        log.warning("NDR via Graph failed (%s) — trying SMTP smarthost", exc)
+    # Hybrid-Nutzer (seit v1.12.62 mit S/MIME): kein EXO-Postfach, Graph sendMail
+    # ALS sie scheiterte sicher — gleich der Smarthost, ihr einziger Rückweg.
+    import exo_mailboxes
+    if exo_mailboxes.ist_hybrid(original_sender):
+        log.info("NDR für Hybrid-Nutzer %s — direkt über den Smarthost", original_sender)
+    else:
+        try:
+            import graph_reinject
+            if graph_reinject.send_via_graph_mime(original_sender, [original_sender], ndr_bytes):
+                log.info("NDR sent via Graph to %s for missing certs: %s",
+                         original_sender, missing_certs)
+                return
+            log.warning("NDR via Graph returned False — trying SMTP smarthost")
+        except Exception as exc:
+            log.warning("NDR via Graph failed (%s) — trying SMTP smarthost", exc)
 
     import tls_ausgehend
     ctx = tls_ausgehend.kontext(pruefen=True)

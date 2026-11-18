@@ -108,7 +108,7 @@ def list_backends() -> list[dict]:
     out = [
         {"name": b.get_name(), "label": b.get_label(), "auto": b.can_auto_renew(),
          "ready": b.is_ready(), "not_ready_reason": b.not_ready_reason(),
-         "hub": False}
+         "liest_postfach": b.liest_postfach(), "hub": False}
         for b in _STATIC.values()
     ]
     for p in hub_catalog.enabled():   # lokal abgewählte Anbieter erscheinen nicht pro Postfach
@@ -116,7 +116,7 @@ def list_backends() -> list[dict]:
         out.append({
             "name": b.get_name(), "label": b.get_label(), "auto": True,
             "ready": b.is_ready(), "not_ready_reason": b.not_ready_reason(),
-            "hub": True,
+            "liest_postfach": b.liest_postfach(), "hub": True,
             "preview": bool(p.get("preview")),
             "description": p.get("description", ""),
             "price_cents": p.get("price_cents"),

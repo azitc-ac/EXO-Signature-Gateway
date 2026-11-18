@@ -346,6 +346,15 @@ async def _send_challenge_reply(
         from_email, to_email, re_subject, digest, internet_message_id
     )
     method = (settings_store.get("ACME_REPLY_METHOD") or "auto").strip().lower()
+    if method == "graph":
+        # Hybrid-Nutzer haben kein EXO-Postfach — Graph sendMail ALS sie scheitert
+        # (ErrorInvalidUser). Ihr einziger Rückweg ist der Smarthost, und genau den
+        # nimmt reinject.send für sie (Hybrid-Weiche dort). Nur für sie umgelenkt.
+        import exo_mailboxes
+        if exo_mailboxes.ist_hybrid(from_email):
+            log.info("ACME: %s ist Hybrid-Nutzer — Antwort über den Rückweg (Smarthost) "
+                     "statt Graph sendMail", from_email)
+            method = "auto"
     log.info("ACME: sending challenge reply via %s from %s → %s", method, from_email, to_email)
 
     if method == "direct_smtp":
@@ -620,10 +629,12 @@ async def _poll_mailbox_for_challenge(email: str) -> None:
     # Determine a cut-off time: only consider emails received after the order
     # was created.  Prevents old challenge emails from previous failed orders
     # from being mistakenly reused — critical after container restarts.
+    created_ab = None
     try:
         created_dt = datetime.fromisoformat(order0["created"])
         cutoff = created_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         time_filter = f"&$filter=receivedDateTime gt {cutoff}"
+        created_ab = created_dt
     except Exception:
         log.warning("[acme:%s] could not parse order created timestamp — polling without time filter", fid)
         time_filter = ""
@@ -654,19 +665,38 @@ async def _poll_mailbox_for_challenge(email: str) -> None:
                                "error": "Einwilligung fehlt oder wurde widerrufen — Postfach nicht gelesen."})
             return
 
-        token = await graph_client._acquire_token_async()
-        if not token:
-            log.warning("[acme:%s] poll for %s — no Graph token, retrying", fid, email)
-            continue
+        # Hybrid-Nutzer: Postfach in der lokalen Organisation → EWS (mit
+        # Anbindung), sonst nicht lesbar. EINE Weiche: ews_onprem.postfach_weg.
+        # EXO-Postfächer gehen unverändert den Graph-Weg unten.
+        import ews_onprem
+        weg = ews_onprem.postfach_weg(email)
+        if weg != ews_onprem.WEG_GRAPH:
+            nachrichten, grund = await _challenge_ueber_ews(email, fid, created_ab, weg)
+            if grund:
+                save_order(email, {**order, "status": "error", "error": grund})
+                if settings_store.get("NOTIFY_CERT_RENEWAL") is not False:
+                    import notification
+                    notification.send_cert_renewal_failure(email, f"ACME-Fehler: {grund}")
+                return
+            if nachrichten is None:
+                continue
+        else:
+            token = await graph_client._acquire_token_async()
+            if not token:
+                log.warning("[acme:%s] poll for %s — no Graph token, retrying", fid, email)
+                continue
+            nachrichten = None
 
         try:
-            async with _httpx.AsyncClient(timeout=20) as c:
-                r = await c.get(url, headers={"Authorization": f"Bearer {token}"})
-            if r.status_code != 200:
-                log.warning("[acme:%s] Graph poll HTTP %d for %s", fid, r.status_code, email)
-                continue
+            if nachrichten is None:
+                async with _httpx.AsyncClient(timeout=20) as c:
+                    r = await c.get(url, headers={"Authorization": f"Bearer {token}"})
+                if r.status_code != 200:
+                    log.warning("[acme:%s] Graph poll HTTP %d for %s", fid, r.status_code, email)
+                    continue
+                nachrichten = r.json().get("value", [])
 
-            for msg in r.json().get("value", []):
+            for msg in nachrichten:
                 subj = msg.get("subject", "")
                 if not subj.startswith("ACME: "):
                     continue
@@ -719,6 +749,34 @@ async def _poll_mailbox_for_challenge(email: str) -> None:
             notification.send_cert_renewal_failure(
                 email, "ACME-Fehler: Challenge-E-Mail nicht empfangen (Timeout 20 min)"
             )
+
+
+async def _challenge_ueber_ews(email: str, fid: str, ab, weg: str) -> tuple[list | None, str]:
+    """Challenge-Mail eines Hybrid-Nutzers per EWS suchen.
+
+    (nachrichten in Graph-Form | None = diesmal nicht lesbar, später erneut;
+    Abbruchgrund oder ""). Der Server filtert auf „ACME: “ im Betreff und den
+    Zeitpunkt der Bestellung; die Auswertung bleibt die des Graph-Wegs.
+    Abgebrochen wird, wenn Warten nichts ändert: Anbindung fehlt (`gesperrt`)
+    oder die lokale Exchange verweigert das Postfach (Management Scope)."""
+    import ews_onprem
+    if weg == ews_onprem.WEG_GESPERRT:
+        log.error("[acme:%s] poll for %s stopped — Postfach in der lokalen Organisation, "
+                  "Anbindung an Exchange lokal fehlt", fid, email)
+        return None, ews_onprem.BEZUG_GESPERRT
+    try:
+        nachrichten = await asyncio.to_thread(ews_onprem.posteingang_als_graph, email, ab,
+                                              "ACME: ", 50)
+    except ews_onprem.EwsFehler as exc:
+        if exc.kein_zugriff:
+            log.error("[acme:%s] poll for %s stopped — Exchange lokal: %s", fid, email, exc.detail)
+            return None, f"Exchange lokal verweigert das Postfach: {exc.detail}"
+        log.warning("[acme:%s] EWS poll for %s failed: %s — retrying", fid, email, exc.detail)
+        return None, ""
+    except Exception as exc:                                       # noqa: BLE001
+        log.warning("[acme:%s] EWS poll for %s failed: %s — retrying", fid, email, exc)
+        return None, ""
+    return nachrichten, ""
 
 
 # ── Full initiation flow (called from castle_acme.py) ────────────────────────

@@ -213,12 +213,17 @@
           {% else %}
             <span style="font-size:11px;color:#e67e22;background:#fef3e2;border-radius:10px;padding:1px 7px;white-space:nowrap">kein Zertifikat</span>
           {% endif %}
+          {% if bezug_gesperrt.get(u.email) %}
+            <span style="font-size:11px;color:#92400e;background:#fef3c7;border-radius:10px;padding:1px 7px;white-space:nowrap"
+                  title="{{ bezug_gesperrt[u.email] }}">Hybrid — Bezug nur per Import</span>
+          {% endif %}
         </div>
         <div class="user-hdr-actions">
           <button class="btn secondary btn-sm" onclick="openImportModal('{{ u.email }}')">Importieren</button>
           {% set _backend_name = _weg %}
           {% set _backend_info = (backends | selectattr('name','equalto',_backend_name) | list | first) or {} %}
-          {% set _can_auto = _backend_info.get('auto', false) and _backend_info.get('ready', false) %}
+          {% set _sperre = bezug_gesperrt.get(u.email, '') if _backend_info.get('liest_postfach') else '' %}
+          {% set _can_auto = _backend_info.get('auto', false) and _backend_info.get('ready', false) and not _sperre %}
           {% if not has_certs %}
           {# Ohne Zertifikat der sichtbare Weg zur Einzelbestellung. Kann der
              Bezugsweg nicht selbst bestellen, klappt der Knopf die Einstellungen
@@ -226,6 +231,8 @@
           <button id="ae-btn-{{ u.email | replace('@','_') | replace('.','_') }}"
                   class="btn secondary btn-sm"
                   {% if _can_auto %}onclick="startAutoEnroll('{{ u.email }}',this)"
+                  {% elif _sperre %}onclick="_zeileMehr(event, this)"
+                  title="{{ _sperre }}"
                   {% else %}onclick="_zeileMehr(event, this)"
                   title="Erst einen Bezugsweg wählen — „{{ _backend_info.get('label', _backend_name) }}“ bestellt nicht selbst"{% endif %}>
             Zertifikat bestellen
@@ -235,7 +242,7 @@
                   class="btn secondary btn-sm"
                   {% if _can_auto %}onclick="startAutoEnroll('{{ u.email }}',this)"
                   {% else %}disabled style="opacity:.45;cursor:not-allowed"
-                  title="{% if _backend_info.get('auto') and not _backend_info.get('ready') %}{{ _backend_info.get('not_ready_reason') or 'Backend noch nicht vollständig konfiguriert' }}{% else %}Backend „{{ _backend_info.get('label', _backend_name) }}“ unterstützt kein Auto-Enroll{% endif %}"{% endif %}>
+                  title="{% if _sperre %}{{ _sperre }}{% elif _backend_info.get('auto') and not _backend_info.get('ready') %}{{ _backend_info.get('not_ready_reason') or 'Backend noch nicht vollständig konfiguriert' }}{% else %}Backend „{{ _backend_info.get('label', _backend_name) }}“ unterstützt kein Auto-Enroll{% endif %}"{% endif %}>
             Auto-Enroll
           </button>
           {% endif %}

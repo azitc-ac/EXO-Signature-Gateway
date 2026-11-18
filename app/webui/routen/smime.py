@@ -191,6 +191,11 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
             "smime_users": smime_users,
             "ca_user_config": settings_store.get("CA_USER_CONFIG") or {},
             "einwilligungen": {em: __import__("einwilligung").zustand(em) for em in all_emails},
+            # Hybrid-Nutzer ohne Anbindung an Exchange lokal: Bezugswege, die das
+            # Postfach lesen (CASTLE, Hub), sind gesperrt — mit Grund am Knopf.
+            # Dieselbe Prüfung sperrt die Bestellung im Kern (einwilligung.verlangen).
+            "bezug_gesperrt": {em: g for em in all_emails
+                               if (g := __import__("ews_onprem").bezug_sperre(em))},
             # Bezugsweg je Postfach — EINE Quelle (ca_backends.bezugsweg), statt
             # im Template `ca_cfg.get('backend','assisted_manual')` zu wiederholen.
             "wege": {em: _ca.bezugsweg((settings_store.get("CA_USER_CONFIG") or {}).get(em))

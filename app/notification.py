@@ -129,6 +129,25 @@ def _ueber_route_senden(to: str, subject: str, html: str, reply_to: str, sender:
         return False
 
 
+def _absender_hybrid(sender: str) -> bool:
+    """Ist der Absender ein Hybrid-Nutzer (Postfach in der lokalen Organisation)?
+
+    Portal-Mails (Benachrichtigung, Zugangscode, Lesebestätigung, Antwort) gehen
+    ALS der ursprüngliche Absender. Seit v1.12.62 kann das ein Hybrid-Nutzer
+    sein (S/MIME mit #enc ohne Empfängerzertifikat → Portal). Graph sendMail
+    ALS ein Postfach, das es in EXO nicht gibt, scheitert (ErrorInvalidUser) —
+    dann derselbe MIME-Weg wie beim Routing über reinject.send, das für
+    Hybrid-Absender den Smarthost nimmt. EXO-Postfächer: unverändert Graph."""
+    if not sender:
+        return False
+    try:
+        import exo_mailboxes
+        return exo_mailboxes.ist_hybrid(sender)
+    except Exception as exc:                             # noqa: BLE001
+        log.warning("notification: Hybrid-Prüfung für %s nicht möglich (%s) — Graph", sender, exc)
+        return False
+
+
 def _graph_send(to: str, subject: str, html: str, reply_to: str = "",
                 sender: str = "", attachments: list[dict] | None = None) -> bool:
     """
@@ -141,7 +160,7 @@ def _graph_send(to: str, subject: str, html: str, reply_to: str = "",
     ~4 MB Gesamt-Request — Aufrufer muss die Größe begrenzen).
     """
     sender = sender or _get_sender() or to
-    if _extern_umgeleitet(to):
+    if _extern_umgeleitet(to) or _absender_hybrid(sender):
         return _ueber_route_senden(to, subject, html, reply_to, sender, attachments)
     token = graph_client._acquire_token()
     if not token:

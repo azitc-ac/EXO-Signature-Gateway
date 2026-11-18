@@ -577,11 +577,13 @@ def _ueber_ews(upn: str) -> bool:
     Anbindung wird ist_hybrid gar nicht erst befragt — der Graph-Weg bleibt
     byte-gleich wie vorher. Alle Lese-/Schreibwege der Abwesenheit (Abgleich,
     Übersicht, Admin-Editor, Self-Service, Gesundheitsprüfung) laufen über
-    _get_setting/_patch_setting und damit über diese eine Stelle."""
-    if not ews_verfuegbar():
-        return False
-    import exo_mailboxes
-    return exo_mailboxes.ist_hybrid(upn)
+    _get_setting/_patch_setting und damit über diese eine Stelle.
+
+    Seit v1.12.62 steht die Entscheidung selbst in `ews_onprem.zustaendig` —
+    dieselbe Weiche gilt dort auch für das Lesen der CA-Mails beim
+    Zertifikatsbezug (`ews_onprem.postfach_weg`)."""
+    import ews_onprem
+    return ews_onprem.zustaendig(upn)
 
 
 async def _ews_get(upn: str) -> tuple[str, dict | None]:
