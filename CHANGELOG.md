@@ -5,6 +5,52 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.74 — 2026-11-18 — Neue Mail aus Outlook im Web (Exchange lokal) bekam eine zweite Signatur; Knopf-Add-in für Exchange lokal
+
+**Neue Mail aus dem klassischen Outlook im Web: keine zweite Signatur mehr.**
+Das klassische Outlook im Web (Exchange 2016/2019/SE lokal) umschließt den
+ganzen Text einer Mail mit `<div id="divtagdefaultwrapper">`, samt der
+Signatur, die es selbst einfügt. Das Gateway hielt jede solche Hülle für den
+Anfang eines Zitats. Bei einer neuen Mail galt damit der ganze Rumpf als
+„Zitat“. Die von Outlook im Web eingefügte Gateway-Signatur (Übertragen der
+Signatur für Hybrid-Nutzer, v1.12.63) stand für die Prüfung nicht im
+Verfassenbereich, sondern „im Zitat“. Das Gateway wertete die Mail deshalb als
+Antwort in einer schon signierten Kette und hängte die Antwort-Signatur an,
+samt Trennlinie über dem Text. Im Protokoll stand dazu `SIG-KETTE: … (erkannt:
+Kennung im Zitat)` und `Signature inserted before OWA forward wrapper`.
+Ohne eingefügte Signatur landete die Gateway-Signatur samt Trennlinie über dem
+Text statt darunter. Eine solche Hülle gilt jetzt nur noch als Zitatgrenze,
+wenn eigener Text oder ein Bild vor ihr steht, also wenn sie zu einer zitierten
+Mail gehört. Erkennung der Signatur im Verfassenbereich, Ketten-Erkennung und
+Einfügestelle nutzen dafür dieselbe Prüfung. Antworten aus Outlook im Web
+erkennt das Gateway wie bisher am Antwort-Trenner (`divRplyFwdMsg`).
+
+**Knopf-Add-in für Exchange lokal: eigene Fassung des Manifests.** Exchange
+lokal unterstützt die Mailbox-Anforderungssätze 1.1 bis 1.5 (Microsoft Learn,
+„Outlook JavaScript API requirement sets“). Das Manifest des Knopf-Add-ins
+verlangt in einem Zusatzteil 1.13 (Bereich anheften, Lese-Knopf ohne
+ausgewählte Mail), und `New-App` lehnte es ab: „The API version (1.13) required
+by this app isn't supported by the Exchange Server version“. Für Exchange lokal
+gibt es jetzt `/addin/lokal/manifest.xml`, ohne diesen Zusatzteil, mit derselben
+Kennung wie in Exchange Online. Wird ein Hybrid-Postfach nach Exchange Online
+verschoben, bleibt es für Outlook dasselbe Add-in. Das Manifest für Exchange
+Online bleibt unverändert. Das Verfassen-Add-in verlangt höchstens 1.5 und
+nimmt weiter dasselbe Manifest.
+
+**Anleitung: `-FileData` zuerst.** `New-App -Url` lädt das Manifest vom
+Exchange-Server aus, nicht vom Rechner des Admins. Im Test scheiterte es mit
+„The app couldn't be downloaded.“, obwohl das Gateway das Manifest ohne
+Anmeldung und ohne Umleitung ausliefert. Die Ursache ist noch offen. Die
+Anleitung nennt deshalb zuerst den Befehl mit `-FileData` (Manifest
+herunterladen, auf den Server legen) und danach den mit `-Url`.
+
+**Zu tun:** Wenn du das Knopf-Add-in in Exchange lokal bereitstellen willst:
+Das bisherige Manifest ließ sich dort nicht einspielen. Nimm die neue Fassung
+unter *Einrichtung → Outlook Add-in → Exchange lokal (Hybrid-Nutzer)*. Für die
+Signatur-Korrektur ist nichts zu tun.
+
+---
+
 ## v1.12.73 — 2026-11-18 — Kommentar in der Regelprobe
 
 Ein Kommentar in `regel_probe.py` sah für die Prüfung der Wegnamen

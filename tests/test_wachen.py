@@ -81,6 +81,7 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     # ── Outlook-Add-in: wird aus Outlook heraus geladen, Signaturen sind nicht
     #    vertraulich. Die Zuordnung zum Postfach unter /api/addin/* prüft sehr wohl.
     "/addin/manifest.xml":    "Manifest, muss für Outlook anonym erreichbar sein",
+    "/addin/lokal/manifest.xml":  "Manifest für Exchange lokal; New-App -Url lädt es ohne Anmeldung",
     "/addin/compose":         "Aufgabenleiste, meldet sich selbst über den Dialog an",
     "/addin/function":        "Funktionsdatei des Add-ins",
     "/addin/auth-complete":   "Abschlussseite des Anmeldedialogs",

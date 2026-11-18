@@ -543,14 +543,82 @@ async def addin_manifest(request: Request):
                     media_type="application/xml")
 
 
-def knopf_manifest_xml(base: str) -> str:
+def _knopf_v11(base: str, t: dict, hosts_v11: str) -> str:
+    """Innere VersionOverridesV1_1 des Knopf-Manifests (nur Exchange Online)."""
+    return f"""
+    <!-- 1.1 (Mailbox 1.13): Anheften + Lese-Knopf ohne ausgewählte Mail.
+         Clients darunter bleiben bei der 1.0-Fassung oben. -->
+    <VersionOverrides
+      xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1"
+      xsi:type="VersionOverridesV1_1">
+
+      <Requirements>
+        <bt:Sets DefaultMinVersion="1.13">
+          <bt:Set Name="Mailbox"/>
+        </bt:Sets>
+      </Requirements>
+
+{hosts_v11}
+    <Resources>
+      <bt:Images>
+        <bt:Image id="icon16" DefaultValue="{base}/addin/icon/16.png"/>
+        <bt:Image id="icon32" DefaultValue="{base}/addin/icon/32.png"/>
+        <bt:Image id="icon80" DefaultValue="{base}/addin/icon/80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="functionFile" DefaultValue="{base}/addin/function"/>
+        <bt:Url id="taskpaneUrl"  DefaultValue="{base}/addin/compose"/>
+        <bt:Url id="selfUrl"      DefaultValue="{base}/self"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <!-- Im Menuband steht der Gruppenname UNTEN, die Knopfbeschriftung
+             direkt unter dem Symbol. Rubrik = Gateway-Name (der Urheber),
+             Knopf = was er tut — an beiden Einstiegspunkten gleich. -->
+        <bt:String id="groupLabel" DefaultValue="{t['rubrik']}"/>
+        <bt:String id="btnLabel"   DefaultValue="{t['knopf']}"/>
+        <bt:String id="btnTitle"   DefaultValue="{t['titel_verfassen']}"/>
+        <bt:String id="selfBtnTitle"   DefaultValue="{t['titel_lesen']}"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="btnDesc" DefaultValue="{t['info_verfassen']}"/>
+        <bt:String id="selfBtnDesc" DefaultValue="{t['info_lesen']}"/>
+      </bt:LongStrings>
+    </Resources>
+    </VersionOverrides>
+"""
+
+
+KNOPF_LOKAL_PFAD = "/addin/lokal/manifest.xml"
+
+
+@router.get(KNOPF_LOKAL_PFAD)
+async def addin_manifest_lokal(request: Request):
+    """Knopf-Manifest für Exchange lokal (New-App), siehe knopf_manifest_xml."""
+    from fastapi.responses import Response
+    return Response(content=knopf_manifest_xml(_addin_base_url(request), lokal=True),
+                    media_type="application/xml")
+
+
+def knopf_manifest_xml(base: str, lokal: bool = False) -> str:
     """Manifest des Knopf-Add-ins. Setzt dabei die Fassung (_manifest_version)
-    — auch ohne Abruf von außen, siehe manifest_staende_auffrischen()."""
+    — auch ohne Abruf von außen, siehe manifest_staende_auffrischen().
+
+    `lokal`: Fassung für Exchange lokal (2016/2019/SE) — OHNE die innere
+    VersionOverridesV1_1 (Mailbox 1.13: Anheften, Lese-Knopf ohne Mail).
+    Exchange lokal unterstützt die Mailbox-Sätze 1.1–1.5 (MS Learn, „Outlook
+    JavaScript API requirement sets“, Tabelle „Exchange server support“) und
+    lehnt das Manifest beim Einspielen ab, sobald irgendwo mehr verlangt wird —
+    auch in einer VersionOverrides (Exchange SE 15.2.2562.17, 18.11.2026: „The
+    API version (1.13) required by this app isn't supported by the Exchange
+    Server version“). Dieselbe Kennung wie für Exchange Online (Begründung beim
+    Abschnitt „Bereitstellung in Exchange lokal“). Eigene Fassung (`_ADDIN_MANIFEST_LOKAL_STAND`), sonst
+    zählten abwechselnde Abrufe beider Fassungen die Version hoch."""
     hostname = base.split("://")[-1].split(":")[0]
     # Stable add-in ID derived from the hostname so it never changes across restarts.
     addin_id = knopf_addin_id(hostname)
     t = _manifest_texte()
     hosts_v10, hosts_v11 = _manifest_hosts(False), _manifest_hosts(True)
+    v11 = "" if lokal else _knopf_v11(base, t, hosts_v11)
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp
   xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
@@ -627,49 +695,11 @@ def knopf_manifest_xml(base: str) -> str:
         <bt:String id="selfBtnDesc" DefaultValue="{t['info_lesen']}"/>
       </bt:LongStrings>
     </Resources>
-
-    <!-- 1.1 (Mailbox 1.13): Anheften + Lese-Knopf ohne ausgewählte Mail.
-         Clients darunter bleiben bei der 1.0-Fassung oben. -->
-    <VersionOverrides
-      xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1"
-      xsi:type="VersionOverridesV1_1">
-
-      <Requirements>
-        <bt:Sets DefaultMinVersion="1.13">
-          <bt:Set Name="Mailbox"/>
-        </bt:Sets>
-      </Requirements>
-
-{hosts_v11}
-    <Resources>
-      <bt:Images>
-        <bt:Image id="icon16" DefaultValue="{base}/addin/icon/16.png"/>
-        <bt:Image id="icon32" DefaultValue="{base}/addin/icon/32.png"/>
-        <bt:Image id="icon80" DefaultValue="{base}/addin/icon/80.png"/>
-      </bt:Images>
-      <bt:Urls>
-        <bt:Url id="functionFile" DefaultValue="{base}/addin/function"/>
-        <bt:Url id="taskpaneUrl"  DefaultValue="{base}/addin/compose"/>
-        <bt:Url id="selfUrl"      DefaultValue="{base}/self"/>
-      </bt:Urls>
-      <bt:ShortStrings>
-        <!-- Im Menuband steht der Gruppenname UNTEN, die Knopfbeschriftung
-             direkt unter dem Symbol. Rubrik = Gateway-Name (der Urheber),
-             Knopf = was er tut — an beiden Einstiegspunkten gleich. -->
-        <bt:String id="groupLabel" DefaultValue="{t['rubrik']}"/>
-        <bt:String id="btnLabel"   DefaultValue="{t['knopf']}"/>
-        <bt:String id="btnTitle"   DefaultValue="{t['titel_verfassen']}"/>
-        <bt:String id="selfBtnTitle"   DefaultValue="{t['titel_lesen']}"/>
-      </bt:ShortStrings>
-      <bt:LongStrings>
-        <bt:String id="btnDesc" DefaultValue="{t['info_verfassen']}"/>
-        <bt:String id="selfBtnDesc" DefaultValue="{t['info_lesen']}"/>
-      </bt:LongStrings>
-    </Resources>
-    </VersionOverrides>
-  </VersionOverrides>
+{v11}  </VersionOverrides>
 </OfficeApp>"""
-    return xml.replace("__VERSION__", _manifest_version(_ohne_adresse(xml, base, hostname, addin_id)), 1)
+    schluessel = "_ADDIN_MANIFEST_LOKAL_STAND" if lokal else "_ADDIN_MANIFEST_STAND"
+    return xml.replace("__VERSION__", _manifest_version(_ohne_adresse(xml, base, hostname, addin_id),
+                                                       schluessel), 1)
 
 
 # ── Bereitstellung in Exchange lokal (Hybrid-Nutzer, seit v1.12.69) ──────────
@@ -680,11 +710,23 @@ def knopf_manifest_xml(base: str) -> str:
 # Weg ist New-App in der Exchange-Verwaltungsshell (MS Learn, New-App: gilt für
 # Exchange 2016/2019/SE). Parameter dort belegt: -OrganizationApp, -Url bzw.
 # -FileData, -ProvidedTo Everyone, -DefaultStateForUser Enabled. Für -Url muss
-# der Exchange-Server die Adresse erreichen, Umleitungen nimmt er nicht.
-# Dieselben Manifeste wie für Exchange Online: Mindestversion Mailbox 1.1 (lokal
-# bis 1.5 unterstützt), alles Spätere steht in VersionOverrides bzw. wird zur
-# Laufzeit geprüft. Ob eine ältere CU das Manifest beim Einspielen ablehnt
-# (Schema), zeigt erst New-App selbst.
+# der Exchange-SERVER die Adresse erreichen, Umleitungen nimmt er nicht („URLs
+# with redirections are not supported“). Hauptweg ist -FileData: Im Lab
+# (Exchange SE, 18.11.2026) scheiterte -Url mit „The app couldn't be
+# downloaded.“, obwohl Invoke-WebRequest auf demselben Server die Adresse
+# abrief und die Route ohne Anmeldung 200 + XML ohne Umleitung liefert —
+# Ursache offen.
+# Manifeste: Verfassen-Add-in unverändert (verlangt höchstens Mailbox 1.5, lokal
+# eingespielt ✓). Knopf-Add-in in eigener Fassung ohne Mailbox 1.13
+# (knopf_manifest_xml(lokal=True), KNOPF_LOKAL_PFAD) — die Exchange-Online-
+# Fassung lehnt Exchange lokal ab.
+# Kennung: dieselbe wie in Exchange Online. Die lokale Organisation und
+# „Integrierte Apps“ sind getrennte Kataloge; ein Postfach sieht nur den des
+# Servers, auf dem es liegt. Wird ein Hybrid-Postfach nach Exchange Online
+# verschoben, ist es für Outlook DASSELBE Add-in (Einstellungen am Postfach
+# hängen an der Kennung), und die Postfachprüfung erkennt es an der einen
+# Kennung. Eine zweite Kennung brächte nach dem Umzug nichts, nur ein
+# verwaistes lokales Add-in mit anderer Identität.
 # Eine neue Fassung: Remove-App -Identity <AppId> -OrganizationApp, dann New-App
 # erneut — beides Parameter laut MS Learn; ein Aktualisieren an Ort und Stelle
 # beschreibt Microsoft für New-App nicht.
@@ -702,7 +744,7 @@ def lokal_bereitstellung(base: str) -> list[dict]:
     aus = []
     for art, url, kennung in (
             ("verfassen", base + "/addin/verfassen/manifest.xml", addin_verfassen.addin_id(host)),
-            ("knopf", base + "/addin/manifest.xml", knopf_addin_id(host))):
+            ("knopf", base + KNOPF_LOKAL_PFAD, knopf_addin_id(host))):
         pfad = "C:\\Temp\\" + LOKAL_DATEI[art]     # Beispielpfad, nach dem Herunterladen anpassen
         aus.append({
             "art": art, "name": namen[art], "url": url, "kennung": kennung,
@@ -735,6 +777,7 @@ def manifest_staende_auffrischen() -> None:
         return
     from webui.routen import addin_verfassen
     knopf_manifest_xml(base)
+    knopf_manifest_xml(base, lokal=True)
     addin_verfassen.verfassen_manifest_xml(base)
 
 

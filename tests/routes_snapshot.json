@@ -56,6 +56,13 @@
     "name": "addin_icon"
   },
   {
+    "pfad": "/addin/lokal/manifest.xml",
+    "methoden": [
+      "GET"
+    ],
+    "name": "addin_manifest_lokal"
+  },
+  {
     "pfad": "/addin/manifest.xml",
     "methoden": [
       "GET"
