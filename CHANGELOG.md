@@ -5,6 +5,60 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.63 — 2026-11-18 — Signatur in OWA (lokal) für Hybrid-Nutzer
+
+Neue Option in der Karte *Einstellungen → Allgemein → Exchange lokal (EWS)*:
+**Signatur der Hybrid-Nutzer in ihre OWA-Einstellungen übertragen**. Vorgabe:
+aus. Sie wirkt nur mit eingerichteter Anbindung an Exchange lokal (v1.12.59).
+
+Hybrid-Nutzer schreiben in OWA der lokalen Exchange ohne Outlook-Add-in. Mit
+der Option schreibt das Gateway die Signatur jedes Hybrid-Nutzers mit
+aktivierter Signatur in dessen OWA-Einstellungen; OWA fügt sie beim Verfassen
+einer neuen Mail selbst ein. Inhalt ist dieselbe Signatur, die das Gateway beim
+Versand einsetzen würde (Vorlage des Postfachs, Gruppe oder global, mit den
+Daten des Nutzers) — mit derselben Kennung wie die Signatur des Add-ins.
+Erreicht die Mail das Gateway, erkennt es die Kennung im Verfassenbereich und
+setzt keine zweite Signatur, wie bei einer per Add-in eingefügten. Antworten
+und Weiterleitungen fügt OWA nicht ein: Darüber entscheidet weiter das Gateway
+(volle oder Antwort-Signatur, Erkennung in der Kette).
+
+Technik: Die Signatur steht in der Benutzerkonfiguration `OWA.UserOptions`
+im Stammordner des Postfachs (Einträge `signaturehtml`, `signaturetext`,
+`autoaddsignature`, `autoaddsignatureonreply`), gelesen und geschrieben per
+EWS `GetUserConfiguration`, `UpdateUserConfiguration` bzw.
+`CreateUserConfiguration`, wenn das Postfach noch keine OWA-Einstellungen hat.
+`UpdateUserConfiguration` ersetzt alle Einträge auf einmal; das Gateway liest
+deshalb zuerst, ergänzt nur seine vier Einträge und schreibt den vollständigen
+Stand zurück — übrige OWA-Einstellungen bleiben samt ihren Typen erhalten.
+Danach liest es zurück; weicht der gespeicherte Stand ab, gilt das als Fehler.
+
+Abgeglichen wird stündlich und per Knopf **Jetzt übertragen** (eine Adresse
+oder alle Hybrid-Nutzer). Im Takt schreibt das Gateway nur, wenn sich die
+Signatur seit dem letzten Übertragen geändert hat (Prüfsumme je Postfach), der
+Knopf schreibt immer. Die Postfächer werden nacheinander bearbeitet; ein Fehler
+bei einem Postfach (etwa außerhalb des Management Scope) bricht den Lauf nicht
+ab und wird beim nächsten Lauf erneut versucht. Die Karte zeigt die Zählung des
+letzten Laufs: übertragen, unverändert, ohne Signatur, entfernt, ohne Zugriff,
+Fehler — mit der Zahl der Hybrid-Nutzer als Bezugsgröße.
+
+Wird die Option ausgeschaltet, die Signatur eines Postfachs deaktiviert oder ist
+es kein Hybrid-Nutzer mehr, nimmt der nächste Abgleich die übertragene Signatur
+wieder heraus — nur, wenn dort noch die des Gateways steht; eine inzwischen
+selbst gesetzte bleibt. Bei ausgeschalteter Option und ohne früher übertragene
+Signaturen geht kein Aufruf an die lokale Exchange. EXO-Postfächer sind nie
+betroffen.
+
+Die Markierung der Signatur steht jetzt an einer Stelle für Add-in und OWA.
+Der Hinweis in der Karte *Postfächer* nannte S/MIME für Hybrid-Nutzer noch als
+nicht verfügbar (überholt seit v1.12.62); er nennt jetzt, was die Anbindung an
+Exchange lokal voraussetzt.
+
+**Zu tun:** nichts — die Option ist ausgeschaltet. Willst du sie nutzen, prüfe
+vorher an einem Postfach mit *Jetzt übertragen* und einer Testmail aus OWA, dass
+die Signatur einmal erscheint.
+
+---
+
 ## v1.12.62 — 2026-11-18 — S/MIME für Hybrid-Nutzer
 
 S/MIME ist für Hybrid-Nutzer (Postfach in der lokalen Exchange-Organisation,

@@ -152,6 +152,7 @@ async def api_create_notification_shared_mailbox(user: str = Depends(_require_ad
 async def settings_page(request: Request, user: str = Depends(_require_admin)):
     import asyncio
     import exo_mailboxes
+    import owa_signatur
     try:
         await asyncio.to_thread(exo_mailboxes.list_mailboxes)
         sender_mailboxes = exo_mailboxes.as_sender_list()
@@ -167,6 +168,7 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
             "sender_mailboxes": sender_mailboxes,
             # Hybrid-Option wirkt nur im Rückweg smtp (exo_mailboxes.hybrid_aktiv)
             "reinject_mode": settings_store.reinject_mode(),
+            "owa_sig": owa_signatur.uebersicht(),
         },
     )
 
@@ -329,6 +331,35 @@ async def api_ews_onprem_test(request: Request, user: str = Depends(_require_adm
     if not erg["ok"]:
         erg["error"] = erg["detail"]
     return JSONResponse(erg)
+
+
+@router.post("/api/ews-onprem/owa-signatur")
+async def api_ews_onprem_owa_signatur(request: Request, user: str = Depends(_require_admin)):
+    """„Jetzt übertragen“: Signatur der Hybrid-Nutzer in OWA (lokal) schreiben —
+    auch bei unveränderter Prüfsumme. Mit `adresse` nur dieses Postfach (Ergebnis
+    am Knopf), ohne alle im Hintergrund (Ergebnis im Protokoll und in der Karte)."""
+    import owa_signatur
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    adresse = (body.get("adresse") or "").strip() if isinstance(body, dict) else ""
+    if not owa_signatur.aktiv():
+        return JSONResponse({"ok": False, "error": "Erst die Anbindung einrichten und "
+                                                   "„Signatur in OWA übertragen“ einschalten."})
+    if adresse:
+        erg = await owa_signatur.abgleich(erzwingen=True, nur=adresse)
+        log.info("OWA-Signatur durch %s für %s: %s", user, adresse,
+                 "übertragen" if erg.get(owa_signatur.GESETZT) else (erg.get("error") or "Fehler"))
+        if erg.get("ok") and not erg.get(owa_signatur.GESETZT):
+            f = (erg.get("fehler_liste") or [{}])[0]
+            erg = {**erg, "ok": False,
+                   "error": f.get("detail") or "Die Vorlage ergibt für dieses Postfach keine Signatur"}
+        return JSONResponse(erg)
+    gesamt = len(owa_signatur.ziele(settings_store.get("MAILBOX_CONFIG") or {}))
+    owa_signatur.im_hintergrund()
+    log.info("OWA-Signatur: Abgleich aller %d Hybrid-Nutzer durch %s gestartet", gesamt, user)
+    return JSONResponse({"ok": True, "gestartet": True, "gesamt": gesamt})
 
 
 # ── Separates SMTP-Listener-Zertifikat (Erweitert) ───────────────────────────

@@ -280,6 +280,7 @@ DEFAULTS: dict = {
     "EWS_ONPREM_KENNWORT": "",   # Geheimnis (SECRET_KEYS)
     "EWS_ONPREM_VERBINDEN": "",  # optional IP für Split-DNS; TLS prüft weiter den Hostnamen
     "EWS_ONPREM_CA": "",         # optional eigene CA (PEM) ZUSÄTZLICH zu certifi — kein Geheimnis
+    "OWA_SIGNATUR_LOKAL": False,  # Signatur der Hybrid-Nutzer in OWA lokal schreiben (owa_signatur.py)
     # Parameter des on-prem-Koexistenz-Connectors (Hybrid). NUR zum erneuten
     # Erzeugen des Auf-/Abbau-Skripts (coexistence.py) — das Gateway führt on-prem
     # nichts aus. {"gateway_name","source_ip","servers":[...]}
@@ -492,6 +493,8 @@ INTERNAL_KEYS = frozenset({
     "_SMIME_REGELN_STAND",        # setup_wizard.py — angewendeter Stand des S/MIME-Regel-Solls
     "_ADDIN_VERTEILUNG",          # addin_verteilung.py — je Add-in: Soll-Fassung + erstes Sichten
     "_REGEL_AUTO_AUSNAHME",       # regel_auto_ausnahme.py — letzter Live-Befund der Auto-Antwort-Ausnahme
+    "_OWA_SIGNATUR_STAND",        # owa_signatur.py — je Hybrid-Nutzer Prüfsumme der übertragenen Signatur
+    "_OWA_SIGNATUR_LAST",         # owa_signatur.py — Zählung des letzten Abgleichs
 })
 
 # Schlüssel aus entfernten Funktionen. Sie blieben in settings.json stehen, weil

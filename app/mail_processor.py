@@ -1261,6 +1261,26 @@ _KENNUNG_RE = re.compile(
     re.IGNORECASE)
 
 
+def markiert(sig_html: str) -> str:
+    """Signatur mit den Markierungen, an denen das Gateway sie wiedererkennt —
+    EINE Quelle für Aufgabenbereich, Verfassen-Ereignis (webui/routen/addin)
+    und die OWA-Signatur lokal (owa_signatur). Was so eingefügt wurde, erkennt
+    `hat_kennung` im Verfassenbereich, und das Gateway setzt keine zweite.
+
+    Outlook Classic compose getAsync strips: HTML comments, custom class attrs,
+    <a name> anchors. id attrs on block elements survive in compose mode (only
+    x_-prefixed in read/quote mode). Template has no inner divs → _matchCloseDiv
+    is reliable. Comment/class markers kept as OWA fallback.
+    """
+    return (
+        _SIG_MARKER_START
+        + f'<div id="exo-sig-s" class="{_SIG_CLASS}">'
+        + sig_html
+        + "</div>"
+        + _SIG_MARKER_END
+    )
+
+
 def hat_kennung(text: str) -> bool:
     """Steht im Text ein Kennzeichen dieses Gateways (Kommentar-Marker, id des
     Add-in-Divs mit oder ohne x_-Präfix, Klasse) — in jeder Schreibweise?"""

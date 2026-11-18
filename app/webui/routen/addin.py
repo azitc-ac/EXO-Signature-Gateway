@@ -841,21 +841,10 @@ def addin_namen() -> dict[str, str]:
 
 
 def markiert(sig_html: str) -> str:
-    """Signatur mit den Markierungen, an denen das Gateway sie wiedererkennt —
-    EINE Quelle für Aufgabenbereich und Verfassen-Ereignis.
-
-    Outlook Classic compose getAsync strips: HTML comments, custom class attrs,
-    <a name> anchors. id attrs on block elements survive in compose mode (only
-    x_-prefixed in read/quote mode). Template has no inner divs → _matchCloseDiv
-    is reliable. Comment/class markers kept as OWA fallback.
-    """
-    return (
-        mail_processor._SIG_MARKER_START
-        + f'<div id="exo-sig-s" class="{mail_processor._SIG_CLASS}">'
-        + sig_html
-        + "</div>"
-        + mail_processor._SIG_MARKER_END
-    )
+    """Signatur mit den Markierungen, an denen das Gateway sie wiedererkennt.
+    Seit v1.12.63 in mail_processor.markiert — dieselbe Quelle für
+    Aufgabenbereich, Verfassen-Ereignis und die OWA-Signatur lokal."""
+    return mail_processor.markiert(sig_html)
 
 
 @router.get("/api/addin/templates")
