@@ -47,8 +47,11 @@ def _fassungen() -> list[tuple[str, dict]]:
     return out
 
 
-def anstiege_ohne_grund(neu: dict, alt: dict) -> list[str]:
-    gruende = neu.get("begruendungen") or []
+def anstiege_ohne_grund(neu: dict, alt: dict, nachgetragen: list | None = None) -> list[str]:
+    """`nachgetragen`: Begründungen aus SPÄTEREN Fassungen. Ein vergessener
+    Eintrag lässt sich so im nächsten Commit nachholen, ohne die Historie
+    umzuschreiben (v1.12.64 → v1.12.65)."""
+    gruende = (neu.get("begruendungen") or []) + list(nachgetragen or [])
     fehlt = []
     for datei, n in neu["tokens_in_kopien"].items():
         vorher = alt["tokens_in_kopien"].get(datei, 0)
@@ -69,10 +72,11 @@ def test_stand_traegt_begruendungen():
 def test_kein_anstieg_ohne_begruendung():
     fassungen = _fassungen()
     funde = []
-    for (name_neu, neu), (name_alt, alt) in zip(fassungen, fassungen[1:]):
+    for i, ((name_neu, neu), (name_alt, alt)) in enumerate(zip(fassungen, fassungen[1:])):
         if "begruendungen" not in neu:
             break
-        for f in anstiege_ohne_grund(neu, alt):
+        spaeter = [g for _, f in fassungen[:i] for g in (f.get("begruendungen") or [])]
+        for f in anstiege_ohne_grund(neu, alt, spaeter):
             funde.append(f"{name_alt} → {name_neu}: {f}")
     assert not funde, ("Kopien-Stand gestiegen ohne Eintrag in `begruendungen` "
                        "({datei, von, auf, grund}):\n" + "\n".join(funde))

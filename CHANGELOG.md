@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.66 — 2026-11-18 — Kopien-Prüfung: Begründung nachtragbar
+
+Die Prüfung des Kopien-Stands (`tests/test_kopien_stand.py`) erkennt jetzt
+auch Begründungen aus späteren Fassungen. Ein vergessener Eintrag lässt sich so
+im nächsten Commit nachholen, ohne die Git-Historie umzuschreiben. Ohne jede
+Begründung schlägt die Prüfung weiterhin fehl. Keine Änderung am Verhalten des
+Gateways.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.65 — 2026-11-18 — Kopien-Stand begründet
 
 Der Kopien-Stand (`tools/kopien_stand.json`) begründet den Anstieg in
