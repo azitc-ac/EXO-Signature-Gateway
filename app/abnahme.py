@@ -922,10 +922,10 @@ def _ews_bereich() -> dict:
                "-CustomRecipientWriteScope <Scope>. Danach Postfächer → Status aktualisieren.")
     else:
         weg = ("Diese Postfächer liegen außerhalb des Management Scope des Dienstkontos. "
-               "In der Exchange-Verwaltungsshell den Scope erweitern (Get-ManagementScope "
-               "zeigt den Filter), z. B. über eine Gruppe im Filter: dann genügt künftig, "
-               "neue Hybrid-Nutzer in diese Gruppe aufzunehmen. Danach Postfächer → "
-               "Status aktualisieren.")
+               "Einstellungen → Exchange lokal (EWS) → Zugriffsbereich: Einrichtung über eine "
+               "Gruppe — danach nimmt das Gateway neue Hybrid-Nutzer selbst auf. Oder in der "
+               "Exchange-Verwaltungsshell den Scope erweitern (Get-ManagementScope zeigt den "
+               "Filter). Danach Postfächer → Status aktualisieren.")
     if len(namen) == 1:
         befund = f"Exchange lokal verweigert dem Dienstkonto das Postfach {namen[0]}."
         weg = weg.replace("Diese Postfächer liegen", "Dieses Postfach liegt", 1)
@@ -933,6 +933,38 @@ def _ews_bereich() -> dict:
         befund = (f"Exchange lokal verweigert dem Dienstkonto {len(namen)} Postfächer "
                   f"(z. B. {', '.join(namen[:3])}).")
     return _punkt(name, OFFEN, befund, weg)
+
+
+def _ews_gruppe() -> dict:
+    """Entsprechen die Mitglieder der Gruppe des EWS-Dienstkontos dem Soll
+    (Hybrid-Nutzer mit Signatur oder S/MIME)? Seit v1.12.92. Nur lokal: letzte
+    Messung (ews_bereich.abgleichen, stündlich im Scheduler) gegen das aktuelle
+    Soll — so erscheint ein frisch aktivierter Hybrid-Nutzer sofort, auch mit
+    ausgeschalteter automatischer Pflege."""
+    import ews_bereich
+    name = "Gruppe des EWS-Dienstkontos entspricht dem Soll"
+    a = ews_bereich.abweichung()
+    gruppe = ews_bereich.gruppe_name()
+    weg = ("Einstellungen → Exchange lokal (EWS) → Zugriffsbereich → „Jetzt abgleichen“ "
+           "(oder „Mitglieder automatisch pflegen“ einschalten).")
+    if a["zustand"] == "entfaellt":
+        return _punkt(name, ENTFAELLT, "Zugriffsbereich nicht über eine Gruppe eingerichtet.")
+    if a["zustand"] == "unbekannt":
+        return _punkt(name, UNBEKANNT, a.get("grund", "Noch nicht abgeglichen."), weg)
+    if a["zustand"] == "ok":
+        return _punkt(name, OK, f"Gruppe {gruppe} entspricht dem Soll.")
+    teile = []
+    if a["fehlen"]:
+        teile.append(f"{len(a['fehlen'])} Hybrid-Postfächer fehlen (z. B. {', '.join(a['fehlen'][:3])})")
+    if a["zuviel"]:
+        teile.append(f"{len(a['zuviel'])} Mitglieder ohne Signatur/S/MIME (z. B. "
+                     f"{', '.join(a['zuviel'][:3])})")
+    if a["nicht_gefunden"]:
+        teile.append(f"{len(a['nicht_gefunden'])} Adressen ohne Benutzerobjekt im AD "
+                     f"(z. B. {', '.join(sorted(a['nicht_gefunden'])[:3])})")
+    if a["fehler"]:
+        teile.append(f"{len(a['fehler'])} Änderungen gescheitert ({a['fehler'][0].get('detail', '')[:80]})")
+    return _punkt(name, OFFEN, f"Gruppe {gruppe}: " + "; ".join(teile) + ".", weg)
 
 
 def _waechter_code() -> dict:
@@ -998,7 +1030,7 @@ def _key_vault_zugriff() -> dict:
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _regel_auto_ausnahme, _implicit_anmeldung,
-              _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
+              _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
               _smime_regeln_stand,

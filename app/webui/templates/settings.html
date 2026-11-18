@@ -392,6 +392,127 @@
     </div>
   </div>
 
+  <h3 style="margin:18px 0 6px" id="ews-bereich">Zugriffsbereich (Gruppe)</h3>
+  <p class="hint" style="margin:0 0 8px">
+    Welche Postfächer das Dienstkonto übernehmen darf, legt in Exchange ein Management Scope
+    fest. Mit einer Gruppe pflegt das Gateway diesen Bereich selbst: Hybrid-Nutzer mit Signatur
+    oder S/MIME kommen hinein, beim Abschalten beider wieder heraus. Das Dienstkonto darf im AD
+    dafür nur die Mitglieder genau dieser Gruppe ändern — damit kann es aber auch jedes Postfach
+    in die Gruppe legen; jede Änderung steht deshalb im Protokoll und unter Betrieb → Audit.
+    Exchange übernimmt neue Mitglieder verzögert (bis etwa {{ ews_bereich.wartezeit_h }} h);
+    so lange gilt eine Ablehnung nicht als Fehler.
+  </p>
+  <div id="ews-bereich-stand" class="hint" style="margin:0 0 10px;line-height:1.6"></div>
+  <div class="settings-row">
+    <label for="ews-ldap">Domänencontroller (LDAPS)</label>
+    <div class="settings-control"><input type="text" id="ews-ldap" style="width:260px;max-width:100%"
+         value="{{ s.EWS_LDAP_SERVER or '' }}" placeholder="dc01.firma.at" autocomplete="off">
+      <small class="hint" style="display:block;margin-top:2px">Port 636, Zertifikat geprüft wie bei EWS (öffentliche CAs plus „Eigene CA“ oben).</small></div>
+  </div>
+  <div class="settings-row">
+    <label for="ews-ldap-basis">Basis-DN (optional)</label>
+    <div class="settings-control"><input type="text" id="ews-ldap-basis" style="width:300px;max-width:100%"
+         value="{{ s.EWS_LDAP_BASIS or '' }}" placeholder="leer = aus dem Verzeichnis, z. B. DC=firma,DC=at" autocomplete="off"></div>
+  </div>
+  <div class="settings-row">
+    <label for="ews-bereich-ou">Ablage für Konto und Gruppe</label>
+    <div class="settings-control"><input type="text" id="ews-bereich-ou" style="width:300px;max-width:100%"
+         value="{{ s.EWS_BEREICH_OU or '' }}" placeholder="leer = CN=Users,&lt;Basis-DN&gt;" autocomplete="off"></div>
+  </div>
+  <div class="settings-row">
+    <label for="ews-bereich-gruppe">Gruppe</label>
+    <div class="settings-control"><input type="text" id="ews-bereich-gruppe" style="width:220px;max-width:100%"
+         value="{{ s.EWS_BEREICH_GRUPPE or '' }}" placeholder="EXO-Gateway-EWS" autocomplete="off">
+      <small class="hint" style="display:block;margin-top:2px">Universelle Sicherheitsgruppe ohne Mailadresse. Scope und Rollenzuweisung heißen danach „… Scope“ und „… Impersonation“.</small></div>
+  </div>
+  <div class="actions" style="margin-top:8px;flex-wrap:wrap;gap:8px">
+    <button class="btn secondary" id="ews-bereich-btn" data-wache="ews-ldap,ews-ldap-basis,ews-bereich-ou,ews-bereich-gruppe"
+            onclick="saveEwsBereich()">Speichern</button>
+  </div>
+  <div class="settings-row" style="margin-top:12px">
+    <label class="checkbox-label">
+      <input type="checkbox" id="ews-bereich-auto"
+             {% if s.EWS_BEREICH_AUTO is true %}checked{% endif %}
+             onchange="saveEwsBereichAuto(this.checked)">
+      Mitglieder automatisch pflegen
+      <span id="ews-bereich-auto-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
+    </label>
+  </div>
+  <p class="hint" style="margin:4px 0 0">
+    Beim Speichern der Postfachliste und stündlich. Ausgeschaltet misst das Gateway nur und
+    meldet eine Abweichung als Aufgabe; „Jetzt abgleichen“ ändert die Mitglieder auch dann.
+  </p>
+  <div class="actions" style="margin-top:8px;flex-wrap:wrap;gap:8px;align-items:center">
+    <button class="btn secondary btn-sm" id="ews-bereich-abgleich-btn" onclick="ewsBereichAbgleichen()">Jetzt abgleichen</button>
+    <button class="btn secondary btn-sm" id="ews-bereich-pruefen-btn" onclick="ewsBereichPruefen()">Prüfen</button>
+    <span id="ews-bereich-ergebnis" style="font-size:12px"></span>
+  </div>
+
+  <h4 style="margin:16px 0 6px">Einrichtung</h4>
+  <p class="hint" style="margin:0 0 8px">
+    Das Gateway legt im AD an, was es kann: Dienstkonto (auf Wunsch), Gruppe und das Recht, deren
+    Mitglieder zu ändern. Scope und Rollenzuweisung brauchen die Exchange-Verwaltungsshell — die
+    Befehle stehen unten zum Kopieren, danach „Prüfen“. Wer alles selbst ausführen will, nimmt die
+    ganze Befehlsliste.
+  </p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="ews-bereich-konto-neu"> Dienstkonto neu anlegen (sonst das oben eingetragene)
+    </label>
+  </div>
+  <div class="settings-row">
+    <label for="ews-bereich-konto">Name des Dienstkontos</label>
+    <div class="settings-control"><input type="text" id="ews-bereich-konto" style="width:220px;max-width:100%"
+         placeholder="{{ s.EWS_ONPREM_KONTO or 'svc-exo-gateway' }}" autocomplete="off">
+      <small class="hint" style="display:block;margin-top:2px">Neu angelegt: zufälliges, langes Kennwort, das nicht abläuft; das Gateway trägt Konto und Kennwort oben ein.</small></div>
+  </div>
+  <div class="settings-row">
+    <label for="ews-bereich-ausgabe">Bisherige Zuweisung (optional)</label>
+    <div class="settings-control">
+      <div style="display:flex;gap:6px;align-items:flex-start">
+        <pre id="ews-bereich-bestand-befehl" style="margin:0;flex:1;min-width:0;font-size:11px;border:1px solid #e2e8f0;border-radius:5px;padding:6px;overflow-x:auto;white-space:pre">{{ ews_bereich_befehl }}</pre>
+        <button class="copy-btn" data-copy-target="ews-bereich-bestand-befehl" title="Befehl kopieren" type="button"></button>
+      </div>
+      <textarea id="ews-bereich-ausgabe" rows="3" spellcheck="false" style="width:100%;margin-top:6px;font-family:monospace;font-size:11px"
+                placeholder="Ausgabe des Befehls hier einfügen"></textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px">
+        <button class="btn secondary btn-sm" id="ews-bereich-bestand-btn" onclick="ewsBereichBestand()">Auswerten</button>
+        <span id="ews-bereich-bestand-ergebnis" style="font-size:12px"></span>
+      </div>
+      <small class="hint" style="display:block;margin-top:2px">Zeigt, ob das Dienstkonto schon ApplicationImpersonation hat, etwa mit einer festen Adressliste. Deren Adressen übernimmt die Einrichtung in die Gruppe.</small>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="ews-bereich-alt-entfernen"> Bisherige Zuweisung samt Scope danach entfernen (Befehle erst nach erfolgreicher Prüfung ausführen)
+    </label>
+  </div>
+  <div class="actions" style="margin-top:6px;flex-wrap:wrap;gap:8px;align-items:center">
+    <button class="btn secondary btn-sm" id="ews-bereich-befehle-btn" onclick="ewsBereichBefehle()">Befehle anzeigen</button>
+    <span id="ews-bereich-befehle-ergebnis" style="font-size:12px"></span>
+  </div>
+  <div id="ews-bereich-befehle-block" style="display:none;margin-top:6px">
+    <div style="display:flex;gap:6px;align-items:flex-start">
+      <pre id="ews-bereich-befehle" style="margin:0;flex:1;min-width:0;font-size:11px;border:1px solid #e2e8f0;border-radius:5px;padding:6px;overflow-x:auto;white-space:pre"></pre>
+      <button class="copy-btn" data-copy-target="ews-bereich-befehle" title="Befehle kopieren" type="button"></button>
+    </div>
+  </div>
+  <div class="settings-row" style="margin-top:10px">
+    <label for="ews-bereich-admin">Admin-Konto (einmalig)</label>
+    <div class="settings-control"><input type="text" id="ews-bereich-admin" style="width:260px;max-width:100%"
+         placeholder="admin@firma.at" autocomplete="off"></div>
+  </div>
+  <div class="settings-row">
+    <label for="ews-bereich-admin-kw">Admin-Kennwort</label>
+    <div class="settings-control"><input type="password" id="ews-bereich-admin-kw" style="width:260px;max-width:100%"
+         autocomplete="new-password">
+      <small class="hint" style="display:block;margin-top:2px">Nur für diesen Schritt, wird nicht gespeichert. Braucht das Recht, in der Ablage Benutzer und Gruppen anzulegen.</small></div>
+  </div>
+  <div class="actions" style="margin-top:6px;flex-wrap:wrap;gap:8px;align-items:center">
+    <button class="btn secondary" id="ews-bereich-einrichten-btn" onclick="ewsBereichEinrichten()">AD-Teil einrichten</button>
+    <span id="ews-bereich-einrichten-ergebnis" style="font-size:12px"></span>
+  </div>
+
   <h3 style="margin:18px 0 6px">Signatur in OWA (lokal)</h3>
   <div class="settings-row">
     <label class="checkbox-label">
@@ -488,6 +609,127 @@ async function testEwsOnprem() {
     () => postJSON('/api/ews-onprem/test', {adresse: feldWert('ews-test-adresse')}));
   showMsg(el, d.ok ? '✓ ' + d.detail + ' (' + d.dauer + ' s)' : '✗ ' + errText(d), d.ok);
 }
+
+// ── Zugriffsbereich (Gruppe) — ews_bereich.py ──
+async function saveEwsBereich() {
+  wacheFertig('ews-bereich-btn', await savePartial({
+    EWS_LDAP_SERVER: feldWert('ews-ldap'),
+    EWS_LDAP_BASIS: feldWert('ews-ldap-basis'),
+    EWS_BEREICH_OU: feldWert('ews-bereich-ou'),
+    EWS_BEREICH_GRUPPE: feldWert('ews-bereich-gruppe'),
+  }, null, 'settings:ews-bereich'));
+}
+
+async function saveEwsBereichAuto(an) {
+  await savePartial({EWS_BEREICH_AUTO: an}, 'ews-bereich-auto-result', 'settings:ews-bereich-auto');
+}
+
+function _ewsListe(werte) {
+  return werte.slice(0, 5).map(esc).join(', ') + (werte.length > 5 ? ' …' : '');
+}
+
+function ewsBereichZeigen(d) {
+  const el = document.getElementById('ews-bereich-stand');
+  if (!d.eingerichtet) {
+    el.innerHTML = 'Noch nicht eingerichtet — der Bereich wird von Hand gepflegt. Hybrid-Nutzer mit '
+      + 'Signatur oder S/MIME (Soll): ' + esc(d.soll) + '.';
+    return;
+  }
+  const m = d.messung || {};
+  const a = d.abweichung || {};
+  let h = 'Gruppe <code>' + esc(d.gruppe) + '</code>: ' + esc(d.mitglieder) + ' Mitglieder, Soll '
+    + esc(d.soll) + '. Pflege ' + (d.auto ? 'automatisch' : 'von Hand (nur Messung)') + '.<br>';
+  h += m.ts ? 'Zuletzt ' + (m.geaendert ? 'abgeglichen' : 'gemessen') + ' ' + esc(m.ts.slice(0, 16).replace('T', ' '))
+    + ' UTC (' + esc(m.ausloeser || '') + ').' : 'Noch nicht abgeglichen.';
+  if (a.zustand === 'offen') {
+    if ((a.fehlen || []).length) h += '<br>✗ Fehlen: ' + _ewsListe(a.fehlen);
+    if ((a.zuviel || []).length) h += '<br>✗ Zu viel: ' + _ewsListe(a.zuviel);
+    const ng = Object.keys(a.nicht_gefunden || {});
+    if (ng.length) h += '<br>✗ Nicht im AD gefunden: ' + _ewsListe(ng);
+    if ((a.fehler || []).length) h += '<br>✗ Gescheitert: ' + esc(a.fehler[0].adresse) + ' — ' + esc(a.fehler[0].detail);
+  } else if (a.zustand === 'ok') {
+    h += '<br>✓ Mitglieder entsprechen dem Soll.';
+  } else if (a.grund) {
+    h += '<br>' + esc(a.grund);
+  }
+  if ((d.wartend || []).length) h += '<br>Wartet auf Exchange: ' + _ewsListe(d.wartend);
+  const p = d.pruefung || {};
+  if (p.ts) {
+    h += '<br>Letzte Prüfung ' + esc(p.ts.slice(0, 16).replace('T', ' ')) + ' UTC: '
+      + (p.punkte || []).map(x => (x.ok === true ? '✓ ' : x.ok === false ? '✗ ' : '– ')
+        + esc(x.name) + ' (' + esc(x.detail) + ')').join('; ');
+  }
+  if ((d.aenderungen || []).length) {
+    h += '<br>Letzte Änderungen: ' + d.aenderungen.slice(0, 5).map(e =>
+      esc((e.ts || '').slice(0, 16).replace('T', ' ')) + ' ' + esc(e.mailbox) + ' — ' + esc(e.detail)).join('; ');
+  }
+  el.innerHTML = h;
+}
+
+async function ewsBereichNeu() {
+  const d = await getJSON('/api/ews-bereich/stand');
+  if (d.ok) ewsBereichZeigen(d);
+}
+
+async function ewsBereichAbgleichen() {
+  const el = document.getElementById('ews-bereich-ergebnis');
+  const d = await knopfAktion('ews-bereich-abgleich-btn', null, () => postJSON('/api/ews-bereich/abgleichen', {}));
+  showMsg(el, d.ok ? '✓ ' + (d.hinzu || []).length + ' aufgenommen, ' + (d.weg || []).length + ' entfernt'
+                   : '✗ ' + errText(d), d.ok);
+  ewsBereichNeu();
+}
+
+async function ewsBereichPruefen() {
+  const el = document.getElementById('ews-bereich-ergebnis');
+  const d = await knopfAktion('ews-bereich-pruefen-btn', null, () => postJSON('/api/ews-bereich/pruefen', {}));
+  showMsg(el, d.ok ? '✓ Prüfung bestanden' : '✗ ' + (d.error ? errText(d) : 'Prüfung nicht bestanden — Einzelheiten oben'), d.ok);
+  ewsBereichNeu();
+}
+
+function _ewsEinrichtung() {
+  return {konto_anlegen: document.getElementById('ews-bereich-konto-neu').checked,
+          konto: feldWert('ews-bereich-konto'),
+          alt_entfernen: document.getElementById('ews-bereich-alt-entfernen').checked};
+}
+
+async function ewsBereichBestand() {
+  const el = document.getElementById('ews-bereich-bestand-ergebnis');
+  const d = await knopfAktion('ews-bereich-bestand-btn', null, () => postJSON('/api/ews-bereich/bestand',
+    {ausgabe: feldWert('ews-bereich-ausgabe'), konto: feldWert('ews-bereich-konto')}));
+  if (!d.ok) { showMsg(el, '✗ ' + errText(d), false); return; }
+  const z = d.zuweisungen || [];
+  const art = {liste: 'feste Adressliste', organisation: 'ganze Organisation', gruppe: 'andere Gruppe',
+               unsere: 'diese Gruppe', anders: 'eigener Filter'};
+  showMsg(el, z.length
+    ? z.map(x => x.name + ' → ' + (art[x.art] || x.art) + (x.adressen.length ? ' (' + x.adressen.length + ' Adressen)' : '')).join('; ')
+      + (d.umbau ? ' — Umbau auf die Gruppe möglich' : '')
+    : 'Keine ApplicationImpersonation-Zuweisung für dieses Konto', true);
+}
+
+async function ewsBereichBefehle() {
+  const el = document.getElementById('ews-bereich-befehle-ergebnis');
+  const d = await knopfAktion('ews-bereich-befehle-btn', null, () => postJSON('/api/ews-bereich/befehle', _ewsEinrichtung()));
+  if (!d.ok) { showMsg(el, '✗ ' + errText(d), false); return; }
+  document.getElementById('ews-bereich-befehle').textContent = d.text;
+  document.getElementById('ews-bereich-befehle-block').style.display = '';
+  showMsg(el, d.schritte.length + ' Schritte', true);
+}
+
+async function ewsBereichEinrichten() {
+  const el = document.getElementById('ews-bereich-einrichten-ergebnis');
+  const kw = document.getElementById('ews-bereich-admin-kw');
+  const d = await knopfAktion('ews-bereich-einrichten-btn', null, () => postJSON('/api/ews-bereich/einrichten',
+    {..._ewsEinrichtung(), admin_konto: feldWert('ews-bereich-admin'), admin_kennwort: kw.value}));
+  kw.value = '';
+  if (!d.ok) { showMsg(el, '✗ ' + errText(d), false); ewsBereichNeu(); return; }
+  document.getElementById('ews-bereich-befehle').textContent = d.befehle;
+  document.getElementById('ews-bereich-befehle-block').style.display = '';
+  showMsg(el, '✓ AD-Teil erledigt (' + d.schritte.map(s => s.kennung + ': ' + s.ergebnis).join(', ')
+    + '). Jetzt die Exchange-Befehle unten ausführen, danach „Prüfen“.', true);
+  ewsBereichNeu();
+}
+
+ewsBereichZeigen({{ ews_bereich | tojson }});
 
 async function saveOwaSignatur(an) {
   await savePartial({OWA_SIGNATUR_LOKAL: an}, 'owa-signatur-result', 'settings:owa-signatur');

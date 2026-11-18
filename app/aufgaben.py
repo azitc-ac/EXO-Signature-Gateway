@@ -109,6 +109,10 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     # ihn nicht selbst erweitern; bis v1.12.85 nur als Fehler je Postfach.
     Aufgabe("ews-bereich", "EWS-Zugriff auf Hybrid-Postfächer erweitern",
             abnahme._ews_bereich, "/settings#exchange-lokal-ews", seit="1.12.85"),
+    # Gruppe des EWS-Dienstkontos (seit v1.12.92): Soll ↔ Ist der Mitglieder —
+    # mit ausgeschalteter automatischer Pflege die einzige Meldung.
+    Aufgabe("ews-gruppe", "Gruppe des EWS-Dienstkontos abgleichen",
+            abnahme._ews_gruppe, "/settings#exchange-lokal-ews"),
     # Function-Code der Azure-Wächter kam bis v1.11.63 nur beim Anlegen hinauf.
     Aufgabe("waechter-code", "Bypass-Wächter aktualisieren",
             abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),

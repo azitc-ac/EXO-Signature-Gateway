@@ -5,6 +5,68 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.92 — 2026-11-19 — Exchange lokal: Zugriffsbereich des EWS-Dienstkontos als Gruppe
+
+Für Hybrid-Nutzer spricht das Gateway per EWS mit einem Dienstkonto, das über
+*ApplicationImpersonation* die Postfächer übernimmt. Welche, legt in der lokalen
+Exchange ein Management Scope fest. Bisher legtest du Konto, Scope und
+Rollenzuweisung von Hand an; ein neuer Hybrid-Nutzer außerhalb des Scopes
+scheiterte mit `ErrorImpersonateUserDenied`, bis du den Scope erweitert hattest.
+
+Neu unter **Einstellungen → Exchange lokal (EWS) → Zugriffsbereich (Gruppe)**:
+
+* **Einrichtung:** Das Gateway legt per LDAPS (Port 636) im AD an, was es kann —
+  auf Wunsch das Dienstkonto (zufälliges Kennwort mit 32 Zeichen, läuft nicht ab;
+  Konto und Kennwort trägt es selbst in die Anbindung ein), eine universelle
+  Sicherheitsgruppe ohne Mailadresse und für das Dienstkonto das Recht, **nur das
+  Attribut `member` genau dieser Gruppe** zu schreiben. Die Admin-Anmeldung dafür
+  gibst du einmal ein; sie wird weder gespeichert noch protokolliert, auch nicht in
+  Fehlermeldungen. Ein vorhandenes Konto gleichen Namens bricht die Einrichtung ab,
+  statt sein Kennwort zu ersetzen; eine vorhandene Gruppe wird nur übernommen,
+  wenn sie eine universelle Sicherheitsgruppe ohne Mailadresse ist.
+* **Exchange-Teil als Befehle:** Scope (`-RecipientRestrictionFilter "MemberOfGroup
+  -eq '<DN der Gruppe>'"`) und Rollenzuweisung (`-CustomRecipientWriteScope`)
+  brauchen die Exchange-Verwaltungsshell der lokalen Organisation. Sie läuft über
+  WinRM/WSMan, und das gibt es für PowerShell unter Linux nicht (Microsoft:
+  „WSMan remoting isn't supported on non-Windows platforms“). Die Karte zeigt die
+  Befehle zum Kopieren; danach prüft **„Prüfen“** Gruppe, Delegation, Mitglieder
+  und per EWS den Zugriff auf ein Mitglied. Wer alles selbst ausführen will,
+  bekommt mit „Befehle anzeigen“ die vollständige Liste — dieselbe, die die
+  Einrichtung ausführt.
+* **Bestand:** Hat das Dienstkonto schon eine Zuweisung, etwa mit einer festen
+  Adressliste als Scope, wertet die Karte die Ausgabe eines Lesebefehls aus. Die
+  Adressen der Liste kommen in die Gruppe; die alte Zuweisung samt Scope steht nur
+  dann in den Befehlen, wenn du das Entfernen ausdrücklich ankreuzt — auszuführen
+  erst nach erfolgreicher Prüfung.
+* **Pflege:** Soll sind die Hybrid-Nutzer mit Signatur oder S/MIME. Mit dem neuen
+  Schalter **„Mitglieder automatisch pflegen“** (Vorgabe aus) gleicht das Gateway
+  beim Speichern der Postfachliste und stündlich ab: aufnehmen beim Aktivieren,
+  entfernen, wenn beides abgeschaltet ist. Ausgeschaltet misst es nur. Eine
+  Abweichung erscheint als Aufgabe „Gruppe des EWS-Dienstkontos abgleichen“;
+  „Jetzt abgleichen“ ändert die Mitglieder auch bei ausgeschaltetem Schalter.
+  Jede Änderung (Konto, Gruppe, Delegation, Mitglied hinzu/weg) steht im
+  Protokoll und unter Betrieb → Audit; die Karte zeigt Gruppe, Mitgliederzahl,
+  letzten Abgleich und die letzten Änderungen.
+* **Ausbreitung:** Exchange übernimmt Gruppenänderungen für Impersonation
+  verzögert. Ein frisch aufgenommenes Mitglied gilt zwei Stunden lang als
+  „wartet“; eine Ablehnung in dieser Zeit ist in der Postfachprüfung eine Warnung
+  und löst die Aufgabe „EWS-Zugriff auf Hybrid-Postfächer erweitern“ nicht aus.
+
+Zu bedenken: Das Recht, die Gruppe zu pflegen, heißt auch, dass das Gateway
+jedes Postfach der lokalen Organisation in den Bereich legen kann. Der Scope
+begrenzt, was es tut, nicht, was es könnte — deshalb ist jede Änderung im Audit.
+
+Nebenbei behoben: Der TLS-Kontext der Anbindung ließ sich ohne eigene CA nicht
+bauen (`cadata` leer). EWS war nicht betroffen, weil es ihn nur mit eigener CA
+nutzt.
+
+Neue Abhängigkeit: `ldap3` 2.9.1 (mit `pyasn1`), nur bei eingerichtetem
+Zugriffsbereich geladen.
+
+**Zu tun:** nichts zwingend. Willst du den Bereich künftig vom Gateway pflegen
+lassen: *Einstellungen → Exchange lokal (EWS) → Zugriffsbereich (Gruppe)* —
+Domänencontroller eintragen, speichern, unter *Einrichtung* „AD-Teil
+einrichten“, die angezeigten Exchange-Befehle ausführen, dann „Prüfen“.
 ## v1.12.91 — 2026-11-19 — Postfachliste: Ausnahmen sichtbar, Haken „Banner/Disclaimer nach Richtlinie“
 
 **Haken umbenannt.** Die Spalte *Vorlagen-Richtlinien* der Postfach-Tabelle

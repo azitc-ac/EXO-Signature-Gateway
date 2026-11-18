@@ -552,6 +552,10 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         if member not in enabled_members:
             enabled_members.append(member)
     settings_store.update({"MAILBOX_CONFIG": config_map})
+    # Gruppe des EWS-Dienstkontos (Hybrid-Nutzer, ews_bereich): mit Schalter an
+    # gleich im Hintergrund abgleichen, sonst zeigt die Aufgabe die Abweichung.
+    import ews_bereich
+    ews_bereich.nach_postfach_aenderung()
 
     neu_aktiviert = sorted(_adressen_mit_smime(config_map) - smime_vorher)
     auto = await _auto_enrollment_anstossen(neu_aktiviert)

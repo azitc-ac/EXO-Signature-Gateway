@@ -280,6 +280,12 @@ DEFAULTS: dict = {
     "EWS_ONPREM_KENNWORT": "",   # Geheimnis (SECRET_KEYS)
     "EWS_ONPREM_VERBINDEN": "",  # optional IP für Split-DNS; TLS prüft weiter den Hostnamen
     "EWS_ONPREM_CA": "",         # optional eigene CA (PEM) ZUSÄTZLICH zu certifi — kein Geheimnis
+    # Zugriffsbereich des EWS-Dienstkontos als AD-Gruppe (ews_bereich.py, seit v1.12.92).
+    "EWS_LDAP_SERVER": "",       # Domänencontroller für LDAPS, host[:port] (Vorgabe 636)
+    "EWS_LDAP_BASIS": "",        # Basis-DN; leer = defaultNamingContext aus dem RootDSE
+    "EWS_BEREICH_OU": "",        # Ablage für Dienstkonto und Gruppe; leer = CN=Users,<Basis>
+    "EWS_BEREICH_GRUPPE": "",    # Name der Gruppe; leer = ews_bereich.GRUPPE_VORGABE
+    "EWS_BEREICH_AUTO": False,   # Mitglieder automatisch pflegen (sonst nur messen)
     "OWA_SIGNATUR_LOKAL": False,  # Signatur der Hybrid-Nutzer in OWA lokal schreiben (owa_signatur.py)
     # Parameter des on-prem-Koexistenz-Connectors (Hybrid). NUR zum erneuten
     # Erzeugen des Auf-/Abbau-Skripts (coexistence.py) — das Gateway führt on-prem
@@ -496,6 +502,7 @@ INTERNAL_KEYS = frozenset({
     "_REGEL_AUTO_AUSNAHME",       # regel_auto_ausnahme.py — letzter Live-Befund der Auto-Antwort-Ausnahme
     "_OWA_SIGNATUR_STAND",        # owa_signatur.py — je Hybrid-Nutzer Prüfsumme der übertragenen Signatur
     "_OWA_SIGNATUR_LAST",         # owa_signatur.py — Zählung des letzten Abgleichs
+    "_EWS_BEREICH_STAND",         # ews_bereich.py — Gruppe, letzte Messung, wartende Mitglieder
 })
 
 # Schlüssel aus entfernten Funktionen. Sie blieben in settings.json stehen, weil

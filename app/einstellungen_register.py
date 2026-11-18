@@ -210,6 +210,11 @@ REGISTER: dict[str, E] = {
     "EWS_ONPREM_KENNWORT": E(art=GEHEIMNIS, ort="settings.html"),  # Kennwort des Dienstkontos
     "EWS_ONPREM_VERBINDEN": E(art=OPTION, ort="settings.html"),  # IP für Split-DNS
     "EWS_ONPREM_CA": E(art=OPTION, ort="settings.html"),         # eigene CA (PEM) für TLS
+    "EWS_LDAP_SERVER": E(art=OPTION, ort="settings.html"),       # DC für LDAPS (ews_bereich)
+    "EWS_LDAP_BASIS": E(art=OPTION, ort="settings.html"),        # Basis-DN der Suche
+    "EWS_BEREICH_OU": E(art=OPTION, ort="settings.html"),        # Ablage für Konto und Gruppe
+    "EWS_BEREICH_GRUPPE": E(art=OPTION, ort="settings.html"),    # Name der Gruppe
+    "EWS_BEREICH_AUTO": E(art=OPTION, ort="settings.html"),      # Mitglieder automatisch pflegen
     "OWA_SIGNATUR_LOKAL": E(art=OPTION, ort="settings.html"),    # Signatur in OWA lokal (Hybrid)
     "RELAY_USER": E(
         art=NOTNAGEL,
