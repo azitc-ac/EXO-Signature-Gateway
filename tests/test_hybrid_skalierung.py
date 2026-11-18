@@ -574,12 +574,17 @@ def test_knopf_verbindung_testen_umgeht_die_sperre(ews, monkeypatch):
 
 def test_scheduler_erster_takt_auch_kurz_nach_systemstart():
     """Kurz nach dem Systemstart ist time.monotonic() klein; jeder Takt muss
-    trotzdem beim ersten Durchlauf fällig sein (vorher 0.0 als „nie“)."""
+    trotzdem beim ersten Durchlauf fällig sein (vorher 0.0 als „nie“).
+    Geprüft am Quelltext (Anfangswerte): Andere Tests lassen Takte laufen und
+    überschreiben die Modulvariablen zur Laufzeit."""
     import re
     import scheduler
-    namen = re.findall(r"^(_last_[a-z_]+): float", Path(scheduler.__file__).read_text(encoding="utf-8"), re.M)
-    assert len(namen) >= 9
+    quelle = Path(scheduler.__file__).read_text(encoding="utf-8")
+    anfang = dict(re.findall(r"^(_last_[a-z_]+): float = (\S+)", quelle, re.M))
+    assert len(anfang) >= 9
+    nie = re.search(r'^_NIE = (.+)$', quelle, re.M)
+    assert nie and eval(nie.group(1), {}) == float("-inf")
     jetzt = 60.0                     # eine Minute nach dem Start
-    for name in namen:
-        intervall = 24 * 60 * 60
-        assert jetzt - getattr(scheduler, name) > intervall, f"{name} wäre nach dem Start nicht fällig"
+    for name, wert in anfang.items():
+        start = float("-inf") if wert == "_NIE" else float(wert)
+        assert jetzt - start > 24 * 60 * 60, f"{name} wäre nach dem Start nicht fällig"

@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.70 — 2026-11-18 — Test der Zeitgeber unabhängig von der Reihenfolge
+
+Der Test aus v1.12.68 prüft die Anfangswerte der Hintergrundtakte jetzt am
+Quelltext. Vorher las er die Modulvariablen zur Laufzeit, die andere Tests
+durch laufende Takte schon überschrieben hatten. Keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.69 — 2026-11-18 — Outlook-Add-in auch für Hybrid-Nutzer
 
 Das Outlook-Add-in (Knopf und Verfassen-Add-in) war für Hybrid-Nutzer gesperrt:
