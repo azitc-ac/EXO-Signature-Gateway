@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.87 — 2026-11-18 — Nachbesserungen: Telefonansicht, Texte, Fassung des Knopf-Add-ins
+
+* **Einrichtung → Outlook Add-in → Knopf** zeigt jetzt wie das Verfassen-Add-in
+  die Fassung des Manifests. Bisher stand die Soll-Fassung nur in der Aufgabe.
+* **Aufgabe „EWS-Zugriff …“:** Bei einem einzelnen Postfach spricht der Text
+  von diesem Postfach, statt „1 Postfach/Postfächern“ zu schreiben.
+* **Postfächer → Standards und Richtlinien** auf dem Telefon (bis 600 px): Die
+  erklärende Spalte „Gilt für“ entfällt dort, sie brach Wort für Wort um. Die
+  Auswahlfelder nehmen die Zellbreite und werden nicht mehr abgeschnitten.
+* **Übersicht → Zertifikate** auf dem Telefon: Das Ablaufdatum bricht um,
+  statt abgeschnitten zu werden.
+* **Übersicht → System:** Die geschäftigste Stunde steht als „9–10 Uhr“ statt
+  „9:xx Uhr“, was wie ein nicht ersetzter Platzhalter aussah. Ebenso in den
+  Aufrufzahlen des App-Pools.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.86 — 2026-11-18 — Höhe langer Tabellen als gemeinsamer Baustein
 
 Die Postfachliste begrenzt ihre Tabelle auf die Fensterhöhe, die Kopfzeile

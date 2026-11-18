@@ -2259,6 +2259,9 @@ async function saveKeyvault() {
             <span id="addin-validate-result" hidden></span>
           </div>
           <span id="addin-copy-ok" style="font-size:11px;color:#16a34a;display:none">Kopiert ✓</span>
+          <span class="hint" id="addin-knopf-fassung">{% if addin_knopf.version %}Fassung {{ addin_knopf.version }}{% if addin_knopf.seit %} · seit {{ addin_knopf.seit }}{% endif %}
+            — ob sie in den Postfächern angekommen ist, zeigt der Postfach-Status.{% else %}Noch nie abgerufen
+            — die Fassung erscheint hier, sobald das Manifest einmal geladen wurde (etwa über <em>Erreichbarkeit prüfen</em>).{% endif %}</span>
           <details style="margin-top:6px">
             <summary style="font-size:11px;color:#94a3b8;cursor:pointer">URL manuell überschreiben</summary>
             <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">

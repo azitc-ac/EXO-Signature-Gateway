@@ -65,3 +65,14 @@ def test_fehlende_rolle_nennt_rolle(werte, monkeypatch):
     r = _pruefe(monkeypatch, "ErrorImpersonationDenied")
     werte["MAILBOX_HEALTH"] = {"max@firma.at": {"checks": {"abwesenheit": r}}}
     assert "ApplicationImpersonation" in abnahme._ews_bereich()["zu_tun"]
+
+
+def test_einzahl_und_mehrzahl(werte, monkeypatch):
+    r = _pruefe(monkeypatch, "ErrorImpersonateUserDenied")
+    werte["MAILBOX_HEALTH"] = {"max@firma.at": {"checks": {"abwesenheit": r}}}
+    p = abnahme._ews_bereich()
+    assert "das Postfach max@firma.at" in p["befund"] and "Postfach/" not in p["befund"]
+    assert p["zu_tun"].startswith("Dieses Postfach liegt")
+    werte["MAILBOX_HEALTH"]["erika@firma.at"] = {"checks": {"postfach_lesen": dict(r)}}
+    p = abnahme._ews_bereich()
+    assert "2 Postfächer" in p["befund"] and p["zu_tun"].startswith("Diese Postfächer liegen")

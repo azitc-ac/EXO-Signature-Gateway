@@ -188,6 +188,10 @@ async def setup_wizard(
             "teams_app": teams_app,
             # Das Add-in, das beim Verfassen selbst einfügt — bis v1.10.35 bot
             # die Seite nur den Knopf an.
+            # Fassung des Knopf-Manifests (wie beim Verfassen-Add-in) — sonst stand
+            # die Soll-Fassung nur in der Aufgabe, nicht am Abschnitt.
+            "addin_knopf": {k: (settings_store.get("_ADDIN_MANIFEST_STAND") or {}).get(k, "")
+                            for k in ("version", "seit")},
             "addin_verfassen": {"url": addin_base_url + "/addin/verfassen/manifest.xml",
                                 **{k: (settings_store.get("_ADDIN_VERFASSEN_STAND") or {}).get(k, "")
                                    for k in ("version", "seit")}},

@@ -203,7 +203,7 @@ function dismissWelcome() {
 <!-- TLS + S/MIME Zertifikate -->
 <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 10px">Zertifikate</h3>
 <div class="settings-card" style="padding:12px 16px">
-  <div class="tabellen-rollbereich"><table style="min-width:480px;width:100%;border-collapse:collapse;font-size:13px">
+  <div class="tabellen-rollbereich"><table style="width:100%;border-collapse:collapse;font-size:13px">
     <thead>
       <tr style="border-bottom:2px solid #e2e8f0">
         <th style="text-align:left;padding:5px 12px 5px 0;color:#555">Zertifikat</th>
@@ -233,12 +233,12 @@ function dismissWelcome() {
       {%- if not _abg and not _bald %} · <span style="color:#15803d">alle gültig</span>{% endif %}
       {%- if _naechst %} · nächster Ablauf {{ _naechst.expiry }} ({{ _naechst.email }}){% endif %}
     </summary>
-    <div class="tabellen-rollbereich" style="max-height:420px;overflow-y:auto;margin-top:6px"><table style="min-width:420px;width:100%;border-collapse:collapse;font-size:13px">
+    <div class="tabellen-rollbereich" style="max-height:420px;overflow-y:auto;margin-top:6px"><table style="width:100%;border-collapse:collapse;font-size:13px">
       <tbody>
       {% for c in signing_certs | sort(attribute="days_left") %}
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 12px 6px 0;word-break:break-all">{{ c.email }}</td>
-        <td style="padding:6px 0;white-space:nowrap">
+        <td style="padding:6px 0">
           {% if c.expired %}<span style="color:#dc2626;font-weight:700">ABGELAUFEN</span>
           {% elif c.warning %}<span style="color:#b45309;font-weight:700">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>
           {% else %}<span style="color:#15803d">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>{% endif %}
@@ -309,7 +309,7 @@ function openPoolModal(idx) {
   var thisH = p.calls_this_hour != null ? p.calls_this_hour : 0;
   var today = p.calls_today != null ? p.calls_today : 0;
   var peakTxt = (p.peak_hour != null && p.peak_hour >= 0)
-    ? p.peak_count + ' Aufrufe um ' + p.peak_hour + ':xx Uhr'
+    ? p.peak_count + ' Aufrufe zwischen ' + p.peak_hour + ' und ' + (p.peak_hour + 1) + ' Uhr'
     : '— (noch keine Daten)';
   var statusHtml = throttled
     ? '<span style="color:#dc2626">● gedrosselt (noch ' + remS + 's)</span>'
@@ -531,7 +531,7 @@ function openInFlightInfo(active, maintHeld, dfCount) {
       grid.innerHTML =
         tile('Warteschlange', inFlightTotal, inFlightSub, infClass, 'openInFlightInfo(' + d.in_flight + ',' + maintHeld + ',' + dfCount + ')') +
         tile('Ø Zeit / Mail', avgMs, 'pro Nachricht, letzte 24 h', '', 'openMailHourlyModal()') +
-        tile('Mail-Peak heute', d.peak_hour != null ? d.peak_hour + ':xx Uhr · ' + d.peak_hour_cnt + ' Mails' : '—', 'geschäftigste Stunde', '', peakOnclick) +
+        tile('Mail-Peak heute', d.peak_hour != null ? Number(d.peak_hour) + '–' + (Number(d.peak_hour) + 1) + ' Uhr · ' + d.peak_hour_cnt + ' Mails' : '—', 'geschäftigste Stunde', '', peakOnclick) +
         tile('RAM (Prozess)', d.rss_mb != null ? d.rss_mb + ' MB' : '—', 'RSS') +
         tile('Uptime', fmt_uptime(d.uptime_s), fmt_start(d.uptime_s)) +
         tile('Disk belegt', d.disk_used_mb != null ? d.disk_used_mb + ' MB' : '—', d.disk_pct != null ? d.disk_pct + '% von ' + d.disk_total_mb + ' MB' : '', diskClass) +

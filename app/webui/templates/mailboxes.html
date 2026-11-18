@@ -12,6 +12,12 @@
               border-radius:8px; margin-left:5px; vertical-align:middle; cursor:help }
   .mb-marke[data-marke="wartet"] { background:#e0f2fe; color:#0369a1 }
   [data-theme="dark"] .mb-marke[data-marke="wartet"] { background:#0a1827; color:#7dd3fc }
+  /* Standards und Richtlinien: auf dem Telefon die erklärende Spalte weglassen
+     (sie brach Wort für Wort um) und die Auswahlfelder auf die Zellbreite nehmen. */
+  @media (max-width: 600px) {
+    #pol-standards .pol-gilt { display:none }
+    #pol-standards select { width:100% !important; max-width:100% }
+  }
 </style>
 
 <!-- Fair-Use-Zähler -->
@@ -288,11 +294,11 @@ async function ankerAnwenden() {
     Standards und Richtlinien
   </div>
   <div style="overflow-x:auto;margin-bottom:12px;max-width:820px">
-  <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:440px">
+  <table id="pol-standards" style="width:100%;border-collapse:collapse;font-size:13px">
     <thead>
       <tr style="border-bottom:2px solid #e2e8f0">
         <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:180px">Typ</th>
-        <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Gilt für</th>
+        <th class="pol-gilt" style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Gilt für</th>
         <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:200px">Vorlage</th>
       </tr>
     </thead>
@@ -300,7 +306,7 @@ async function ankerAnwenden() {
       <!-- Standardsignatur — aktiv -->
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">Standardsignatur</td>
-        <td style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
         <td style="padding:6px 8px">
           <select id="policy-sig-tpl" style="font-size:12px;width:160px">
             <!-- filled by JS -->
@@ -313,7 +319,7 @@ async function ankerAnwenden() {
           Antwort-Signatur
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">ab 2. eigener Mail im Thread</span>
         </td>
-        <td style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
         <td style="padding:6px 8px">
           <select id="policy-min-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -324,7 +330,7 @@ async function ankerAnwenden() {
           Interne Signatur
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">nur wenn alle Empfänger intern sind</span>
         </td>
-        <td style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
         <td style="padding:6px 8px">
           <select id="policy-intern-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -332,7 +338,7 @@ async function ankerAnwenden() {
       <!-- Banner -->
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">Banner</td>
-        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
         <td style="padding:6px 8px">
           <select id="policy-banner-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -343,7 +349,7 @@ async function ankerAnwenden() {
           Disclaimer
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">wird hinter Banner angehängt</span>
         </td>
-        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
         <td style="padding:6px 8px">
           <select id="policy-disclaimer-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -355,7 +361,7 @@ async function ankerAnwenden() {
           Abwesenheit
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">Text der Out-of-Office-Antwort</span>
         </td>
-        <td style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
         <td style="padding:6px 8px">
           <select id="policy-oof-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -363,7 +369,7 @@ async function ankerAnwenden() {
       <!-- Outlook Add-In — aktiv -->
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">Outlook Add-In</td>
-        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
         <td style="padding:6px 8px"><div id="policy-addin-ctrl"></div></td>
       </tr>
     </tbody>
