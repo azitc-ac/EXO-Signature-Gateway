@@ -16,6 +16,13 @@ Message-ID, Text). `posteingang_als_graph` liefert die Form des Graph-Abrufs
 `mailFolders/inbox/messages`; die Auswertung bleibt bei den Aufrufern
 (acme_state, hub_orders). Gesendet wird über EWS nichts — Antworten eines
 Hybrid-Nutzers gehen wie seine übrige Post über den Smarthost (reinject).
+EINZIGE Ausnahme (seit v1.12.67): die Regelprobe (`regelprobe_senden`, nur aus
+regel_probe) — sie MUSS in der lokalen Organisation entstehen, sonst prüfte sie
+nicht den Weg, den die Post eines Hybrid-Nutzers nimmt.
+
+BEANTWORTETE MAIL (seit v1.12.69): `bezug_per_kennung` für das Verfassen-Add-in
+— FindItem nach der Message-ID in Posteingang + Gesendete Elemente, GetItem mit
+References/In-Reply-To, Form wie Graph (Auswertung: graph_client.bezug_aus_treffern).
 
 OHNE KONFIGURATION
 ------------------
@@ -52,8 +59,10 @@ Diese Aufrufe sind blockierend (requests). Aufrufer im Event-Loop nutzen
 """
 from __future__ import annotations
 
+import contextvars
 import ipaddress
 import logging
+import threading
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -109,14 +118,94 @@ class EwsFehler(Exception):
     oder eine eigene Kennung: anmeldung, tls, verbindung, zeitlimit, http,
     antwort, konfiguration), `detail` ein Klartext für Oberfläche und Protokoll."""
 
-    def __init__(self, code: str, detail: str):
+    def __init__(self, code: str, detail: str, ausfall: bool = False):
         super().__init__(f"{code}: {detail}")
         self.code = code
         self.detail = detail
+        # True: betrifft die ANBINDUNG, nicht dieses Postfach (siehe _AUSFALL_CODES).
+        self.ausfall = ausfall or code in _AUSFALL_CODES
 
     @property
     def kein_zugriff(self) -> bool:
         return self.code in KEIN_ZUGRIFF_CODES
+
+
+# ── Ausfallsperre ─────────────────────────────────────────────────────────────
+# Anlass (18.11.2026, Skalierung auf hunderte Hybrid-Nutzer): Gesundheitsprüfung,
+# Abwesenheit und OWA-Abgleich rufen EWS je Postfach. Ist die lokale Exchange
+# nicht erreichbar, wartete JEDER Aufruf bis zum Fehler — gemessen im Lab 3,1 s
+# bei abgelehnter Verbindung, bis ZEITLIMIT_S (20 s) bei verworfenen Paketen.
+# 500 Postfächer × 2 Aufrufe ergaben so 50 Minuten bis über fünf Stunden, in
+# denen der Scheduler-Faden (auch die Wiederholung zurückgehaltener Post) stand.
+#
+# Nach einem Fehler, der die ANBINDUNG betrifft (nicht ein Postfach), schlagen
+# weitere Aufrufe AUSFALL_PAUSE_S lang sofort mit demselben Code fehl — ohne
+# Netz. Danach geht wieder ein echter Aufruf hinaus; gelingt einer, ist die
+# Sperre weg. Postfachbezogene Fehler (Management Scope, Postfach fehlt) und
+# Lesezeitüberschreitungen (ein grosses Postfach) lösen sie nicht aus. Der Knopf
+# „Verbindung testen“ geht immer hinaus (`verbindung_testen(…, sperre_umgehen=True)`).
+AUSFALL_PAUSE_S = 60
+_AUSFALL_CODES = frozenset({"anmeldung", "tls", "verbindung", "ErrorServerBusy"})
+_ausfall_lock = threading.Lock()
+_ausfall: dict = {}              # {"bis", "seit", "code", "detail", "uebersprungen"}
+_sperre_umgehen = contextvars.ContextVar("ews_sperre_umgehen", default=False)
+
+
+def _konfig_marke() -> str:
+    """Prüfsumme der Anbindungsfelder. Ändert der Betreiber sie (neue CA, neues
+    Kennwort), gilt eine Sperre aus der alten Einstellung nicht mehr."""
+    import hashlib
+    roh = "\x00".join(_wert(k) for k in (KEY_URL, KEY_KONTO, KEY_KENNWORT, KEY_VERBINDEN, KEY_CA))
+    return hashlib.sha256(roh.encode("utf-8")).hexdigest()
+
+
+def _ausfall_pruefen() -> None:
+    """Vor jedem Aufruf: Steht die Sperre, sofort EwsFehler (ohne Netz)."""
+    if _sperre_umgehen.get():
+        return
+    marke = _konfig_marke()
+    with _ausfall_lock:
+        if not _ausfall or time.monotonic() >= _ausfall["bis"] or _ausfall["marke"] != marke:
+            return
+        _ausfall["uebersprungen"] += 1
+        rest = _ausfall["bis"] - time.monotonic()
+        code, detail = _ausfall["code"], _ausfall["detail"]
+    raise EwsFehler(code, f"{detail} — Aufruf übersprungen, Exchange lokal war eben nicht "
+                          f"erreichbar (nächster Versuch in {rest:.0f} s)", ausfall=True)
+
+
+def _ausfall_merken(exc: "EwsFehler") -> None:
+    with _ausfall_lock:
+        neu = not _ausfall
+        jetzt = time.monotonic()
+        _ausfall.update({"bis": jetzt + AUSFALL_PAUSE_S, "code": exc.code,
+                         "marke": _konfig_marke(),
+                         "detail": exc.detail, "seit": _ausfall.get("seit", jetzt),
+                         "uebersprungen": _ausfall.get("uebersprungen", 0)})
+    if neu:
+        log.warning("EWS: Anbindung gestört (%s) — weitere Aufrufe %d s lang ohne Netz "
+                    "übersprungen", exc.code, AUSFALL_PAUSE_S)
+
+
+def _ausfall_vorbei() -> None:
+    with _ausfall_lock:
+        if not _ausfall:
+            return
+        dauer = time.monotonic() - _ausfall["seit"]
+        n = _ausfall["uebersprungen"]
+        _ausfall.clear()
+    log.info("EWS: Anbindung wieder erreichbar nach %.0f s — %d Aufrufe in der Zeit "
+             "übersprungen", dauer, n)
+
+
+def ausfall_stand() -> dict:
+    """Für Anzeige und Tests: {} oder {code, detail, uebersprungen, rest_s}."""
+    with _ausfall_lock:
+        if not _ausfall:
+            return {}
+        return {"code": _ausfall["code"], "detail": _ausfall["detail"],
+                "uebersprungen": _ausfall["uebersprungen"],
+                "rest_s": max(0.0, _ausfall["bis"] - time.monotonic())}
 
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
@@ -350,17 +439,27 @@ def anfrage_posteingang_suchen(ziel: str, ab: datetime | None = None,
     return _umschlag(ziel, req)
 
 
-def anfrage_nachrichten_holen(ziel: str, kennungen: list[tuple[str, str]]) -> bytes:
+# Zusätzlich für die Kette einer beantworteten Mail (Verfassen-Add-in): Entwurf
+# ja/nein und die Kopfzeilen References/In-Reply-To — dieselben Angaben, die
+# Graph über `isDraft` und `internetMessageHeaders` liefert. ⚠️ `item:InReplyTo`,
+# nicht `message:…` — im Lab (Exchange SE, 18.11.2026) gemessen: „message:InReplyTo“
+# lässt das ganze GetItem mit ErrorInvalidRequest scheitern; References dagegen
+# heißt `message:References`.
+KETTE_FELDER = ("item:IsDraft", "message:References", "item:InReplyTo")
+
+
+def anfrage_nachrichten_holen(ziel: str, kennungen: list[tuple[str, str]],
+                              kette: bool = False) -> bytes:
     """GetItem für die gefundenen Kennungen: Betreff, Absender, Empfangszeit,
     Message-ID und Text (`BodyType Best` — HTML bleibt HTML, Text bleibt Text,
-    wie Graph `body` ohne Prefer-Kopf)."""
+    wie Graph `body` ohne Prefer-Kopf). `kette`: dazu KETTE_FELDER."""
     req = ET.Element(_m("GetItem"))
     form = ET.SubElement(req, _m("ItemShape"))
     ET.SubElement(form, _t("BaseShape")).text = "IdOnly"
     ET.SubElement(form, _t("BodyType")).text = "Best"
     felder = ET.SubElement(form, _t("AdditionalProperties"))
     for f in ("item:Subject", "message:From", "item:DateTimeReceived",
-              "message:InternetMessageId", "item:Body"):
+              "message:InternetMessageId", "item:Body") + (KETTE_FELDER if kette else ()):
         _feld(felder, f)
     ids = ET.SubElement(req, _m("ItemIds"))
     for kennung, aenderung in kennungen:
@@ -524,6 +623,10 @@ def nachrichten_aus_antwort(root: ET.Element) -> list[dict]:
                 "message_id": _text(el.find(_t("InternetMessageId"))).strip(),
                 "text": _text(koerper),
                 "text_art": (koerper.get("BodyType") or "") if koerper is not None else "",
+                # Nur mit `kette` angefragt (KETTE_FELDER), sonst leer.
+                "entwurf": _text(el.find(_t("IsDraft"))).strip().lower() == "true",
+                "references": " ".join(_text(el.find(_t("References"))).split()),
+                "in_reply_to": _text(el.find(_t("InReplyTo"))).strip(),
             })
     return out
 
@@ -544,6 +647,11 @@ def nachrichten_als_graph(nachrichten: list[dict]) -> list[dict]:
             "internetMessageId": n.get("message_id") or "",
             "body": {"contentType": "html" if (n.get("text_art") or "").upper() == "HTML" else "text",
                      "content": n.get("text") or ""},
+            "isDraft": bool(n.get("entwurf")),
+            # Wie Graph: nur die Kopfzeilen, die es gibt (graph_client._bezug_aus liest sie).
+            "internetMessageHeaders": [{"name": name, "value": wert} for name, wert in
+                                       (("References", n.get("references") or ""),
+                                        ("In-Reply-To", n.get("in_reply_to") or "")) if wert],
         })
     return out
 
@@ -759,6 +867,10 @@ def _senden(ziel: str, umschlag: bytes) -> tuple[int, bytes]:
         raise EwsFehler("tls", "TLS-Prüfung fehlgeschlagen — Zertifikat passt nicht zum "
                                f"Hostnamen oder ist nicht vertrauenswürdig ({_kurz(exc)})."
                         + _tls_hinweis()) from None
+    except requests.exceptions.ConnectTimeout:
+        # Kein Verbindungsaufbau — betrifft die Anbindung, nicht dieses Postfach.
+        raise EwsFehler("zeitlimit", f"Keine Verbindung binnen {ZEITLIMIT_S} s",
+                        ausfall=True) from None
     except requests.exceptions.Timeout:
         raise EwsFehler("zeitlimit", f"Keine Antwort binnen {ZEITLIMIT_S} s") from None
     except requests.exceptions.ConnectionError as exc:
@@ -779,12 +891,22 @@ def _aufruf(ziel: str, was: str, umschlag: bytes, teilweise: bool = False,
     stehen als INFO statt WARNING im Protokoll."""
     t0 = time.monotonic()
     try:
+        _ausfall_pruefen()
+    except EwsFehler as exc:
+        log.info("EWS %s für %s: übersprungen (Ausfallsperre, %s)", was, ziel, exc.code)
+        raise
+    try:
         status, roh = _senden(ziel, umschlag)
         root = antwort_pruefen(status, roh, teilweise)
     except EwsFehler as exc:
         (log.info if exc.code in erwartet else log.warning)("EWS %s für %s: fehlgeschlagen nach %.2f s — %s", was, ziel,
                     time.monotonic() - t0, exc)
+        if exc.ausfall:
+            _ausfall_merken(exc)
+        else:
+            _ausfall_vorbei()        # Exchange hat geantwortet — die Anbindung steht
         raise
+    _ausfall_vorbei()
     log.info("EWS %s für %s: NoError (%.2f s)", was, ziel, time.monotonic() - t0)
     return root
 
@@ -829,10 +951,14 @@ def kalender_lesen(adresse: str, von: datetime, bis: datetime) -> list[dict]:
                                         anfrage_kalender(ziel, von, bis)))
 
 
-def verbindung_testen(adresse: str) -> dict:
+def verbindung_testen(adresse: str, sperre_umgehen: bool = False) -> dict:
     """Probe für den Knopf „Verbindung testen“ und die Gesundheitsprüfung:
-    GetUserOofSettings auf `adresse`. {ok, code, detail, dauer}."""
+    GetUserOofSettings auf `adresse`. {ok, code, detail, dauer}.
+    `sperre_umgehen` (nur der Knopf): immer ein echter Aufruf, auch während der
+    Ausfallsperre — sonst sähe der Betreiber nach der Behebung bis zu
+    AUSFALL_PAUSE_S lang weiter den alten Fehler."""
     t0 = time.monotonic()
+    marke = _sperre_umgehen.set(sperre_umgehen)
     try:
         oof = oof_lesen(adresse)
     except EwsFehler as exc:
@@ -842,6 +968,8 @@ def verbindung_testen(adresse: str) -> dict:
         log.warning("EWS-Verbindungstest für %s: unerwarteter Fehler %s", adresse, exc)
         return {"ok": False, "code": "intern", "detail": _kurz(exc),
                 "dauer": round(time.monotonic() - t0, 2)}
+    finally:
+        _sperre_umgehen.reset(marke)
     return {"ok": True, "code": "NoError",
             "detail": f"Abwesenheit lesbar (Zustand {oof['state']})",
             "dauer": round(time.monotonic() - t0, 2)}
@@ -892,6 +1020,39 @@ def bezug_sperre(adresse: str) -> str:
     return BEZUG_GESPERRT if postfach_weg(adresse) == WEG_GESPERRT else ""
 
 
+def anfrage_regelprobe(von: str, an: str, betreff: str, kopf: str, kopf_wert: str,
+                       text: str) -> bytes:
+    """CreateItem mit MessageDisposition="SendOnly" ALS `von` (Impersonation):
+    senden ohne Kopie in „Gesendete Elemente“. Reihenfolge der Kinder von
+    <Message> laut EWS-Schema (learn.microsoft.com, „Message“): Subject, Body,
+    ExtendedProperty, ToRecipients. Der x-Kopf als erweiterte Eigenschaft im
+    Satz InternetHeaders (ExtendedFieldURI, DistinguishedPropertySetId) — ob
+    Exchange ihn als Kopfzeile hinausgibt, ist nicht belegt; die Kennung steht
+    deshalb auch im Betreff (wie beim Graph-Weg)."""
+    req = ET.Element(_m("CreateItem"), {"MessageDisposition": "SendOnly"})
+    nachricht = ET.SubElement(ET.SubElement(req, _m("Items")), _t("Message"))
+    ET.SubElement(nachricht, _t("Subject")).text = betreff
+    ET.SubElement(nachricht, _t("Body"), {"BodyType": "Text"}).text = text
+    ep = ET.SubElement(nachricht, _t("ExtendedProperty"))
+    ET.SubElement(ep, _t("ExtendedFieldURI"), {"DistinguishedPropertySetId": "InternetHeaders",
+                                               "PropertyName": kopf, "PropertyType": "String"})
+    ET.SubElement(ep, _t("Value")).text = kopf_wert
+    an_el = ET.SubElement(ET.SubElement(nachricht, _t("ToRecipients")), _t("Mailbox"))
+    ET.SubElement(an_el, _t("EmailAddress")).text = an
+    return _umschlag(von, req)
+
+
+def regelprobe_senden(von: str, an: str, betreff: str, kopf: str, kopf_wert: str,
+                      text: str) -> None:
+    """Die Prüfmail der Regelprobe aus dem lokalen Postfach `von` an `an`
+    (ein Postfach in Exchange Online). EwsFehler bei Fehlern. Nur regel_probe."""
+    if not konfiguriert():
+        raise EwsFehler("konfiguration", "Anbindung an Exchange lokal ist nicht eingerichtet")
+    ziel = _ziel(von)
+    _aufruf(ziel, "CreateItem (Regelprobe)",
+            anfrage_regelprobe(ziel, _ziel(an), betreff, kopf, kopf_wert, text))
+
+
 def posteingang_suchen(adresse: str, anzahl: int = 1, ab: datetime | None = None,
                        betreff_enthaelt: str = "") -> list[tuple[str, str]]:
     """Nur die Kennungen der jüngsten Mails (FindItem, IdOnly) — EwsFehler bei
@@ -923,6 +1084,75 @@ def posteingang_als_graph(adresse: str, ab: datetime | None = None, betreff_enth
     mailFolders/inbox/messages). Blockierend — Aufrufer im Event-Loop nutzen
     asyncio.to_thread."""
     return nachrichten_als_graph(posteingang_lesen(adresse, ab, betreff_enthaelt, anzahl))
+
+
+# ── Beantwortete Mail für das Verfassen-Add-in (seit v1.12.69) ────────────────
+#
+# Antwortet ein Hybrid-Nutzer, nennt Outlook die beantwortete Mail über
+# `item.inReplyTo` (Mailbox 1.14). Das Add-in sucht sie, um zu entscheiden, ob
+# die volle oder die Antwort-Signatur gilt — für EXO-Postfächer per Graph
+# (graph_client.bezug_per_kennung, über ALLE Ordner). EWS sucht nur flach je
+# Ordner (Traversal Deep gibt es nur für Suchordner); gesucht wird deshalb in
+# Posteingang und Gesendete Elemente in EINEM FindItem. Liegt die Mail woanders,
+# bleibt der Entwurf leer und das Gateway entscheidet beim Versand — wie bei
+# jeder nicht ermittelbaren Antwort.
+
+BEZUG_ORDNER = ("inbox", "sentitems")
+BEZUG_MAX = 5           # wie Graph ($top=5): dieselbe Mail ggf. in beiden Ordnern
+
+
+def anfrage_kennung_suchen(ziel: str, message_id: str,
+                           ordner: tuple[str, ...] = BEZUG_ORDNER) -> bytes:
+    """FindItem nach der Message-ID (Gleichheit, kein Teilstring) in `ordner`.
+    Der Wert geht als Attribut über xml.etree hinein."""
+    req = ET.Element(_m("FindItem"), {"Traversal": "Shallow"})
+    ET.SubElement(ET.SubElement(req, _m("ItemShape")), _t("BaseShape")).text = "IdOnly"
+    ET.SubElement(req, _m("IndexedPageItemView"), {"MaxEntriesReturned": str(BEZUG_MAX),
+                                                   "Offset": "0", "BasePoint": "Beginning"})
+    ET.SubElement(req, _m("Restriction")).append(
+        _vergleich("IsEqualTo", "message:InternetMessageId", message_id))
+    ordner_el = ET.SubElement(req, _m("ParentFolderIds"))
+    for o in ordner:
+        d = ET.SubElement(ordner_el, _t("DistinguishedFolderId"), {"Id": o})
+        ET.SubElement(ET.SubElement(d, _t("Mailbox")), _t("EmailAddress")).text = ziel
+    return _umschlag(ziel, req)
+
+
+def kennungen_aller_ordner(root: ET.Element) -> list[tuple[str, str]]:
+    """FindItemResponse über mehrere Ordner → [(ItemId, ChangeKey)] aus jeder
+    ERFOLGREICHEN Antwort (je Ordner eine). Ein Ordner mit Fehler nimmt die
+    anderen nicht mit (antwort_pruefen `teilweise`)."""
+    out = []
+    for rm in root.iter():
+        if not (rm.tag.startswith(f"{{{NS_M}}}") and rm.tag.endswith("ResponseMessage")):
+            continue
+        if not _antwort_ok(rm):
+            continue
+        ordner = rm.find(_m("RootFolder"))
+        if ordner is None:
+            continue
+        for el in ordner.iter(_t("ItemId")):
+            if el.get("Id"):
+                out.append((el.get("Id"), el.get("ChangeKey") or ""))
+    return out
+
+
+def bezug_per_kennung(adresse: str, message_id: str) -> list[dict]:
+    """Die Mail mit `message_id` aus Posteingang und Gesendete Elemente von
+    `adresse`, in der Form des Graph-Abrufs `users/{p}/messages?$filter=
+    internetMessageId eq …` (mit isDraft und internetMessageHeaders). [] = nicht
+    gefunden. EwsFehler bei Fehlern. Blockierend — nur über asyncio.to_thread."""
+    if not konfiguriert():
+        raise EwsFehler("konfiguration", "Anbindung an Exchange lokal ist nicht eingerichtet")
+    ziel = _ziel(adresse)
+    kennungen = kennungen_aller_ordner(_aufruf(
+        ziel, "FindItem (beantwortete Mail)", anfrage_kennung_suchen(ziel, message_id),
+        teilweise=True))
+    if not kennungen:
+        return []
+    return nachrichten_als_graph(nachrichten_aus_antwort(_aufruf(
+        ziel, f"GetItem ({len(kennungen)} Nachricht(en), Kette)",
+        anfrage_nachrichten_holen(ziel, kennungen, kette=True), teilweise=True)))
 
 
 # ── OWA-Signatur lokal (seit v1.12.63) ────────────────────────────────────────

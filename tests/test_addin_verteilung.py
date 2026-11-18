@@ -179,7 +179,7 @@ def test_sammellauf_merkt_vor_bevor_er_bewertet(stand, monkeypatch):
     monkeypatch.setattr(health_check, "_check_exo_batch_sync", lambda emails: exo)
     bewertet = []
 
-    async def _einzeln(email, exo_data=None):
+    async def _einzeln(email, exo_data=None, **_kw):
         r = health_check._check_addins(exo_data[email]["addins"])["verfassen"]
         bewertet.append((email, r["status"]))
         return {"checks": {"addin_verfassen": r}}

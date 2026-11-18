@@ -105,3 +105,50 @@ ZUWEISUNG_WEG = ("Admin Center → Einstellungen → Integrierte Apps → Add-in
 AKTUALISIEREN_WEG = ("Einrichtung → Verfassen-Add-in → „Integrierte Apps öffnen“ → Add-in → "
                      "Aktualisieren und die neuen Berechtigungen bestätigen. Exchange "
                      "verteilt die neue Fassung danach binnen bis zu 72 Stunden.")
+
+
+# ── Hybrid-Nutzer: Abruf statt Get-App (seit v1.12.69) ────────────────────────
+#
+# Für Hybrid-Nutzer stellt der Betreiber die Add-ins in Exchange LOKAL bereit
+# (New-App in der Exchange-Verwaltungsshell) — das Microsoft 365 Admin Center
+# kann es nicht („Add-in deployment to an Exchange on-premises Mailbox“ steht
+# dort unter „nicht unterstützt“). Get-App, mit dem die Postfachprüfung die
+# Fassung liest, gibt es nur in Exchange Online; die lokale Verwaltungsshell
+# erreicht das Gateway nicht. Der einzige Beleg, dass die Bereitstellung wirkt,
+# ist deshalb ein Abruf aus Outlook: Das Verfassen-Add-in holt die Signatur,
+# der Knopf ebenso. Gemerkt wird je Postfach-Eintrag und Add-in der Tag des
+# letzten Abrufs — höchstens ein Schreibvorgang je Tag und Add-in.
+
+LOKAL_KEY = "_ADDIN_LOKAL"
+
+
+def _eintrag_schluessel(adresse: str) -> str:
+    import mailbox_match
+    a = (adresse or "").strip().lower()
+    return mailbox_match.match_sender_key(settings_store.get("MAILBOX_CONFIG") or {}, a) or a
+
+
+def lokal_gesehen(adresse: str, art: str, client: str = "", jetzt: datetime | None = None) -> None:
+    """Abruf des Add-ins `art` (verfassen|knopf) durch den Hybrid-Nutzer `adresse`.
+    Nur für Hybrid-Nutzer aufrufen (exo_mailboxes.ist_hybrid)."""
+    schluessel = _eintrag_schluessel(adresse)
+    if not schluessel:
+        return
+    tag = (jetzt or _jetzt()).strftime("%Y-%m-%d")
+    stand = settings_store.get(LOKAL_KEY) or {}
+    alt = ((stand.get(schluessel) or {}).get(art) or {}) if isinstance(stand, dict) else {}
+    if alt.get("tag") == tag:
+        return
+    neu = dict(stand) if isinstance(stand, dict) else {}
+    eintrag = dict(neu.get(schluessel) or {})
+    eintrag[art] = {"tag": tag, "client": (client or "")[:20]}
+    neu[schluessel] = eintrag
+    settings_store.force_update({LOKAL_KEY: neu})
+
+
+def lokal_stand(adresse: str, art: str) -> dict:
+    """{tag, client} des letzten Abrufs — {} wenn nie gesehen."""
+    stand = settings_store.get(LOKAL_KEY) or {}
+    if not isinstance(stand, dict):
+        return {}
+    return dict((stand.get(_eintrag_schluessel(adresse)) or {}).get(art) or {})

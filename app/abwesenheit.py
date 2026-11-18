@@ -1253,6 +1253,21 @@ def funktion_aktiv() -> bool:
     return settings_store.get("ABWESENHEIT_AKTIV") is True
 
 
+def fuer_postfach(upn: str) -> bool:
+    """Funktion an UND das Postfach für die Abwesenheit erreichbar? EINE Prüfung
+    für den Self-Service (Reiter, Speichern, Vorlagenwahl). Ein Hybrid-Nutzer
+    nur mit Anbindung an Exchange lokal — ohne sie scheiterte jeder Graph-Abruf
+    (das Postfach liegt nicht in EXO), der Reiter zeigte trotzdem „Abwesenheit“
+    (bis v1.12.67; seit v1.12.69 erreicht der Hybrid-Nutzer /self auch über
+    das Add-in). Ein EXO-Postfach: wie funktion_aktiv()."""
+    if not funktion_aktiv():
+        return False
+    if ews_verfuegbar():
+        return True
+    import exo_mailboxes
+    return not exo_mailboxes.ist_hybrid(upn)
+
+
 def zentral_aktiv() -> bool:
     """Läuft der zentrale Abgleich (Text normalisieren, Kalender-Automatik)?
 

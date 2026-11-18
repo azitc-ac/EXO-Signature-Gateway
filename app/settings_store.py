@@ -531,6 +531,7 @@ INTERNAL_KEYS = frozenset({
     "_DIREKTVERSAND_PROBE",       # direktversand_probe.py — Stand der letzten Probe
     "_SMIME_REGELN_STAND",        # setup_wizard.py — angewendeter Stand des S/MIME-Regel-Solls
     "_ADDIN_VERTEILUNG",          # addin_verteilung.py — je Add-in: Soll-Fassung + erstes Sichten
+    "_ADDIN_LOKAL",               # addin_verteilung.py — Hybrid-Nutzer: Tag des letzten Add-in-Abrufs
     "_REGEL_AUTO_AUSNAHME",       # regel_auto_ausnahme.py — letzter Live-Befund der Auto-Antwort-Ausnahme
     "_OWA_SIGNATUR_STAND",        # owa_signatur.py — je Hybrid-Nutzer Prüfsumme der übertragenen Signatur
     "_OWA_SIGNATUR_LAST",         # owa_signatur.py — Zählung des letzten Abgleichs

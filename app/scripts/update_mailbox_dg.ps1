@@ -32,6 +32,9 @@ $MemberList = @(if ($Members) {
     $Members -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
 } else { @() })
 
+# Gemeinsame Mitgliederpflege (Sammelaufruf ab vielen Aenderungen) — eine Fassung.
+. (Join-Path $PSScriptRoot 'dg_mitglieder.ps1')
+
 function Write-Step([string]$msg) { Write-Host "[DG-SETUP] $msg" -ForegroundColor Cyan }
 function Write-OK([string]$msg)   { Write-Host "[OK] $msg"       -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "[WARN] $msg"     -ForegroundColor Yellow }
@@ -75,35 +78,15 @@ try {
     Set-DistributionGroup -Identity $dgName -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
 
     # ── Sync members ──────────────────────────────────────────────────────────
-    Write-Step "Syncing members ($($MemberList.Count) configured)..."
-    $current = @(Get-DistributionGroupMember -Identity $dgName -ResultSize Unlimited |
-        ForEach-Object { $_.PrimarySmtpAddress.ToLower() })
-
-    $toAdd    = $MemberList | Where-Object { $_.ToLower() -notin $current }
-    $toRemove = $current | Where-Object { $_ -notin ($MemberList | ForEach-Object { $_.ToLower() }) }
-
     # Mitglieder koennen auch Hybrid-Nutzer sein (MailUser, Postfach in der lokalen
-    # Organisation; Option HYBRID_POSTFAECHER). Add-/Remove-DistributionGroupMember
+    # Organisation; Option HYBRID_POSTFAECHER). Add-/Remove-/Update-DistributionGroupMember
     # nehmen jeden mail-aktivierten Empfaenger per SMTP-Adresse — kein Postfach-Cmdlet.
     # Der IMAP-Grant unten bekommt sie nie: er laeuft nur im Rueckweg graph_plus,
     # und dort nimmt das Gateway keine Hybrid-Nutzer in die Liste auf.
-    foreach ($m in $toAdd) {
-        try {
-            Add-DistributionGroupMember -Identity $dgName -Member $m -ErrorAction Stop
-            Write-OK "Added: $m"
-        } catch {
-            Write-Host "[ERROR] Failed to add $m : $_" -ForegroundColor Red
-        }
-    }
-    foreach ($m in $toRemove) {
-        try {
-            Remove-DistributionGroupMember -Identity $dgName -Member $m -Confirm:$false -ErrorAction Stop
-            Write-OK "Removed: $m"
-        } catch {
-            Write-Host "[ERROR] Failed to remove $m : $_" -ForegroundColor Red
-        }
-    }
-    if (-not $toAdd -and -not $toRemove) { Write-OK "Members already in sync" }
+    # Abgleich (einzeln oder als Sammelaufruf ab vielen Aenderungen): dg_mitglieder.ps1.
+    Write-Step "Syncing members ($($MemberList.Count) configured)..."
+    $sync = Sync-DgMitglieder -Identity $dgName -Soll $MemberList
+    if ($sync.Hinzu -eq 0 -and $sync.Weg -eq 0 -and $sync.Sammel -eq 'nein') { Write-OK "Members already in sync" }
 
     # ── Update transport rule ─────────────────────────────────────────────────
     # Migration: bestehende Installation ggf. vom frueheren Namen (ohne "(Signatur)")

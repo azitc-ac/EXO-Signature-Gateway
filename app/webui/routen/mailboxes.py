@@ -145,14 +145,23 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
     health_map: dict = settings_store.get("MAILBOX_HEALTH") or {}
     bookings_map: dict = settings_store.get("USER_BOOKINGS") or {}
+    # Indizes EINMAL bauen: match_sender/match_sender_key/standards je Zeile
+    # bauten sie jedes Mal neu — n² (700 Postfächer: 3,7 s auf dem Raspi, im
+    # Event-Loop). Gleiches Ergebnis, tests/test_postfach_index.py.
+    adr_idx = mailbox_match.build_address_index(config_map)
+    key_idx = mailbox_match.build_key_index(config_map)
+    nachtrag = [(key, cfg, key.lower() if "@" in key else (cfg.get("primary") or "").lower())
+                for key, cfg in config_map.items() if isinstance(cfg, dict)]
+    std_alle = _pol.standards_alle([u["email"] for u in users] + [c for _k, _c, c in nachtrag],
+                                   config_map)
     result = []
     for u in users:
         email = u["email"]
-        cfg = mailbox_match.match_sender(config_map, email)
+        cfg = adr_idx.get(email.lower(), {})
         h = health_map.get(email, {})
         result.append({
             "email": email,
-            "config_key": mailbox_match.match_sender_key(config_map, email) or email,
+            "config_key": key_idx.get(email.lower()) or email,
             "name": u["name"],
             "type": u.get("type", "user"),
             "sig": cfg.get("sig", False),
@@ -165,7 +174,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
             "disclaimer_template": cfg.get("disclaimer_template", ""),
             "oof_template": cfg.get("oof_template"),
             "intern_template": cfg.get("intern_template"),
-            "standard": _pol.standards(email, config_map),
+            "standard": std_alle[email],
             "addin_templates": cfg.get("addin_templates", []),
             "use_policy": cfg.get("use_policy", True),
             "health_overall": h.get("overall"),
@@ -177,16 +186,17 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
             "regel_wartet": regel_wartet(cfg) and not regel_probe.greift(h, cfg),
         })
     # Also include configured mailboxes Graph didn't return (removed users / guid-keyed).
-    for key, cfg in config_map.items():
-        cemail = key.lower() if "@" in key else (cfg.get("primary") or "").lower()
-        if cemail and not any(r["email"] == cemail for r in result):
+    gezeigt = {r["email"] for r in result}
+    for key, cfg, cemail in nachtrag:
+        if cemail and cemail not in gezeigt:
+            gezeigt.add(cemail)
             h = health_map.get(cemail, {})
             result.append({
                 "email": cemail,
                 "config_key": key,
                 "name": cfg.get("display_name") or cemail,
                 # Hybrid-Eintrag bei ausgeschalteter Option: weiter als Hybrid
-                # kenntlich (S/MIME, Abwesenheit, Add-in bleiben gesperrt).
+                # kenntlich (Abwesenheit ohne EWS bleibt gesperrt).
                 "type": "hybrid" if cfg.get("hybrid") else "user",
                 "sig": cfg.get("sig", False),
                 "smime": cfg.get("smime", False),
@@ -198,7 +208,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "disclaimer_template": cfg.get("disclaimer_template", ""),
                 "oof_template": cfg.get("oof_template"),
                 "intern_template": cfg.get("intern_template"),
-                "standard": _pol.standards(cemail, config_map),
+                "standard": std_alle[cemail],
                     "addin_templates": cfg.get("addin_templates", []),
                 "use_policy": cfg.get("use_policy", True),
                 "health_overall": h.get("overall"),
@@ -483,7 +493,9 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
             # Kennzeichen für den heißen Pfad (reinject: nur Smarthost), auch
             # nach einem Neustart mit leerem Zwischenspeicher — exo_mailboxes.ist_hybrid.
             entry["hybrid"] = True
-            entry.pop("addin_templates", None)
+            # Add-in-Auswahl bleibt (seit v1.12.69): Das Add-in läuft auch für
+            # Hybrid-Nutzer, bereitgestellt in Exchange lokal (Einrichtung →
+            # Outlook-Add-in → Exchange lokal). Bis v1.12.67 wurde sie hier verworfen.
         # ⚠️ Carryover: Dieser Speichervorgang baut `entry` KOMPLETT NEU und ersetzt
         # danach MAILBOX_CONFIG ganz. Felder, die NICHT aus dieser Tabelle stammen,
         # sondern anderswo gesetzt werden (Abwesenheits-Dashboard, Self-Service),
@@ -586,7 +598,8 @@ async def api_regel_probe(body: dict, _=Depends(_require_admin)):
     die Proben laufen im Hintergrund, Fortschritt über `…/regel-probe/status`.
 
     Nicht aktive Postfächer werden hier schon aussortiert (Grund je Adresse),
-    Hybrid-Nutzer nicht: Für sie hält die Probe fest, warum sie nicht geht."""
+    Hybrid-Nutzer nicht: Sie gehen über Exchange lokal (regel_probe._plan),
+    und wo das nicht geht, hält die Probe fest, warum (`entfaellt`)."""
     import regel_probe
     roh = body.get("emails")
     if not isinstance(roh, list) or not roh:
@@ -603,7 +616,7 @@ async def api_regel_probe(body: dict, _=Depends(_require_admin)):
     zulassen: list[str] = []
     for a in adressen:
         grund = await asyncio.to_thread(regel_probe.nicht_moeglich, a)
-        if grund and grund != regel_probe.HYBRID:
+        if grund and not regel_probe.entfaellt(grund):
             abgelehnt[a] = grund
         else:
             zulassen.append(a)

@@ -24,8 +24,13 @@ WANN
 Stündlich im Scheduler (`scheduler._OWA_INTERVAL`) und per Knopf. Geschrieben wird nur, wenn
 sich die Signatur seit dem letzten Schreiben geändert hat (Prüfsumme je
 Postfach in `_OWA_SIGNATUR_STAND`); der Knopf schreibt immer. Postfächer
-nacheinander mit kurzer Pause — hunderte Postfächer dürfen die lokale Exchange
-nicht fluten; ein Fehler bei einem Postfach bricht den Lauf nicht ab.
+nacheinander, mit kurzer Pause zwischen zwei Aufrufen an die lokale Exchange —
+hunderte Postfächer dürfen sie nicht fluten; ein Fehler bei einem Postfach
+bricht den Lauf nicht ab. Die Pause gilt nur vor einem EWS-Aufruf: Bis v1.12.66
+schlief der Lauf auch vor jedem unveränderten Postfach, ohne dass etwas
+hinausging — bei 500 Hybrid-Nutzern 100 s je Stunde im Scheduler-Faden, in
+denen auch die Wiederholung zurückgehaltener Post wartete. Den Stand des
+laufenden Abgleichs zeigt `uebersicht()["laeuft"]`.
 
 LEBENSZYKLUS
 ------------
@@ -62,6 +67,7 @@ GESETZT, UNVERAENDERT, ENTFERNT, KEINE_VORLAGE, KEIN_ZUGRIFF, FEHLER = (
 
 _lauf = threading.Lock()
 _hintergrund: set = set()     # laufende Knopf-Abgleiche (Referenz, sonst räumt der GC sie ab)
+_fortschritt: dict = {}       # während eines Laufs: {"erledigt", "gesamt", "seit"}
 
 
 def aktiv() -> bool:
@@ -114,7 +120,8 @@ def _jetzt() -> str:
 def uebersicht() -> dict:
     """Für die Karte „Exchange lokal (EWS)“: letzter Lauf und Anzahl gepflegter Postfächer."""
     return {"letzter": settings_store.get(_LAST_KEY) or {},
-            "gepflegt": len(settings_store.get(_STAND_KEY) or {})}
+            "gepflegt": len(settings_store.get(_STAND_KEY) or {}),
+            "laeuft": dict(_fortschritt)}
 
 
 async def _entfernen(upn: str) -> bool:
@@ -156,6 +163,7 @@ async def abgleich(erzwingen: bool = False, nur: str = "") -> dict:
     try:
         return await _abgleich(an, stand, zaehlung, erzwingen, (nur or "").strip().lower())
     finally:
+        _fortschritt.clear()
         _lauf.release()
 
 
@@ -170,6 +178,13 @@ async def _abgleich(an: bool, stand: dict, zaehlung: dict, erzwingen: bool, nur:
                     "error": "Kein Hybrid-Nutzer mit aktivierter Signatur unter dieser Adresse"}
     fehler: list[dict] = []
     vorher = dict(stand)
+    ews_gerufen = [False]
+
+    async def _vor_ews() -> None:
+        """Pause NUR zwischen zwei Aufrufen an die lokale Exchange."""
+        if ews_gerufen[0]:
+            await asyncio.sleep(PAUSE_S)
+        ews_gerufen[0] = True
 
     def _fehler(upn: str, exc: Exception) -> None:
         kein = isinstance(exc, ews_onprem.EwsFehler) and exc.kein_zugriff
@@ -179,22 +194,27 @@ async def _abgleich(an: bool, stand: dict, zaehlung: dict, erzwingen: bool, nur:
                            "detail": getattr(exc, "detail", str(exc)[:160])})
         log.warning("OWA-Signatur für %s: %s", upn, exc)
 
+    if not nur:
+        _fortschritt.update({"erledigt": 0, "gesamt": len(liste), "seit": _jetzt()})
     for i, (upn, cfg) in enumerate(liste):
-        if i:
-            await asyncio.sleep(PAUSE_S)
+        if not nur:
+            _fortschritt["erledigt"] = i
         schluessel = upn.lower()
         try:
             html, text, vorlage = await inhalt(upn, mailbox_cfg, cfg)
             if not html:
                 zaehlung[KEINE_VORLAGE] += 1
-                if schluessel in stand and await _entfernen(upn):
-                    zaehlung[ENTFERNT] += 1
+                if schluessel in stand:
+                    await _vor_ews()
+                    if await _entfernen(upn):
+                        zaehlung[ENTFERNT] += 1
                 stand.pop(schluessel, None)
                 continue
             summe = pruefsumme(html, text)
             if not erzwingen and (stand.get(schluessel) or {}).get("summe") == summe:
                 zaehlung[UNVERAENDERT] += 1
                 continue
+            await _vor_ews()
             await asyncio.to_thread(ews_onprem.owa_signatur_setzen, upn, html, text, True, False)
             stand[schluessel] = {"summe": summe, "ts": _jetzt(), "vorlage": vorlage}
             zaehlung[GESETZT] += 1
@@ -206,6 +226,7 @@ async def _abgleich(an: bool, stand: dict, zaehlung: dict, erzwingen: bool, nur:
         for schluessel in [k for k in stand if k not in im_ziel]:
             try:
                 if ews_onprem.zustaendig(schluessel):
+                    await _vor_ews()
                     if await _entfernen(schluessel):
                         zaehlung[ENTFERNT] += 1
                 else:

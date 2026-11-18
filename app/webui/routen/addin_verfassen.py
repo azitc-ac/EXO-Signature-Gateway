@@ -49,6 +49,7 @@ vorab berechtigter Client, requestedAccessTokenVersion = 2.
 """
 from __future__ import annotations
 
+import asyncio
 import json as _json
 import uuid as _uuid
 from pathlib import Path
@@ -65,8 +66,8 @@ import sso as sso_mod
 from webui.deps import log
 from webui.hilfen import _addin_base_url
 from webui.routen.addin import (
-    _NO_STORE, OUTLOOK_SIGNATUR_MAX, _addin_cfg, _manifest_texte, _manifest_version,
-    _ohne_adresse, markiert, signatur_zu_gross,
+    _NO_STORE, OUTLOOK_SIGNATUR_MAX, _addin_cfg, _lokal_gesehen, _manifest_texte,
+    _manifest_version, _ohne_adresse, markiert, signatur_zu_gross,
 )
 
 router = APIRouter()
@@ -353,6 +354,26 @@ def _antwort(request) -> dict | None:
             "betreff": betreff, "an": an, "cc": cc, "bezug": bezug}
 
 
+async def _bezug_per_kennung(ident: str, message_id: str, weg: str) -> dict | None:
+    """Die beantwortete Mail genau (item.inReplyTo) — `weg` aus
+    ews_onprem.postfach_weg: EXO-Postfach über Graph (unverändert), Hybrid-Nutzer
+    mit Anbindung über EWS (Posteingang + Gesendete Elemente), ohne Anbindung
+    gar nicht. Ausgewertet wird in beiden Fällen von graph_client
+    (`bezug_aus_treffern`), dieselbe Form, dieselbe Kette."""
+    import ews_onprem
+    if weg == ews_onprem.WEG_GRAPH:
+        return await graph_client.bezug_per_kennung(ident, message_id)
+    if weg != ews_onprem.WEG_EWS:
+        return None
+    try:
+        treffer = await asyncio.to_thread(ews_onprem.bezug_per_kennung, ident, message_id)
+    except Exception as exc:                                 # noqa: BLE001 — EwsFehler u. a.
+        log.warning("Verfassen-Add-in: beantwortete Mail von %s über Exchange lokal nicht "
+                    "lesbar — %s", ident, exc)
+        return None
+    return graph_client.bezug_aus_treffern(treffer)
+
+
 @router.get(SIGNATUR_API)
 async def verfassen_signatur(request: Request):
     """Signatur des ANGEMELDETEN Nutzers — die Adresse stammt aus dem Token,
@@ -413,6 +434,7 @@ async def verfassen_signatur(request: Request):
     if not mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, ident):
         log.info("Verfassen-Add-in: %s wird vom Gateway nicht betreut — nichts einzufügen", ident)
         return JSONResponse({"html": ""}, headers=_CORS)
+    _lokal_gesehen(email, "verfassen", _plattform(request))
     alle_intern = _intern.alle_intern(empfaenger)
     vorlagen = policies.aufloesen(ident)
     vorlage, art = policies.vorlage_waehlen(vorlagen, None, alle_intern)
@@ -420,13 +442,28 @@ async def verfassen_signatur(request: Request):
     antwort = _antwort(request)
     if antwort is not None:
         art_text = "Antwort" if antwort["art"] == "reply" else "Weiterleitung"
+        import ews_onprem
+        weg = ews_onprem.postfach_weg(ident)
         bezug = None
         if antwort["bezug"]:
             # Genau bekannt (item.inReplyTo) — keine Schätzung nötig.
-            bezug = await graph_client.bezug_per_kennung(ident, antwort["bezug"])
+            bezug = await _bezug_per_kennung(ident, antwort["bezug"], weg)
         if bezug is not None:
-            log.info("Verfassen-Add-in: %s von %s — beantwortete Mail über inReplyTo (%s)",
-                     art_text, email, plattform)
+            log.info("Verfassen-Add-in: %s von %s — beantwortete Mail über inReplyTo%s (%s)",
+                     art_text, email, " (Exchange lokal)" if weg == ews_onprem.WEG_EWS else "",
+                     plattform)
+        elif weg != ews_onprem.WEG_GRAPH:
+            # Hybrid-Nutzer: Die Schätzung (Konversation, Betreff) liest per Graph
+            # das Postfach, und das liegt in der lokalen Organisation. Über EWS
+            # gibt es nur die genaue Suche oben. Entwurf leer — das Gateway
+            # entscheidet beim Versand, wie bei jeder nicht ermittelbaren Antwort.
+            log.info("Verfassen-Add-in: %s von %s — beantwortete Mail %s; Hybrid-Nutzer (%s): "
+                     "Schätzung über Konversation/Betreff entfällt, Gateway entscheidet beim "
+                     "Versand (%s)", art_text, email,
+                     "über inReplyTo nicht gefunden" if antwort["bezug"] else "ohne inReplyTo",
+                     "Exchange lokal" if weg == ews_onprem.WEG_EWS
+                     else "ohne Anbindung an Exchange lokal", plattform)
+            return JSONResponse({"html": ""}, headers=_CORS)
         else:
             konversation, weg = antwort["konversation"], "Kennung"
             if not konversation and antwort["betreff"]:

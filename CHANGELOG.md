@@ -5,6 +5,182 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.70 — 2026-11-18 — Test der Zeitgeber unabhängig von der Reihenfolge
+
+Der Test aus v1.12.68 prüft die Anfangswerte der Hintergrundtakte jetzt am
+Quelltext. Vorher las er die Modulvariablen zur Laufzeit, die andere Tests
+durch laufende Takte schon überschrieben hatten. Keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.69 — 2026-11-18 — Outlook-Add-in auch für Hybrid-Nutzer
+
+Das Outlook-Add-in (Knopf und Verfassen-Add-in) war für Hybrid-Nutzer gesperrt:
+Die Add-in-Auswahl in der Postfachliste war ausgegraut, beim Speichern wurde sie
+verworfen, und die Postfachprüfung meldete „entfällt“. Die Sperre ist aufgehoben.
+Was ein Postfach in Exchange Online voraussetzt, ist jetzt einzeln gelöst:
+
+* **Signatur abrufen und einfügen** brauchen kein Postfach: Die Daten der
+  Person kommen aus Entra (dort hat ein Hybrid-Nutzer sein Konto), Vorlage und
+  Freigabeliste aus dem Gateway.
+* **Antworten.** Das Verfassen-Add-in sucht die beantwortete Mail, um zwischen
+  voller und Antwort-Signatur zu wählen. Für Postfächer in Exchange Online
+  unverändert per Graph. Für Hybrid-Nutzer mit Anbindung an Exchange lokal per
+  EWS: Suche nach der Message-ID aus `inReplyTo` in Posteingang und Gesendete
+  Elemente, ausgewertet von derselben Stelle wie der Graph-Weg. Die Schätzung
+  über Konversation oder Betreff (für Clients ohne `inReplyTo`) gibt es dort
+  nicht. Findet das Add-in die Mail nicht oder fehlt die Anbindung, bleibt der
+  Entwurf leer und das Gateway signiert beim Versand. Bisher lief der Graph-Abruf
+  auch für Hybrid-Nutzer und scheiterte, mit einer Warnung im Protokoll.
+* **Bereitstellung.** *Integrierte Apps* im Microsoft 365 Admin Center erreicht
+  Postfächer in der lokalen Exchange nicht (laut Microsoft nicht unterstützt).
+  Neu unter *Einrichtung → Outlook Add-in → Exchange lokal (Hybrid-Nutzer)*:
+  die Befehle für die Exchange-Verwaltungsshell (`New-App -OrganizationApp
+  -Url … -ProvidedTo Everyone -DefaultStateForUser Enabled`, alternativ mit
+  `-FileData` und dem heruntergeladenen Manifest; für eine neue Fassung vorher
+  `Remove-App`). Dieselben Manifeste wie für Exchange Online. Der Abschnitt
+  erscheint, sobald Hybrid-Nutzer möglich sind.
+* **Postfachprüfung.** `Get-App` gibt es nur in Exchange Online, die lokale
+  Verwaltungsshell erreicht das Gateway nicht. Beleg ist deshalb der Abruf:
+  *Add-in Signatur* und *Add-in Knopf* nennen für Hybrid-Nutzer den Tag des
+  letzten Abrufs aus Outlook, ohne Abruf „entfällt“ mit dem Weg zur
+  Bereitstellung — nie ein Fehler.
+* **Self-Service.** Über den Knopf erreichen Hybrid-Nutzer jetzt *Meine
+  Signatur*. Ohne Anbindung an Exchange lokal ist ihre Abwesenheit dort nicht
+  erreichbar; die Seite blendet den Reiter für sie aus, statt einen Graph-Fehler
+  zu zeigen. Postfächer in Exchange Online: unverändert.
+
+Grenzen laut Microsoft: Gegen Exchange lokal setzt nur das klassische Outlook
+für Windows (Microsoft 365 oder 2021 und neuer) die neueren Add-in-Funktionen
+um (Signaturbereich, Start-Ereignis). Outlook im Web der lokalen Exchange kennt
+Add-in-Funktionen bis Mailbox 1.6, Outlook für iOS/Android lädt mit lokalem
+Konto keine Add-ins.
+
+**Zu tun:** nichts. Willst du das Add-in für Hybrid-Nutzer, stelle es in
+Exchange lokal bereit: *Einrichtung → Outlook Add-in → Exchange lokal
+(Hybrid-Nutzer)*, Befehl kopieren und in der Exchange-Verwaltungsshell
+ausführen. Für Antworten richte die Anbindung an Exchange lokal ein
+(*Einstellungen → Allgemein → Exchange lokal (EWS)*).
+
+---
+
+## v1.12.68 — 2026-11-18 — Zeitgeber nach einem Neustart des Hosts
+
+Zwei Stellen werteten „noch nie“ bzw. „abgelaufen“ als Zeitpunkt 0 der
+Systemuhr (`time.monotonic()`), die beim Start des Hosts bei 0 beginnt:
+
+- **Takte im Hintergrund** (Postfachliste vorwärmen, Microsoft-Adressbereiche,
+  Hub-Bestellungen, Postfachprüfung, Wiederholungen, MailUser-Abgleich,
+  Direktversand-Probe, OWA-Signatur, Abwesenheit): Nach einem Neustart des
+  Hosts (nicht nur des Containers) lief jeder Takt erst, wenn die Laufzeit des
+  Systems sein Intervall überschritt — der tägliche MailUser-Abgleich also erst
+  nach 24 Stunden, das Vorwärmen der Postfachliste erst nach 45 Minuten. Jetzt
+  laufen alle beim ersten Durchgang.
+- **Postfachliste neu laden** (`invalidate_cache`): In der ersten Stunde nach
+  einem Neustart des Hosts blieb der alte Stand stehen.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.67 — 2026-11-18 — Hunderte Hybrid-Nutzer; Regelprobe auch für Hybrid-Nutzer
+
+Durchsicht aller Abläufe, die mit der Zahl der Postfächer wachsen, für den
+Betrieb mit hunderten Hybrid-Nutzern (v1.12.55). Gemessen mit erfundenen
+Daten auf einem Raspberry Pi 4 und gegen eine lokale Exchange SE im Testnetz.
+
+**Postfachliste.** Die Liste suchte für jede Zeile den Eintrag in der ganzen
+Konfiguration neu (Index je Zeile neu gebaut). Bei 700 Postfächern dauerte die
+Abfrage 3,7 s, mit einer Gruppenregel 3,4 s, und blockierte währenddessen den
+Webserver. Der Index wird jetzt einmal je Abfrage gebaut: 0,3 s bzw. 0,2 s,
+gleiches Ergebnis. Neu über der Tabelle: **Vorlage für Sichtbare** — wählt für
+alle sichtbaren Zeilen Standardsignatur, Antwort-Signatur, interne Signatur
+oder Abwesenheit (etwa nach dem Filter „Hybrid“), wirksam nach *Speichern*.
+Gesperrte Zellen (ohne Signatur-Haken) bleiben unberührt; die Meldung nennt,
+wie viele.
+
+**Postfächer laden.** Mit Hybrid-Nutzern holt die Abfrage zusätzlich alle
+MailUser des Tenants. Ihre Zeitgrenze steigt dafür von 180 auf 600 s, das
+Protokoll nennt nach jedem Abruf Anzahl und Dauer. Scheitert ein Abruf, bleibt
+der bisherige Stand stehen, und der nächste Versuch folgt erst nach fünf
+Minuten (*Postfächer laden* fragt immer sofort). Bisher löste nach einem
+Fehlschlag jede Anzeige der Liste erneut einen Abruf bis zur Zeitgrenze aus.
+
+**Verteilerliste.** Bisher je Mitglied ein Aufruf
+`Add-`/`Remove-DistributionGroupMember`; hunderte neu aktivierte Postfächer
+überschritten die feste Zeitgrenze von 180 s mitten im Abgleich. Ab 20
+Änderungen setzt jetzt ein `Update-DistributionGroupMember` die ganze
+Soll-Liste auf einmal (nie mit leerer Liste). Scheitert er, wird die Liste neu
+gelesen und wie bisher einzeln abgeglichen, mit Fehler je Mitglied. Eine Zeile
+`[DG-SYNC]` fasst jeden Lauf zusammen (Soll, hinzugefügt, entfernt, Fehler,
+Sammelaufruf). Die Zeitgrenze wächst mit der Zahl der Mitglieder (2 s je
+Mitglied, mindestens wie bisher), die Postfachseite wartet bis zu 20 Minuten
+auf das Ergebnis. Beide Wege (eine Regel und getrennte Regeln für Signatur und
+S/MIME) nutzen denselben Abgleich. Die Transportregel und ihr Gate auf die
+Verteilerliste bleiben unberührt.
+
+**Gesundheitsprüfung.** Drei Engpässe behoben:
+* Die Abfrage der Outlook-Add-ins (`Get-App`) lief auch für Hybrid-Nutzer,
+  obwohl sie ein Postfach in Exchange Online voraussetzt und für sie nicht
+  ausgewertet wird: je Hybrid-Nutzer und Add-in ein Aufruf von rund einer
+  Sekunde. Sie entfällt für Hybrid-Nutzer.
+* Jedes Ergebnis schrieb die ganze `settings.json` neu (700 Postfächer: 1,7 MB,
+  0,33 s je Schreiben, rund vier Minuten und gut 1 GB Schreiblast je Lauf). Der
+  Sammellauf schreibt jetzt alle 25 Postfächer und am Ende. Ein parallel
+  eingetroffenes Ergebnis der Regelprobe bleibt erhalten.
+* Die EWS-Proben der Hybrid-Nutzer (*EWS-Zugriff*, *Postfach lesen (EWS)*)
+  gelten nach einem Erfolg sechs Stunden; Fehler werden bei jedem Lauf neu
+  geprüft.
+
+**Exchange lokal nicht erreichbar.** Bisher wartete jeder Aufruf je Postfach
+bis zum Fehler (im Testnetz 3 s bei abgelehnter Verbindung, bis 20 s bei
+verworfenen Paketen). Bei hunderten Hybrid-Nutzern standen Gesundheitsprüfung,
+Abwesenheitsabgleich und OWA-Abgleich damit bis zu Stunden, und mit ihnen die
+übrigen Aufgaben des Zeitplans, etwa die Wiederholung zurückgehaltener Post.
+Nach einem Fehler, der die Anbindung betrifft (keine Verbindung, TLS,
+Anmeldung, „Server ausgelastet“), schlagen weitere Aufrufe 60 s lang sofort
+fehl; danach geht wieder einer hinaus, ein Erfolg hebt die Sperre auf. Fehler
+eines einzelnen Postfachs (Management Scope) lösen sie nicht aus. *Verbindung
+testen* geht immer hinaus, und eine geänderte Anbindung gilt sofort.
+
+**OWA-Signatur.** Der stündliche Abgleich pausierte vor jedem Postfach, auch
+wenn sich nichts geändert hatte (500 Hybrid-Nutzer: 100 s je Stunde ohne
+einen Aufruf). Die Pause gilt jetzt nur zwischen zwei Aufrufen an die lokale
+Exchange. Während eines Laufs zeigt die Karte den Fortschritt.
+
+**Lizenz.** Unverändert: Jedes gespeichert aktivierte Postfach zählt, auch ein
+Hybrid-Nutzer.
+
+**Regelprobe für Hybrid-Nutzer.** Bisher „entfällt“: Eine Mail an sich selbst
+bleibt in der lokalen Organisation. Jetzt sendet das Gateway die Prüfmail über
+die Anbindung an Exchange lokal (EWS `CreateItem`, nur senden, keine Kopie in
+„Gesendete Elemente“) aus dem lokalen Postfach an das Absender-Postfach der
+Benachrichtigungen (*Einstellungen → Benachrichtigungen → Absender*, ein
+Postfach in Exchange Online). Sie nimmt damit den Weg jeder Mail des Nutzers:
+lokal → Exchange Online → Transportregel → Gateway. Greift die Regel, verwirft
+das Gateway sie; sonst sucht und löscht es sie in diesem Postfach per Graph.
+Die Schnellaktion *Transportregel: Sichtbare prüfen* schließt Hybrid-Nutzer
+jetzt ein. Ohne Anbindung, ohne Absender-Postfach oder bei nicht wirksamer
+Hybrid-Option entfällt die Probe weiter, mit dem Grund im Gesundheitsstatus.
+
+Sicherheit: Verworfen wird eine Probe eines Hybrid-Nutzers nur, wenn der
+Absender eine Adresse genau dieses Nutzers und der einzige Empfänger eine
+Adresse genau dieses Postfachs in Exchange Online ist — beides beim Ausstellen
+der Kennung festgelegt. Für Postfächer in Exchange Online bleibt die Bindung,
+wie sie war: Absender und einziger Empfänger sind das Postfach selbst.
+
+Voraussetzung: Das Dienstkonto der Anbindung darf das Postfach per
+ApplicationImpersonation öffnen (wie für die Abwesenheit), und Exchange lokal
+stellt Post an Postfächer in Exchange Online über den Hybrid-Connector zu.
+
+**Zu tun:** nichts. Willst du die Regel für Hybrid-Nutzer prüfen, richte die
+Anbindung an Exchange lokal ein und wähle unter *Einstellungen →
+Benachrichtigungen* ein Absender-Postfach.
+
+---
+
 ## v1.12.66 — 2026-11-18 — Kopien-Prüfung: Begründung nachtragbar
 
 Die Prüfung des Kopien-Stands (`tests/test_kopien_stand.py`) erkennt jetzt

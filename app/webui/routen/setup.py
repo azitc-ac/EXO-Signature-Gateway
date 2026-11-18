@@ -191,10 +191,29 @@ async def setup_wizard(
             "addin_verfassen": {"url": addin_base_url + "/addin/verfassen/manifest.xml",
                                 **{k: (settings_store.get("_ADDIN_VERFASSEN_STAND") or {}).get(k, "")
                                    for k in ("version", "seit")}},
+            # Hybrid-Nutzer: Add-ins in Exchange lokal bereitstellen (New-App) —
+            # nur, solange es Hybrid-Nutzer geben kann (Option an oder Einträge da).
+            "addin_lokal": _addin_lokal(addin_base_url),
             "webui_port": config.WEBUI_PORT,
             "auto_ausnahme": regel_auto_ausnahme.gemerkt(),
         },
     )
+
+
+def _addin_lokal(base: str) -> list[dict]:
+    """Befehle für Exchange lokal (addin.lokal_bereitstellung) — leer, solange
+    es keine Hybrid-Nutzer geben kann."""
+    import exo_mailboxes
+    eintraege = (settings_store.get("MAILBOX_CONFIG") or {}).values()
+    if not (exo_mailboxes.hybrid_eingeschaltet()
+            or any(isinstance(c, dict) and c.get("hybrid") for c in eintraege)):
+        return []
+    try:
+        from webui.routen.addin import lokal_bereitstellung
+        return lokal_bereitstellung(base)
+    except Exception as exc:                                # noqa: BLE001
+        log.warning("Einrichtung: Befehle für Exchange lokal nicht erzeugt: %s", exc)
+        return []
 
 
 @router.post("/api/setup/tls/import-pfx")

@@ -649,8 +649,15 @@ async def bezug_per_kennung(postfach: str, message_id: str) -> dict | None:
     if resp.status_code != 200:
         log.warning("bezug_per_kennung %s: Graph %s %s", postfach, resp.status_code, resp.text[:200])
         return None
-    # Dieselbe Mail liegt ggf. mehrfach vor (Posteingang + Kopie) — gleiche Kette.
-    echt = [m for m in resp.json().get("value", []) if not m.get("isDraft")]
+    return bezug_aus_treffern(resp.json().get("value", []))
+
+
+def bezug_aus_treffern(nachrichten: list[dict]) -> dict | None:
+    """Treffer einer Suche nach der Message-ID (Graph-Form) → Kette wie
+    `_bezug_aus`. EINE Auswertung für Graph und EWS (Hybrid-Nutzer,
+    ews_onprem.bezug_per_kennung liefert dieselbe Form).
+    Dieselbe Mail liegt ggf. mehrfach vor (Posteingang + Kopie) — gleiche Kette."""
+    echt = [m for m in nachrichten or [] if not m.get("isDraft")]
     return _bezug_aus(echt[0] if echt else None)
 
 

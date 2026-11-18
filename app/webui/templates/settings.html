@@ -413,6 +413,8 @@
   {% if s.OWA_SIGNATUR_LOKAL is true %}
   {% set l = owa_sig.letzter %}
   <p class="hint" id="owa-signatur-stand" style="margin:6px 0 0">
+    {% if owa_sig.laeuft %}Abgleich läuft seit {{ owa_sig.laeuft.seit[:16] | replace('T', ' ') }} UTC:
+    {{ owa_sig.laeuft.erledigt }} von {{ owa_sig.laeuft.gesamt }} Hybrid-Nutzern bearbeitet.<br>{% endif %}
     {% if l.ts %}Letzter Abgleich {{ l.ts[:16] | replace('T', ' ') }} UTC: von {{ l.gesamt or 0 }}
     Hybrid-Nutzern {{ l.gesetzt or 0 }} übertragen, {{ l.unveraendert or 0 }} unverändert,
     {{ l.keine_vorlage or 0 }} ohne Signatur, {{ l.entfernt or 0 }} entfernt,
