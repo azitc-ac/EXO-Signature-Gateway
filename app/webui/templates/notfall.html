@@ -509,6 +509,38 @@ let nb = {postfach: '', ordner: '', zugriff: [], absender: [], mail: null};
 const AUSGERUFEN = {{ 'true' if ausgerufen else 'false' }};
 const IM_TEAMS = {{ 'true' if im_teams else 'false' }};
 
+// SITZUNG-WACHE BEGINN — Läuft die Anmeldung ab (Ablauf, Neustart des Gateways),
+// lehnt der Server jeden Inhaltsabruf mit 401 ab. Bis hierher zeigte dann nur
+// die Stelle, die den Abruf machte, „Nicht angemeldet“; Kopf, Liste und Knöpfe
+// standen mit dem alten Stand weiter da. Jetzt EINE Stelle für alle Abrufe:
+// Ordner merken, Seite neu laden — dort führt start() wie beim ersten Öffnen
+// zur Anmeldung, danach geht es im gemerkten Ordner weiter.
+// Ausgenommen: /notfall/api/ich (damit prüft start() selbst, sonst Endlosschleife)
+// und /notfall/api/faktor… (Einrichtung, eigene Microsoft-Anmeldung).
+// Anmeldewege liegen nicht unter /notfall/api/ (falsches Kennwort ist dort 401).
+const SITZUNG_MERK = 'nf-zurueck';
+let _sitzungWeg = false;
+function sitzungPruefen(url, d) {
+  if (d && d.http === 401 && !_sitzungWeg && /^\/notfall\/api\//.test(url)
+      && !/^\/notfall\/api\/(ich|faktor)(\b|\/|\?|$)/.test(url)) {
+    _sitzungWeg = true;
+    try { sessionStorage.setItem(SITZUNG_MERK, JSON.stringify({postfach: nb.postfach, ordner: nb.ordner})); }
+    catch (e) { /* ohne Speicher: neu anmelden geht trotzdem, nur der Ordner ist dann der Posteingang */ }
+    location.reload();
+  }
+  return d;
+}
+function sitzungZurueck() {
+  let w = null;
+  try { w = JSON.parse(sessionStorage.getItem(SITZUNG_MERK) || 'null'); sessionStorage.removeItem(SITZUNG_MERK); }
+  catch (e) { w = null; }
+  return w && typeof w === 'object' ? w : null;
+}
+const _getJSON = getJSON, _postJSON = postJSON;
+getJSON = async (url) => sitzungPruefen(url, await _getJSON(url));
+postJSON = async (url, body) => sitzungPruefen(url, await _postJSON(url, body));
+// SITZUNG-WACHE ENDE
+
 // Teams-Reiter: Links mit data-extern (Einrichten, Konto) gehen über Teams in
 // den Browser — die Microsoft-Anmeldung lässt sich im Reiter nicht einbetten.
 // Antwortet TeamsJS nicht, bleibt es beim gewöhnlichen Link (target=_blank).
@@ -672,7 +704,11 @@ async function start() {
   if (!nb.takt) nb.takt = setInterval(neuePostPruefen, NEUE_POST_MS);
   document.getElementById('app').hidden = false;
   spaltenSetzen(false);   // erst jetzt hat #app eine Breite
-  postfachWaehlen(d.zugriff[0].postfach);
+  // Nach abgelaufener Sitzung dorthin zurück, wo man war (sitzungPruefen).
+  const zurueck = sitzungZurueck();
+  const pf = zurueck && d.zugriff.some(p => p.postfach === zurueck.postfach) ? zurueck.postfach : d.zugriff[0].postfach;
+  document.getElementById('postfachwahl').value = pf;
+  postfachWaehlen(pf, zurueck && zurueck.ordner);
 }
 
 function anmeldungZeigen() {
@@ -989,11 +1025,12 @@ function vorschauZeigen() {
   kopfhoeheMerken();
 }
 
-async function postfachWaehlen(pf) {
+async function postfachWaehlen(pf, ordnerWunsch) {
   nb.postfach = pf; nb.ordner = '';
   vorschauZeigen();
   const erster = await ordnerLaden();
-  if (erster) ordnerWaehlen(erster.id);
+  const gewuenscht = ordnerWunsch && (nb.ordnerliste || []).some(o => o.id === ordnerWunsch) ? ordnerWunsch : null;
+  if (gewuenscht || erster) ordnerWaehlen(gewuenscht || erster.id);
 }
 
 // Ordnerbaum (und mobil die Auswahlliste) samt Zählern zeichnen. Auch nach dem
