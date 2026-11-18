@@ -80,6 +80,50 @@
     }).then(function (r) { return r.accessToken; });
   }
 
+  // Konten auf Exchange LOKAL bekommen kein NAA (Microsoft nennt nur
+  // Microsoft-Konten und Entra-ID-Identitäten). MSAL fällt dann auf den
+  // Browser-Weg zurück und scheitert im klassischen Outlook an der
+  // Ereignis-Laufzeit ohne Web Crypto: crypto_nonexistent. Für sie gibt es das
+  // Exchange-Identitätstoken (Mailbox 1.1, in Exchange Online abgeschaltet,
+  // in Exchange lokal weiter verfügbar). Das Gateway nimmt es nur für
+  // Hybrid-Nutzer an. NAA bleibt der erste Weg; ein Konto in Exchange Online
+  // (accountType office365) nimmt den Rückfall nie.
+  var NAA_FEHLT = { crypto_nonexistent: true, unsupported_method: true };
+
+  function naaUnterstuetzt() {
+    try { return Office.context.requirements.isSetSupported('NestedAppAuth', '1.1') !== false; }
+    catch (e) { return true; }   // unbekannt: wie bisher nur NAA
+  }
+
+  function exchangeRueckfall(fehler) {
+    var mb = Office.context.mailbox;
+    if (!mb || typeof mb.getUserIdentityTokenAsync !== 'function') return false;
+    var art = '';
+    try { art = String(mb.userProfile.accountType || ''); } catch (e) { /* Mailbox < 1.6 */ }
+    if (art === 'office365' || art === 'outlookCom' || art === 'gmail') return false;
+    var code = String((fehler && fehler.errorCode) || '');
+    return !naaUnterstuetzt() || NAA_FEHLT[code] === true;
+  }
+
+  // {art: 'naa'|'exchange', wert} — die Anmeldung für den Abruf beim Gateway.
+  function anmeldung() {
+    return token().then(function (z) { return { art: 'naa', wert: z }; }, function (e) {
+      if (!exchangeRueckfall(e)) throw e;
+      return asynk(function (cb) { Office.context.mailbox.getUserIdentityTokenAsync(cb); })
+        .then(function (t) { return { art: 'exchange', wert: t }; }, function (e2) {
+          throw new Error(((e && (e.errorCode || e.message)) || e) + '; Exchange-Identit\u00e4t: ' +
+                          ((e2 && e2.message) || e2));
+        });
+    });
+  }
+
+  function anmeldeKopf(a) {
+    var kopf = {};
+    if (a.art === 'exchange') kopf[EXO_VERFASSEN.identkopf] = a.wert;
+    else kopf.Authorization = 'Bearer ' + a.wert;
+    return kopf;
+  }
+
   function plattform() {
     try { return String(Office.context.diagnostics.platform || ''); } catch (e) { return ''; }
   }
@@ -105,7 +149,7 @@
       .then(function (l) { return l[0].concat(l[1], l[2]).slice(0, 100).join(','); });
   }
 
-  function signaturHolen(zugriff, antwort, von, empfaenger, anlass) {
+  function signaturHolen(anm, antwort, von, empfaenger, anlass) {
     var adresse = EXO_VERFASSEN.api + '?client=' + encodeURIComponent(plattform()) +
       '&anlass=' + encodeURIComponent(anlass || '') + '&js=' + encodeURIComponent(EXO_VERFASSEN.fassung || '');
     if (von) adresse += '&von=' + encodeURIComponent(von);
@@ -118,7 +162,7 @@
       if (antwort.an) adresse += '&an=' + encodeURIComponent(antwort.an);
       if (antwort.cc !== null) adresse += '&cc=' + encodeURIComponent(antwort.cc);
     }
-    return fetch(adresse, { headers: { Authorization: 'Bearer ' + zugriff } })
+    return fetch(adresse, { headers: anmeldeKopf(anm) })
       .then(function (r) {
         if (!r.ok) throw new Error('Gateway antwortet ' + r.status);
         return r.json();
@@ -233,10 +277,10 @@
         var angaben = !antwortArt ? Promise.resolve(null)
           : antwortAngaben(item, art.composeType === 'forward' ? 'forward' : 'reply');
         return angaben.then(function (antwort) {
-          return token().then(function (z) {
-            zugriff = z;
+          return anmeldung().then(function (a) {
+            if (a.art === 'naa') zugriff = a.wert;
             return Promise.all([vonHolen(item), empfaengerHolen(item)]).then(function (w) {
-              return signaturHolen(z, antwort, w[0], w[1], anlass);
+              return signaturHolen(a, antwort, w[0], w[1], anlass);
             });
           });
         }).then(function (d) {

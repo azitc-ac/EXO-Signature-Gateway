@@ -5,7 +5,7 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.12.76 — 2026-11-18 — Verfassen-Add-in für Konten auf Exchange lokal (Exchange-Identitätstoken)
+## v1.12.77 — 2026-11-18 — Verfassen-Add-in für Konten auf Exchange lokal (Exchange-Identitätstoken)
 
 **Ursache.** Im klassischen Outlook mit einem Konto auf Exchange lokal (ohne
 Hybrid Modern Auth) lud das Verfassen-Add-in, fügte aber nichts ein. Die
@@ -50,6 +50,30 @@ neue Laufzeit beim nächsten Start. Der Rückfall braucht die EWS-Adresse der
 lokalen Exchange unter *Einstellungen → Allgemein → Exchange lokal (EWS)* und
 eingeschaltete Hybrid-Postfächer. Ohne die EWS-Adresse bleibt es beim
 bisherigen Verhalten.
+
+---
+
+## v1.12.76 — 2026-11-18 — Let's Encrypt: Schaltfläche in der Einrichtung scheiterte beim Kopieren
+
+**Fehler:** *Einrichtung → Let's Encrypt → Zertifikat beantragen/erneuern*
+meldete „Zertifikat kopieren fehlgeschlagen: … `le-config/live/<Domäne>/fullchain.pem`
+… No such file or directory“, obwohl ein gültiges Zertifikat vorlag.
+
+**Ursache:** Die Schaltfläche rief certbot über einen eigenen, älteren Weg auf,
+ohne festen Zertifikatsnamen, und suchte das Ergebnis danach unter
+`live/<Domäne>`. Ersteinrichtung und automatische Erneuerung verwalten das
+Zertifikat aber unter dem festen Namen `gateway`. Gab es diese Linie, legte
+certbot kein Verzeichnis `live/<Domäne>` an, zum Beispiel weil das Zertifikat
+noch nicht zur Erneuerung fällig war, und das Kopieren lief ins Leere.
+
+**Jetzt:** Die Schaltfläche nutzt denselben Weg wie Ersteinrichtung und
+Erneuerung. Ist das Zertifikat noch nicht fällig, wird das vorhandene übernommen
+und sein Ablaufdatum angezeigt. Ein Test stellt sicher, dass certbot nur noch an
+dieser einen Stelle aufgerufen wird.
+
+**Zu tun:** nichts. Hat die Schaltfläche bei dir diesen Fehler gemeldet, läuft
+das Gateway weiter mit dem bisherigen Zertifikat. Nach dem Update kannst du
+sie erneut drücken.
 
 ---
 
