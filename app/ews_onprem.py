@@ -20,6 +20,10 @@ EINZIGE Ausnahme (seit v1.12.67): die Regelprobe (`regelprobe_senden`, nur aus
 regel_probe) — sie MUSS in der lokalen Organisation entstehen, sonst prüfte sie
 nicht den Weg, den die Post eines Hybrid-Nutzers nimmt.
 
+BEANTWORTETE MAIL (seit v1.12.69): `bezug_per_kennung` für das Verfassen-Add-in
+— FindItem nach der Message-ID in Posteingang + Gesendete Elemente, GetItem mit
+References/In-Reply-To, Form wie Graph (Auswertung: graph_client.bezug_aus_treffern).
+
 OHNE KONFIGURATION
 ------------------
 `konfiguriert()` ist falsch, solange URL, Konto oder Kennwort fehlen. Dann ruft
@@ -435,17 +439,27 @@ def anfrage_posteingang_suchen(ziel: str, ab: datetime | None = None,
     return _umschlag(ziel, req)
 
 
-def anfrage_nachrichten_holen(ziel: str, kennungen: list[tuple[str, str]]) -> bytes:
+# Zusätzlich für die Kette einer beantworteten Mail (Verfassen-Add-in): Entwurf
+# ja/nein und die Kopfzeilen References/In-Reply-To — dieselben Angaben, die
+# Graph über `isDraft` und `internetMessageHeaders` liefert. ⚠️ `item:InReplyTo`,
+# nicht `message:…` — im Lab (Exchange SE, 18.11.2026) gemessen: „message:InReplyTo“
+# lässt das ganze GetItem mit ErrorInvalidRequest scheitern; References dagegen
+# heißt `message:References`.
+KETTE_FELDER = ("item:IsDraft", "message:References", "item:InReplyTo")
+
+
+def anfrage_nachrichten_holen(ziel: str, kennungen: list[tuple[str, str]],
+                              kette: bool = False) -> bytes:
     """GetItem für die gefundenen Kennungen: Betreff, Absender, Empfangszeit,
     Message-ID und Text (`BodyType Best` — HTML bleibt HTML, Text bleibt Text,
-    wie Graph `body` ohne Prefer-Kopf)."""
+    wie Graph `body` ohne Prefer-Kopf). `kette`: dazu KETTE_FELDER."""
     req = ET.Element(_m("GetItem"))
     form = ET.SubElement(req, _m("ItemShape"))
     ET.SubElement(form, _t("BaseShape")).text = "IdOnly"
     ET.SubElement(form, _t("BodyType")).text = "Best"
     felder = ET.SubElement(form, _t("AdditionalProperties"))
     for f in ("item:Subject", "message:From", "item:DateTimeReceived",
-              "message:InternetMessageId", "item:Body"):
+              "message:InternetMessageId", "item:Body") + (KETTE_FELDER if kette else ()):
         _feld(felder, f)
     ids = ET.SubElement(req, _m("ItemIds"))
     for kennung, aenderung in kennungen:
@@ -609,6 +623,10 @@ def nachrichten_aus_antwort(root: ET.Element) -> list[dict]:
                 "message_id": _text(el.find(_t("InternetMessageId"))).strip(),
                 "text": _text(koerper),
                 "text_art": (koerper.get("BodyType") or "") if koerper is not None else "",
+                # Nur mit `kette` angefragt (KETTE_FELDER), sonst leer.
+                "entwurf": _text(el.find(_t("IsDraft"))).strip().lower() == "true",
+                "references": " ".join(_text(el.find(_t("References"))).split()),
+                "in_reply_to": _text(el.find(_t("InReplyTo"))).strip(),
             })
     return out
 
@@ -629,6 +647,11 @@ def nachrichten_als_graph(nachrichten: list[dict]) -> list[dict]:
             "internetMessageId": n.get("message_id") or "",
             "body": {"contentType": "html" if (n.get("text_art") or "").upper() == "HTML" else "text",
                      "content": n.get("text") or ""},
+            "isDraft": bool(n.get("entwurf")),
+            # Wie Graph: nur die Kopfzeilen, die es gibt (graph_client._bezug_aus liest sie).
+            "internetMessageHeaders": [{"name": name, "value": wert} for name, wert in
+                                       (("References", n.get("references") or ""),
+                                        ("In-Reply-To", n.get("in_reply_to") or "")) if wert],
         })
     return out
 
@@ -1061,6 +1084,75 @@ def posteingang_als_graph(adresse: str, ab: datetime | None = None, betreff_enth
     mailFolders/inbox/messages). Blockierend — Aufrufer im Event-Loop nutzen
     asyncio.to_thread."""
     return nachrichten_als_graph(posteingang_lesen(adresse, ab, betreff_enthaelt, anzahl))
+
+
+# ── Beantwortete Mail für das Verfassen-Add-in (seit v1.12.69) ────────────────
+#
+# Antwortet ein Hybrid-Nutzer, nennt Outlook die beantwortete Mail über
+# `item.inReplyTo` (Mailbox 1.14). Das Add-in sucht sie, um zu entscheiden, ob
+# die volle oder die Antwort-Signatur gilt — für EXO-Postfächer per Graph
+# (graph_client.bezug_per_kennung, über ALLE Ordner). EWS sucht nur flach je
+# Ordner (Traversal Deep gibt es nur für Suchordner); gesucht wird deshalb in
+# Posteingang und Gesendete Elemente in EINEM FindItem. Liegt die Mail woanders,
+# bleibt der Entwurf leer und das Gateway entscheidet beim Versand — wie bei
+# jeder nicht ermittelbaren Antwort.
+
+BEZUG_ORDNER = ("inbox", "sentitems")
+BEZUG_MAX = 5           # wie Graph ($top=5): dieselbe Mail ggf. in beiden Ordnern
+
+
+def anfrage_kennung_suchen(ziel: str, message_id: str,
+                           ordner: tuple[str, ...] = BEZUG_ORDNER) -> bytes:
+    """FindItem nach der Message-ID (Gleichheit, kein Teilstring) in `ordner`.
+    Der Wert geht als Attribut über xml.etree hinein."""
+    req = ET.Element(_m("FindItem"), {"Traversal": "Shallow"})
+    ET.SubElement(ET.SubElement(req, _m("ItemShape")), _t("BaseShape")).text = "IdOnly"
+    ET.SubElement(req, _m("IndexedPageItemView"), {"MaxEntriesReturned": str(BEZUG_MAX),
+                                                   "Offset": "0", "BasePoint": "Beginning"})
+    ET.SubElement(req, _m("Restriction")).append(
+        _vergleich("IsEqualTo", "message:InternetMessageId", message_id))
+    ordner_el = ET.SubElement(req, _m("ParentFolderIds"))
+    for o in ordner:
+        d = ET.SubElement(ordner_el, _t("DistinguishedFolderId"), {"Id": o})
+        ET.SubElement(ET.SubElement(d, _t("Mailbox")), _t("EmailAddress")).text = ziel
+    return _umschlag(ziel, req)
+
+
+def kennungen_aller_ordner(root: ET.Element) -> list[tuple[str, str]]:
+    """FindItemResponse über mehrere Ordner → [(ItemId, ChangeKey)] aus jeder
+    ERFOLGREICHEN Antwort (je Ordner eine). Ein Ordner mit Fehler nimmt die
+    anderen nicht mit (antwort_pruefen `teilweise`)."""
+    out = []
+    for rm in root.iter():
+        if not (rm.tag.startswith(f"{{{NS_M}}}") and rm.tag.endswith("ResponseMessage")):
+            continue
+        if not _antwort_ok(rm):
+            continue
+        ordner = rm.find(_m("RootFolder"))
+        if ordner is None:
+            continue
+        for el in ordner.iter(_t("ItemId")):
+            if el.get("Id"):
+                out.append((el.get("Id"), el.get("ChangeKey") or ""))
+    return out
+
+
+def bezug_per_kennung(adresse: str, message_id: str) -> list[dict]:
+    """Die Mail mit `message_id` aus Posteingang und Gesendete Elemente von
+    `adresse`, in der Form des Graph-Abrufs `users/{p}/messages?$filter=
+    internetMessageId eq …` (mit isDraft und internetMessageHeaders). [] = nicht
+    gefunden. EwsFehler bei Fehlern. Blockierend — nur über asyncio.to_thread."""
+    if not konfiguriert():
+        raise EwsFehler("konfiguration", "Anbindung an Exchange lokal ist nicht eingerichtet")
+    ziel = _ziel(adresse)
+    kennungen = kennungen_aller_ordner(_aufruf(
+        ziel, "FindItem (beantwortete Mail)", anfrage_kennung_suchen(ziel, message_id),
+        teilweise=True))
+    if not kennungen:
+        return []
+    return nachrichten_als_graph(nachrichten_aus_antwort(_aufruf(
+        ziel, f"GetItem ({len(kennungen)} Nachricht(en), Kette)",
+        anfrage_nachrichten_holen(ziel, kennungen, kette=True), teilweise=True)))
 
 
 # ── OWA-Signatur lokal (seit v1.12.63) ────────────────────────────────────────

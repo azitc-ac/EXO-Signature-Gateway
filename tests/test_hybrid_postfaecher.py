@@ -322,7 +322,8 @@ def _speichern(monkeypatch, store, zeilen):
 
 def test_speichern_verankert_hybrid_an_guid_mit_smime(speicher, monkeypatch):
     """Seit v1.12.62 bleibt S/MIME für Hybrid-Nutzer stehen (Signieren,
-    Verschlüsseln, Entschlüsseln laufen am Gateway). Das Add-in bleibt gesperrt."""
+    Verschlüsseln, Entschlüsseln laufen am Gateway). Seit v1.12.69 bleibt auch die
+    Add-in-Auswahl stehen (Bereitstellung in Exchange lokal)."""
     store, _ = speicher
     cfg, dg = _speichern(monkeypatch, store, [
         {"email": HYBRID, "sig": True, "smime": True, "use_policy": False,
@@ -331,7 +332,7 @@ def test_speichern_verankert_hybrid_an_guid_mit_smime(speicher, monkeypatch):
     eintrag = cfg[GUID_HYBRID]
     assert eintrag["hybrid"] is True and eintrag["smime"] is True
     assert cfg[GUID_CLOUD]["smime"] is False
-    assert "addin_templates" not in eintrag
+    assert eintrag["addin_templates"] == ["X"]
     assert "hybrid" not in cfg[GUID_CLOUD]
     assert dg == [[HYBRID, CLOUD]], "aktivierte Hybrid-Nutzer gehören in die Verteilerliste"
 

@@ -69,7 +69,7 @@ def _waehlbar(email: str) -> dict[str, bool]:
     Abwesenheit fest)."""
     darf = _darf_vorlagen_waehlen(email)
     kat = list(settings_store.get("SELF_TEMPLATE_KATEGORIEN") or [])
-    if not abwesenheit.funktion_aktiv():
+    if not abwesenheit.fuer_postfach(email):
         kat = [k for k in kat if k != "oof"]   # Abwesenheit ausgeblendet → nicht wählbar
     return {slot: bool(darf and slot in kat) for slot in _SLOT_ART}
 
@@ -206,19 +206,22 @@ async def self_context(email: str = Depends(_require_self)):
     oof_eff, sig_eff = _effektive_vorlagen(email)
     ank = abwesenheit._ankuendigung_einstellungen(cfg)
     std = _policies.standards(email)
+    # Je Postfach: Hybrid-Nutzer ohne Anbindung an Exchange lokal haben keine
+    # erreichbare Abwesenheit (abwesenheit.fuer_postfach).
+    abw = abwesenheit.fuer_postfach(email)
     daten = {
         "email": email,
         "freigeschaltet": _freigeschaltet(),
-        "abwesenheit_aktiv": abwesenheit.funktion_aktiv(),
+        "abwesenheit_aktiv": abw,
         # Hängt das Gateway die Signatur unter die Abwesenheitsnotiz? Dann gilt
         # die Signaturwahl auch dort — die Seite sagt es dazu.
-        "oof_mit_signatur": bool(abwesenheit.funktion_aktiv()
+        "oof_mit_signatur": bool(abw
                                  and settings_store.get("OOO_APPEND_SIGNATURE")),
         # Ebenso Banner und Disclaimer (OOO_APPEND_BANNER/_DISCLAIMER,
         # abwesenheit._oof_anhang).
-        "oof_mit_banner": bool(abwesenheit.funktion_aktiv()
+        "oof_mit_banner": bool(abw
                                and settings_store.get("OOO_APPEND_BANNER")),
-        "oof_mit_disclaimer": bool(abwesenheit.funktion_aktiv()
+        "oof_mit_disclaimer": bool(abw
                                    and settings_store.get("OOO_APPEND_DISCLAIMER")),
         "darf_vorlagen": any(waehlbar.values()),
         "waehlbar": waehlbar,            # {sig, min, oof: bool}
@@ -243,6 +246,8 @@ async def self_context(email: str = Depends(_require_self)):
     }
     # Aktuellen OOF-Status aus Exchange lesen (nur Anzeige — kein Schreibzugriff).
     try:
+        if not abw:
+            return JSONResponse(daten)
         token = await graph_client._acquire_token_async()
         if token:
             status_lese, setting = await abwesenheit._get_setting(email, token)
@@ -351,7 +356,7 @@ async def _wahl_speichern(email: str, wahl, bereich: str) -> JSONResponse:
     settings_store.update({"MAILBOX_CONFIG": voll})
     log.info("Self-Service: %s hat die Vorlagenwahl %s gesetzt", email, slot)
     oof_neu = None
-    if slot == "sig" and abwesenheit.funktion_aktiv() and settings_store.get("OOO_APPEND_SIGNATURE"):
+    if slot == "sig" and abwesenheit.fuer_postfach(email) and settings_store.get("OOO_APPEND_SIGNATURE"):
         oof_neu = await _oof_text_auffrischen(email)
     return JSONResponse({"ok": True, "oof_aufgefrischt": oof_neu})
 
@@ -437,8 +442,9 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
 
     # Funktion „Zentrale Abwesenheiten" aus → Exchange nicht anfassen (die
     # Abwesenheit ist dann weder sichtbar noch Sache des Gateways).
-    if not abwesenheit.funktion_aktiv():
-        log.info("Self-Service: %s hat Vorlagen gesetzt (Abwesenheit ausgeschaltet)", email)
+    if not abwesenheit.fuer_postfach(email):
+        log.info("Self-Service: %s hat Vorlagen gesetzt (Abwesenheit ausgeschaltet oder "
+                 "Hybrid-Nutzer ohne Anbindung an Exchange lokal)", email)
         return JSONResponse({"ok": True})
 
     # 2) Abwesenheit bei Exchange setzen (Status + Zeitraum + korrekt gerenderter

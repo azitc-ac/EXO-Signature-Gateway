@@ -73,6 +73,21 @@ def _addin_postfach(request: Request, email: str, user: str) -> str:
     return email
 
 
+def _lokal_gesehen(email: str, art: str, client: str = "") -> None:
+    """Hybrid-Nutzer: Abruf merken — der einzige Beleg, dass die Bereitstellung
+    in Exchange lokal wirkt (addin_verteilung.lokal_gesehen; Get-App gibt es dort
+    nicht). Für EXO-Postfächer nichts: Deren Fassung liest die Postfachprüfung.
+    EINE Stelle für Knopf und Verfassen-Add-in."""
+    import exo_mailboxes
+    if not exo_mailboxes.ist_hybrid(email):
+        return
+    try:
+        import addin_verteilung
+        addin_verteilung.lokal_gesehen(email, art, client)
+    except Exception as exc:                                 # noqa: BLE001 — nie die Signatur aufhalten
+        log.warning("Add-in-Abruf von %s nicht gemerkt: %s", email, exc)
+
+
 # Grenze von Office.Body.setSignatureAsync (MS Learn, Office.Body: „This string is
 # limited to 30,000 characters“, sonst DataExceedsMaximumSize). Outlook Classic
 # meldet stattdessen „Sys.ArgumentOutOfRangeException … Parameter name: data“ —
@@ -657,6 +672,51 @@ def knopf_manifest_xml(base: str) -> str:
     return xml.replace("__VERSION__", _manifest_version(_ohne_adresse(xml, base, hostname, addin_id)), 1)
 
 
+# ── Bereitstellung in Exchange lokal (Hybrid-Nutzer, seit v1.12.69) ──────────
+#
+# Postfächer in der lokalen Exchange-Organisation erreicht „Integrierte Apps“
+# nicht (MS Learn, „Requirements to use centralized deployment“: „Add-in
+# deployment to an Exchange on-premises Mailbox“ unter „not supported“). Der
+# Weg ist New-App in der Exchange-Verwaltungsshell (MS Learn, New-App: gilt für
+# Exchange 2016/2019/SE). Parameter dort belegt: -OrganizationApp, -Url bzw.
+# -FileData, -ProvidedTo Everyone, -DefaultStateForUser Enabled. Für -Url muss
+# der Exchange-Server die Adresse erreichen, Umleitungen nimmt er nicht.
+# Dieselben Manifeste wie für Exchange Online: Mindestversion Mailbox 1.1 (lokal
+# bis 1.5 unterstützt), alles Spätere steht in VersionOverrides bzw. wird zur
+# Laufzeit geprüft. Ob eine ältere CU das Manifest beim Einspielen ablehnt
+# (Schema), zeigt erst New-App selbst.
+# Eine neue Fassung: Remove-App -Identity <AppId> -OrganizationApp, dann New-App
+# erneut — beides Parameter laut MS Learn; ein Aktualisieren an Ort und Stelle
+# beschreibt Microsoft für New-App nicht.
+
+LOKAL_DATEI = {"verfassen": "exo-signatur-verfassen.xml", "knopf": "exo-signatur-addin.xml"}
+
+
+def lokal_bereitstellung(base: str) -> list[dict]:
+    """Je Add-in die Befehle für die Exchange-Verwaltungsshell (lokal). EINE
+    Quelle für Einrichtungsseite und Test. Werte nur als PowerShell-Literal."""
+    import ps_text
+    from webui.routen import addin_verfassen
+    host = base.split("://")[-1].split(":")[0]
+    namen = addin_namen()
+    aus = []
+    for art, url, kennung in (
+            ("verfassen", base + "/addin/verfassen/manifest.xml", addin_verfassen.addin_id(host)),
+            ("knopf", base + "/addin/manifest.xml", knopf_addin_id(host))):
+        pfad = "C:\\Temp\\" + LOKAL_DATEI[art]     # Beispielpfad, nach dem Herunterladen anpassen
+        aus.append({
+            "art": art, "name": namen[art], "url": url, "kennung": kennung,
+            "datei": LOKAL_DATEI[art],
+            "neu_url": (f"New-App -OrganizationApp -Url {ps_text.quoted(url)}"
+                        " -ProvidedTo Everyone -DefaultStateForUser Enabled"),
+            "neu_datei": ("New-App -OrganizationApp -FileData ([System.IO.File]::ReadAllBytes("
+                          f"{ps_text.quoted(pfad)}))"
+                          " -ProvidedTo Everyone -DefaultStateForUser Enabled"),
+            "entfernen": f"Remove-App -Identity {ps_text.quoted(kennung)} -OrganizationApp -Confirm:$false",
+        })
+    return aus
+
+
 def manifest_staende_auffrischen() -> None:
     """Fassungen aller Manifeste neu bestimmen, ohne dass jemand sie abruft.
 
@@ -795,6 +855,7 @@ async def api_addin_signature(request: Request, email: str, template: str = "",
     email = _addin_postfach(request, email, user)
     if not email:
         return JSONResponse({"marked_html": "", "preview_html": ""})
+    _lokal_gesehen(email, "knopf")
 
     import mail_processor
     mailbox_cfg = _addin_cfg(email)

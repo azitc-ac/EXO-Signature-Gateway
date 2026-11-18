@@ -947,9 +947,42 @@ def _ergebnisse_schreiben(ergebnisse: dict) -> None:
 _LOKAL = "Postfach in der lokalen Organisation"
 
 
+ADDIN_LOKAL_NIE = ("Nicht prüfbar: in Exchange lokal bereitgestellt, Get-App gibt es nur in "
+                   "Exchange Online. Noch kein Abruf aus Outlook gesehen — bereitstellen über "
+                   "Einrichtung → Outlook Add-in → Exchange lokal.")
+
+
+def _checks_addin_lokal(email: str) -> dict[str, dict]:
+    """Add-ins eines Hybrid-Nutzers (seit v1.12.69). Sie kommen aus Exchange
+    lokal (New-App), nicht aus „Integrierte Apps“; Get-App ist von hier nicht
+    erreichbar. Beleg ist der letzte Abruf aus Outlook
+    (addin_verteilung.lokal_stand). Ohne Abruf „entfällt“ mit Weg — nie ein
+    Fehler: Ob der Betreiber das Add-in lokal will, entscheidet er selbst.
+    Bewusst ohne `soll`/`ist`: Die Fassungsprüfung der Abnahme
+    (abnahme._addin_fassung) zählt nur Postfächer mit Get-App-Ergebnis."""
+    import addin_verteilung as av
+    from webui.routen.addin import addin_namen
+    namen = addin_namen()
+    aus = {}
+    for schluessel, art in (("addin_verfassen", "verfassen"), ("addin_knopf", "knopf")):
+        st = av.lokal_stand(email, art)
+        if not settings_store.get("ADDIN_ENABLED"):
+            aus[schluessel] = _make_result("skip", "Nicht eingerichtet")
+        elif st.get("tag"):
+            j, m, t = st["tag"].split("-")
+            client = f", {st['client']}" if st.get("client") else ""
+            aus[schluessel] = _make_result(
+                "ok", f"Exchange lokal — zuletzt aus Outlook abgerufen am {t}.{m}.{j}{client}")
+        else:
+            aus[schluessel] = _make_result("skip", ADDIN_LOKAL_NIE)
+        aus[schluessel]["name"] = namen.get(art, "")
+    return aus
+
+
 async def _checks_hybrid(email: str, cfg: dict, exo_data: dict | None) -> dict:
     """Prüfungen für einen Hybrid-Nutzer (Postfach in der lokalen Exchange-
-    Organisation). Graph-Zugriff, Abwesenheit, IMAP und Add-ins setzen ein
+    Organisation). Add-ins: Abruf aus Outlook statt Get-App (`_checks_addin_lokal`).
+    Graph-Zugriff, Abwesenheit und IMAP setzen ein
     EXO-Postfach voraus und entfallen — die Abwesenheit nur, solange keine
     Anbindung an Exchange lokal (EWS) eingerichtet ist; mit ihr wird der
     EWS-Zugriff geprüft. Geprüft werden Bestand in EXO,
@@ -988,12 +1021,12 @@ async def _checks_hybrid(email: str, cfg: dict, exo_data: dict | None) -> dict:
             checks["dg_member"] = _make_result("error", "Nicht in Distribution Group")
     import abwesenheit
     ueber_ews = abwesenheit.ews_verfuegbar()
-    for name in ("imap_permission", "addin_verfassen", "addin_knopf",
-                 "graph_postfach", "abwesenheit"):
+    for name in ("imap_permission", "graph_postfach", "abwesenheit"):
         if name == "abwesenheit" and ueber_ews:
             checks[name] = await _check_ews_zugriff(email)
             continue
         checks[name] = _make_result("skip", _LOKAL)
+    checks.update(_checks_addin_lokal(email))
     smime_active = cfg.get("smime_sign") or cfg.get("smime_encrypt") or cfg.get("smime")
     checks.update(await _checks_smime(email, smime_active,
                                       (settings_store.get("KEYVAULT_URL") or "").strip()))

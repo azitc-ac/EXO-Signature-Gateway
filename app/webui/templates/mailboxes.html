@@ -1085,10 +1085,13 @@ function renderMailboxTable(mailboxes) {
     'hybrid':    '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#fef3c7;color:#92400e;vertical-align:middle" title="Postfach in der lokalen Exchange-Organisation">Hybrid</span>',
   };
   // Hybrid-Nutzer: Postfach in der lokalen Organisation, in EXO nur ein MailUser.
-  // Das Add-in setzt ein EXO-Postfach voraus; die Abwesenheit geht nur mit der
-  // Anbindung an Exchange lokal (EWS, _hybridAbwesenheit). S/MIME geht (seit
-  // v1.12.62, läuft am Gateway) — ohne Anbindung nur mit importiertem Zertifikat.
+  // Die Abwesenheit geht nur mit der Anbindung an Exchange lokal (EWS,
+  // _hybridAbwesenheit). S/MIME geht (seit v1.12.62, läuft am Gateway) — ohne
+  // Anbindung nur mit importiertem Zertifikat. Das Add-in geht (seit v1.12.69),
+  // bereitgestellt in Exchange lokal statt im Microsoft 365 Admin Center.
   var HYBRID_HINWEIS = 'Bei Hybrid nicht verfügbar';
+  var HYBRID_ADDIN = 'Hybrid-Nutzer: Add-in in Exchange lokal bereitstellen '
+    + '(Einrichtung → Outlook Add-in → Exchange lokal)';
   var HYBRID_SMIME_OHNE_EWS = 'Zertifikat nur über „Importieren“ (S/MIME-Seite) — für den Bezug '
     + 'über eine Zertifizierungsstelle fehlt die Anbindung an Exchange lokal';
   var REGEL_WARTET_TIPP = 'Exchange übernimmt neue Mitglieder der Verteilerliste mit Verzögerung — meist schneller, verlassen kann man sich darauf nicht';
@@ -1213,10 +1216,10 @@ function renderMailboxTable(mailboxes) {
       var oofAus = !(sig || smime) || (isHybrid && !_hybridAbwesenheit);
       oofSel.disabled = oofAus;
       oofSel.style.opacity = oofAus ? '0.4' : '1';
-      var addinAus = !sig || pol || isHybrid;
+      var addinAus = !sig || pol;
       addinCtrl.style.opacity = addinAus ? '0.4' : '1';
       addinCtrl.style.pointerEvents = addinAus ? 'none' : '';
-      addinCtrl.title = isHybrid ? HYBRID_HINWEIS : (pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '');
+      addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : (isHybrid ? HYBRID_ADDIN : '');
     }
     policyCb.addEventListener('change', _applyPolicy);
     sigCb.addEventListener('change', _applyPolicy);
@@ -1234,10 +1237,7 @@ function renderMailboxTable(mailboxes) {
     if (isHybrid && !_hybridAbwesenheit) {
       oofSel.disabled = true; oofSel.style.opacity = '0.4'; oofSel.title = HYBRID_HINWEIS;
     }
-    if (isHybrid) {
-      addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
-      addinCtrl.title = HYBRID_HINWEIS;
-    }
+    if (isHybrid && !addinCtrl.title) addinCtrl.title = HYBRID_ADDIN;
 
     // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Banner, Disclaimer, Abwesenheit, Outlook Add-In
     tr.appendChild(tdStatus);

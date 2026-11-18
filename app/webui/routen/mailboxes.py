@@ -196,7 +196,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "config_key": key,
                 "name": cfg.get("display_name") or cemail,
                 # Hybrid-Eintrag bei ausgeschalteter Option: weiter als Hybrid
-                # kenntlich (S/MIME, Abwesenheit, Add-in bleiben gesperrt).
+                # kenntlich (Abwesenheit ohne EWS bleibt gesperrt).
                 "type": "hybrid" if cfg.get("hybrid") else "user",
                 "sig": cfg.get("sig", False),
                 "smime": cfg.get("smime", False),
@@ -493,7 +493,9 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
             # Kennzeichen für den heißen Pfad (reinject: nur Smarthost), auch
             # nach einem Neustart mit leerem Zwischenspeicher — exo_mailboxes.ist_hybrid.
             entry["hybrid"] = True
-            entry.pop("addin_templates", None)
+            # Add-in-Auswahl bleibt (seit v1.12.69): Das Add-in läuft auch für
+            # Hybrid-Nutzer, bereitgestellt in Exchange lokal (Einrichtung →
+            # Outlook-Add-in → Exchange lokal). Bis v1.12.67 wurde sie hier verworfen.
         # ⚠️ Carryover: Dieser Speichervorgang baut `entry` KOMPLETT NEU und ersetzt
         # danach MAILBOX_CONFIG ganz. Felder, die NICHT aus dieser Tabelle stammen,
         # sondern anderswo gesetzt werden (Abwesenheits-Dashboard, Self-Service),

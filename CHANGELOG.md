@@ -5,6 +5,57 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.69 — 2026-11-18 — Outlook-Add-in auch für Hybrid-Nutzer
+
+Das Outlook-Add-in (Knopf und Verfassen-Add-in) war für Hybrid-Nutzer gesperrt:
+Die Add-in-Auswahl in der Postfachliste war ausgegraut, beim Speichern wurde sie
+verworfen, und die Postfachprüfung meldete „entfällt“. Die Sperre ist aufgehoben.
+Was ein Postfach in Exchange Online voraussetzt, ist jetzt einzeln gelöst:
+
+* **Signatur abrufen und einfügen** brauchen kein Postfach: Die Daten der
+  Person kommen aus Entra (dort hat ein Hybrid-Nutzer sein Konto), Vorlage und
+  Freigabeliste aus dem Gateway.
+* **Antworten.** Das Verfassen-Add-in sucht die beantwortete Mail, um zwischen
+  voller und Antwort-Signatur zu wählen. Für Postfächer in Exchange Online
+  unverändert per Graph. Für Hybrid-Nutzer mit Anbindung an Exchange lokal per
+  EWS: Suche nach der Message-ID aus `inReplyTo` in Posteingang und Gesendete
+  Elemente, ausgewertet von derselben Stelle wie der Graph-Weg. Die Schätzung
+  über Konversation oder Betreff (für Clients ohne `inReplyTo`) gibt es dort
+  nicht. Findet das Add-in die Mail nicht oder fehlt die Anbindung, bleibt der
+  Entwurf leer und das Gateway signiert beim Versand. Bisher lief der Graph-Abruf
+  auch für Hybrid-Nutzer und scheiterte, mit einer Warnung im Protokoll.
+* **Bereitstellung.** *Integrierte Apps* im Microsoft 365 Admin Center erreicht
+  Postfächer in der lokalen Exchange nicht (laut Microsoft nicht unterstützt).
+  Neu unter *Einrichtung → Outlook Add-in → Exchange lokal (Hybrid-Nutzer)*:
+  die Befehle für die Exchange-Verwaltungsshell (`New-App -OrganizationApp
+  -Url … -ProvidedTo Everyone -DefaultStateForUser Enabled`, alternativ mit
+  `-FileData` und dem heruntergeladenen Manifest; für eine neue Fassung vorher
+  `Remove-App`). Dieselben Manifeste wie für Exchange Online. Der Abschnitt
+  erscheint, sobald Hybrid-Nutzer möglich sind.
+* **Postfachprüfung.** `Get-App` gibt es nur in Exchange Online, die lokale
+  Verwaltungsshell erreicht das Gateway nicht. Beleg ist deshalb der Abruf:
+  *Add-in Signatur* und *Add-in Knopf* nennen für Hybrid-Nutzer den Tag des
+  letzten Abrufs aus Outlook, ohne Abruf „entfällt“ mit dem Weg zur
+  Bereitstellung — nie ein Fehler.
+* **Self-Service.** Über den Knopf erreichen Hybrid-Nutzer jetzt *Meine
+  Signatur*. Ohne Anbindung an Exchange lokal ist ihre Abwesenheit dort nicht
+  erreichbar; die Seite blendet den Reiter für sie aus, statt einen Graph-Fehler
+  zu zeigen. Postfächer in Exchange Online: unverändert.
+
+Grenzen laut Microsoft: Gegen Exchange lokal setzt nur das klassische Outlook
+für Windows (Microsoft 365 oder 2021 und neuer) die neueren Add-in-Funktionen
+um (Signaturbereich, Start-Ereignis). Outlook im Web der lokalen Exchange kennt
+Add-in-Funktionen bis Mailbox 1.6, Outlook für iOS/Android lädt mit lokalem
+Konto keine Add-ins.
+
+**Zu tun:** nichts. Willst du das Add-in für Hybrid-Nutzer, stelle es in
+Exchange lokal bereit: *Einrichtung → Outlook Add-in → Exchange lokal
+(Hybrid-Nutzer)*, Befehl kopieren und in der Exchange-Verwaltungsshell
+ausführen. Für Antworten richte die Anbindung an Exchange lokal ein
+(*Einstellungen → Allgemein → Exchange lokal (EWS)*).
+
+---
+
 ## v1.12.68 — 2026-11-18 — Zeitgeber nach einem Neustart des Hosts
 
 Zwei Stellen werteten „noch nie“ bzw. „abgelaufen“ als Zeitpunkt 0 der
