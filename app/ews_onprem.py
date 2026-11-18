@@ -771,15 +771,18 @@ def _kurz(exc: Exception) -> str:
     return str(exc)[:160]
 
 
-def _aufruf(ziel: str, was: str, umschlag: bytes, teilweise: bool = False) -> ET.Element:
+def _aufruf(ziel: str, was: str, umschlag: bytes, teilweise: bool = False,
+            erwartet: frozenset = frozenset()) -> ET.Element:
     """Senden, auswerten, protokollieren — die Zeile steht NACH dem Aufruf und
-    nennt den Ausgang."""
+    nennt den Ausgang. Codes in `erwartet` sind ein regulärer Ausgang (etwa
+    ErrorItemNotFound beim Lesen einer nie angelegten Konfiguration) und
+    stehen als INFO statt WARNING im Protokoll."""
     t0 = time.monotonic()
     try:
         status, roh = _senden(ziel, umschlag)
         root = antwort_pruefen(status, roh, teilweise)
     except EwsFehler as exc:
-        log.warning("EWS %s für %s: fehlgeschlagen nach %.2f s — %s", was, ziel,
+        (log.info if exc.code in erwartet else log.warning)("EWS %s für %s: fehlgeschlagen nach %.2f s — %s", was, ziel,
                     time.monotonic() - t0, exc)
         raise
     log.info("EWS %s für %s: NoError (%.2f s)", was, ziel, time.monotonic() - t0)
@@ -920,3 +923,209 @@ def posteingang_als_graph(adresse: str, ab: datetime | None = None, betreff_enth
     mailFolders/inbox/messages). Blockierend — Aufrufer im Event-Loop nutzen
     asyncio.to_thread."""
     return nachrichten_als_graph(posteingang_lesen(adresse, ab, betreff_enthaelt, anzahl))
+
+
+# ── OWA-Signatur lokal (seit v1.12.63) ────────────────────────────────────────
+#
+# OWA der lokalen Exchange hält ihre Einstellungen in der Benutzerkonfiguration
+# „OWA.UserOptions“ im Stammordner (`root`) des Postfachs: ein Wörterbuch aus
+# typisierten Einträgen (EWS GetUserConfiguration / UpdateUserConfiguration /
+# CreateUserConfiguration). Im Lab gemessen (Exchange SE 15.2, 18.11.2026):
+#
+# * Fehlt das Objekt (Postfach hat OWA-Optionen nie gespeichert), antwortet
+#   GetUserConfiguration mit ErrorItemNotFound; CreateUserConfiguration legt es
+#   an, ein zweites Create scheitert mit ErrorItemSave („already exists“).
+# * UpdateUserConfiguration ERSETZT das Wörterbuch als Ganzes. Ein Update nur
+#   mit `signaturehtml` liess alle übrigen Einträge verschwinden. Deshalb hier
+#   immer lesen → zusammenführen → schreiben (`uc_zusammenfuehren`), wie beim
+#   OOF (`aus_graph`).
+# * Typen bleiben erhalten (String, Boolean, Integer32 zurückgelesen wie
+#   geschrieben), HTML mit Umlauten und & kommt Zeichen für Zeichen zurück.
+#
+# Die Schlüsselnamen (`signaturehtml`, `signaturetext`, `autoaddsignature`)
+# stammen aus Microsofts Beispiel zu OWA.UserOptions (Exchange 2010, EWS
+# Managed API); `autoaddsignatureonreply` ist aus dem Cmdlet-Parameter
+# AutoAddSignatureOnReply (Exchange 2016+) abgeleitet. Im Lab-Postfach gab es
+# das Objekt nicht — die Namen und dass OWA sie so liest, sind bis zum
+# Klicktest in OWA eine ANNAHME.
+
+UC_OWA = "OWA.UserOptions"
+OWA_SIG_HTML = "signaturehtml"
+OWA_SIG_TEXT = "signaturetext"
+OWA_AUTO_NEU = "autoaddsignature"
+OWA_AUTO_ANTWORT = "autoaddsignatureonreply"
+
+# Werttypen des Wörterbuchs (UserConfigurationDictionaryObjectTypesType).
+UC_TYPEN = frozenset({"DateTime", "Boolean", "Byte", "String", "Integer32", "UnsignedInteger32",
+                      "Integer64", "UnsignedInteger64", "StringArray", "ByteArray"})
+
+
+def _uc_name(tag: str, ziel: str, name: str) -> ET.Element:
+    n = ET.Element(tag, {"Name": name})
+    ordner = ET.SubElement(n, _t("DistinguishedFolderId"), {"Id": "root"})
+    ET.SubElement(ET.SubElement(ordner, _t("Mailbox")), _t("EmailAddress")).text = ziel
+    return n
+
+
+def anfrage_uc_lesen(ziel: str, name: str = UC_OWA) -> bytes:
+    """GetUserConfiguration mit allen Teilen (Wörterbuch, XmlData, BinaryData) —
+    gebraucht wird alles, weil das Zurückschreiben nichts verlieren darf."""
+    req = ET.Element(_m("GetUserConfiguration"))
+    req.append(_uc_name(_m("UserConfigurationName"), ziel, name))
+    ET.SubElement(req, _m("UserConfigurationProperties")).text = "All"
+    return _umschlag(ziel, req)
+
+
+def anfrage_uc_schreiben(ziel: str, konfig: dict, anlegen: bool, name: str = UC_OWA) -> bytes:
+    """Create- bzw. UpdateUserConfiguration mit dem VOLLSTÄNDIGEN Stand `konfig`
+    ({eintraege, xml_data, binary_data}, Form wie `uc_aus_antwort`). Update
+    ersetzt das Wörterbuch als Ganzes — wer nur einen Eintrag ändert, übergibt
+    die zusammengeführte Liste (`uc_zusammenfuehren`)."""
+    req = ET.Element(_m("CreateUserConfiguration" if anlegen else "UpdateUserConfiguration"))
+    uc = ET.SubElement(req, _m("UserConfiguration"))
+    uc.append(_uc_name(_t("UserConfigurationName"), ziel, name))
+    d = ET.SubElement(uc, _t("Dictionary"))
+    for e in konfig.get("eintraege") or []:
+        if e.get("vtyp") and e["vtyp"] not in UC_TYPEN:
+            raise ValueError(f"Unbekannter Werttyp im Wörterbuch: {e['vtyp']!r}")
+        de = ET.SubElement(d, _t("DictionaryEntry"))
+        k = ET.SubElement(de, _t("DictionaryKey"))
+        ET.SubElement(k, _t("Type")).text = e.get("ktyp") or "String"
+        ET.SubElement(k, _t("Value")).text = e["k"]
+        if e.get("werte") is not None:          # None = Eintrag ohne Wert (wie gelesen)
+            v = ET.SubElement(de, _t("DictionaryValue"))
+            ET.SubElement(v, _t("Type")).text = e["vtyp"]
+            for w in e["werte"]:
+                ET.SubElement(v, _t("Value")).text = w
+    if konfig.get("xml_data") is not None:
+        ET.SubElement(uc, _t("XmlData")).text = konfig["xml_data"]
+    if konfig.get("binary_data") is not None:
+        ET.SubElement(uc, _t("BinaryData")).text = konfig["binary_data"]
+    return _umschlag(ziel, req)
+
+
+def uc_aus_antwort(root: ET.Element) -> dict:
+    """GetUserConfigurationResponse → {eintraege: [{ktyp, k, vtyp, werte}],
+    xml_data, binary_data}. `werte` ist eine Liste (StringArray hat mehrere
+    <Value>), None bei einem Eintrag ohne DictionaryValue. Reihenfolge wie
+    geliefert."""
+    uc = root.find(f".//{_m('UserConfiguration')}")
+    if uc is None:
+        raise EwsFehler("antwort", "Antwort ohne UserConfiguration")
+    eintraege = []
+    for de in uc.iter(_t("DictionaryEntry")):
+        k = de.find(_t("DictionaryKey"))
+        v = de.find(_t("DictionaryValue"))
+        if k is None:
+            continue
+        eintraege.append({
+            "ktyp": _text(k.find(_t("Type"))).strip() or "String",
+            "k": _text(k.find(_t("Value"))),
+            "vtyp": _text(v.find(_t("Type"))).strip() if v is not None else "",
+            "werte": [_text(w) for w in v.findall(_t("Value"))] if v is not None else None,
+        })
+    xml_el, bin_el = uc.find(_t("XmlData")), uc.find(_t("BinaryData"))
+    return {"eintraege": eintraege,
+            "xml_data": _text(xml_el) if xml_el is not None else None,
+            "binary_data": _text(bin_el) if bin_el is not None else None}
+
+
+def _bool_wert(vtyp: str, an: bool) -> str:
+    # Boolean schreibt EWS klein („true“, im Lab so zurückgelesen); steht der
+    # Eintrag schon als String da, bleibt er String in .NET-Schreibweise.
+    return ("True" if an else "False") if vtyp == "String" else ("true" if an else "false")
+
+
+def uc_zusammenfuehren(eintraege: list[dict], aenderung: dict) -> list[dict]:
+    """Gelesene Einträge + Änderung {schluessel: (typ, wert)} → vollständige
+    Liste. Fremde Einträge bleiben unverändert und an ihrem Platz; ein
+    vorhandener Schlüssel wird ersetzt (Vergleich ohne Groß-/Kleinschreibung,
+    Schreibweise des Bestands bleibt), ein neuer hinten angefügt. Ein
+    vorhandener Wahrheitswert behält seinen Typ (Boolean oder String)."""
+    rest = {k.lower(): (k, typ, wert) for k, (typ, wert) in aenderung.items()}
+    out = []
+    for e in eintraege:
+        treffer = rest.pop((e.get("k") or "").lower(), None)
+        if treffer is None:
+            out.append(dict(e))
+            continue
+        _k, typ, wert = treffer
+        if typ == "Boolean":
+            vtyp = e.get("vtyp") if e.get("vtyp") in ("Boolean", "String") else "Boolean"
+            out.append({**e, "vtyp": vtyp, "werte": [_bool_wert(vtyp, bool(wert))]})
+        else:
+            out.append({**e, "vtyp": typ, "werte": [wert]})
+    for k, typ, wert in rest.values():
+        out.append({"ktyp": "String", "k": k, "vtyp": typ,
+                    "werte": [_bool_wert(typ, bool(wert)) if typ == "Boolean" else wert]})
+    return out
+
+
+def _uc_wert(eintraege: list[dict], schluessel: str) -> str | None:
+    """Erster Wert des Eintrags `schluessel` (ohne Groß-/Kleinschreibung) oder None."""
+    for e in eintraege:
+        if (e.get("k") or "").lower() == schluessel.lower():
+            return (e.get("werte") or [""])[0]
+    return None
+
+
+def _uc_bool(eintraege: list[dict], schluessel: str) -> bool:
+    # Boolean („true“) wie String („True“) — beides kommt vor (_bool_wert).
+    return (_uc_wert(eintraege, schluessel) or "").strip().lower() == "true"
+
+
+def owa_konfig_lesen(adresse: str) -> dict | None:
+    """OWA.UserOptions vollständig (Form `uc_aus_antwort`) — None, wenn das
+    Postfach das Objekt nicht hat (ErrorItemNotFound). EwsFehler sonst."""
+    if not konfiguriert():
+        raise EwsFehler("konfiguration", "Anbindung an Exchange lokal ist nicht eingerichtet")
+    ziel = _ziel(adresse)
+    try:
+        return uc_aus_antwort(_aufruf(ziel, "GetUserConfiguration (OWA.UserOptions)",
+                                      anfrage_uc_lesen(ziel),
+                                      erwartet=frozenset({"ErrorItemNotFound"})))
+    except EwsFehler as exc:
+        if exc.code == "ErrorItemNotFound":
+            return None
+        raise
+
+
+def owa_signatur_aus_konfig(konfig: dict | None) -> dict:
+    """{vorhanden, html, text, auto_neu, auto_antwort} aus OWA.UserOptions."""
+    eintraege = (konfig or {}).get("eintraege") or []
+    return {"vorhanden": konfig is not None,
+            "html": _uc_wert(eintraege, OWA_SIG_HTML) or "",
+            "text": _uc_wert(eintraege, OWA_SIG_TEXT) or "",
+            "auto_neu": _uc_bool(eintraege, OWA_AUTO_NEU),
+            "auto_antwort": _uc_bool(eintraege, OWA_AUTO_ANTWORT)}
+
+
+def owa_signatur_lesen(adresse: str) -> dict:
+    """Signatur-Einstellungen der OWA (lokal) — nur lesend."""
+    return owa_signatur_aus_konfig(owa_konfig_lesen(adresse))
+
+
+def owa_signatur_setzen(adresse: str, html: str, text: str, auto_neu: bool,
+                        auto_antwort: bool) -> dict:
+    """Signatur in OWA.UserOptions schreiben, ohne fremde Einträge zu verlieren:
+    lesen → zusammenführen → Update (bzw. Create, wenn das Objekt fehlt) →
+    zurücklesen. Weicht der zurückgelesene Stand ab (etwa gekürzt), ist das ein
+    Fehler — nicht still „gesetzt“. Zurück kommt die Form von
+    `owa_signatur_aus_konfig`."""
+    ziel = _ziel(adresse)
+    vorher = owa_konfig_lesen(ziel)
+    aenderung = {OWA_SIG_HTML: ("String", html or ""), OWA_SIG_TEXT: ("String", text or ""),
+                 OWA_AUTO_NEU: ("Boolean", auto_neu), OWA_AUTO_ANTWORT: ("Boolean", auto_antwort)}
+    neu = {**(vorher or {"xml_data": None, "binary_data": None}),
+           "eintraege": uc_zusammenfuehren((vorher or {}).get("eintraege") or [], aenderung)}
+    anlegen = vorher is None
+    _aufruf(ziel, "CreateUserConfiguration (OWA.UserOptions)" if anlegen
+            else "UpdateUserConfiguration (OWA.UserOptions)",
+            anfrage_uc_schreiben(ziel, neu, anlegen))
+    nachher = owa_konfig_lesen(ziel)
+    stand = owa_signatur_aus_konfig(nachher)
+    if (stand["html"] != (html or "") or stand["text"] != (text or "")
+            or stand["auto_neu"] != bool(auto_neu) or stand["auto_antwort"] != bool(auto_antwort)):
+        raise EwsFehler("antwort", "Exchange hat die Signatur nicht wie geschrieben übernommen "
+                                   f"({len(stand['html'])} statt {len(html or '')} Zeichen HTML)")
+    return stand

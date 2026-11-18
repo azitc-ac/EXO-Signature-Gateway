@@ -319,8 +319,9 @@
     Nutzer, deren Postfach noch in der lokalen Exchange-Organisation liegt, erscheinen in
     der Postfachliste und lassen sich für Signatur, Banner und Disclaimer aktivieren.
     Aktivierte Hybrid-Nutzer kommen in die Verteilerliste des Gateways; ihre Post geht
-    über den Smarthost an Exchange Online zurück. S/MIME und das Outlook-Add-in sind für
-    sie nicht verfügbar, die Abwesenheit nur mit der Anbindung an Exchange lokal (unten).
+    über den Smarthost an Exchange Online zurück. Das Outlook-Add-in ist für sie nicht
+    verfügbar; Abwesenheit, Zertifikatsbezug über CASTLE oder den Hub und die Signatur in
+    OWA (lokal) nur mit der Anbindung an Exchange lokal (unten).
   </p>
   {% if reinject_mode != "smtp" %}
   <p class="hint" style="margin:6px 0 0;color:#b45309">
@@ -335,7 +336,8 @@
 <div class="settings-card" id="exchange-lokal-ews">
   <h2>Exchange lokal (EWS)</h2>
   <p class="hint" style="margin:0 0 10px">
-    Optional. Damit verwaltet das Gateway die Abwesenheit der Hybrid-Nutzer in der lokalen
+    Optional. Damit verwaltet das Gateway Abwesenheit, Kalender-Automatik, Zertifikatsbezug
+    und auf Wunsch die OWA-Signatur der Hybrid-Nutzer in der lokalen
     Exchange-Organisation (2016/2019/SE). Leer lassen = aus.
     Lokal nötig: ein Dienstkonto mit
     <code>New-ManagementRoleAssignment -Role ApplicationImpersonation -User &lt;Konto&gt;</code>,
@@ -389,6 +391,46 @@
       </div>
     </div>
   </div>
+
+  <h3 style="margin:18px 0 6px">Signatur in OWA (lokal)</h3>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="owa-signatur-lokal"
+             {% if s.OWA_SIGNATUR_LOKAL is true %}checked{% endif %}
+             onchange="saveOwaSignatur(this.checked)">
+      Signatur der Hybrid-Nutzer in ihre OWA-Einstellungen übertragen
+      <span id="owa-signatur-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
+    </label>
+  </div>
+  <p class="hint" style="margin:4px 0 0">
+    Das Gateway schreibt die Signatur jedes aktivierten Hybrid-Nutzers in seine OWA der
+    lokalen Exchange; OWA fügt sie bei neuen Mails selbst ein. Antworten bleiben beim
+    Gateway (volle oder Antwort-Signatur). Die Signatur trägt dieselbe Kennung wie die des
+    Add-ins, das Gateway setzt deshalb keine zweite. Stündlich abgeglichen, geschrieben wird
+    nur bei Änderung. Nach dem Ausschalten nimmt der nächste Abgleich die übertragene
+    Signatur wieder heraus (eine inzwischen selbst gesetzte bleibt).
+  </p>
+  {% if s.OWA_SIGNATUR_LOKAL is true %}
+  {% set l = owa_sig.letzter %}
+  <p class="hint" id="owa-signatur-stand" style="margin:6px 0 0">
+    {% if l.ts %}Letzter Abgleich {{ l.ts[:16] | replace('T', ' ') }} UTC: von {{ l.gesamt or 0 }}
+    Hybrid-Nutzern {{ l.gesetzt or 0 }} übertragen, {{ l.unveraendert or 0 }} unverändert,
+    {{ l.keine_vorlage or 0 }} ohne Signatur, {{ l.entfernt or 0 }} entfernt,
+    {{ l.kein_zugriff or 0 }} ohne Zugriff, {{ l.fehler or 0 }} Fehler.
+    {% else %}Noch kein Abgleich gelaufen.{% endif %}
+  </p>
+  <div class="settings-row" style="margin-top:8px">
+    <label for="owa-sig-adresse">Jetzt übertragen</label>
+    <div class="settings-control">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <input type="email" id="owa-sig-adresse" style="width:240px;max-width:100%"
+               placeholder="leer = alle Hybrid-Nutzer">
+        <button class="btn secondary btn-sm" id="owa-sig-btn" onclick="owaSignaturUebertragen()">Übertragen</button>
+        <span id="owa-sig-ergebnis" style="font-size:12px"></span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <script>
@@ -443,6 +485,21 @@ async function testEwsOnprem() {
   const d = await knopfAktion('ews-test-btn', null,
     () => postJSON('/api/ews-onprem/test', {adresse: feldWert('ews-test-adresse')}));
   showMsg(el, d.ok ? '✓ ' + d.detail + ' (' + d.dauer + ' s)' : '✗ ' + errText(d), d.ok);
+}
+
+async function saveOwaSignatur(an) {
+  await savePartial({OWA_SIGNATUR_LOKAL: an}, 'owa-signatur-result', 'settings:owa-signatur');
+}
+
+async function owaSignaturUebertragen() {
+  const el = document.getElementById('owa-sig-ergebnis');
+  const adresse = feldWert('owa-sig-adresse');
+  const d = await knopfAktion('owa-sig-btn', null,
+    () => postJSON('/api/ews-onprem/owa-signatur', adresse ? {adresse: adresse} : {}));
+  if (!d.ok) { showMsg(el, '✗ ' + errText(d), false); return; }
+  showMsg(el, d.gestartet
+    ? '✓ Abgleich für ' + d.gesamt + ' Hybrid-Nutzer gestartet — Ergebnis im Protokoll und nach dem Neuladen hier'
+    : '✓ übertragen', true);
 }
 
 // savePartial() steht in common.js — eine Fassung fuer alle Seiten.

@@ -34,6 +34,8 @@ _last_teams_katalog_run: float = 0.0   # monotonic; 0 = beim ersten Takt
 _TEAMS_KATALOG_INTERVAL = 24 * 60 * 60  # Fassung der Teams-Apps im Katalog (Aufgabe „veraltet“)
 _last_probe_run: float = 0.0           # monotonic; 0 = never (triggers run on first tick)
 _PROBE_INTERVAL = 15 * 60              # Direktversand-Probe: Ankunft prüfen (jeder Takt), Senden täglich
+_last_owa_run: float = 0.0             # monotonic; 0 = never
+_OWA_INTERVAL = 60 * 60                # OWA-Signatur lokal (owa_signatur.py): stündlich, geschrieben wird nur bei Änderung
 _last_ooo_run: float = 0.0             # monotonic; 0 = never (triggers run on first tick)
 _OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisieren; dank
                                        # Idempotenz (nur PATCH bei echter Abweichung) ist
@@ -674,6 +676,20 @@ def _sync_notbetrieb() -> None:
         _last_notbetrieb_run = time.monotonic()
 
 
+def _owa_signatur() -> None:
+    """OWA-Signatur der Hybrid-Nutzer abgleichen (owa_signatur.py). Ohne
+    Anbindung oder bei ausgeschaltetem Schalter ohne gepflegte Postfächer kehrt
+    der Abgleich sofort zurück — kein Aufruf an die lokale Exchange."""
+    global _last_owa_run
+    try:
+        import owa_signatur
+        asyncio.run(owa_signatur.abgleich())
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("scheduler: OWA-Signatur-Abgleich fehlgeschlagen: %s", exc)
+    finally:
+        _last_owa_run = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -710,6 +726,8 @@ def _loop() -> None:
                 _sync_notbetrieb()
             if time.monotonic() - _last_probe_run > _PROBE_INTERVAL:
                 _direktversand_probe()
+            if time.monotonic() - _last_owa_run > _OWA_INTERVAL:
+                _owa_signatur()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

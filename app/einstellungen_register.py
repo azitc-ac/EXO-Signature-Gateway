@@ -228,6 +228,7 @@ REGISTER: dict[str, E] = {
     "EWS_ONPREM_KENNWORT": E(art=GEHEIMNIS, ort="settings.html"),  # Kennwort des Dienstkontos
     "EWS_ONPREM_VERBINDEN": E(art=OPTION, ort="settings.html"),  # IP für Split-DNS
     "EWS_ONPREM_CA": E(art=OPTION, ort="settings.html"),         # eigene CA (PEM) für TLS
+    "OWA_SIGNATUR_LOKAL": E(art=OPTION, ort="settings.html"),    # Signatur in OWA lokal (Hybrid)
     "RELAY_USER": E(
         art=NOTNAGEL,
         grund="Benutzername für einen vorgeschalteten Relay, der eine Anmeldung "
