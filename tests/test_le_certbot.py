@@ -141,3 +141,32 @@ def test_erneuern_meldet_fehler_bei_rc_ungleich_null(env, monkeypatch):
     monkeypatch.setattr(le_certbot.subprocess, "run", lambda *a, **k: _FakeProc(1))
     status, info = le_certbot.erneuern()
     assert status == "error"
+
+
+def test_certbot_nur_ueber_le_certbot():
+    """Ausstellen/Erneuern hat EINEN Weg. Bis v1.12.75 rief /api/letsencrypt
+    certbot selbst auf (ohne --cert-name) und kopierte aus live/<Domäne> —
+    neben der Linie `gateway` scheiterte das mit „No such file or directory“."""
+    app_dir = Path(__file__).resolve().parent.parent / "app"
+    fremd = [p.relative_to(app_dir).as_posix() for p in app_dir.rglob("*.py")
+             if p.name != "le_certbot.py" and '"certbot"' in p.read_text(encoding="utf-8")]
+    assert not fremd, f"certbot außerhalb von le_certbot aufgerufen: {fremd}"
+
+
+def test_route_letsencrypt_nutzt_den_gemeinsamen_weg(env, monkeypatch):
+    """Die Schaltfläche in der Einrichtung übernimmt das Zertifikat der Linie
+    `gateway`, auch wenn certbot „noch nicht fällig“ meldet (kein live/<Domäne>)."""
+    import asyncio
+    from webui import app as webapp
+    live = le_certbot._live()
+    live.mkdir(parents=True, exist_ok=True)
+    _write(live / "fullchain.pem", live / "privkey.pem", days=60)
+    monkeypatch.setattr(le_certbot.subprocess, "run", lambda *a, **k: _FakeProc(0))
+
+    class _Req:
+        async def json(self):
+            return {"domain": "mx.firma.at", "email": "admin@firma.at"}
+
+    antwort = asyncio.run(webapp.api_letsencrypt(_Req(), user="admin"))
+    assert b'"ok":true' in antwort.body.replace(b" ", b"")
+    assert Path(config.SMTP_TLS_CERT).read_bytes() == (live / "fullchain.pem").read_bytes()

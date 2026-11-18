@@ -8,9 +8,7 @@ import os
 import queue as _queue_mod
 import re as _re
 import secrets
-import shutil
 import smtplib
-import subprocess
 import sys
 import threading
 import logging
@@ -853,43 +851,27 @@ async def api_test_mail(request: Request, user: str = Depends(_require_admin)):
 
 @app.post("/api/letsencrypt")
 async def api_letsencrypt(request: Request, user: str = Depends(_require_admin)):
+    """Let's-Encrypt-Zertifikat beantragen bzw. erneuern — über DENSELBEN Weg wie
+    Ersteinrichtung und automatische Erneuerung (`le_certbot`, fester
+    Zertifikatsname). Bis v1.12.75 rief diese Route certbot selbst auf, ohne
+    `--cert-name`, und kopierte danach aus `live/<Domäne>`: Gab es die Linie
+    `gateway` schon, legte certbot kein solches Verzeichnis an (z. B. „noch
+    nicht fällig“) und das Kopieren scheiterte mit „No such file or directory“."""
+    import asyncio
+    import le_certbot
     data = await request.json()
     domain = (data.get("domain") or "").strip()
     email = (data.get("email") or "").strip()
     if not domain or not email:
         raise HTTPException(400, "domain und email sind erforderlich")
-
-    data_dir = Path("/app/data")
-    webroot = data_dir / "acme-webroot"
-    le_cfg = data_dir / "le-config"
-    le_work = data_dir / "le-work"
-    le_logs = data_dir / "le-logs"
-    for d in [webroot, le_cfg, le_work, le_logs]:
-        d.mkdir(parents=True, exist_ok=True)
-
-    result = subprocess.run(
-        ["certbot", "certonly", "--webroot",
-         "-w", str(webroot), "-d", domain,
-         "--email", email, "--agree-tos", "--non-interactive",
-         "--config-dir", str(le_cfg),
-         "--work-dir", str(le_work),
-         "--logs-dir", str(le_logs)],
-        capture_output=True, text=True, timeout=120,
-    )
-
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "certbot error").strip()
-        log.error("certbot failed: %s", detail)
-        raise HTTPException(500, detail)
-
-    cert_dir = le_cfg / "live" / domain
-    try:
-        shutil.copy2(cert_dir / "fullchain.pem", config.SMTP_TLS_CERT)
-        shutil.copy2(cert_dir / "privkey.pem", config.SMTP_TLS_KEY)
-    except OSError as exc:
-        raise HTTPException(500, f"Zertifikat kopieren fehlgeschlagen: {exc}")
-    log.info("Let's Encrypt cert renewed for %s by %s", domain, user)
-    return JSONResponse({"ok": True, "detail": "Zertifikat erneuert. Neustart erforderlich."})
+    ok, info = await asyncio.to_thread(le_certbot.ausstellen, domain, email)
+    if not ok:
+        log.error("certbot für %s fehlgeschlagen: %s", domain, info)
+        raise HTTPException(500, info)
+    log.info("Let's-Encrypt-Zertifikat für %s übernommen (gültig bis %s) durch %s",
+             domain, info, user)
+    return JSONResponse({"ok": True,
+                         "detail": f"Zertifikat übernommen, gültig bis {info}. Neustart erforderlich."})
 
 
 @app.post("/api/notification/test")

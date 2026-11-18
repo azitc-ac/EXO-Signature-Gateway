@@ -5,6 +5,54 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.76 — 2026-11-18 — Verfassen-Add-in für Konten auf Exchange lokal (Exchange-Identitätstoken)
+
+**Ursache.** Im klassischen Outlook mit einem Konto auf Exchange lokal (ohne
+Hybrid Modern Auth) lud das Verfassen-Add-in, fügte aber nichts ein. Die
+Meldung lautete „Gateway-Signatur nicht eingefügt: crypto_nonexistent“. Das
+Add-in meldet sich per NAA an. NAA gibt es laut Microsoft nur für
+Microsoft-Konten und Entra-ID-Identitäten (Microsoft Learn, „Nested app auth
+requirement sets“), nicht für ein Konto auf Exchange lokal. Ohne NAA-Brücke
+fällt MSAL auf seinen Browser-Weg zurück. Das klassische Outlook führt
+Ereignisse aber in einer JavaScript-only-Laufzeit aus, und dort fehlt die
+Web Crypto API (Microsoft Learn, „Runtimes in Office Add-ins“). Daher kommt
+`crypto_nonexistent`.
+
+**Rückfall: Exchange-Identitätstoken.** Scheitert NAA mit
+`crypto_nonexistent` oder ist NAA laut `isSetSupported("NestedAppAuth", "1.1")`
+nicht vorhanden, holt das Add-in das Exchange-Identitätstoken
+(`getUserIdentityTokenAsync`). In Exchange Online ist es abgeschaltet, in
+Exchange lokal weiter verfügbar (Microsoft Learn, „Inside the Exchange identity
+token“). NAA bleibt der erste Weg. Ein Konto in Exchange Online
+(`accountType` office365) nimmt den Rückfall nie, und für Cloud-Konten ändert
+sich nichts.
+
+Das Gateway prüft das Token nach „Validate an Exchange identity token“:
+`typ` JWT, `alg` RS256, `x5t`, `aud` = Adresse der Laufzeit des Add-ins (mit
+eingestellter Außenadresse nur diese), `nbf`/`exp` mit 5 Minuten Spielraum,
+`appctx.version` ExIdTok.V1 und `iss` des Exchange-Dienstes. Die Signatur
+prüft es gegen das Auth-Zertifikat aus dem Metadaten-Dokument (`amurl`). Das
+`amurl` muss auf den Host der eingetragenen EWS-Adresse zeigen. Geladen wird
+das Dokument über dieselbe TLS-Verbindung wie EWS (eigene CA, „Verbinden
+mit“), ohne Umleitungen. Das Ergebnis wird eine Stunde zwischengespeichert.
+Der Fingerabdruck des Zertifikats muss dem `x5t` entsprechen. Das Token nennt
+keine Adresse, nur `msexchuid` (`<GUID>@<Server>`). Die GUID muss die
+ExchangeGuid eines **Hybrid-Nutzers** des Gateways sein. Gehört sie einem
+Exchange-Online-Postfach, wird das Token abgelehnt. Jede Ablehnung steht mit
+Grund im Protokoll („Exchange-Identitätstoken abgelehnt“).
+
+Dass `msexchuid` die ExchangeGuid des Postfachs trägt, ist von Microsoft nicht
+dokumentiert. Passt sie nicht, wird nichts eingefügt, das Gateway signiert beim
+Versand wie bisher, und das Protokoll nennt die GUID aus dem Token.
+
+**Zu tun:** nichts. Das Manifest bleibt gleich; das klassische Outlook lädt die
+neue Laufzeit beim nächsten Start. Der Rückfall braucht die EWS-Adresse der
+lokalen Exchange unter *Einstellungen → Allgemein → Exchange lokal (EWS)* und
+eingeschaltete Hybrid-Postfächer. Ohne die EWS-Adresse bleibt es beim
+bisherigen Verhalten.
+
+---
+
 ## v1.12.75 — 2026-11-18 — Abruf der Add-in-Manifeste im Protokoll
 
 Jeder Abruf eines Add-in-Manifests (Knopf, Knopf für Exchange lokal,
