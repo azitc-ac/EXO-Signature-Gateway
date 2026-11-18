@@ -132,6 +132,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
     import asyncio
     import exo_mailboxes
     import mailbox_match
+    import regel_probe
     # Hybrid-Nutzer (Postfach in der lokalen Organisation) nur, solange die
     # Option wirkt — exo_mailboxes.mit_hybrid; list_mailboxes allein kennt sie nicht.
     raw = await asyncio.to_thread(exo_mailboxes.mit_hybrid, bool(refresh))
@@ -172,7 +173,8 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
             "health_checks": h.get("checks", {}),
             "bookings_url": bookings_map.get(email, ""),
             "aktiviert_seit": cfg.get("aktiviert_seit"),
-            "regel_wartet": regel_wartet(cfg),
+            # Eine Probe hat schon belegt, dass die Regel greift → nichts mehr zu warten.
+            "regel_wartet": regel_wartet(cfg) and not regel_probe.greift(h, cfg),
         })
     # Also include configured mailboxes Graph didn't return (removed users / guid-keyed).
     for key, cfg in config_map.items():
@@ -206,7 +208,8 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "aktiviert_seit": cfg.get("aktiviert_seit"),
                 # Hybrid-Eintrag hier = Option aus = nicht in der Verteilerliste:
                 # Es gibt nichts, worauf zu warten wäre.
-                "regel_wartet": regel_wartet(cfg) and not cfg.get("hybrid"),
+                "regel_wartet": (regel_wartet(cfg) and not cfg.get("hybrid")
+                                 and not regel_probe.greift(h, cfg)),
             })
     result.sort(key=lambda r: _namens_schluessel(r.get("name") or r["email"]))
     import abwesenheit
@@ -574,6 +577,46 @@ async def api_fetch_bookings_urls(_=Depends(_require_admin)):
         existing.update(result["urls"])
         settings_store.update({"USER_BOOKINGS": existing})
     return JSONResponse(result)
+
+
+@router.post("/api/mailboxes/regel-probe")
+async def api_regel_probe(body: dict, _=Depends(_require_admin)):
+    """Regelprobe starten (regel_probe.py) — für ein Postfach (Knopf im
+    Gesundheitsstatus) oder mehrere (Schnellaktion der Liste). Antwortet sofort;
+    die Proben laufen im Hintergrund, Fortschritt über `…/regel-probe/status`.
+
+    Nicht aktive Postfächer werden hier schon aussortiert (Grund je Adresse),
+    Hybrid-Nutzer nicht: Für sie hält die Probe fest, warum sie nicht geht."""
+    import regel_probe
+    roh = body.get("emails")
+    if not isinstance(roh, list) or not roh:
+        return JSONResponse({"ok": False, "error": "Keine Postfächer angegeben."}, status_code=400)
+    adressen: list[str] = []
+    for a in roh:
+        a = str(a or "").strip().lower()
+        if "@" in a and a not in adressen:
+            adressen.append(a)
+    if not adressen or len(adressen) > regel_probe.SAMMEL_MAX:
+        return JSONResponse({"ok": False, "error": f"1 bis {regel_probe.SAMMEL_MAX} Postfächer."},
+                            status_code=400)
+    abgelehnt: dict[str, str] = {}
+    zulassen: list[str] = []
+    for a in adressen:
+        grund = await asyncio.to_thread(regel_probe.nicht_moeglich, a)
+        if grund and grund != regel_probe.HYBRID:
+            abgelehnt[a] = grund
+        else:
+            zulassen.append(a)
+    erg = regel_probe.starten(zulassen) if zulassen else {"gestartet": [], "laufen_schon": []}
+    log.info("Regelprobe angefordert: %d gestartet, %d laufen schon, %d abgelehnt",
+             len(erg["gestartet"]), len(erg["laufen_schon"]), len(abgelehnt))
+    return {"ok": True, **erg, "abgelehnt": abgelehnt}
+
+
+@router.get("/api/mailboxes/regel-probe/status")
+async def api_regel_probe_status(_=Depends(_require_admin)):
+    import regel_probe
+    return regel_probe.stand()
 
 
 @router.get("/mailboxes", response_class=HTMLResponse)

@@ -840,6 +840,20 @@
     "name": "api_mailbox_namen"
   },
   {
+    "pfad": "/api/mailboxes/regel-probe",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_regel_probe"
+  },
+  {
+    "pfad": "/api/mailboxes/regel-probe/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_regel_probe_status"
+  },
+  {
     "pfad": "/api/mailboxes/save",
     "methoden": [
       "POST"
