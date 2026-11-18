@@ -926,8 +926,13 @@ def _ews_bereich() -> dict:
                "zeigt den Filter), z. B. über eine Gruppe im Filter: dann genügt künftig, "
                "neue Hybrid-Nutzer in diese Gruppe aufzunehmen. Danach Postfächer → "
                "Status aktualisieren.")
-    return _punkt(name, OFFEN, f"Exchange lokal verweigert {len(namen)} Postfach/Postfächern "
-                               f"den Zugriff (z. B. {', '.join(namen[:3])}).", weg)
+    if len(namen) == 1:
+        befund = f"Exchange lokal verweigert dem Dienstkonto das Postfach {namen[0]}."
+        weg = weg.replace("Diese Postfächer liegen", "Dieses Postfach liegt", 1)
+    else:
+        befund = (f"Exchange lokal verweigert dem Dienstkonto {len(namen)} Postfächer "
+                  f"(z. B. {', '.join(namen[:3])}).")
+    return _punkt(name, OFFEN, befund, weg)
 
 
 def _waechter_code() -> dict:
