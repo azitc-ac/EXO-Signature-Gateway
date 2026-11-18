@@ -42,7 +42,9 @@ IDENTITÄT
 Das Token nennt KEINE Adresse: `appctx` hat nur `msexchuid`, `version`,
 `amurl` (MS Learn, Tabelle „appctx“). `msexchuid` hat die Form
 eine GUID — gemessen an Exchange SE 15.2.2562 OHNE Zusatz, laut Fremdquelle
-auch `<GUID>@<Server>`; beides wird angenommen. Annahme (nicht von Microsoft dokumentiert):
+auch `<GUID>@<Server>`; beides wird angenommen. Belegt am 18.11.2026 (Classic
+Outlook, Exchange SE, Lab): die GUID ist die ExchangeGuid des Postfachs — die
+Anmeldung über diese Zuordnung gelang. (Nicht von Microsoft dokumentiert):
 die GUID ist die msExchMailboxGuid = ExchangeGuid des Postfachs. Die
 Zuordnung ist deshalb streng: Die GUID muss der ExchangeGuid eines
 Hybrid-Eintrags gehören (Zwischenspeicher `exo_mailboxes`, Typ MailUser, oder

@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.82 — 2026-11-18 — Identitätstoken: Zuordnung belegt
+
+Die Annahme aus v1.12.77 ist live bestätigt: `msexchuid` im Exchange-Identitätstoken
+ist die ExchangeGuid des Postfachs. Gemessen mit Classic Outlook, einem Konto auf
+Exchange Server SE und einem Hybrid-Postfach: Das Verfassen-Add-in fügte die
+Signatur ein. Der Code-Kommentar ist angepasst, das Verhalten bleibt gleich.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.81 — 2026-11-18 — Identitätstoken: msexchuid als reine GUID
 
 Exchange Server SE (15.2.2562) liefert `msexchuid` im Exchange-Identitätstoken
