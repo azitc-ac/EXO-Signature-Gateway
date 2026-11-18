@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.68 — 2026-11-18 — Zeitgeber nach einem Neustart des Hosts
+
+Zwei Stellen werteten „noch nie“ bzw. „abgelaufen“ als Zeitpunkt 0 der
+Systemuhr (`time.monotonic()`), die beim Start des Hosts bei 0 beginnt:
+
+- **Takte im Hintergrund** (Postfachliste vorwärmen, Microsoft-Adressbereiche,
+  Hub-Bestellungen, Postfachprüfung, Wiederholungen, MailUser-Abgleich,
+  Direktversand-Probe, OWA-Signatur, Abwesenheit): Nach einem Neustart des
+  Hosts (nicht nur des Containers) lief jeder Takt erst, wenn die Laufzeit des
+  Systems sein Intervall überschritt — der tägliche MailUser-Abgleich also erst
+  nach 24 Stunden, das Vorwärmen der Postfachliste erst nach 45 Minuten. Jetzt
+  laufen alle beim ersten Durchgang.
+- **Postfachliste neu laden** (`invalidate_cache`): In der ersten Stunde nach
+  einem Neustart des Hosts blieb der alte Stand stehen.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.67 — 2026-11-18 — Hunderte Hybrid-Nutzer; Regelprobe auch für Hybrid-Nutzer
 
 Durchsicht aller Abläufe, die mit der Zahl der Postfächer wachsen, für den

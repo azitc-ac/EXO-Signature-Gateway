@@ -186,6 +186,27 @@ def test_nach_fehlschlag_alter_stand_ohne_neuen_abruf(monkeypatch):
     assert len(abrufe) == 3, "nach invalidate_cache wieder ein Abruf"
 
 
+def test_invalidate_wirkt_kurz_nach_systemstart(monkeypatch):
+    """time.monotonic() beginnt beim Systemstart; 0.0 als „abgelaufen“ galt in
+    der ersten Stunde nach einem Neustart als frisch (CI-Runner, v1.12.67)."""
+    alt = [{"guid": "g", "primary": "c@firma.at", "addresses": ["c@firma.at"],
+            "display_name": "", "type": "UserMailbox"}]
+    monkeypatch.setattr(exo_mailboxes.time, "monotonic", lambda: 120.0)
+    monkeypatch.setattr(exo_mailboxes, "_cache", list(alt))
+    monkeypatch.setattr(exo_mailboxes, "_cache_ts", 100.0)
+    monkeypatch.setattr(exo_mailboxes, "_fehl_ts", 0.0)
+    abrufe = []
+    monkeypatch.setattr(exo_mailboxes, "fetch_mailboxes", lambda: abrufe.append(1) or list(alt))
+    exo_mailboxes.list_mailboxes()
+    assert abrufe == [], "frischer Stand: kein Abruf"
+    exo_mailboxes.invalidate_cache()
+    exo_mailboxes.list_mailboxes()
+    assert len(abrufe) == 1, "nach invalidate_cache muss abgerufen werden, auch kurz nach dem Systemstart"
+    exo_mailboxes.invalidate()
+    exo_mailboxes.list_mailboxes()
+    assert len(abrufe) == 2
+
+
 # ── Gesundheitsprüfung ──────────────────────────────────────────────────────
 
 def test_sammelpruefung_ohne_get_app_fuer_hybrid(monkeypatch, tmp_path):
@@ -549,3 +570,16 @@ def test_knopf_verbindung_testen_umgeht_die_sperre(ews, monkeypatch):
             return {"adresse": "h@firma.at"}
     asyncio.run(sroute.api_ews_onprem_test(Anfrage(), user="admin"))
     assert netz["n"] == 2, "Knopf blieb an der Ausfallsperre hängen"
+
+
+def test_scheduler_erster_takt_auch_kurz_nach_systemstart():
+    """Kurz nach dem Systemstart ist time.monotonic() klein; jeder Takt muss
+    trotzdem beim ersten Durchlauf fällig sein (vorher 0.0 als „nie“)."""
+    import re
+    import scheduler
+    namen = re.findall(r"^(_last_[a-z_]+): float", Path(scheduler.__file__).read_text(encoding="utf-8"), re.M)
+    assert len(namen) >= 9
+    jetzt = 60.0                     # eine Minute nach dem Start
+    for name in namen:
+        intervall = 24 * 60 * 60
+        assert jetzt - getattr(scheduler, name) > intervall, f"{name} wäre nach dem Start nicht fällig"

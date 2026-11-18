@@ -12,29 +12,34 @@ import config
 
 log = logging.getLogger(__name__)
 
+# „Nie gelaufen“: NICHT 0.0 — time.monotonic() zählt ab Systemstart. Mit 0 lief
+# der erste Takt nach einem Neustart des Hosts erst, wenn die Laufzeit des
+# Systems das Intervall überschritt (Abgleich der MailUser erst nach 24 h).
+_NIE = float("-inf")
+
 _cert_alerts_sent: set[str] = set()   # admin alert dedup
 _user_notif_sent: set[str] = set()    # user renewal notification dedup
 _le_renewed_date: str = ""
-_last_mailbox_refresh: float = 0.0     # monotonic; 0 = never (triggers warm-up on first tick)
+_last_mailbox_refresh: float = _NIE     # monotonic; _NIE = nie gelaufen (triggers warm-up on first tick)
 _MAILBOX_REFRESH_INTERVAL = 45 * 60    # refresh before exo_mailboxes' own 1h cache TTL expires
-_last_acl_refresh: float = 0.0         # monotonic; 0 = never (triggers fetch on first tick)
+_last_acl_refresh: float = _NIE         # monotonic; _NIE = nie gelaufen (triggers fetch on first tick)
 _ACL_REFRESH_INTERVAL = 12 * 60 * 60   # Exchange IP ranges change rarely — twice a day is plenty
-_last_hub_orders_poll: float = 0.0     # monotonic; 0 = never (triggers poll on first tick)
+_last_hub_orders_poll: float = _NIE     # monotonic; _NIE = nie gelaufen (triggers poll on first tick)
 _HUB_ORDERS_INTERVAL = 15 * 60         # offene Hub-Zertifikatsbestellungen + Katalog-Refresh
-_last_health_run: float = 0.0          # monotonic; 0 = never (triggers run on first tick)
+_last_health_run: float = _NIE          # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _HEALTH_INTERVAL = 30 * 60             # Postfach-Gesundheit periodisch, damit die Übersicht
                                        # auch ohne Knopfdruck einen aktuellen Stand zeigt
-_last_retry_run: float = 0.0           # monotonic; 0 = never (triggers run on first tick)
+_last_retry_run: float = _NIE           # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _RETRY_INTERVAL = 60                   # jede Minute — feinste Exchange-Retry-Stufe ist 1 min
                                        # (Glitch); die eigentliche Kadenz steckt pro Mail in
                                        # held_mails.next_retry
-_last_mailuser_run: float = 0.0        # monotonic; 0 = never (triggers run on first tick)
+_last_mailuser_run: float = _NIE        # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _MAILUSER_INTERVAL = 24 * 60 * 60      # onprem-MailUser-Liste täglich abgleichen (Per-Empfänger-Routing)
-_last_probe_run: float = 0.0           # monotonic; 0 = never (triggers run on first tick)
+_last_probe_run: float = _NIE           # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _PROBE_INTERVAL = 15 * 60              # Direktversand-Probe: Ankunft prüfen (jeder Takt), Senden täglich
-_last_owa_run: float = 0.0             # monotonic; 0 = never
+_last_owa_run: float = _NIE             # monotonic; _NIE = nie gelaufen
 _OWA_INTERVAL = 60 * 60                # OWA-Signatur lokal (owa_signatur.py): stündlich, geschrieben wird nur bei Änderung
-_last_ooo_run: float = 0.0             # monotonic; 0 = never (triggers run on first tick)
+_last_ooo_run: float = _NIE             # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisieren; dank
                                        # Idempotenz (nur PATCH bei echter Abweichung) ist
                                        # häufiges Pollen unschädlich für Exchanges Dedup

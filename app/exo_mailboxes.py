@@ -45,6 +45,10 @@ _lock = threading.RLock()
 _cache: list[dict] = []
 _cache_ts: float = 0.0
 _fehl_ts: float = 0.0             # letzter GESCHEITERTER Abruf (monotonic), 0 = keiner
+# Zeitstempel „abgelaufen“: NICHT 0.0 — time.monotonic() zählt ab Systemstart; in der
+# ersten Stunde nach einem Neustart (CI-Runner, Pi) wäre 0 noch „frisch“ und
+# invalidate_cache() wirkungslos.
+_ABGELAUFEN = float("-inf")
 
 # Zeitgrenze des PowerShell-Abrufs. Ohne Hybrid-Nutzer wie bisher 180 s. Mit
 # ihnen holt dieselbe Sitzung zusätzlich `Get-MailUser -ResultSize Unlimited`
@@ -304,7 +308,7 @@ def invalidate_cache() -> None:
     propagiert hat) auch ohne erzwungenen Abruf erscheint."""
     global _cache_ts, _fehl_ts
     with _lock:
-        _cache_ts = 0.0
+        _cache_ts = _ABGELAUFEN
         _fehl_ts = 0.0
 
 
@@ -420,5 +424,5 @@ def invalidate() -> None:
     """Force the next list_mailboxes() to re-query EXO."""
     global _cache_ts, _fehl_ts
     with _lock:
-        _cache_ts = 0.0
+        _cache_ts = _ABGELAUFEN
         _fehl_ts = 0.0
