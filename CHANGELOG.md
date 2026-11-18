@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.65 — 2026-11-18 — Kopien-Stand begründet
+
+Der Kopien-Stand (`tools/kopien_stand.json`) begründet den Anstieg in
+`base.html` aus v1.12.64: eine neue Zeile der Aktionstabelle des
+Mailprotokolls, keine Code-Kopie. Keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.64 — 2026-11-18 — Regelprobe: greift die Transportregel schon?
 
 Neu im Gesundheitsstatus eines Postfachs (Postfächer → Statusspalte → ℹ):
