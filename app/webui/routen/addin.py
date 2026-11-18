@@ -600,6 +600,20 @@ def _manifest_hosts(v11: bool) -> str:
 """.replace("{pin}", pin).replace("{ohne_mail}", ohne_mail)
 
 
+def manifest_abruf_loggen(request, welches: str) -> None:
+    """Jeden Manifest-Abruf protokollieren: wer (IP, weitergereichte IP) mit
+    welchem Programm. Anlass (18.11.2026): „New-App -Url … couldn't be
+    downloaded“ ließ sich nicht zuordnen — das Zugriffsprotokoll hat keine
+    Zeiten, und ob der Exchange-Server überhaupt ankam, war nicht zu sehen."""
+    try:
+        h = request.headers
+        log.info("Add-in-Manifest %s abgerufen: von %s (weitergereicht %s), Programm %r",
+                 welches, getattr(request.client, "host", "?"),
+                 h.get("x-forwarded-for") or "-", (h.get("user-agent") or "-")[:120])
+    except Exception:                                     # noqa: BLE001
+        pass
+
+
 @router.get("/addin/manifest.xml")
 async def addin_manifest(request: Request):
     """Generate the Office Add-in manifest dynamically.
@@ -607,6 +621,7 @@ async def addin_manifest(request: Request):
     Base URL priority: 1) ADDIN_BASE_URL setting  2) X-Forwarded-Host  3) request.url
     """
     from fastapi.responses import Response
+    manifest_abruf_loggen(request, "Knopf")
     return Response(content=knopf_manifest_xml(_addin_base_url(request)),
                     media_type="application/xml")
 
@@ -663,6 +678,7 @@ KNOPF_LOKAL_PFAD = "/addin/lokal/manifest.xml"
 async def addin_manifest_lokal(request: Request):
     """Knopf-Manifest für Exchange lokal (New-App), siehe knopf_manifest_xml."""
     from fastapi.responses import Response
+    manifest_abruf_loggen(request, "Knopf (Exchange lokal)")
     return Response(content=knopf_manifest_xml(_addin_base_url(request), lokal=True),
                     media_type="application/xml")
 

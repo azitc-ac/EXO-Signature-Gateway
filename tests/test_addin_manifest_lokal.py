@@ -113,3 +113,25 @@ def test_anleitung_nennt_filedata_zuerst():
     html = (Path(__file__).resolve().parent.parent / "app/webui/templates/setup.html").read_text("utf-8")
     zeile = next(z for z in html.splitlines() if "a.neu_datei" in z and "{% for teil" in z)
     assert zeile.index("a.neu_datei") < zeile.index("a.neu_url")
+
+
+class _ReqMitClient(_Req):
+    headers = {"user-agent": "ExchangeServicesClient/15.02.2562.017", "x-forwarded-for": "10.99.0.7"}
+    client = type("C", (), {"host": "10.99.0.5"})()
+
+
+@pytest.mark.parametrize("aufruf,welches", [
+    (lambda r: addin.addin_manifest(r), "Knopf"),
+    (lambda r: addin.addin_manifest_lokal(r), "Knopf (Exchange lokal)"),
+    (lambda r: addin_verfassen.verfassen_manifest(r), "Verfassen"),
+])
+def test_jeder_manifest_abruf_wird_protokolliert(daten, caplog, aufruf, welches):
+    """Ob New-App -Url den Gateway überhaupt erreicht, muss im Protokoll stehen
+    (18.11.2026: „couldn't be downloaded“ war nicht zuzuordnen)."""
+    import logging
+    with caplog.at_level(logging.INFO):
+        asyncio.run(aufruf(_ReqMitClient()))
+    zeilen = [r.getMessage() for r in caplog.records if "Add-in-Manifest" in r.getMessage()]
+    assert len(zeilen) == 1, zeilen
+    assert f"Manifest {welches} abgerufen" in zeilen[0]
+    assert "10.99.0.5" in zeilen[0] and "10.99.0.7" in zeilen[0] and "ExchangeServicesClient" in zeilen[0]
