@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.89 — 2026-11-18 — Prüfskripte der CI lokal in einem Lauf
+
+`tools/ci_lokal.py` führt die Prüfungen aus `.github/workflows/ci.yml` lokal
+in einem Lauf aus (Drift, Dark Mode, Tabellen, JavaScript, toter Code, Routen,
+Begriffe, Kopienliste). Für Betreiber ändert sich nichts.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.88 — 2026-11-18 — Mindestbreite der Tabellen aus v1.12.87 wiederhergestellt
 
 v1.12.87 nahm zwei Tabellen (*Standards und Richtlinien*, *Übersicht →
