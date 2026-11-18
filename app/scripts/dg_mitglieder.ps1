@@ -21,6 +21,13 @@
 # Nie mit leerer Soll-Liste sammeln: "alle ersetzen durch nichts" waere eine
 # Leerung, und die bleibt dem Einzelweg vorbehalten (dort sichtbar je Mitglied).
 # Das Gate der Transportregel beruehrt diese Funktion nicht.
+#
+# -UmgehtManagerPruefung (seit v1.12.71, fuer setup_app_access_policy.ps1):
+# reicht -BypassSecurityGroupManagerCheck an Update-/Add-/Remove- weiter. Die
+# App-Scope-Gruppe ist eine mail-enabled Security-Gruppe, deren ManagedBy die
+# App-only-Identitaet nicht enthaelt; laut Microsoft braucht, wer nicht in
+# ManagedBy steht, diesen Schalter (alle drei Cmdlets kennen ihn,
+# learn.microsoft.com). Ohne den Schalter bleibt alles wie bisher.
 
 function Get-DgIst([string]$Identity) {
     $ist = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -35,7 +42,8 @@ function Sync-DgMitglieder {
     param(
         [Parameter(Mandatory)][string]$Identity,
         [string[]]$Soll = @(),
-        [int]$SammelAb = 20
+        [int]$SammelAb = 20,
+        [switch]$UmgehtManagerPruefung
     )
     # ⚠️ Eigener Name: PowerShell unterscheidet bei Variablen nicht nach Gross/Klein —
     # `$soll` WAERE der Parameter `$Soll` und ueberschriebe ihn vor der Schleife.
@@ -47,10 +55,12 @@ function Sync-DgMitglieder {
     $hinzu = @($sollMenge | Where-Object { -not $ist.Contains($_) })
     $weg   = @($ist  | Where-Object { -not $sollMenge.Contains($_) })
     $sammel = 'nein'
+    $umgehen = @{}
+    if ($UmgehtManagerPruefung) { $umgehen['BypassSecurityGroupManagerCheck'] = $true }
 
     if (($hinzu.Count + $weg.Count) -ge $SammelAb -and $sollMenge.Count -gt 0 -and $sollMenge.Count -le 10000) {
         try {
-            Update-DistributionGroupMember -Identity $Identity -Members @($sollMenge) -Confirm:$false -ErrorAction Stop
+            Update-DistributionGroupMember -Identity $Identity -Members @($sollMenge) @umgehen -Confirm:$false -ErrorAction Stop
             $sammel = 'ja'
             Write-Host "[OK] Sammelaufruf: $($sollMenge.Count) Mitglieder gesetzt (+$($hinzu.Count) / -$($weg.Count))" -ForegroundColor Green
             $hinzu = @(); $weg = @()
@@ -66,7 +76,7 @@ function Sync-DgMitglieder {
     $neu = 0; $raus = 0; $fehler = 0
     foreach ($m in $hinzu) {
         try {
-            Add-DistributionGroupMember -Identity $Identity -Member $m -ErrorAction Stop
+            Add-DistributionGroupMember -Identity $Identity -Member $m @umgehen -ErrorAction Stop
             Write-Host "[OK] Added: $m" -ForegroundColor Green
             $neu++
         } catch {
@@ -80,7 +90,7 @@ function Sync-DgMitglieder {
     }
     foreach ($m in $weg) {
         try {
-            Remove-DistributionGroupMember -Identity $Identity -Member $m -Confirm:$false -ErrorAction Stop
+            Remove-DistributionGroupMember -Identity $Identity -Member $m @umgehen -Confirm:$false -ErrorAction Stop
             Write-Host "[OK] Removed: $m" -ForegroundColor Green
             $raus++
         } catch {

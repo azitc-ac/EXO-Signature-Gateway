@@ -5,6 +5,37 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.71 — 2026-11-18 — App-Scope-Gruppe mit hunderten Postfächern; doppelte Standard-Auswahl
+
+**App-Scope-Gruppe (ApplicationAccessPolicy).** Ist die Beschränkung der App
+auf die Gateway-Postfächer eingeschaltet, pflegt das Gateway nach jedem
+Speichern der Postfächer eine mail-enabled Security-Gruppe mit allen aktiven
+Postfächern. Sie wurde wie früher die Verteilerliste je Mitglied mit
+`Add-`/`Remove-DistributionGroupMember` abgeglichen, unter einer festen
+Zeitgrenze von 180 s — bei hunderten neu aktivierten Postfächern zu kurz. Sie
+nutzt jetzt denselben Abgleich wie die Verteilerliste (v1.12.67): ab 20
+Änderungen ein `Update-DistributionGroupMember` mit der ganzen Soll-Liste,
+bei Fehlschlag Rückfall auf den Einzelabgleich, Zusammenfassung in der
+Protokollzeile `[DG-SYNC]`. Microsoft dokumentiert das Cmdlet ausdrücklich
+auch für mail-enabled Security-Gruppen. Die Gruppe gehört nicht der
+App-Identität, deshalb geht `-BypassSecurityGroupManagerCheck` wie bisher bei
+jedem Aufruf mit, auch beim Sammelaufruf. Die Zeitgrenze wächst wie bei der
+Verteilerliste mit der Zahl der Mitglieder. Unverändert: Bei leerer Soll-Liste
+bleibt die Gruppe unangetastet (eine leere Gruppe würde unter RestrictAccess
+jeden Zugriff sperren), und Fehler einzelner Adressen brechen den Lauf nicht ab.
+
+**Postfachliste.** Bei Postfächern, die bei Standardsignatur, Antwort-Signatur,
+interner Signatur oder Abwesenheit dem Standard folgen, enthielt die Auswahl
+zusätzlich den Eintrag „__standard__ (andere Art)“. Ursache: Der interne Wert
+für „folgt dem Standard“ lief in das Sicherheitsnetz, das zugewiesene Vorlagen
+fremder Art sichtbar hält, und wurde dort als Vorlage angehängt. Wählen ließ
+er sich ohne Schaden (gleicher Wert wie „Standard (…)“). Er erscheint nicht
+mehr; das Sicherheitsnetz für echte Vorlagen bleibt.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.70 — 2026-11-18 — Test der Zeitgeber unabhängig von der Reihenfolge
 
 Der Test aus v1.12.68 prüft die Anfangswerte der Hintergrundtakte jetzt am

@@ -580,6 +580,9 @@ var _addinEnabled = {{ 'true' if addin_enabled else 'false' }};
 // Sicherheitsnetz: ein zugewiesener Wert abweichender Art (oder noch nicht
 // typisiert) erscheint trotzdem — als „… (andere Art)" —, damit die Auswahl
 // nicht auf leer springt und Speichern die Zuweisung löscht.
+// STANDARD_WAHL ist keine Vorlage, sondern die Wahl „folgt dem Standard“ — die
+// Option dafür legt der Aufrufer selbst an (_buildWahlSelect). Bis v1.12.70
+// erschien sie über das Sicherheitsnetz zusätzlich als „__standard__ (andere Art)“.
 function _fuelleVorlagenSelect(sel, kind, aktuell, opts) {
   opts = opts || {};
   sel.innerHTML = '';
@@ -592,7 +595,7 @@ function _fuelleVorlagenSelect(sel, kind, aktuell, opts) {
   var typListe = _templatesByKind[kind] || [];
   var namen = typListe.slice();
   (opts.auchZeigen || []).concat([aktuell]).forEach(function(v) {
-    if (v && namen.indexOf(v) === -1) namen.push(v);  // Sicherheitsnetz
+    if (v && v !== STANDARD_WAHL && namen.indexOf(v) === -1) namen.push(v);  // Sicherheitsnetz
   });
   namen.forEach(function(name) {
     var opt = document.createElement('option');
@@ -1295,7 +1298,7 @@ function massenVorlagenListe() {
   var teile = feldWert('mb-massen-spalte').split('|');
   var sel = document.getElementById('mb-massen-vorlage');
   if (!sel || teile.length < 2) return;
-  // aktuell '' — STANDARD_WAHL hier übergeben, landete es als „Vorlage“ in der Liste.
+  // aktuell '' — die Standard-Option legt diese Funktion selbst an (s. u.).
   _fuelleVorlagenSelect(sel, teile[1], '', {mitLeer: teile[2] === 'leer', leerText: '— keine —'});
   var o = document.createElement('option');
   o.value = STANDARD_WAHL;

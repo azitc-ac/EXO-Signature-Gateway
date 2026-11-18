@@ -1453,7 +1453,10 @@ def run_app_access_policy_sync(app_id: str, tenant_domain: str) -> dict:
     if members:
         cmd += ["-Members", ",".join(members)]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        # Die Scope-Gruppe wächst mit den aktiven Postfächern — dieselbe Bemessung
+        # wie die Verteilerliste (gleicher Abgleich dg_mitglieder.ps1).
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=dg_zeitlimit(180, len(members)))
         output = (proc.stdout + "\n" + proc.stderr).strip()
         ok = proc.returncode == 0
         (log.info if ok else log.error)(
