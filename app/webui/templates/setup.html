@@ -2377,7 +2377,10 @@ async function saveKeyvault() {
         <p class="hint" style="line-height:1.7;margin:8px 0">
           Postfächer in der lokalen Exchange-Organisation erreicht <em>Integrierte Apps</em> nicht.
           Stelle beide Add-ins dort in der <strong>Exchange-Verwaltungsshell</strong> mit
-          <code>New-App</code> bereit (Exchange 2016, 2019, SE) — dieselben Manifeste wie oben.
+          <code>New-App</code> bereit (Exchange 2016, 2019, SE). Das Signatur-Add-in nimmt dasselbe
+          Manifest wie oben; das Knopf-Add-in eine eigene Fassung für Exchange lokal, ohne Anheften und
+          ohne Lese-Knopf bei nicht ausgewählter Mail (beides verlangt Mailbox 1.13, Exchange lokal kennt
+          höchstens 1.5). Die Kennung ist dieselbe wie in Exchange Online.
           Die lokale Verwaltungsshell erreicht das Gateway nicht, es installiert nichts selbst.
           Ob es wirkt, zeigt der Postfach-Status: <em>Add-in Signatur</em> bzw. <em>Add-in Knopf</em>
           nennen den letzten Abruf aus Outlook.
@@ -2390,13 +2393,15 @@ async function saveKeyvault() {
           <li>Antworten: Die beantwortete Mail sucht das Gateway über die Anbindung an Exchange lokal
             (Posteingang und Gesendete Elemente). Ohne sie bleibt der Entwurf bei Antworten leer, und das
             Gateway signiert beim Versand.</li>
-          <li>Der Exchange-Server muss die Manifest-Adresse direkt erreichen (keine Umleitung). Sonst
-            Manifest herunterladen, auf den Server legen und den Befehl mit <code>-FileData</code> nehmen.</li>
-          <li>Steigt die Fassung oben: erst <code>Remove-App</code>, dann <code>New-App</code> erneut.</li>
+          <li>Empfohlen: Manifest herunterladen, auf den Exchange-Server legen und den Befehl mit
+            <code>-FileData</code> nehmen (Pfad anpassen). Der Befehl mit <code>-Url</code> lädt das Manifest
+            vom Exchange-Server aus, nicht von deinem Rechner; er braucht eine direkte Verbindung ohne
+            Umleitung und scheitert sonst mit „The app couldn't be downloaded.“</li>
+          <li>Steigt die Fassung eines Manifests: erst <code>Remove-App</code>, dann <code>New-App</code> erneut.</li>
         </ul>
         {% for a in addin_lokal %}
         <div style="margin:10px 0 4px;font-size:12.5px;font-weight:600;color:#374151">{{ a.name }}</div>
-        {% for teil, text in [('neu', a.neu_url), ('datei', a.neu_datei), ('weg', a.entfernen)] %}
+        {% for teil, text in [('datei', a.neu_datei), ('neu', a.neu_url), ('weg', a.entfernen)] %}
         <div style="display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin:0 0 4px">
           <code id="addin-lokal-{{ teil }}-{{ a.art }}" style="flex:1 1 260px;min-width:0;font-size:12px;background:#f1f5f9;padding:5px 10px;border-radius:4px;border:1px solid #e2e8f0;word-break:break-all">{{ text }}</code>
           <button class="btn secondary btn-sm" onclick="copyManifestUrl(document.getElementById('addin-lokal-{{ teil }}-{{ a.art }}').textContent, 'addin-lokal-ok-{{ teil }}-{{ a.art }}')">Kopieren</button>

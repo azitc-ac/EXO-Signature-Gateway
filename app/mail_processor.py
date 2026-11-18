@@ -1315,10 +1315,46 @@ _SIG_TRENNER = '<hr style="display:inline-block; width:98%">'
 _DESKTOP_ABSTAND = '<p class="MsoNormal">&nbsp;</p>'
 
 
+# OWA-Hülle `divtagdefaultwrapper`: Klassisches OWA (Exchange 2016/2019/SE
+# lokal, früher auch Exchange Online) umschliesst damit den GANZEN eigenen Text
+# einer Mail — samt der Signatur, die OWA einfügt. Gemessen 18.11.2026 (Exchange
+# SE, neue Mail aus OWA): `<body><div id="divtagdefaultwrapper" …><p>Text</p>
+# <div id="Signature"><!-- exo-sig-start -->…</div></div></body>`. Zitatgrenze
+# ist sie nur, wenn sie zu einer ZITIERTEN Mail gehört, also hinter eigenem
+# Text steht. Bis v1.12.73 galt jede als Grenze: Bei einer neuen Mail aus OWA
+# lokal war dann der ganze Rumpf „Zitat“, die von OWA eingefügte Signatur galt
+# als „Kennung im Zitat“ (Antwort-Signatur statt Überspringen), und das
+# Gateway setzte seine Signatur samt Trennlinie ÜBER den Text.
+# Das Verfassen-Add-in (addin_compose.html, _QUOTE_RES) lässt sie aus
+# demselben Grund ganz weg.
+_OWA_HUELLE_RE = re.compile(r'<div\b[^>]*\bid=["\'](?:x_)?divtagdefaultwrapper["\']', re.IGNORECASE)
+_RUMPF_RE = re.compile(r"<body\b[^>]*>", re.IGNORECASE)
+_UNSICHTBAR_RE = re.compile(r"(?is)<!--.*?-->|<(style|script|head|title)\b.*?</\1\s*>")
+
+
+def _oeffnet_rumpf(html: str, pos: int) -> bool:
+    """Steht vor *pos* im Rumpf nichts Sichtbares (kein Text, kein Bild)?"""
+    b = _RUMPF_RE.search(html, 0, pos)
+    vorher = _UNSICHTBAR_RE.sub("", html[b.end() if b else 0:pos])
+    if re.search(r"<img\b", vorher, re.IGNORECASE):
+        return False
+    return not _klartext(vorher).replace("\xa0", "").strip()
+
+
+def _owa_huelle_als_zitat(html: str) -> int | None:
+    """Position der ersten OWA-Hülle, die ein Zitat einleitet — die Hülle um
+    den eigenen Text (am Anfang des Rumpfs) zählt nicht. EINE Quelle für
+    `_find_first_quote_wrapper_pos` und `_append_html_sig`."""
+    for m in _OWA_HUELLE_RE.finditer(html):
+        if not _oeffnet_rumpf(html, m.start()):
+            return m.start()
+    return None
+
+
 def _find_first_quote_wrapper_pos(html: str) -> int | None:
     """Return the start position of the first quote-wrapper div in *html*, or None."""
-    best: int | None = None
-    for wrap_id in _QUOTE_WRAPPER_IDS:
+    best: int | None = _owa_huelle_als_zitat(html)
+    for wrap_id in _QUOTE_WRAPPER_IDS - {"divtagdefaultwrapper"}:
         pattern = re.compile(
             r'<div\b[^>]*\bid=["\'](?:x_)?' + re.escape(wrap_id) + r'["\']', re.IGNORECASE
         )
@@ -1598,8 +1634,6 @@ def _append_html_sig(html: str, sig_html: str, zusatz: bool = False) -> str:
          "OWA reply separator"),
         (re.compile(r'<div\b[^>]*\bid=["\']x_divrplyfwdmsg["\']', re.IGNORECASE),
          "OWA reply separator (Exchange x_ prefix)"),
-        (re.compile(r'<div\b[^>]*\bid=["\']divtagdefaultwrapper["\']', re.IGNORECASE),
-         "OWA forward wrapper"),
         (re.compile(r'<div\b[^>]*\bid=["\']divfwdmsg["\']', re.IGNORECASE),
          "OWA forward message"),
         # Outlook für iOS/Android klammert Strich UND Zitat in einen Container:
@@ -1658,8 +1692,9 @@ def _append_html_sig(html: str, sig_html: str, zusatz: bool = False) -> str:
 
     # Find the EARLIEST match across all patterns so an inner nested separator
     # (e.g. a forward inside a reply) does not win over the real outer boundary.
-    best_idx: int | None = None
-    best_label: str = ""
+    # OWA-Hülle: nur hinter eigenem Text eine Grenze (_owa_huelle_als_zitat).
+    best_idx: int | None = _owa_huelle_als_zitat(html)
+    best_label: str = "OWA forward wrapper" if best_idx is not None else ""
     for pattern, label in _QUOTE_PATTERNS:
         m = pattern.search(html)
         if m and (best_idx is None or m.start() < best_idx):

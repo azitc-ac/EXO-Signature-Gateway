@@ -18,7 +18,9 @@ Message-ID, Text). `posteingang_als_graph` liefert die Form des Graph-Abrufs
 Hybrid-Nutzers gehen wie seine übrige Post über den Smarthost (reinject).
 EINZIGE Ausnahme (seit v1.12.67): die Regelprobe (`regelprobe_senden`, nur aus
 regel_probe) — sie MUSS in der lokalen Organisation entstehen, sonst prüfte sie
-nicht den Weg, den die Post eines Hybrid-Nutzers nimmt.
+nicht den Weg, den die Post eines Hybrid-Nutzers nimmt. Ebenso nur für die
+Regelprobe (seit v1.12.72): deren Unzustellbarkeitsmeldung lesen und per
+DeleteItem (SoftDelete) entfernen (`regelprobe_ndr_suchen`/`_loeschen`).
 
 BEANTWORTETE MAIL (seit v1.12.69): `bezug_per_kennung` für das Verfassen-Add-in
 — FindItem nach der Message-ID in Posteingang + Gesendete Elemente, GetItem mit
@@ -1026,9 +1028,10 @@ def anfrage_regelprobe(von: str, an: str, betreff: str, kopf: str, kopf_wert: st
     senden ohne Kopie in „Gesendete Elemente“. Reihenfolge der Kinder von
     <Message> laut EWS-Schema (learn.microsoft.com, „Message“): Subject, Body,
     ExtendedProperty, ToRecipients. Der x-Kopf als erweiterte Eigenschaft im
-    Satz InternetHeaders (ExtendedFieldURI, DistinguishedPropertySetId) — ob
-    Exchange ihn als Kopfzeile hinausgibt, ist nicht belegt; die Kennung steht
-    deshalb auch im Betreff (wie beim Graph-Weg)."""
+    Satz InternetHeaders (ExtendedFieldURI, DistinguishedPropertySetId). Dass
+    Exchange ihn als Kopfzeile hinausgibt, belegt die Unzustellbarkeitsmeldung
+    einer Lab-Probe (18.11.2026: `x-gw-regelprobe:` unter den Kopfzeilen des
+    Originals); die Kennung steht trotzdem auch im Betreff (wie beim Graph-Weg)."""
     req = ET.Element(_m("CreateItem"), {"MessageDisposition": "SendOnly"})
     nachricht = ET.SubElement(ET.SubElement(req, _m("Items")), _t("Message"))
     ET.SubElement(nachricht, _t("Subject")).text = betreff
@@ -1051,6 +1054,114 @@ def regelprobe_senden(von: str, an: str, betreff: str, kopf: str, kopf_wert: str
     ziel = _ziel(von)
     _aufruf(ziel, "CreateItem (Regelprobe)",
             anfrage_regelprobe(ziel, _ziel(an), betreff, kopf, kopf_wert, text))
+
+
+# ── Unzustellbarkeitsmeldung der Regelprobe (seit v1.12.72) ───────────────────
+#
+# Scheitert die Probe schon in der lokalen Organisation (Lab 18.11.2026: Domäne
+# lokal Authoritative, für das reine Cloud-Postfach kein MailUser/RemoteMailbox
+# → `550 5.1.10 RESOLVER.ADR.RecipientNotFound`), legt Exchange die Meldung in
+# den Posteingang des Hybrid-Nutzers. Live gelesen (Exchange SE, englisch):
+# ItemClass `REPORT.IPM.Note.NDR`, Betreff „Undeliverable: <Betreff der Probe>“
+# (deutsch „Unzustellbar: …“ — Annahme, nicht gemessen), Text mit der Zeile
+# „Remote Server returned '550 5.1.10 RESOLVER.ADR.RecipientNotFound; …'“ und
+# den Kopfzeilen der Probe (darunter `x-gw-regelprobe` — der Kopf geht also
+# tatsächlich hinaus). Erkannt wird über ItemClass + Betreff, nie über den
+# lokalisierten Vorspann.
+
+NDR_FELDER = ("item:ItemClass", "item:Subject", "item:DateTimeReceived", "item:Body")
+
+
+def anfrage_ndr_holen(ziel: str, kennungen: list[tuple[str, str]]) -> bytes:
+    """GetItem: ItemClass, Betreff, Empfangszeit und Text als Klartext
+    (BodyType Text — der Statuscode wird aus dem Text gelesen)."""
+    req = ET.Element(_m("GetItem"))
+    form = ET.SubElement(req, _m("ItemShape"))
+    ET.SubElement(form, _t("BaseShape")).text = "IdOnly"
+    ET.SubElement(form, _t("BodyType")).text = "Text"
+    felder = ET.SubElement(form, _t("AdditionalProperties"))
+    for f in NDR_FELDER:
+        _feld(felder, f)
+    ids = ET.SubElement(req, _m("ItemIds"))
+    for kennung, aenderung in kennungen:
+        attr = {"Id": kennung}
+        if aenderung:
+            attr["ChangeKey"] = aenderung
+        ET.SubElement(ids, _t("ItemId"), attr)
+    return _umschlag(ziel, req)
+
+
+def ndr_aus_antwort(root: ET.Element) -> list[dict]:
+    """GetItemResponse → [{id, aenderung, klasse, betreff, text}] — nur
+    Elemente, deren ItemClass eine Unzustellbarkeitsmeldung ist
+    (`REPORT.….NDR`, ohne Rücksicht auf Groß-/Kleinschreibung)."""
+    out = []
+    for rm in root.iter():
+        if not (rm.tag.startswith(f"{{{NS_M}}}") and rm.tag.endswith("ResponseMessage")):
+            continue
+        if not _antwort_ok(rm):
+            continue
+        elemente = rm.find(_m("Items"))
+        if elemente is None:
+            continue
+        for el in list(elemente):
+            klasse = _text(el.find(_t("ItemClass"))).strip()
+            k = klasse.upper()
+            if not (k.startswith("REPORT.") and k.endswith(".NDR")):
+                continue
+            kennung = el.find(_t("ItemId"))
+            out.append({
+                "id": kennung.get("Id", "") if kennung is not None else "",
+                "aenderung": kennung.get("ChangeKey", "") if kennung is not None else "",
+                "klasse": klasse,
+                "betreff": _text(el.find(_t("Subject"))),
+                "text": _text(el.find(_t("Body"))),
+            })
+    return out
+
+
+def regelprobe_ndr_suchen(adresse: str, betreff_enthaelt: str,
+                          ab: datetime | None = None) -> list[dict]:
+    """Unzustellbarkeitsmeldungen im Posteingang von `adresse`, deren Betreff
+    `betreff_enthaelt` trägt (siehe ndr_aus_antwort). EwsFehler bei Fehlern.
+    Nur regel_probe."""
+    kennungen = posteingang_suchen(adresse, 5, ab, betreff_enthaelt)
+    if not kennungen:
+        return []
+    ziel = _ziel(adresse)
+    return ndr_aus_antwort(_aufruf(ziel, f"GetItem (NDR, {len(kennungen)})",
+                                   anfrage_ndr_holen(ziel, kennungen), teilweise=True))
+
+
+# SoftDelete: Die Meldung verschwindet aus Posteingang UND „Gelöschte Elemente“
+# (Ordner „Deletions“ des Dumpsters), bleibt aber über „Gelöschte Elemente
+# wiederherstellen“ für die Aufbewahrungsfrist erreichbar. MoveToDeletedItems
+# ließe sie beim Nutzer sichtbar liegen, HardDelete (Purges) entzöge sie ihm
+# endgültig — für eine Meldung, die der Nutzer nicht selbst ausgelöst hat,
+# ist das eine wie das andere unangemessen. Quelle: learn.microsoft.com,
+# „Deleting items by using EWS in Exchange“, Tabelle 1.
+NDR_LOESCHART = "SoftDelete"
+
+
+def anfrage_loeschen(ziel: str, kennung: str, aenderung: str = "",
+                     art: str = NDR_LOESCHART) -> bytes:
+    req = ET.Element(_m("DeleteItem"), {"DeleteType": art})
+    attr = {"Id": kennung}
+    if aenderung:
+        attr["ChangeKey"] = aenderung
+    ET.SubElement(ET.SubElement(req, _m("ItemIds")), _t("ItemId"), attr)
+    return _umschlag(ziel, req)
+
+
+def regelprobe_ndr_loeschen(adresse: str, kennung: str, aenderung: str = "") -> None:
+    """DeleteItem (SoftDelete) der Unzustellbarkeitsmeldung `kennung` im
+    Postfach `adresse`. EwsFehler bei Fehlern. Nur regel_probe."""
+    if not konfiguriert():
+        raise EwsFehler("konfiguration", "Anbindung an Exchange lokal ist nicht eingerichtet")
+    if not kennung:
+        raise EwsFehler("kennung", "Keine Kennung der Meldung")
+    ziel = _ziel(adresse)
+    _aufruf(ziel, "DeleteItem (NDR der Regelprobe)", anfrage_loeschen(ziel, kennung, aenderung))
 
 
 def posteingang_suchen(adresse: str, anzahl: int = 1, ab: datetime | None = None,

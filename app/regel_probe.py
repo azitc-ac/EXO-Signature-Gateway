@@ -63,6 +63,22 @@ GRENZEN
   Gateway. Greift die Regel nicht, liegt sie in DIESEM Postfach und wird dort
   per Graph gesucht und gelöscht. Ohne Anbindung an Exchange lokal, ohne
   Prüfpostfach oder ohne wirksame Hybrid-Option: „entfällt“ mit Grund.
+  Seit v1.12.72 geht die Probe an die Adresse des Prüfpostfachs in der
+  Koexistenz-Domäne (…mail.onmicrosoft.com, `routing_adresse`), nicht an die
+  primäre: Für ein reines Cloud-Postfach kennt die lokale Exchange die
+  primäre Adresse oft nicht (Domäne lokal Authoritative, kein MailUser) und
+  antwortet mit 550 5.1.10. Ein reines Cloud-Postfach bekommt die
+  Koexistenz-Adresse nicht von selbst — in Exchange Online gelten
+  Adressrichtlinien nur für Microsoft-365-Gruppen (learn.microsoft.com,
+  New-EmailAddressPolicy). Rückfall: …@<tenant>.onmicrosoft.com (trägt jedes
+  EXO-Postfach; lokal über den smtp:*-Connector). Hat es keine der beiden:
+  „entfällt“, keine Mail. Scheitert die Probe trotzdem
+  lokal, sucht das Gateway die Unzustellbarkeitsmeldung im Posteingang des
+  Hybrid-Nutzers (EWS), meldet „nicht prüfbar“ mit dem Statuscode und entfernt
+  die Meldung (SoftDelete). EWS ResolveNames vorab taugt nicht als Prüfung: Es
+  sucht im lokalen Active Directory (learn.microsoft.com, „ResolveNames
+  operation“), ein reines Cloud-Postfach steht dort nicht — es verneinte gerade
+  den Fall, den der Hybrid-Connector zustellt.
 * Webserver (uvicorn) und SMTP-Listener laufen in verschiedenen Threads mit
   eigenen Event-Loops: Der Zustand ist deshalb mit threading.Lock geschützt,
   nicht mit asyncio-Mitteln.
@@ -249,12 +265,13 @@ async def _senden(adresse: str, probe_id: str, geheim: str) -> str:
     return f"sendMail HTTP {r.status_code}: {r.text[:200]}"
 
 
-async def _senden_ews(adresse: str, postfach: str, probe_id: str, geheim: str) -> str:
-    """Hybrid-Nutzer: aus dem LOKALEN Postfach `adresse` per EWS an das
-    Prüfpostfach `postfach` (Exchange Online). "" bei Erfolg, sonst Fehlertext."""
+async def _senden_ews(adresse: str, ziel: str, probe_id: str, geheim: str) -> str:
+    """Hybrid-Nutzer: aus dem LOKALEN Postfach `adresse` per EWS an `ziel`, die
+    Routing-Adresse des Prüfpostfachs (Exchange Online, siehe routing_adresse).
+    "" bei Erfolg, sonst Fehlertext."""
     import ews_onprem
     try:
-        await asyncio.to_thread(ews_onprem.regelprobe_senden, adresse, postfach,
+        await asyncio.to_thread(ews_onprem.regelprobe_senden, adresse, ziel,
                                 _betreff(probe_id, geheim), KOPF, f"{probe_id}.{geheim}", _TEXT)
     except ews_onprem.EwsFehler as exc:
         return f"EWS ({exc.code}): {exc.detail}"[:240]
@@ -383,9 +400,25 @@ HYBRID_OHNE_POSTFACH = ("Hybrid-Nutzer: Die Probe braucht als Empfänger ein Pos
                         "Online — das Absender-Postfach der Benachrichtigungen ist nicht gesetzt "
                         "oder kein bekanntes Postfach in Exchange Online (Einstellungen → "
                         "Benachrichtigungen → Absender; Postfachliste laden).")
+HYBRID_OHNE_ROUTING = ("Hybrid-Nutzer: Das Absender-Postfach der Benachrichtigungen hat weder eine "
+                       "Routing-Adresse …mail.onmicrosoft.com noch eine …onmicrosoft.com — lokal "
+                       "nicht zustellbar. Exchange lokal leitet nur diese Adressen sicher nach "
+                       "Exchange Online (Postfachliste laden; sonst in Exchange Online als "
+                       "zusätzliche Adresse eintragen).")
 # „entfällt“: Ergebnis wird gespeichert (skip), keine Mail. Alles andere aus
 # nicht_moeglich ist eine Ablehnung (nichts gespeichert).
-ENTFAELLT = (HYBRID_INAKTIV, HYBRID_OHNE_EWS, HYBRID_OHNE_POSTFACH)
+ENTFAELLT = (HYBRID_INAKTIV, HYBRID_OHNE_EWS, HYBRID_OHNE_POSTFACH, HYBRID_OHNE_ROUTING)
+
+# Koexistenz-Domäne des Hybrids (Hybrid Configuration Wizard, Vorgabe
+# `<tenant>.mail.onmicrosoft.com`). Der Hybrid-Send-Connector der lokalen
+# Exchange („Outbound to Office 365“) hat genau diesen AddressSpace.
+ROUTING_SUFFIX = ".mail.onmicrosoft.com"
+# Rückfall: die Adresse in der Start-Domäne `<tenant>.onmicrosoft.com`, die
+# JEDES EXO-Postfach trägt. Lokal ist sie keine Accepted Domain; Exchange lokal
+# schickt sie über den Send-Connector für smtp:* (im Hybrid-Szenario dieser
+# Funktion ohnehin Voraussetzung: die lokale Organisation versendet über EXO).
+# Fehlt dieser Weg, kommt eine Unzustellbarkeitsmeldung, Ergebnis „nicht prüfbar“.
+RUECKFALL_SUFFIX = ".onmicrosoft.com"
 
 
 def entfaellt(grund: str) -> bool:
@@ -403,10 +436,34 @@ def pruefpostfach() -> str:
     return pf
 
 
+def routing_adresse(adressen: list[str]) -> str:
+    """Die Adresse des Prüfpostfachs, die Exchange lokal sicher nach Exchange
+    Online leitet: eine aus der Koexistenz-Domäne (…mail.onmicrosoft.com).
+    "" = keine. Mehrere → die erste in sortierter Folge (stabil).
+
+    Warum nicht die primäre: Ist deren Domäne lokal Authoritative und gibt es
+    für das reine Cloud-Postfach lokal weder MailUser noch RemoteMailbox,
+    scheitert die Probe schon dort (`550 5.1.10 RecipientNotFound`, Lab
+    18.11.2026). Die Koexistenz-Domäne dagegen ist lokal ein Accepted Domain
+    mit eigenem Send-Connector nach Exchange Online. Rückfall (seit v1.12.72):
+    `…@<tenant>.onmicrosoft.com` (RUECKFALL_SUFFIX) über den smtp:*-Connector."""
+    koexistenz, rueckfall = [], []
+    for a in adressen or []:
+        lokal, at, domaene = (a or "").strip().lower().rpartition("@")
+        if not (at and lokal):
+            continue
+        if domaene.endswith(ROUTING_SUFFIX) and len(domaene) > len(ROUTING_SUFFIX):
+            koexistenz.append(f"{lokal}@{domaene}")
+        elif (domaene.endswith(RUECKFALL_SUFFIX) and len(domaene) > len(RUECKFALL_SUFFIX)
+              and domaene != ROUTING_SUFFIX.lstrip(".")):
+            rueckfall.append(f"{lokal}@{domaene}")
+    return min(koexistenz or rueckfall) if (koexistenz or rueckfall) else ""
+
+
 def _plan(adresse: str) -> tuple[str, dict | None]:
-    """(Grund, Plan). Grund "" → Plan {hybrid, postfach, absender, empfaenger}:
-    wohin die Probe geht (`postfach`, dort wird gesucht und gelöscht) und woran
-    die Kennung gebunden wird."""
+    """(Grund, Plan). Grund "" → Plan {hybrid, postfach, ziel, absender, empfaenger}:
+    wohin die Probe geht (`ziel`: Umschlag-Empfänger beim Senden; `postfach`:
+    dort wird gesucht und gelöscht) und woran die Kennung gebunden wird."""
     cfg = _cfg(adresse)
     if not (cfg.get("sig") or cfg.get("smime")):
         return ("Postfach nicht aktiviert (Signatur und S/MIME aus) — die Regel gilt nur "
@@ -423,9 +480,17 @@ def _plan(adresse: str) -> tuple[str, dict | None]:
     pf = pruefpostfach()
     if not pf:
         return HYBRID_OHNE_POSTFACH, None
+    empfaenger = exo_mailboxes.adressen_von(pf, hybrid=False)
+    ziel = routing_adresse(empfaenger)
+    if not ziel:
+        return HYBRID_OHNE_ROUTING, None
     absender = set(exo_mailboxes.adressen_von(adresse, hybrid=True)) | {adresse.lower()}
-    return "", {"hybrid": True, "postfach": pf, "absender": sorted(absender),
-                "empfaenger": exo_mailboxes.adressen_von(pf, hybrid=False)}
+    # Empfänger-Bindung: ALLE Adressen des Prüfpostfachs — die Routing-Adresse
+    # (falls Exchange Online den Umschlag-Empfänger so lässt) ebenso wie die
+    # primäre (falls es ihn beim Auflösen umschreibt). Welche davon am Gateway
+    # ankommt, ist nicht gemessen; beide gehören zu genau diesem einen Postfach.
+    return "", {"hybrid": True, "postfach": pf, "ziel": ziel, "absender": sorted(absender),
+                "empfaenger": empfaenger}
 
 
 def nicht_moeglich(adresse: str) -> str:
@@ -445,14 +510,14 @@ async def _durchlauf(adresse: str, plan: dict | None = None) -> dict:
     t0 = time.monotonic()
     try:
         if plan["hybrid"]:
-            fehler = await _senden_ews(adresse, postfach, probe_id, geheim)
+            fehler = await _senden_ews(adresse, plan["ziel"], probe_id, geheim)
         else:
             fehler = await _senden(adresse, probe_id, geheim)
         if fehler:
             log.warning("Regelprobe %s für %s: nicht gesendet — %s", probe_id, adresse, fehler)
             return _ergebnis("fehler", "warn", f"Probe nicht gesendet: {fehler}")
         log.info("Regelprobe %s für %s: gesendet%s", probe_id, adresse,
-                 f" (über Exchange lokal an {postfach})" if plan["hybrid"] else "")
+                 f" (über Exchange lokal an {plan['ziel']})" if plan["hybrid"] else "")
         naechste_suche = t0 + ANKUNFT_FRIST_S
         suchfehler = ""
         while True:
@@ -476,7 +541,15 @@ async def _durchlauf(adresse: str, plan: dict | None = None) -> dict:
                     fund = None
                 if fund is not None:
                     return await _nicht_gegriffen(adresse, probe_id, fund, postfach)
+                if plan["hybrid"]:
+                    ndr = await _ndr_suchen(adresse, probe_id, ab)
+                    if ndr is not None:
+                        return await _lokal_unzustellbar(adresse, probe_id, ndr, plan["ziel"])
             await asyncio.sleep(TAKT_S)
+        if plan["hybrid"]:
+            ndr = await _ndr_suchen(adresse, probe_id, ab)
+            if ndr is not None:
+                return await _lokal_unzustellbar(adresse, probe_id, ndr, plan["ziel"])
         log.warning("Regelprobe %s für %s: weder am Gateway noch im Posteingang (%d s)",
                     probe_id, adresse, GESAMT_FRIST_S)
         detail = (f"Probe nach {GESAMT_FRIST_S // 60} min weder am Gateway noch im Posteingang "
@@ -508,6 +581,64 @@ async def _nicht_gegriffen(adresse: str, probe_id: str, fund: dict,
     return _ergebnis("greift_nicht", "error",
                      f"Regel greift nicht — Probe direkt zugestellt, {weg}. Mitgliedschaft in "
                      "der Verteilerliste und Transportregel prüfen.")
+
+
+# ── Hybrid: Unzustellbarkeitsmeldung der lokalen Exchange ────────────────────
+#
+# Statuscode aus dem Text der Meldung, z. B. „Remote Server returned '550 5.1.10
+# RESOLVER.ADR.RecipientNotFound; …'“ (Lab, Exchange SE, 18.11.2026). Der
+# Vorspann ist lokalisiert, Code und Kurzname sind es nicht.
+_NDR_CODE = re.compile(r"\b([45]\d\d)[ -]([45]\.\d{1,3}\.\d{1,3})(?:\s+([A-Z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+))?")
+_NDR_ERWEITERT = re.compile(r"(?<![\d.])([45]\.\d{1,3}\.\d{1,3})(?![\d.])")
+
+
+def ndr_code(text: str) -> str:
+    """„550 5.1.10 RESOLVER.ADR.RecipientNotFound“ — oder nur der erweiterte
+    Code — aus dem Text einer Unzustellbarkeitsmeldung. "" = keiner."""
+    m = _NDR_CODE.search(text or "")
+    if m:
+        return " ".join(g for g in m.groups() if g)
+    m = _NDR_ERWEITERT.search(text or "")
+    return m.group(1) if m else ""
+
+
+async def _ndr_suchen(adresse: str, probe_id: str, ab: datetime) -> dict | None:
+    """Unzustellbarkeitsmeldung zur Probe `probe_id` im (lokalen) Posteingang
+    des Hybrid-Nutzers → {id, aenderung, code} oder None. Fehler der Suche
+    zählen als „keine gefunden“ (Protokollzeile) — die Probe läuft weiter."""
+    import ews_onprem
+    teil = f"{BETREFF} {probe_id}"
+    try:
+        treffer = await asyncio.to_thread(ews_onprem.regelprobe_ndr_suchen, adresse, teil, ab)
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("Regelprobe %s für %s: Suche nach Unzustellbarkeitsmeldung gescheitert — %s",
+                    probe_id, adresse, str(exc)[:160])
+        return None
+    for t in treffer:
+        if f"{teil}." in (t.get("betreff") or ""):
+            return {"id": t.get("id") or "", "aenderung": t.get("aenderung") or "",
+                    "code": ndr_code(t.get("text") or "")}
+    return None
+
+
+async def _lokal_unzustellbar(adresse: str, probe_id: str, ndr: dict, ziel: str) -> dict:
+    """Die Probe kam nie bei Exchange Online an — über die Regel sagt das
+    nichts: „nicht prüfbar“ (info), nie Warnung oder Fehler für das Postfach.
+    Die Meldung wird entfernt, damit beim Nutzer nichts liegen bleibt."""
+    import ews_onprem
+    try:
+        await asyncio.to_thread(ews_onprem.regelprobe_ndr_loeschen, adresse,
+                                ndr.get("id") or "", ndr.get("aenderung") or "")
+        weg = "Meldung aus dem Posteingang entfernt"
+    except Exception as exc:                                    # noqa: BLE001
+        weg = f"Entfernen der Meldung gescheitert ({str(exc)[:120]}) — sie liegt im Posteingang"
+    code = ndr.get("code") or "ohne Statuscode"
+    log.warning("Regelprobe %s für %s: lokal unzustellbar an %s (NDR %s) — %s",
+                probe_id, adresse, ziel, code, weg)
+    return _ergebnis("nicht_pruefbar", "info",
+                     f"Nicht prüfbar — Probe lokal unzustellbar (NDR {code}): Exchange lokal "
+                     f"stellt an {ziel} nicht zu (Hybrid-Send-Connector bzw. Koexistenz-Domäne "
+                     f"prüfen). {weg}. Über die Transportregel sagt das nichts.")
 
 
 async def pruefen(adresse: str) -> dict:

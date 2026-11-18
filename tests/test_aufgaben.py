@@ -36,6 +36,9 @@ OHNE_AUFGABE: dict[str, str] = {
                "offen, bis der Knopf den Stand gemerkt hat — eine zweite Aufgabe wäre doppelt",
     "1.12.42": "deckt die bestehende Aufgabe „addin-fassung“ (seit 1.11.56) ab: Sie vergleicht "
                "jetzt gegen die frisch bestimmte Soll-Fassung und erscheint damit von selbst",
+    "1.12.74": "Knopf-Add-in in Exchange lokal ist freiwillig — ob der Betreiber es dort will, "
+               "kann keine Prüfung feststellen; die alte Fassung ließ sich lokal nicht einspielen, "
+               "es gibt also keinen Altbestand, den eine Aufgabe finden könnte",
     "1.12.43": "schärft bestehende Prüfungen; Wächter und Regel-Ausnahmen erscheinen über die "
                "Aufgaben „waechter-code“ und „regel-auto-ausnahme“, Rollen und Anmeldung brauchen "
                "eine Graph-Abfrage (Aufgaben sind nur lokal) und stehen in der Abnahme",

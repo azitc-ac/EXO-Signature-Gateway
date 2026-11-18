@@ -5,6 +5,113 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.74 — 2026-11-18 — Neue Mail aus Outlook im Web (Exchange lokal) bekam eine zweite Signatur; Knopf-Add-in für Exchange lokal
+
+**Neue Mail aus dem klassischen Outlook im Web: keine zweite Signatur mehr.**
+Das klassische Outlook im Web (Exchange 2016/2019/SE lokal) umschließt den
+ganzen Text einer Mail mit `<div id="divtagdefaultwrapper">`, samt der
+Signatur, die es selbst einfügt. Das Gateway hielt jede solche Hülle für den
+Anfang eines Zitats. Bei einer neuen Mail galt damit der ganze Rumpf als
+„Zitat“. Die von Outlook im Web eingefügte Gateway-Signatur (Übertragen der
+Signatur für Hybrid-Nutzer, v1.12.63) stand für die Prüfung nicht im
+Verfassenbereich, sondern „im Zitat“. Das Gateway wertete die Mail deshalb als
+Antwort in einer schon signierten Kette und hängte die Antwort-Signatur an,
+samt Trennlinie über dem Text. Im Protokoll stand dazu `SIG-KETTE: … (erkannt:
+Kennung im Zitat)` und `Signature inserted before OWA forward wrapper`.
+Ohne eingefügte Signatur landete die Gateway-Signatur samt Trennlinie über dem
+Text statt darunter. Eine solche Hülle gilt jetzt nur noch als Zitatgrenze,
+wenn eigener Text oder ein Bild vor ihr steht, also wenn sie zu einer zitierten
+Mail gehört. Erkennung der Signatur im Verfassenbereich, Ketten-Erkennung und
+Einfügestelle nutzen dafür dieselbe Prüfung. Antworten aus Outlook im Web
+erkennt das Gateway wie bisher am Antwort-Trenner (`divRplyFwdMsg`).
+
+**Knopf-Add-in für Exchange lokal: eigene Fassung des Manifests.** Exchange
+lokal unterstützt die Mailbox-Anforderungssätze 1.1 bis 1.5 (Microsoft Learn,
+„Outlook JavaScript API requirement sets“). Das Manifest des Knopf-Add-ins
+verlangt in einem Zusatzteil 1.13 (Bereich anheften, Lese-Knopf ohne
+ausgewählte Mail), und `New-App` lehnte es ab: „The API version (1.13) required
+by this app isn't supported by the Exchange Server version“. Für Exchange lokal
+gibt es jetzt `/addin/lokal/manifest.xml`, ohne diesen Zusatzteil, mit derselben
+Kennung wie in Exchange Online. Wird ein Hybrid-Postfach nach Exchange Online
+verschoben, bleibt es für Outlook dasselbe Add-in. Das Manifest für Exchange
+Online bleibt unverändert. Das Verfassen-Add-in verlangt höchstens 1.5 und
+nimmt weiter dasselbe Manifest.
+
+**Anleitung: `-FileData` zuerst.** `New-App -Url` lädt das Manifest vom
+Exchange-Server aus, nicht vom Rechner des Admins. Im Test scheiterte es mit
+„The app couldn't be downloaded.“, obwohl das Gateway das Manifest ohne
+Anmeldung und ohne Umleitung ausliefert. Die Ursache ist noch offen. Die
+Anleitung nennt deshalb zuerst den Befehl mit `-FileData` (Manifest
+herunterladen, auf den Server legen) und danach den mit `-Url`.
+
+**Zu tun:** Wenn du das Knopf-Add-in in Exchange lokal bereitstellen willst:
+Das bisherige Manifest ließ sich dort nicht einspielen. Nimm die neue Fassung
+unter *Einrichtung → Outlook Add-in → Exchange lokal (Hybrid-Nutzer)*. Für die
+Signatur-Korrektur ist nichts zu tun.
+
+---
+
+## v1.12.73 — 2026-11-18 — Kommentar in der Regelprobe
+
+Ein Kommentar in `regel_probe.py` sah für die Prüfung der Wegnamen
+(`tests/test_wegnamen.py`) wie ein Verweis auf einen Knopf „nicht prüfbar“ aus.
+Umformuliert, keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.72 — 2026-11-18 — Regelprobe für Hybrid-Nutzer über die Koexistenz-Domäne; Status nach Einrichten der EWS-Anbindung
+
+**Regelprobe für Hybrid-Nutzer: Ziel ist die Routing-Adresse.** Die Probe
+eines Hybrid-Nutzers geht per EWS aus seinem lokalen Postfach an das
+Absender-Postfach der Benachrichtigungen in Exchange Online. Sie ging bisher an
+dessen primäre Adresse. Ist deren Domäne in der lokalen Organisation
+Authoritative und gibt es dort für das reine Cloud-Postfach weder MailUser
+noch RemoteMailbox, kennt die lokale Exchange den Empfänger nicht: Sie lehnt
+mit `550 5.1.10 RESOLVER.ADR.RecipientNotFound` ab, die
+Unzustellbarkeitsmeldung landet beim Hybrid-Nutzer, und die Probe meldete nach
+zehn Minuten „weder am Gateway noch im Posteingang“. Ziel ist jetzt die
+Adresse des Prüfpostfachs in der Koexistenz-Domäne
+(`…@<tenant>.mail.onmicrosoft.com`). Diese Domäne legt der Hybrid Configuration
+Wizard lokal als Accepted Domain an, und der Hybrid-Send-Connector leitet genau
+sie nach Exchange Online. Ein reines Cloud-Postfach bekommt diese Adresse nicht
+von selbst, denn Adressrichtlinien gelten in Exchange Online nur für
+Microsoft-365-Gruppen. Fehlt sie, geht die Probe an die Adresse in der
+Start-Domäne (`…@<tenant>.onmicrosoft.com`), die jedes Postfach in Exchange
+Online trägt. Diese Adresse leitet die lokale Exchange über den Send-Connector
+für alle Domänen (`smtp:*`) nach Exchange Online. Diesen Weg setzt das
+Hybrid-Szenario ohnehin voraus, denn die lokale Organisation versendet über
+Exchange Online. Fehlt er, kommt eine Unzustellbarkeitsmeldung, und die Probe
+meldet „nicht prüfbar“ (siehe unten). Hat das Prüfpostfach keine der beiden
+Adressen, entfällt die Probe mit diesem Grund, und es geht keine Mail hinaus. Die Kennung der Probe bleibt an genau dieses
+Prüfpostfach gebunden. Das Gateway akzeptiert die Routing-Adresse ebenso wie
+die primäre, falls Exchange Online den Umschlag-Empfänger umschreibt. Für
+EXO-Postfächer bleibt die Bindung „an sich selbst“.
+
+**Unzustellbare Probe: „nicht prüfbar“ statt Warnung.** Scheitert die Probe
+trotzdem in der lokalen Organisation, sucht das Gateway die
+Unzustellbarkeitsmeldung zur Probe im Posteingang des Hybrid-Nutzers
+(Nachrichtenklasse `REPORT.IPM.Note.NDR`, Kennung der Probe im Betreff). Das
+Ergebnis heißt dann „Nicht prüfbar — Probe lokal unzustellbar (NDR …)“, mit dem
+Statuscode aus der Meldung, als Hinweis und nicht als Warnung: Die Probe hat
+Exchange Online nie erreicht, über die Transportregel sagt das nichts. Das
+Gateway entfernt die Meldung (EWS `DeleteItem`, `SoftDelete`). Sie erscheint
+damit weder im Posteingang noch unter „Gelöschte Elemente“, bleibt aber über
+„Gelöschte Elemente wiederherstellen“ erreichbar.
+
+**Status der Hybrid-Nutzer nach dem Einrichten der Anbindung an Exchange
+lokal.** Nach dem Speichern der Anbindung standen „Abwesenheit“ und „Postfach
+lesen (EWS)“ weiter auf „entfällt“, bis zum nächsten Prüflauf. Eine Änderung
+an Adresse, Dienstkonto, Kennwort, Verbindungsadresse oder eigener CA startet
+jetzt im Hintergrund eine Prüfung der Hybrid-Nutzer. Es läuft höchstens eine
+gleichzeitig. Ein früheres „OK“ dieser beiden Prüfungen wird dabei verworfen,
+denn es galt der alten Anbindung.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.71 — 2026-11-18 — App-Scope-Gruppe mit hunderten Postfächern; doppelte Standard-Auswahl
 
 **App-Scope-Gruppe (ApplicationAccessPolicy).** Ist die Beschränkung der App
