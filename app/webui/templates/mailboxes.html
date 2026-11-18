@@ -287,14 +287,13 @@ async function ankerAnwenden() {
   <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">
     Standards und Richtlinien
   </div>
-  <div style="overflow-x:auto;margin-bottom:12px">
-  <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:480px">
+  <div style="overflow-x:auto;margin-bottom:12px;max-width:820px">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:440px">
     <thead>
       <tr style="border-bottom:2px solid #e2e8f0">
         <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:180px">Typ</th>
         <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Gilt für</th>
         <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:200px">Vorlage</th>
-        <th style="text-align:center;padding:6px 8px;width:40px"></th>
       </tr>
     </thead>
     <tbody>
@@ -307,7 +306,6 @@ async function ankerAnwenden() {
             <!-- filled by JS -->
           </select>
         </td>
-        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
       <!-- Minimalsignatur -->
       <tr style="border-bottom:1px solid #f0f0f0">
@@ -319,7 +317,6 @@ async function ankerAnwenden() {
         <td style="padding:6px 8px">
           <select id="policy-min-tpl" style="font-size:12px;width:160px"></select>
         </td>
-        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
       <!-- Interne Signatur -->
       <tr style="border-bottom:1px solid #f0f0f0">
@@ -331,7 +328,6 @@ async function ankerAnwenden() {
         <td style="padding:6px 8px">
           <select id="policy-intern-tpl" style="font-size:12px;width:160px"></select>
         </td>
-        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
       <!-- Banner -->
       <tr style="border-bottom:1px solid #f0f0f0">
@@ -340,7 +336,6 @@ async function ankerAnwenden() {
         <td style="padding:6px 8px">
           <select id="policy-banner-tpl" style="font-size:12px;width:160px"></select>
         </td>
-        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
       <!-- Disclaimer -->
       <tr style="border-bottom:1px solid #f0f0f0">
@@ -352,7 +347,6 @@ async function ankerAnwenden() {
         <td style="padding:6px 8px">
           <select id="policy-disclaimer-tpl" style="font-size:12px;width:160px"></select>
         </td>
-        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
       <!-- Abwesenheit (OOO) — bei ausgeschalteter Funktion nur VERBORGEN, nicht
            entfernt: savePolicies liest das Feld und schriebe sonst "" (Standard weg). -->
@@ -365,14 +359,12 @@ async function ankerAnwenden() {
         <td style="padding:6px 8px">
           <select id="policy-oof-tpl" style="font-size:12px;width:160px"></select>
         </td>
-        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
       <!-- Outlook Add-In — aktiv -->
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">Outlook Add-In</td>
         <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
         <td style="padding:6px 8px"><div id="policy-addin-ctrl"></div></td>
-        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
     </tbody>
   </table>
@@ -851,7 +843,7 @@ async function _postfaecherLaden(silent) {
     document.getElementById('mb-table-wrap').style.display = '';
     // Erst NACH dem Einblenden messen: an einem `display:none`-Element sind
     // alle Masse null, die Hoehe fiele auf die Untergrenze.
-    tabellenHoeheAnpassen();
+    rollbereichHoehe(document.querySelector('.tabellen-rollbereich'));   // base.html
     document.getElementById('mb-save-btn').style.display = '';
     document.getElementById('mb-refresh-btn').style.display = '';
     // ⚠️ Erst jetzt steht der Ausgangsstand. Die Wache misst ihn beim Laden der
@@ -2038,40 +2030,6 @@ async function saveCustomPolicies() {
 // `scrollY` kommt dazu, weil `getBoundingClientRect()` vom Fenster aus misst:
 // So ergibt sich der Abstand zum SEITENANFANG und das Ergebnis haengt nicht
 // davon ab, wie weit gerade gerollt ist.
-function tabellenHoeheAnpassen() {
-  var box = document.querySelector('.tabellen-rollbereich');
-  if (!box) return;
-  // Dieselbe Bedingung wie im Stil. Ohne die Pruefung bekaeme auch ein
-  // Telefon einen festen Ausschnitt — dort faengt er die Wischgeste ab.
-  if (!window.matchMedia('(pointer: fine), (min-width: 1100px)').matches) {
-    box.style.maxHeight = '';
-    return;
-  }
-  var obenImDokument = box.getBoundingClientRect().top + window.scrollY;
-  var platz = window.innerHeight - obenImDokument - 16;
-  // Unter etwa 160px bliebe ein Guckloch mit drei Zeilen. Dann ist das alte
-  // Verhalten das bessere: Tabelle waechst, Seite rollt.
-  //
-  // Eine feste UNTERGRENZE waere hier falsch — sie schiebt die Unterkante
-  // wieder aus dem Bild und damit den Rollbalken ausser Reichweite, also genau
-  // das, was behoben werden sollte. Bei 900x540 gemessen: mit Untergrenze 300
-  // endete der Ausschnitt bei 661 in einem 540 hohen Fenster.
-  if (platz < 160) { box.style.maxHeight = ''; return; }
-  box.style.maxHeight = platz + 'px';
-}
-
-// Beim Verkleinern des Fensters neu rechnen. Gedrosselt ueber den Bildaufbau:
-// `resize` feuert waehrend des Ziehens im Dutzend, und jede Messung erzwingt
-// ein Neuberechnen des Layouts.
-var _hoehenLauf = null;
-window.addEventListener('resize', function() {
-  if (_hoehenLauf) return;
-  _hoehenLauf = requestAnimationFrame(function() {
-    _hoehenLauf = null;
-    tabellenHoeheAnpassen();
-  });
-});
-
 document.addEventListener('DOMContentLoaded', function() {
   loadMailboxes(true);
   loadGroups();

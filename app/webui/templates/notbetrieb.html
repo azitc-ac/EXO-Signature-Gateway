@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_filterfeld.html" import filterfeld %}
 {% block content %}
 <h1>EXO-Ausfallschutz</h1>
 
@@ -568,7 +569,13 @@
 <!-- Postfächer -->
 <div class="settings-card">
   <h2 style="margin-top:0">Postfächer</h2>
-  <div class="tabellen-rollbereich">
+  {# Bei hunderten Postfächern sonst endlos: Filter und ein Rollbereich mit
+     stehender Kopfzeile, wie in der Postfachliste (rollbereichHoehe, base.html). #}
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px">
+    {{ filterfeld("nb-pf-filter", placeholder="Postfach filtern…", oninput="nbPostfaecherFiltern()") }}
+    <span class="hint" id="nb-pf-zahl"></span>
+  </div>
+  <div class="tabellen-rollbereich" id="nb-pf-rollbereich">
     <table id="nb-pf-tabelle" class="nb-tabelle" style="min-width:640px;width:100%;border-collapse:collapse">
       <thead><tr><th>Postfach</th><th>Mail</th><th>Kalender</th><th>Gilt wegen</th><th>Ordner</th><th>Mails in der Kopie</th><th>Bedarf</th></tr></thead>
       <tbody id="nb-pf-tbody"><tr><td colspan="7" class="muted">Lädt…</td></tr></tbody>
@@ -915,6 +922,23 @@ async function nbPostfaecher() {
       + '<td>' + esc(p.herkunft) + '</td><td>' + p.ordner + '</td><td>' + p.mails + '</td>'
       + '<td>' + (b ? groesseText(b.bedarf) + (b.hochgerechnet ? ' *' : '') : '—') + '</td></tr>';
   }).join('');
+  nbPostfaecherFiltern();
+  rollbereichHoehe(document.getElementById('nb-pf-rollbereich'), 'fenster');   // base.html
+}
+
+// Filter über alle Spalten der Zeile; die Zahl nennt Treffer und Gesamtzahl.
+function nbPostfaecherFiltern() {
+  const q = feldWert('nb-pf-filter').toLowerCase();
+  const zeilen = Array.from(document.querySelectorAll('#nb-pf-tbody tr'))
+    .filter(tr => !tr.querySelector('td[colspan]'));
+  let sichtbar = 0;
+  zeilen.forEach(tr => {
+    const passt = !q || tr.textContent.toLowerCase().includes(q);
+    tr.hidden = !passt;
+    if (passt) sichtbar++;
+  });
+  document.getElementById('nb-pf-zahl').textContent = !zeilen.length ? ''
+    : (q ? sichtbar + ' von ' + zeilen.length : zeilen.length) + ' Postfächer';
 }
 
 // ── Platzbedarf ──────────────────────────────────────────────────────────

@@ -107,6 +107,14 @@ AKTUALISIEREN_WEG = ("Einrichtung → Verfassen-Add-in → „Integrierte Apps �
                      "verteilt die neue Fassung danach binnen bis zu 72 Stunden.")
 
 
+def aktualisieren_weg(art: str) -> str:
+    """Weg zum Aktualisieren je Add-in — der Abschnitt in der Einrichtung
+    unterscheidet sich, der Schritt im Admin Center nicht."""
+    if art == "knopf":
+        return AKTUALISIEREN_WEG.replace("Einrichtung → Verfassen-Add-in", "Einrichtung → Outlook Add-in → Knopf", 1)
+    return AKTUALISIEREN_WEG
+
+
 # ── Hybrid-Nutzer: Abruf statt Get-App (seit v1.12.69) ────────────────────────
 #
 # Für Hybrid-Nutzer stellt der Betreiber die Add-ins in Exchange LOKAL bereit

@@ -686,7 +686,10 @@ async def _check_ews_zugriff(email: str) -> dict:
         return _make_result("ok", "EWS-Zugriff: Abwesenheit lesbar (Exchange lokal)")
     stufe = ("error" if erg["code"] in ews_onprem.KEIN_ZUGRIFF_CODES
              or erg["code"] in ("anmeldung", "tls", "konfiguration") else "warn")
-    return _make_result(stufe, f"EWS-Zugriff: {erg['detail']}"[:300])
+    erg_pruefung = _make_result(stufe, f"EWS-Zugriff: {erg['detail']}"[:300])
+    if erg["code"] in ews_onprem.KEIN_ZUGRIFF_CODES:
+        erg_pruefung["ews_code"] = erg["code"]      # für die Aufgabe abnahme._ews_bereich
+    return erg_pruefung
 
 
 async def _check_postfach_lesen(email: str, smime_active) -> dict:
@@ -708,7 +711,10 @@ async def _check_postfach_lesen(email: str, smime_active) -> dict:
     except ews_onprem.EwsFehler as exc:
         stufe = ("error" if exc.code in ews_onprem.KEIN_ZUGRIFF_CODES
                  or exc.code in ("anmeldung", "tls", "konfiguration") else "warn")
-        return _make_result(stufe, f"Posteingang über EWS nicht lesbar: {exc.detail}"[:300])
+        erg_pruefung = _make_result(stufe, f"Posteingang über EWS nicht lesbar: {exc.detail}"[:300])
+        if exc.code in ews_onprem.KEIN_ZUGRIFF_CODES:
+            erg_pruefung["ews_code"] = exc.code     # für die Aufgabe abnahme._ews_bereich
+        return erg_pruefung
     except Exception as exc:                                       # noqa: BLE001
         return _make_result("warn", f"Posteingang über EWS nicht lesbar: {exc}"[:300])
     return _make_result("ok", "Posteingang über EWS lesbar (Zertifikatsbezug möglich)")

@@ -79,10 +79,17 @@ def test_die_hoehe_wird_gemessen_und_nicht_geraten(css):
     darüber steht. In CSS ist er nicht auszudrücken; `calc(100vh - 240px)` war
     geraten und um 90 bis 120px daneben. Die Höhe kommt deshalb aus dem Skript
     — und die Stelle, die sie setzt, muss es auch geben."""
-    seite = (STIL.parent.parent / "templates" / "mailboxes.html").read_text(encoding="utf-8")
-    assert "function tabellenHoeheAnpassen()" in seite, "die Messung fehlt"
-    assert seite.count("tabellenHoeheAnpassen()") >= 3, \
-        "die Messung muss beim Zeichnen UND beim Fensterwechsel laufen"
+    # Seit v1.12.86 ein gemeinsamer Baustein in base.html (rollbereichHoehe),
+    # den die Postfachliste beim Zeichnen ruft; er hängt sich selbst an resize.
+    vorlagen = STIL.parent.parent / "templates"
+    basis = (vorlagen / "base.html").read_text(encoding="utf-8")
+    seite = (vorlagen / "mailboxes.html").read_text(encoding="utf-8")
+    assert "function rollbereichHoehe(box, rueckfall)" in basis, "die Messung fehlt"
+    kern = basis[basis.index("function rollbereichHoehe"):]
+    assert "addEventListener('resize'" in kern[:kern.index("box.style.maxHeight = platz")], \
+        "die Messung muss auch beim Fensterwechsel laufen"
+    assert "rollbereichHoehe(document.querySelector('.tabellen-rollbereich'))" in seite, \
+        "die Postfachliste ruft die Messung nicht"
     assert "max-height" not in _block(css, "(pointer: fine), (min-width: 1100px)"), \
         "feste Hoehe im Stil — sie ueberschreibt die gemessene nicht, aber sie raet wieder"
 
