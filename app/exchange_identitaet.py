@@ -301,13 +301,27 @@ def _schluessel(url: str, x5t: str, laden, jetzt: float):
 
 # ── Identität ─────────────────────────────────────────────────────────────────
 
-def postfach_zuordnen(msexchuid) -> str:
+def form_beschreiben(wert) -> str:
+    """Form eines Werts für das Protokoll, OHNE seinen Inhalt preiszugeben:
+    Buchstaben-/Ziffernfolgen werden zu ihrer Länge, Trennzeichen bleiben
+    („8-4-4-4-12@a6.a7.a3“). Anlass (18.11.2026): Die erste Live-Probe lehnte
+    msexchuid ab, ohne dass erkennbar war, welche Form Exchange SE liefert."""
+    if wert is None:
+        return "fehlt"
+    if not isinstance(wert, str):
+        return f"Typ {type(wert).__name__}"
+    return re.sub(r"[0-9A-Za-z]+", lambda m: str(len(m.group(0))), wert)[:80] or "leer"
+
+
+def postfach_zuordnen(msexchuid, appctx_schluessel=None) -> str:
     """Hauptadresse des Hybrid-Nutzers zur GUID aus `msexchuid` — oder Abgelehnt."""
     import exo_mailboxes
     import mailbox_match
     m = _GUID_RE.match(msexchuid if isinstance(msexchuid, str) else "")
     if not m:
-        raise Abgelehnt("msexchuid fehlt oder hat nicht die Form <GUID>@<Server>")
+        raise Abgelehnt("msexchuid fehlt oder hat nicht die Form <GUID>@<Server> "
+                        f"(Form: {form_beschreiben(msexchuid)}; appctx-Schlüssel: "
+                        f"{', '.join(sorted(appctx_schluessel or [])) or '-'})")
     guid = m.group(1).lower()
     if not exo_mailboxes.hybrid_aktiv():
         raise Abgelehnt("Hybrid-Postfächer sind nicht eingeschaltet (Rückweg smtp)")
@@ -344,7 +358,7 @@ def pruefen(token: str, aud_erwartet: str, jetzt: float | None = None, laden=Non
     if pub is None:
         raise Abgelehnt(f"kein Signaturschlüssel mit x5t {kopf['x5t'][:40]} im Metadaten-Dokument")
     signatur_pruefen(pub, signiert, signatur)
-    return postfach_zuordnen(ctx.get("msexchuid"))
+    return postfach_zuordnen(ctx.get("msexchuid"), list(ctx))
 
 
 def zwischenspeicher_leeren() -> None:

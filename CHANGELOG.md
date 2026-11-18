@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.80 — 2026-11-18 — Identitätstoken: Ablehnung nennt die Form
+
+Lehnt das Gateway ein Exchange-Identitätstoken ab, weil `msexchuid` nicht die
+erwartete Form hat, nennt die Protokollzeile jetzt die Form des Werts und die
+vorhandenen Schlüssel von `appctx`. Die Kennung selbst nennt sie nicht:
+Buchstaben- und Ziffernfolgen erscheinen nur als ihre Länge, etwa
+`8-4-4-4-12@…`. Damit lässt sich die von Exchange gelieferte Form erkennen,
+ohne sie zu erraten.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.79 — 2026-11-18 — Hybrid-Postfächer zählen nur, wenn das Gateway sie bedient
+
+Für die Postfachzählung der Lizenz (Fair Use) zählen Hybrid-Postfächer nur
+noch, solange die Option *Hybrid-Nutzer einbeziehen* wirkt, also eingeschaltet
+und mit Rückweg SMTP Port 25. Ist sie aus, bleiben die Einträge gespeichert und
+kommen beim Wiedereinschalten zurück. Das Gateway nimmt sie dann aber weder in
+die Verteilerliste auf noch versieht es ihre Post mit einer Signatur. Bisher
+wurden sie trotzdem mitgezählt.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.78 — 2026-11-18 — Sicherheitsprüfung: Fingerabdruck im Identitätstoken
 
 Der SHA-1-Fingerabdruck (`x5t`) im Exchange-Identitätstoken aus v1.12.77 ist
