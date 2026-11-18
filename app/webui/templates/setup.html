@@ -2395,8 +2395,9 @@ async function saveKeyvault() {
             Gateway signiert beim Versand.</li>
           <li>Empfohlen: Manifest herunterladen, auf den Exchange-Server legen und den Befehl mit
             <code>-FileData</code> nehmen (Pfad anpassen). Der Befehl mit <code>-Url</code> lädt das Manifest
-            vom Exchange-Server aus, nicht von deinem Rechner; er braucht eine direkte Verbindung ohne
-            Umleitung und scheitert sonst mit „The app couldn't be downloaded.“</li>
+            aus dem Exchange-Dienst heraus, nicht von deinem Rechner und nicht über die Proxy-Einstellung
+            deiner Sitzung. Er braucht eine direkte Verbindung ohne Umleitung und scheitert sonst mit
+            „The app couldn't be downloaded.“</li>
           <li>Steigt die Fassung eines Manifests: erst <code>Remove-App</code>, dann <code>New-App</code> erneut.</li>
         </ul>
         {% for a in addin_lokal %}
