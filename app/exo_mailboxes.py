@@ -396,6 +396,22 @@ def adressen_von(email: str, hybrid: bool) -> list[str]:
     return []
 
 
+def eintrag_per_guid(guid: str) -> dict | None:
+    """Eintrag des VORHANDENEN Zwischenspeichers (nie ein Abruf) mit dieser
+    ExchangeGuid — EXO-Postfach UND Hybrid-Nutzer; der Aufrufer unterscheidet
+    über `type`. None = nicht im Speicher. Für die Anmeldung per
+    Exchange-Identitätstoken (exchange_identitaet.postfach_zuordnen), die ein
+    EXO-Postfach ausdrücklich ablehnen muss."""
+    g = (guid or "").strip().lower()
+    if not g or g == NULL_GUID:
+        return None
+    with _lock:
+        for m in _cache:
+            if m.get("guid") == g:
+                return dict(m)
+    return None
+
+
 def resolve_guid(email: str) -> str | None:
     """ExchangeGuid for ANY of a mailbox's SMTP addresses (primary or alias).
     This is what makes config survive rename/address changes.

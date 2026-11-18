@@ -5,6 +5,89 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.78 — 2026-11-18 — Sicherheitsprüfung: Fingerabdruck im Identitätstoken
+
+Der SHA-1-Fingerabdruck (`x5t`) im Exchange-Identitätstoken aus v1.12.77 ist
+als Bezeichner gekennzeichnet (`usedforsecurity=False`). Das Format schreibt
+SHA-1 vor (RFC 7515). Geprüft wird das Token über die RS256-Signatur mit dem
+so gefundenen Schlüssel. Keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.77 — 2026-11-18 — Verfassen-Add-in für Konten auf Exchange lokal (Exchange-Identitätstoken)
+
+**Ursache.** Im klassischen Outlook mit einem Konto auf Exchange lokal (ohne
+Hybrid Modern Auth) lud das Verfassen-Add-in, fügte aber nichts ein. Die
+Meldung lautete „Gateway-Signatur nicht eingefügt: crypto_nonexistent“. Das
+Add-in meldet sich per NAA an. NAA gibt es laut Microsoft nur für
+Microsoft-Konten und Entra-ID-Identitäten (Microsoft Learn, „Nested app auth
+requirement sets“), nicht für ein Konto auf Exchange lokal. Ohne NAA-Brücke
+fällt MSAL auf seinen Browser-Weg zurück. Das klassische Outlook führt
+Ereignisse aber in einer JavaScript-only-Laufzeit aus, und dort fehlt die
+Web Crypto API (Microsoft Learn, „Runtimes in Office Add-ins“). Daher kommt
+`crypto_nonexistent`.
+
+**Rückfall: Exchange-Identitätstoken.** Scheitert NAA mit
+`crypto_nonexistent` oder ist NAA laut `isSetSupported("NestedAppAuth", "1.1")`
+nicht vorhanden, holt das Add-in das Exchange-Identitätstoken
+(`getUserIdentityTokenAsync`). In Exchange Online ist es abgeschaltet, in
+Exchange lokal weiter verfügbar (Microsoft Learn, „Inside the Exchange identity
+token“). NAA bleibt der erste Weg. Ein Konto in Exchange Online
+(`accountType` office365) nimmt den Rückfall nie, und für Cloud-Konten ändert
+sich nichts.
+
+Das Gateway prüft das Token nach „Validate an Exchange identity token“:
+`typ` JWT, `alg` RS256, `x5t`, `aud` = Adresse der Laufzeit des Add-ins (mit
+eingestellter Außenadresse nur diese), `nbf`/`exp` mit 5 Minuten Spielraum,
+`appctx.version` ExIdTok.V1 und `iss` des Exchange-Dienstes. Die Signatur
+prüft es gegen das Auth-Zertifikat aus dem Metadaten-Dokument (`amurl`). Das
+`amurl` muss auf den Host der eingetragenen EWS-Adresse zeigen. Geladen wird
+das Dokument über dieselbe TLS-Verbindung wie EWS (eigene CA, „Verbinden
+mit“), ohne Umleitungen. Das Ergebnis wird eine Stunde zwischengespeichert.
+Der Fingerabdruck des Zertifikats muss dem `x5t` entsprechen. Das Token nennt
+keine Adresse, nur `msexchuid` (`<GUID>@<Server>`). Die GUID muss die
+ExchangeGuid eines **Hybrid-Nutzers** des Gateways sein. Gehört sie einem
+Exchange-Online-Postfach, wird das Token abgelehnt. Jede Ablehnung steht mit
+Grund im Protokoll („Exchange-Identitätstoken abgelehnt“).
+
+Dass `msexchuid` die ExchangeGuid des Postfachs trägt, ist von Microsoft nicht
+dokumentiert. Passt sie nicht, wird nichts eingefügt, das Gateway signiert beim
+Versand wie bisher, und das Protokoll nennt die GUID aus dem Token.
+
+**Zu tun:** nichts. Das Manifest bleibt gleich; das klassische Outlook lädt die
+neue Laufzeit beim nächsten Start. Der Rückfall braucht die EWS-Adresse der
+lokalen Exchange unter *Einstellungen → Allgemein → Exchange lokal (EWS)* und
+eingeschaltete Hybrid-Postfächer. Ohne die EWS-Adresse bleibt es beim
+bisherigen Verhalten.
+
+---
+
+## v1.12.76 — 2026-11-18 — Let's Encrypt: Schaltfläche in der Einrichtung scheiterte beim Kopieren
+
+**Fehler:** *Einrichtung → Let's Encrypt → Zertifikat beantragen/erneuern*
+meldete „Zertifikat kopieren fehlgeschlagen: … `le-config/live/<Domäne>/fullchain.pem`
+… No such file or directory“, obwohl ein gültiges Zertifikat vorlag.
+
+**Ursache:** Die Schaltfläche rief certbot über einen eigenen, älteren Weg auf,
+ohne festen Zertifikatsnamen, und suchte das Ergebnis danach unter
+`live/<Domäne>`. Ersteinrichtung und automatische Erneuerung verwalten das
+Zertifikat aber unter dem festen Namen `gateway`. Gab es diese Linie, legte
+certbot kein Verzeichnis `live/<Domäne>` an, zum Beispiel weil das Zertifikat
+noch nicht zur Erneuerung fällig war, und das Kopieren lief ins Leere.
+
+**Jetzt:** Die Schaltfläche nutzt denselben Weg wie Ersteinrichtung und
+Erneuerung. Ist das Zertifikat noch nicht fällig, wird das vorhandene übernommen
+und sein Ablaufdatum angezeigt. Ein Test stellt sicher, dass certbot nur noch an
+dieser einen Stelle aufgerufen wird.
+
+**Zu tun:** nichts. Hat die Schaltfläche bei dir diesen Fehler gemeldet, läuft
+das Gateway weiter mit dem bisherigen Zertifikat. Nach dem Update kannst du
+sie erneut drücken.
+
+---
+
 ## v1.12.75 — 2026-11-18 — Abruf der Add-in-Manifeste im Protokoll
 
 Jeder Abruf eines Add-in-Manifests (Knopf, Knopf für Exchange lokal,

@@ -245,7 +245,7 @@ def test_laufzeit_skript_ist_eine_datei_mit_msal_konfig_und_handler(umgebung):
                     "scope": "api://CID/access_as_user",
                     "api": "https://sig.example" + av.SIGNATUR_API,
                     "meldung": "https://sig.example" + av.MELDUNG_API,
-                    "kettenkopf": "X-Exo-Sig-Kette",
+                    "kettenkopf": "X-Exo-Sig-Kette", "identkopf": "X-Exchange-Identitaet",
                     "app": "Signatur",          # Abwesenheit aus → App heißt „Signatur“
                     "fassung": config.VERSION, "hinweis_pc": False}
     assert "\nimport " not in inhalt and "\nexport " not in inhalt   # Classic: keine Importe

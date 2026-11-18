@@ -43,6 +43,15 @@ Beide stehen im selben Manifest-Update, damit Kunden nur EINMAL neu bestätigen
 müssen. Clients ohne das Ereignis feuern es nicht; die Mindestversion bleibt
 1.5, sonst lüde Outlook mobil das Add-in gar nicht.
 
+Seit v1.12.77 ein Rückfall für Konten auf Exchange LOKAL (Hybrid-Nutzer ohne
+Hybrid Modern Auth): Dort gibt es kein NAA, und MSAL scheitert im klassischen
+Outlook mit `crypto_nonexistent`. Das Skript holt dann das
+Exchange-Identitätstoken (`getUserIdentityTokenAsync`) und schickt es im Kopf
+`X-Exchange-Identitaet`; geprüft wird es in `exchange_identitaet` (Signatur
+gegen das Metadaten-Dokument der in EWS_ONPREM_URL eingetragenen Exchange,
+aud, Zeiten, Version, Zuordnung NUR zu Hybrid-Nutzern). NAA bleibt der erste
+Weg; ein Konto in Exchange Online nimmt den Rückfall nie.
+
 Voraussetzung an der Bootstrap-App (Entra): SPA-Umleitung brk-multihub://<host>,
 API-URI api://<client-id> mit Bereich access_as_user, die App selbst als
 vorab berechtigter Client, requestedAccessTokenVersion = 2.
@@ -57,6 +66,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
+import exchange_identitaet
 import graph_client
 import mailbox_match
 import settings_store
@@ -235,6 +245,8 @@ def _konfiguration(base: str) -> dict:
     import config as _config
     return {**naa_konfiguration(), "api": base + SIGNATUR_API, "meldung": base + MELDUNG_API,
             "kettenkopf": sig_thread.ADDIN_KOPF, "app": app,
+            # Kopf für das Exchange-Identitätstoken (Konto auf Exchange lokal).
+            "identkopf": exchange_identitaet.KOPF,
             # Laufzeit-Fassung (geht mit jedem Abruf zurück, siehe _herkunft) und
             # die Hinweiszeile am PC: beides wirkt ohne neues Manifest, weil die
             # Laufzeit bei jedem Start frisch vom Gateway kommt.
@@ -261,7 +273,8 @@ async def officeaddins_allowed(request: Request):
 
 _CORS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Authorization",
+    # X-Exchange-Identitaet: Anmeldung eines Kontos auf Exchange lokal (exchange_identitaet).
+    "Access-Control-Allow-Headers": "Authorization, " + exchange_identitaet.KOPF,
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Max-Age": "600",
 }
@@ -376,6 +389,36 @@ async def _bezug_per_kennung(ident: str, message_id: str, weg: str) -> dict | No
     return graph_client.bezug_aus_treffern(treffer)
 
 
+def _aud_erwartet(request) -> str:
+    """`aud` eines Exchange-Identitätstokens: die erste SourceLocation unter
+    FormSettings (ItemEdit) im Manifest (MS Learn, „Inside the Exchange identity
+    token“) — hier LAUFZEIT_HTML. Ist eine Außenadresse eingestellt, gilt NUR
+    sie; die weitergereichte Adresse der Anfrage (X-Forwarded-Host) ist dann
+    nicht maßgeblich."""
+    import aussenadresse
+    base = (aussenadresse.konfiguriert() or _addin_base_url(request)).rstrip("/")
+    return base + LAUFZEIT_HTML
+
+
+async def _exchange_anmeldung(request) -> str:
+    """Adresse des Hybrid-Nutzers aus dem Exchange-Identitätstoken — "" bei
+    Ablehnung (der Grund steht im Protokoll, nicht in der Antwort)."""
+    token = request.headers.get(exchange_identitaet.KOPF.lower()) or ""
+    try:
+        email = await asyncio.to_thread(exchange_identitaet.pruefen, token, _aud_erwartet(request))
+    except exchange_identitaet.Abgelehnt as exc:
+        log.warning("Verfassen-Add-in: Exchange-Identitätstoken abgelehnt (%s) — %s",
+                    _plattform(request), exc)
+        return ""
+    except Exception as exc:                                  # noqa: BLE001 — nie 500 ins Add-in
+        log.warning("Verfassen-Add-in: Exchange-Identitätstoken nicht prüfbar (%s) — %s: %s",
+                    _plattform(request), type(exc).__name__, str(exc)[:200])
+        return ""
+    log.info("Verfassen-Add-in: %s angemeldet über Exchange-Identitätstoken (Exchange lokal, %s)",
+             email, _plattform(request))
+    return email
+
+
 @router.get(SIGNATUR_API)
 async def verfassen_signatur(request: Request):
     """Signatur des ANGEMELDETEN Nutzers — die Adresse stammt aus dem Token,
@@ -396,12 +439,20 @@ async def verfassen_signatur(request: Request):
     entscheidet beim Versand wie bisher."""
     kopf = request.headers.get("authorization") or ""
     claims = sso_mod.verify_access_token(kopf[7:].strip()) if kopf[:7].lower() == "bearer " else None
-    if not claims:
+    if claims:
+        email = (claims.get("preferred_username") or claims.get("upn") or "").strip().lower()
+        if "@" not in email:
+            log.warning("Verfassen-Add-in: Token ohne Adresse (oid=%s)", claims.get("oid"))
+            return JSONResponse({"html": ""}, headers=_CORS)
+    elif not kopf and request.headers.get(exchange_identitaet.KOPF.lower()):
+        # Konto auf Exchange lokal (kein NAA): Exchange-Identitätstoken, nur
+        # für Hybrid-Nutzer (exchange_identitaet). Ein Bearer-Kopf, der nicht
+        # trägt, fällt NICHT hierher durch.
+        email = await _exchange_anmeldung(request)
+        if not email:
+            return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401, headers=_CORS)
+    else:
         return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401, headers=_CORS)
-    email = (claims.get("preferred_username") or claims.get("upn") or "").strip().lower()
-    if "@" not in email:
-        log.warning("Verfassen-Add-in: Token ohne Adresse (oid=%s)", claims.get("oid"))
-        return JSONResponse({"html": ""}, headers=_CORS)
     plattform = _herkunft(request)
     import intern as _intern
     import policies
