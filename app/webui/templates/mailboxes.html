@@ -186,6 +186,12 @@ async function ankerAnwenden() {
         <button class="btn secondary btn-sm" onclick="setAllVisible('smime', true)">Alle</button>
         <button class="btn secondary btn-sm" onclick="setAllVisible('smime', false)">Kein</button>
       </span>
+      <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px"
+            title="Je Postfach eine Prüfmail an sich selbst: Greift die Transportregel schon? Nur sichtbare, gespeichert aktivierte Postfächer, ohne Hybrid-Nutzer.">
+        Transportregel:
+        <button class="btn secondary btn-sm" id="regel-probe-alle-btn" onclick="regelPruefenSichtbare()">Sichtbare prüfen</button>
+      </span>
+      <span id="regel-probe-alle-status" hidden style="font-size:12px"></span>
     </div>
     <div class="tabellen-rollbereich">
     <table style="min-width:640px;width:100%;border-collapse:collapse;font-size:13px">
@@ -955,7 +961,7 @@ var _CHECK_LABELS = {
   exo_mailbox: 'EXO-Postfach', dg_member: 'DG-Mitglied', imap_permission: 'IMAP-Berechtigung',
   template: 'Signatur', smime_cert: 'S/MIME Zertifikat', smime_key: 'S/MIME Key', kv_sign: 'Key Vault',
   addin_verfassen: 'Add-in Signatur', addin_knopf: 'Add-in Knopf', graph_postfach: 'Graph-Zugriff', abwesenheit: 'Abwesenheit',
-  postfach_lesen: 'Postfach lesen (EWS)'
+  postfach_lesen: 'Postfach lesen (EWS)', regel_greift: 'Transportregel'
 };
 
 // Zustände aus health_check._make_result — jeder muss hier stehen
@@ -989,7 +995,9 @@ function showHealthModal(mb) {
       '<td style="padding:6px 10px;font-size:12px;font-weight:600;' + (c.name ? 'min-width:110px' : 'white-space:nowrap') + '">' +
         esc(c.name || _CHECK_LABELS[key] || key) + '</td>' +
       '<td style="padding:6px 8px;font-size:12px;color:' + sColor + ';white-space:nowrap;font-weight:700">' + sSym + '</td>' +
-      '<td style="padding:6px 8px;font-size:12px;color:#374151;word-break:break-word">' + esc(c.detail || '') + '</td>' +
+      '<td style="padding:6px 8px;font-size:12px;color:#374151;word-break:break-word">' + esc(c.detail || '') +
+        (key === 'regel_greift' && c.checked_at
+          ? ' <span style="color:#64748b">(Probe ' + esc(new Date(c.checked_at).toLocaleString('de-DE')) + ')</span>' : '') + '</td>' +
       '</tr>';
   }).join('');
 
@@ -1007,10 +1015,25 @@ function showHealthModal(mb) {
   }
   bookingsHtml += '</div>';
 
+  // Regelprobe (regel_probe.py): nur auf Knopfdruck, nie in „Status aktualisieren“.
+  var regelHtml = '<div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">' +
+    '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">Transportregel</div>';
+  if (mb.sig || mb.smime) {
+    regelHtml += '<div style="font-size:11px;color:#64748b;margin-bottom:6px">' +
+      'Sendet eine Prüfmail an das Postfach selbst. Greift die Regel, verwirft das Gateway sie; ' +
+      'sonst löscht es sie aus dem Posteingang. Dauert meist unter 3 Minuten, höchstens 10.</div>' +
+      '<button class="btn secondary btn-sm" id="regel-probe-btn" onclick="regelPruefenEins(\'' +
+      escJsAttr(mb.email) + '\')">Regel prüfen</button> <span id="regel-probe-ergebnis" hidden></span>';
+  } else {
+    regelHtml += '<div style="font-size:11px;color:#888">Nur für aktivierte Postfächer ' +
+      '(Signatur oder S/MIME, gespeichert) — nur sie stehen in der Verteilerliste.</div>';
+  }
+  regelHtml += '</div>';
+
   document.getElementById('health-modal-body').innerHTML = (rows
     ? '<table style="width:100%;border-collapse:collapse"><tbody>' + rows + '</tbody></table>'
     : '<p style="color:#888;font-size:13px">Keine Detaildaten vorhanden — Status aktualisieren drücken.</p>')
-    + bookingsHtml;
+    + regelHtml + bookingsHtml;
   document.getElementById('health-modal-overlay').style.display = 'flex';
 }
 
@@ -1148,6 +1171,7 @@ function renderMailboxTable(mailboxes) {
 
     // Health status
     var tdStatus = document.createElement('td');
+    tdStatus.className = 'mb-status-zelle';
     tdStatus.style.cssText = 'text-align:center;padding:6px 8px;' + (_hasHealthData ? '' : 'display:none');
     tdStatus.innerHTML = _healthBadge(mb);
 
@@ -1257,6 +1281,90 @@ function setAllVisible(type, state) {
     cb.checked = state;
     cb.dispatchEvent(new Event('change'));
   });
+}
+
+// ── Regelprobe ────────────────────────────────────────────────────────────
+// Startet Proben (Server: regel_probe.py) und wartet, bis keine der Adressen
+// mehr läuft. Danach nur die Gesundheitsdaten nachladen, NICHT die Tabelle neu
+// aufbauen — sonst gingen ungespeicherte Änderungen in der Liste verloren.
+var REGEL_PROBE_MAX_MS = 15 * 60 * 1000;
+async function _regelProbe(emails, knopf, anzeige) {
+  return knopfAktion(knopf, null, async function(text) {
+    var r = await postJSON('/api/mailboxes/regel-probe', {emails: emails});
+    if (!r.ok) return r;
+    var offen = (r.gestartet || []).concat(r.laufen_schon || []);
+    var t0 = Date.now();
+    while (offen.length && Date.now() - t0 < REGEL_PROBE_MAX_MS) {
+      text('Prüfe ' + offen.length + (offen.length === 1 ? ' Postfach' : ' Postfächer') +
+           ' … ' + Math.round((Date.now() - t0) / 1000) + ' s');
+      await warten(5000);
+      var s = await getJSON('/api/mailboxes/regel-probe/status');
+      if (!s.ok) continue;                 // Takt ausgefallen — weiter fragen
+      offen = offen.filter(function(e) { return (s.laufend || []).indexOf(e) >= 0; });
+    }
+    await _gesundheitNachladen(emails);
+    return {ok: true, offen: offen, abgelehnt: r.abgelehnt || {}};
+  }, {anzeige: anzeige});
+}
+
+async function _gesundheitNachladen(emails) {
+  var h = await getJSON('/api/health/mailboxes');
+  if (!h.ok) return;
+  (_mbData || []).forEach(function(mb) {
+    if (emails.indexOf(mb.email) < 0 || !h[mb.email]) return;
+    mb.health_checks = h[mb.email].checks || {};
+    mb.health_overall = h[mb.email].overall;
+    var cb = document.querySelector('.mb-sig[data-idx="' + mb._idx + '"]');
+    var zelle = cb && cb.closest('tr') && cb.closest('tr').querySelector('.mb-status-zelle');
+    if (zelle) zelle.innerHTML = _healthBadge(mb);
+  });
+}
+
+function _regelErgebnisText(mb) {
+  var c = (mb && mb.health_checks || {}).regel_greift;
+  return c ? [c.detail || '', c.status === 'ok' || c.status === 'info'] : ['Kein Ergebnis', false];
+}
+
+async function regelPruefenEins(email) {
+  var d = await _regelProbe([email], 'regel-probe-btn', 'regel-probe-ergebnis');
+  var mb = (_mbData || []).find(function(m) { return m.email === email; });
+  if (!d.ok) { showMsg('regel-probe-ergebnis', 'Fehler: ' + errText(d), false); return; }
+  if (d.abgelehnt[email]) { showMsg('regel-probe-ergebnis', d.abgelehnt[email], false); return; }
+  // Modal mit dem neuen Stand neu zeichnen, Ergebnis am Knopf melden.
+  if (mb && document.getElementById('health-modal-overlay').style.display !== 'none') showHealthModal(mb);
+  var t = d.offen.length ? ['Läuft noch — später erneut öffnen', false] : _regelErgebnisText(mb);
+  showMsg('regel-probe-ergebnis', t[0], t[1]);
+}
+
+async function regelPruefenSichtbare() {
+  var emails = [];
+  document.querySelectorAll('#mb-tbody tr').forEach(function(tr) {
+    if (tr.style.display === 'none') return;
+    var cb = tr.querySelector('.mb-sig');
+    var mb = cb ? _mbData[parseInt(cb.dataset.idx)] : null;
+    // Gespeicherter Stand zählt: Nur er steht in der Verteilerliste.
+    if (mb && (mb.sig || mb.smime) && mb.type !== 'hybrid') emails.push(mb.email);
+  });
+  if (!emails.length) {
+    showMsg('regel-probe-alle-status', 'Keine sichtbaren aktivierten Postfächer.', false);
+    return;
+  }
+  if (!confirm('Transportregel für ' + emails.length + ' Postfach/Postfächer prüfen?\n\n'
+      + 'Je Postfach geht eine Prüfmail an sich selbst. Greift die Regel, verwirft das Gateway '
+      + 'sie; sonst löscht es sie aus dem Posteingang. Höchstens 3 gleichzeitig, '
+      + 'je Postfach bis zu 10 Minuten.')) return;
+  var d = await _regelProbe(emails, 'regel-probe-alle-btn', 'regel-probe-alle-status');
+  if (!d.ok) { showMsg('regel-probe-alle-status', 'Fehler: ' + errText(d), false); return; }
+  var zaehl = {greift: 0, sonst: 0};
+  (_mbData || []).forEach(function(mb) {
+    if (emails.indexOf(mb.email) < 0 || d.abgelehnt[mb.email]) return;
+    var c = (mb.health_checks || {}).regel_greift;
+    if (c && c.status === 'ok') zaehl.greift++; else zaehl.sonst++;
+  });
+  var text = 'Regel greift bei ' + zaehl.greift + ' von ' + emails.length + ' Postfächern';
+  if (zaehl.sonst) text += '; ' + zaehl.sonst + ' ohne Bestätigung — Details unter ℹ in der Statusspalte';
+  if (d.offen.length) text += '; ' + d.offen.length + ' laufen noch';
+  showMsg('regel-probe-alle-status', text + '.', !zaehl.sonst && !d.offen.length);
 }
 
 function _eurMb(c) { return ((c || 0) / 100).toFixed(2).replace('.', ',') + ' €'; }

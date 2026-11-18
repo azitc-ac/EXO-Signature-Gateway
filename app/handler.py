@@ -917,6 +917,29 @@ class SignatureHandler:
                 else:
                     stats.increment("tenant_geprueft")
 
+            # ── Regelprobe (regel_probe.py): Hat die Transportregel diese Mail
+            # hergeschickt, greift sie für das Postfach — die Probe ist damit
+            # erledigt und wird verworfen (250, keine Zustellung). Steht nach
+            # dem Tenant-Gate (nur eigene Post) und VOR jedem Weg, der zustellt
+            # (Harvest, ACME, Auto-Submitted, Kalender, S/MIME, Signatur) —
+            # sonst ginge die Probe signiert in den Posteingang. Die Loop-
+            # Erkennung braucht sie nicht: Die Probe trägt kein X-Sig-Applied.
+            # Nur für Post vom Exchange-Weg; ein Relay-Gerät oder eine
+            # Einlieferung über 587 kann keine Probe des Gateways sein.
+            # ⚠️ Verworfen wird NUR bei einer offenen, vom Gateway ausgestellten
+            # Kennung für genau dieses Postfach — sonst läuft die Mail normal
+            # weiter (tests/test_regel_probe.py).
+            if not aus_relay_netz and not _ident:
+                import regel_probe
+                _probe = regel_probe.erkennen(msg.get(regel_probe.KOPF, ""), _subject,
+                                              sender, recipients)
+                if _probe:
+                    log.info("Regelprobe %s für %s: am Gateway angekommen nach %.1f s — "
+                             "verworfen (Transportregel greift)", _probe["probe_id"],
+                             _probe["adresse"], _probe["laufzeit_s"])
+                    _audit("regel_probe")
+                    return "250 OK"
+
             # ── Harvest-only mode (BCC to harvest address) ────────────────────
             harvest_rcpt = (settings_store.get("SMIME_HARVEST_RCPT") or "").lower().strip()
             if harvest_rcpt and any(r.lower() == harvest_rcpt for r in recipients):

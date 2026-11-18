@@ -3,7 +3,7 @@
  "tokens_in_kopien": {
   "app/webui/templates/_testmail.html": 60,
   "app/webui/templates/abwesenheit.html": 275,
-  "app/webui/templates/base.html": 144,
+  "app/webui/templates/base.html": 152,
   "app/webui/templates/notfall.html": 79,
   "app/webui/templates/preview.html": 63,
   "app/webui/templates/relay.html": 186,
@@ -41,6 +41,12 @@
    "von": 75,
    "auf": 79,
    "grund": "Dieselbe Fundstelle wie 0 → 75: IKON bekam das Symbol „umschlag“ (Gelesen/Ungelesen) und gleicht TYPE_LABELS damit um einen Eintrag länger. Die Zieh-Logik der neuen Listenspalten ist dagegen KEINE Kopie mehr — sie teilt sich ziehgriff() mit den Spaltentrennern."
+  },
+  {
+   "datei": "app/webui/templates/base.html",
+   "von": 144,
+   "auf": 152,
+   "grund": "Neue Zeile regel_probe in der Datentabelle AKTIONEN (Aktionsname → Text/Marke fürs Mailprotokoll, v1.12.64). Tabellenzeilen ähneln sich zwangsläufig; keine Code-Kopie."
   }
  ]
 }

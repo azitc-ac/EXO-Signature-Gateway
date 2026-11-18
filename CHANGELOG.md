@@ -5,6 +5,81 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.66 — 2026-11-18 — Kopien-Prüfung: Begründung nachtragbar
+
+Die Prüfung des Kopien-Stands (`tests/test_kopien_stand.py`) erkennt jetzt
+auch Begründungen aus späteren Fassungen. Ein vergessener Eintrag lässt sich so
+im nächsten Commit nachholen, ohne die Git-Historie umzuschreiben. Ohne jede
+Begründung schlägt die Prüfung weiterhin fehl. Keine Änderung am Verhalten des
+Gateways.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.65 — 2026-11-18 — Kopien-Stand begründet
+
+Der Kopien-Stand (`tools/kopien_stand.json`) begründet den Anstieg in
+`base.html` aus v1.12.64: eine neue Zeile der Aktionstabelle des
+Mailprotokolls, keine Code-Kopie. Keine Änderung am Verhalten.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.64 — 2026-11-18 — Regelprobe: greift die Transportregel schon?
+
+Neu im Gesundheitsstatus eines Postfachs (Postfächer → Statusspalte → ℹ):
+Knopf **Regel prüfen**, und in der Postfachliste die Schnellaktion
+**Transportregel: Sichtbare prüfen** für alle sichtbaren, gespeichert
+aktivierten Postfächer. Die Probe belegt durch einen echten Durchlauf, ob die
+Transportregel (`FromMemberOf` auf die Verteilerliste des Gateways) Post dieses
+Postfachs schon zum Gateway leitet. Exchange übernimmt neue Mitglieder der
+Verteilerliste erst nach bis zu ~3 Stunden (v1.12.57, Marke „wirkt in bis zu
+3 h“); die Probe zeigt, ob es im Einzelfall schon so weit ist.
+
+Ablauf: Das Gateway sendet per Graph eine Mail des Postfachs an sich selbst
+(ohne Kopie in „Gesendete Elemente“). Sie trägt eine einmalige Kennung im Kopf
+`X-GW-Regelprobe` und im Betreff. Greift die Regel, kommt sie am Gateway an;
+das Gateway erkennt die Kennung, vermerkt die Laufzeit und verwirft die Mail —
+sie wird nicht zugestellt (Mailprotokoll: *Regelprobe*). Greift die Regel
+nicht, stellt Exchange die Mail in den Posteingang zu; das Gateway sucht sie
+dort nach 2,5 Minuten und löscht sie (Berechtigung `Mail.ReadWrite`, gehört zum
+Standardumfang). Nach spätestens 10 Minuten steht das Ergebnis fest.
+
+Ergebnis als Prüfung **Transportregel** mit Zeitpunkt der Probe:
+* *Regel greift* (OK) — mit der Laufzeit bis zum Gateway; die Marke „wirkt in
+  bis zu 3 h“ entfällt dann.
+* *Regel greift noch nicht* (Hinweis) — innerhalb von 3 Stunden nach der
+  Aktivierung des Postfachs; kein Fehler.
+* *Regel greift nicht* (Fehler) — danach; Mitgliedschaft in der Verteilerliste
+  und Transportregel prüfen.
+* *Ohne Ergebnis* (Warnung) — Probe weder am Gateway noch im Posteingang, oder
+  sie kam über ein Gateway, ohne als Probe erkannt zu werden; später erneut
+  prüfen.
+
+Das Ergebnis bleibt bei späteren Statusprüfungen stehen, solange das Postfach
+aktiv ist und die Probe nach der letzten Aktivierung lief. Geprüft wird nur
+auf Knopfdruck, nie von selbst. Je Postfach läuft höchstens eine Probe; die
+Schnellaktion prüft höchstens drei Postfächer gleichzeitig, ein Fehler bei
+einem Postfach bricht den Lauf nicht ab.
+
+Sicherheit: Verworfen wird nur eine Mail mit einer vom Gateway ausgestellten,
+noch offenen Kennung (zufällig, 192 Bit, einmalig, nach höchstens 11 Minuten
+ungültig), deren Absender und einziger Empfänger genau das geprüfte Postfach
+ist — und nur auf dem Weg von Exchange, nie von einem Relay-Gerät oder über
+Port 587. Jede andere Mail mit dem Kopf oder Betreff läuft normal weiter und
+erscheint mit einer Warnung im Protokoll. Startet das Gateway während einer
+Probe neu, wird eine danach eintreffende Probe normal zugestellt.
+
+Hybrid-Nutzer werden nicht geprüft: Eine Mail an sich selbst stellt die lokale
+Exchange-Organisation direkt zu, sie erreicht Exchange Online und die Regel
+nie. Der Gesundheitsstatus nennt den Grund.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.63 — 2026-11-18 — Signatur in OWA (lokal) für Hybrid-Nutzer
 
 Neue Option in der Karte *Einstellungen → Allgemein → Exchange lokal (EWS)*:

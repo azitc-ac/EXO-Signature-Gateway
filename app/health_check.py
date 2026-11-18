@@ -851,17 +851,31 @@ async def _checks_smime(email: str, smime_active, kv_url: str) -> dict:
 
 
 def _ergebnis_speichern(email: str, checks: dict) -> dict:
-    overall = _compute_overall(checks)
-    result = {
-        "last_checked": _now_str(),
-        "overall": overall,
-        "checks": checks,
-    }
-
-    # Persist to settings_store
-    health: dict = dict(settings_store.get("MAILBOX_HEALTH") or {})
-    health[email] = result
-    settings_store.force_update({"MAILBOX_HEALTH": health})
+    import mailbox_match
+    import regel_probe
+    # RLock: Lesen und Schreiben als ein Schritt — eine Regelprobe kann parallel
+    # ihr Ergebnis in denselben Eintrag schreiben (regel_probe.speichern).
+    with settings_store._lock:
+        health: dict = dict(settings_store.get("MAILBOX_HEALTH") or {})
+        # Die Regelprobe läuft nur auf Knopfdruck, nie in dieser Prüfung: Ihr
+        # letztes Ergebnis wird übernommen, solange es noch gilt (aktives
+        # Postfach, Probe nach der letzten Aktivierung).
+        probe = (health.get(email) or {}).get("regel_probe")
+        cfg = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, email)
+        if regel_probe.aktuell(probe, cfg):
+            checks["regel_greift"] = regel_probe.als_pruefung(probe)
+        else:
+            probe = None
+        overall = _compute_overall(checks)
+        result = {
+            "last_checked": _now_str(),
+            "overall": overall,
+            "checks": checks,
+        }
+        if probe:
+            result["regel_probe"] = probe
+        health[email] = result
+        settings_store.force_update({"MAILBOX_HEALTH": health})
 
     log.info("health_check: %s → overall=%s", email, overall)
     return result
