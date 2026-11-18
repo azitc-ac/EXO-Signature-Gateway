@@ -398,6 +398,52 @@
       // Eine Zeile über die ganze Tabellenbreite statt Inhalt: „Noch keine …“,
       // „Wird geladen …“ oder ein Fehler. `html` ist HTML — Werte darin maskiert
       // der Aufrufer (esc). Gedämpft über .muted, Fehler im Palettenrot.
+      // Rollbereich einer langen Tabelle auf das Fenster begrenzen — EIN Baustein
+      // (bis v1.12.86 nur in mailboxes.html, fest auf das erste .tabellen-rollbereich).
+      // Kopfzeile bleibt stehen (style.css), die Seite rollt nicht mit.
+      //   rueckfall 'frei'   (Vorgabe): passt der Bereich nicht mehr ins Fenster
+      //                       (unter 160px), wächst die Tabelle wie früher mit.
+      //   rueckfall 'fenster': für Tabellen weiter unten auf der Seite — höchstens
+      //                       eine Fensterhöhe minus Rand, damit man beim
+      //                       Hinrollen die ganze Tabelle samt Rollbalken sieht.
+      // Beim ersten Aufruf merkt sich der Baustein den Bereich und rechnet bei
+      // Größenänderung des Fensters neu (gedrosselt über den Bildaufbau).
+      var _rollbereiche = [];
+      var _rollLauf = null;
+      function rollbereichHoehe(box, rueckfall) {
+        if (!box) return;
+        if (_rollbereiche.indexOf(box) < 0) {
+          _rollbereiche.push(box);
+          box.dataset.rueckfall = rueckfall || 'frei';
+          if (_rollbereiche.length === 1) {
+            window.addEventListener('resize', function () {
+              if (_rollLauf) return;
+              _rollLauf = requestAnimationFrame(function () {
+                _rollLauf = null;
+                _rollbereiche.forEach(function (b) { rollbereichHoehe(b); });
+              });
+            });
+          }
+        }
+        // Dieselbe Bedingung wie im Stil. Ohne die Prüfung bekäme auch ein
+        // Telefon einen festen Ausschnitt — dort fängt er die Wischgeste ab.
+        if (!window.matchMedia('(pointer: fine), (min-width: 1100px)').matches) {
+          box.style.maxHeight = '';
+          return;
+        }
+        var obenImDokument = box.getBoundingClientRect().top + window.scrollY;
+        var platz = window.innerHeight - obenImDokument - 16;
+        // Unter etwa 160px bliebe ein Guckloch mit drei Zeilen. Eine feste
+        // UNTERGRENZE wäre falsch — sie schöbe die Unterkante wieder aus dem Bild
+        // (bei 900x540 gemessen: mit Untergrenze 300 endete der Ausschnitt bei 661).
+        if (platz < 160) {
+          box.style.maxHeight = box.dataset.rueckfall === 'fenster'
+            ? Math.max(240, window.innerHeight - 96) + 'px' : '';
+          return;
+        }
+        box.style.maxHeight = platz + 'px';
+      }
+
       function tabelleHinweis(tb, spalten, html, fehler) {
         if (typeof tb === 'string') tb = document.getElementById(tb);
         if (!tb) return;

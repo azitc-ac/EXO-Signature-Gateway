@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.86 — 2026-11-18 — Höhe langer Tabellen als gemeinsamer Baustein
+
+Die Postfachliste begrenzt ihre Tabelle auf die Fensterhöhe, die Kopfzeile
+bleibt dabei stehen. Diese Messung lag bisher fest in der Seite der
+Postfachliste und griff nur auf die erste Tabelle einer Seite. Sie ist jetzt ein
+gemeinsamer Baustein, den auch andere Seiten für lange Tabellen nutzen können;
+für Tabellen weiter unten auf einer Seite begrenzt er auf eine Fensterhöhe. In
+der Postfachliste ändert sich nichts.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.85 — 2026-11-18 — Aufgabe für veraltetes Knopf-Add-in, kompaktere Übersicht
 
 **Knopf-Add-in als Aufgabe:** Lieferte Exchange den Postfächern noch eine ältere
