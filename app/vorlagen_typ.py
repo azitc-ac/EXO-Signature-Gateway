@@ -69,13 +69,14 @@ def zuweisungen_nach_art() -> dict[str, set[str]]:
         else:
             merke(wert, art)
 
-    # 2) Gruppen-Richtlinien: [{applies_to, template}]
-    for pol in settings_store.get("CUSTOM_POLICIES") or []:
-        if not isinstance(pol, dict):
-            continue
-        art = art_von_slot.get(pol.get("applies_to", ""))
-        if art:
-            wert = pol.get("template")
+    # 2) Gruppen-Richtlinien: je Regel {slot: vorlage} (policies.regeln liest
+    #    auch das Altformat {applies_to, template}).
+    import policies
+    for regel in policies.regeln(settings_store.get("CUSTOM_POLICIES") or []):
+        for slot, wert in regel["vorlagen"].items():
+            art = art_von_slot.get(slot)
+            if not art:
+                continue
             # „Add-in-Auswahl“ trägt eine Namensliste (oder "*"), wie TEMPLATE_POLICIES["addin"].
             for n in (wert if isinstance(wert, list) else [] if wert == "*" else [wert]):
                 merke(n, art)

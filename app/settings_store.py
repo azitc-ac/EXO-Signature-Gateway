@@ -24,7 +24,7 @@ DEFAULTS: dict = {
     "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true, "use_policy": true}} — empty = NOTHING processed (handler.py pass-through)
     "TEMPLATE_POLICIES": {"sig": "default", "min": "Minimal", "addin": "*"},  # {sig, min, oof: DEFAULT der Nutzerwahl; banner, disclaimer, addin: Richtlinie} — policies.py
     "INTERNAL_GROUPS": {},      # {"Vertrieb": ["<guid>", ...], ...} — interne Postfach-Gruppen
-    "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "applies_to": "sig|min|banner|disclaimer|oof", "template": "..."}] — first-match-wins; bei sig/min/oof Gruppen-DEFAULT, bei banner/disclaimer Richtlinie
+    "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "vorlagen": {slot: wert}, "fest": [wahl-slots]}] — first-match je Slot; Lesen NUR über policies.regeln (Altformat applies_to/template wird mitgelesen)
     "GROUP_VARS": {},           # {"Vertrieb": {"vertreter_name": "...", ...}} — Custom-Var-Werte je Gruppe (first-match); Rang: Entra < Gruppe < Postfach-Override
     # Banner-Kampagnen: ein Banner zeitfenster-/gruppengesteuert (banner_campaigns.py).
     # [{"id","name","banner","start","end","group","enabled"}] — aktive Kampagne
@@ -32,7 +32,7 @@ DEFAULTS: dict = {
     "BANNER_CAMPAIGNS": [],
     # Zentrale Abwesenheitsnotiz (Out-of-Office): Master-Schalter. Der eigentliche
     # Text kommt aus einer Vorlage der Art `oof`, zugewiesen über TEMPLATE_POLICIES
-    # ["oof"] bzw. Gruppen (CUSTOM_POLICIES applies_to=oof). Siehe abwesenheit.py.
+    # ["oof"] bzw. Gruppen (CUSTOM_POLICIES vorlagen.oof). Siehe abwesenheit.py.
     "OOO_ENABLED": False,
     # Funktion „Zentrale Abwesenheiten verwalten" (Assistent → Modus & Funktionen).
     # Blendet Menüpunkt „Abwesenheit", die Abwesenheits-Spalte der Postfächer und
@@ -606,7 +606,7 @@ def purge_obsolete() -> list:
 # new DEFAULTS key does NOT need a migration — that's handled automatically by
 # the dict-merge in init(). Migrations run once, in order, and are recorded via
 # the internal "_SCHEMA_VERSION" key so they never re-run on an already-migrated file.
-SETTINGS_SCHEMA_VERSION = 7
+SETTINGS_SCHEMA_VERSION = 8
 
 
 def _migrate_v0_to_v1(data: dict) -> dict:
@@ -767,6 +767,34 @@ def _migrate_v6_to_v7(data: dict) -> dict:
     return data
 
 
+def _migrate_v7_to_v8(data: dict) -> dict:
+    """Gruppen-Regeln tragen alle Slots in EINER Regel (v1.12.90).
+
+    Altformat: eine Regel je Slot (`applies_to` + `template`). Neu:
+    `{"vorlagen": {slot: wert}, "fest": [...]}` — Umwandlung über
+    `policies.regeln`, danach `policies.zusammenfassen`: benachbarte Regeln
+    derselben Gruppe werden eine; ein Slot, den die frühere schon trug, war
+    nie wirksam und entfällt (protokolliert). Wirkungsgleich, geprüft von
+    tests/test_gruppenregeln_fest.py. `fest` beginnt leer — niemandem wird
+    durch das Update eine Wahl gesperrt.
+    """
+    cp = data.get("CUSTOM_POLICIES")
+    if not isinstance(cp, list) or not cp:
+        return data
+    import policies
+    rg = policies.regeln(cp)
+    neu, tot = policies.zusammenfassen(rg)
+    if len(rg) != len(cp):
+        log.info("settings_store: %d unbrauchbare Gruppen-Regel(n) verworfen (nie ausgewertet)",
+                 len(cp) - len(rg))
+    for t in tot:
+        log.info("settings_store: Gruppen-Regel %s war nie wirksam (frühere Regel derselben "
+                 "Gruppe legt den Slot fest) — entfällt", t)
+    log.info("settings_store: Gruppen-Regeln umgestellt — %d Regel(n) → %d", len(cp), len(neu))
+    data["CUSTOM_POLICIES"] = neu
+    return data
+
+
 # Ordered list of (target_version, migration_fn). Each fn receives the full
 # settings dict and returns the migrated dict. Append new entries as the
 # schema evolves — never remove, reorder, or renumber existing ones, since a
@@ -779,6 +807,7 @@ _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
     (5, _migrate_v4_to_v5),
     (6, _migrate_v5_to_v6),
     (7, _migrate_v6_to_v7),
+    (8, _migrate_v7_to_v8),
 ]
 
 

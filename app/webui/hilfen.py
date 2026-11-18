@@ -54,7 +54,9 @@ def _cert_expiry() -> str:
         cert = x509.load_pem_x509_certificate(cert_path.read_bytes(), default_backend())
         expires = cert.not_valid_after_utc
         days = (expires - datetime.now(timezone.utc)).days
-        color = "red" if days < 14 else "orange" if days < 30 else "green"
+        # Palettenfarben, keine Farbnamen: dark-mode.css schaltet nur gelistete
+        # Hex-Werte um — "green" blieb im Dunkelmodus dunkel und kontrastarm.
+        color = "#dc2626" if days < 14 else "#b45309" if days < 30 else "#15803d"
         return f'<span style="color:{color}">{expires.strftime("%d.%m.%Y")} (noch {days} Tage)</span>'
     except Exception as exc:
         return f"Fehler: {exc}"

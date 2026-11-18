@@ -55,7 +55,8 @@ def _lauf(js: str):
     assert standard, "STANDARD_WAHL nicht gefunden"
     vorspann = (_DOM + standard.group(0) + "\n"
                 + "var _templatesByKind = {signatur: ['default', 'kurz'], oof: ['urlaub']};\n"
-                + _funktion(t, "_fuelleVorlagenSelect") + "\n" + _funktion(t, "_buildWahlSelect"))
+                + _funktion(t, "_fuelleVorlagenSelect") + "\n" + _funktion(t, "_istFest") + "\n"
+                + _funktion(t, "_buildWahlSelect"))
     out = subprocess.run(["node", "-e", vorspann + "\n" + js],
                          capture_output=True, text=True, check=True).stdout
     return json.loads(out)
@@ -63,8 +64,8 @@ def _lauf(js: str):
 
 _ZEILE = """
 const sel = _buildWahlSelect(0, 'x', KIND, MB, SLOT, FELD, LEER);
-console.log(JSON.stringify({wert: sel.value, standard: STANDARD_WAHL,
-  optionen: sel.children.map(o => [o.value, o.textContent])}));
+console.log(JSON.stringify({wert: sel.value, standard: STANDARD_WAHL, gesperrt: sel.disabled,
+  titel: sel.title || '', optionen: sel.children.map(o => [o.value, o.textContent])}));
 """
 
 
@@ -104,3 +105,18 @@ def test_eigene_wahl_keine_bleibt_gewaehlt():
                "oof", "oof_template", "— keine —")
     assert r["wert"] == ""
     assert [w for w, _ in r["optionen"]].count(r["standard"]) == 1
+
+
+def test_festgeschriebene_wahl_zeigt_den_gruppenwert_gesperrt():
+    """Von einer Gruppen-Regel festgeschrieben (mb.fest): Auswahl gesperrt, sie
+    zeigt den Gruppenwert — auch wenn eine eigene Wahl im Eintrag ruht."""
+    r = _zeile("signatur", {"template": "kurz", "standard": {"sig": "Marke"},
+                            "fest": {"sig": "Firma"}}, "sig", "template", None)
+    assert r["gesperrt"] is True
+    assert r["wert"] == r["standard"]
+    assert r["optionen"][0] == [r["standard"], "Festgelegt (Marke)"]
+    assert "Firma" in r["titel"]
+    # Ohne Festschreibung bleibt die eigene Wahl gewählt und bedienbar.
+    r = _zeile("signatur", {"template": "kurz", "standard": {"sig": "Marke"}, "fest": {}},
+               "sig", "template", None)
+    assert r["gesperrt"] is False and r["wert"] == "kurz"

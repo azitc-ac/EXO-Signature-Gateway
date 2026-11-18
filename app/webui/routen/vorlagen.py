@@ -48,7 +48,8 @@ def _vorlagenverweise_umbenennen(alt: str, neu: str) -> dict:
                             "disclaimer_template" (Strings), "addin_templates" (Liste)
       TEMPLATE_POLICIES  -> "sig", "min", "banner", "disclaimer", "oof" (Strings),
                             "addin" ("*" oder Liste)
-      CUSTOM_POLICIES[*] -> "template"
+      CUSTOM_POLICIES[*] -> "vorlagen"[slot] (Strings, "addin" Liste) — über
+                            policies.regeln, also auch im Altformat
 
     ⚠️ Bis 2026-09-25 folgten Umbenennungen nur sig/min/addin bzw. template/
     min_template — banner/disclaimer/oof fielen still durch. Renaming ist damit
@@ -95,18 +96,18 @@ def _vorlagenverweise_umbenennen(alt: str, neu: str) -> dict:
         aenderungen["TEMPLATE_POLICIES"] = tp
         geaendert["Richtlinien"] = n_tp
 
-    cp = settings_store.get("CUSTOM_POLICIES") or []
+    # Über policies.regeln: liest Alt- und Neuformat, geschrieben wird das neue.
+    import policies
+    cp = policies.regeln(settings_store.get("CUSTOM_POLICIES") or [])
     n_cp = 0
-    if isinstance(cp, list):
-        for pol in cp:
-            if not isinstance(pol, dict):
-                continue
-            wert = pol.get("template")
+    for regel in cp:
+        vorlagen = regel["vorlagen"]
+        for slot, wert in list(vorlagen.items()):
             if wert == alt:
-                pol["template"] = neu
+                vorlagen[slot] = neu
                 n_cp += 1
             elif isinstance(wert, list) and alt in wert:   # Add-in-Auswahl einer Gruppe
-                pol["template"] = [neu if x == alt else x for x in wert]
+                vorlagen[slot] = [neu if x == alt else x for x in wert]
                 n_cp += 1
     if n_cp:
         aenderungen["CUSTOM_POLICIES"] = cp

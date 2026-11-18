@@ -18,6 +18,22 @@
     #pol-standards .pol-gilt { display:none }
     #pol-standards select { width:100% !important; max-width:100% }
   }
+  /* Gruppen-Regeln: Karte je Regel, Zeile je Vorlage — bricht auf dem Telefon um. */
+  .cpol-karte { border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; margin-bottom:8px }
+  [data-theme="dark"] .cpol-karte { border-color:#495166 }
+  .cpol-kopf, .cpol-zeile { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px }
+  .cpol-kopf { margin-bottom:4px }
+  .cpol-kopf select { flex:1 1 160px; min-width:0; max-width:260px; font-size:12px }
+  .cpol-zeile { padding:3px 0; font-size:12px }
+  .cpol-zeile > label:first-child { flex:0 0 130px }
+  .cpol-steuer { flex:1 1 180px; min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px }
+  .cpol-steuer select { min-width:0; max-width:100%; font-size:12px }
+  .cpol-fest { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; cursor:pointer }
+  /* Add-in-Auswahl: lange Vorlagennamen rollen in der Liste, nicht die Seite. */
+  .cpol-steuer > details { flex:1 1 100%; min-width:0; overflow-x:auto }
+  /* Hinweis unter einer von einer Gruppe festgeschriebenen Auswahl (Farbe: .muted). */
+  .wahl-fest { display:block; font-size:10px; line-height:1.3; margin-top:2px;
+               max-width:130px; margin-left:auto; margin-right:auto; white-space:normal }
 </style>
 
 <!-- Fair-Use-Zähler -->
@@ -492,28 +508,29 @@ async function ankerAnwenden() {
       <span style="font-size:11px;font-weight:400;color:#888">(höhere Priorität · werden in Reihenfolge ausgewertet)</span>
     </div>
     <p class="hint" style="margin:0 0 6px;max-width:640px">
-      <em>Add-in-Auswahl</em> legt fest, welche Vorlagen Mitglieder der Gruppe im
-      Outlook-Add-in wählen können. Ist jemand in mehreren solchen Gruppen, kann er
-      die Vorlagen aller dieser Gruppen wählen. Wer in keiner ist, bekommt die Auswahl
-      aus <em>Vorlagenrichtlinien → Add-in</em>.
+      Eine Regel legt für die Mitglieder ihrer Gruppe beliebig viele Vorlagen fest.
+      Je Vorlage gilt die <strong>erste</strong> Regel, die sie festlegt — die Nummer
+      ist die Reihenfolge. <em>— nicht festgelegt —</em>: Die Regel sagt dazu nichts,
+      eine spätere oder die Vorlagenrichtlinie gilt. <em>— keine —</em>: ausdrücklich
+      keine Vorlage.
     </p>
-    <div style="overflow-x:auto;margin-bottom:6px">
-    <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:500px">
-      <thead>
-        <tr style="border-bottom:2px solid #e2e8f0">
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:32px">#</th>
-          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:156px">Gruppe</th>
-          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:146px">Betrifft</th>
-          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Vorlage</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:50px"></th>
-        </tr>
-      </thead>
-      <tbody id="cpol-tbody"></tbody>
-    </table>
-    </div>
+    <p class="hint" style="margin:0 0 6px;max-width:640px">
+      <em>fest</em> (Signatur, Antwort-, interne Signatur, Abwesenheit): Die Vorlage gilt
+      auch, wenn das Postfach eine eigene gewählt hat. Die Auswahl ist dann im
+      Self-Service und in der Postfachliste gesperrt; eine eigene Wahl bleibt gespeichert
+      und gilt wieder, sobald <em>fest</em> entfällt. Der Haken <em>Vorlagen-Richtlinien</em> eines
+      Postfachs hebt <em>fest</em> nicht auf.
+    </p>
+    <p class="hint" style="margin:0 0 6px;max-width:640px">
+      <em>Add-in-Auswahl</em> legt fest, welche Vorlagen Mitglieder der Gruppe im
+      Outlook-Add-in wählen können — unabhängig von <em>fest</em>. Ist jemand in mehreren
+      solchen Gruppen, kann er die Vorlagen aller dieser Gruppen wählen. Wer in keiner
+      ist, bekommt die Auswahl aus <em>Vorlagenrichtlinien → Add-in</em>.
+    </p>
+    <div id="cpol-liste" style="margin-bottom:6px"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn secondary btn-sm" onclick="addCustomPolicy()">+ Gruppen-Regel</button>
-      <button id="cpol-btn" data-wache-hinweis="cpol-save-result" data-wache-container="#cpol-tbody" class="btn secondary btn-sm" onclick="saveCustomPolicies()">Speichern</button>
+      <button id="cpol-btn" data-wache-hinweis="cpol-save-result" data-wache-container="#cpol-liste" class="btn secondary btn-sm" onclick="saveCustomPolicies()">Speichern</button>
       <span id="cpol-save-result" style="font-size:12px"></span>
     </div>
   </div>
@@ -907,10 +924,34 @@ function _signaturWahlZelle(idx, klasse, mb, slot, feld) {
   var td = document.createElement('td');
   td.style.cssText = 'text-align:center;padding:6px 8px';
   var sel = _buildWahlSelect(idx, klasse, 'signatur', mb, slot, feld, '— keine —');
-  sel.disabled = !mb.sig;
-  sel.style.opacity = mb.sig ? '1' : '0.4';
+  _wahlStand(sel, !mb.sig);
   td.appendChild(sel);
+  _festHinweis(td, mb, slot, feld);
   return td;
+}
+
+// Von einer Gruppen-Regel festgeschrieben (mb.fest = {slot: gruppe},
+// policies.festgeschrieben)? Dann bleibt die Auswahl gesperrt, egal welcher
+// Haken umspringt — und der Server nimmt für diesen Slot ohnehin nichts an.
+function _istFest(mb, slot) {
+  return !!mb.fest && Object.prototype.hasOwnProperty.call(mb.fest, slot);
+}
+// Gesperrt, wenn ohne Wirkung (`aus`: Haken fehlt) ODER festgeschrieben.
+// Ausgegraut nur bei `aus` — der festgeschriebene Wert soll lesbar bleiben.
+function _wahlStand(sel, aus) {
+  sel.disabled = !!aus || sel.dataset.fest === '1';
+  sel.style.opacity = aus ? '0.4' : '1';
+}
+// Zeile unter einer festgeschriebenen Auswahl: welche Gruppe, und ob eine
+// eigene Wahl ruht (bleibt gespeichert, gilt wieder ohne Festschreibung).
+function _festHinweis(td, mb, slot, feld) {
+  if (!_istFest(mb, slot)) return;
+  var eigen = mb[feld];
+  var span = document.createElement('span');
+  span.className = 'muted wahl-fest';
+  span.textContent = 'festgelegt durch ' + mb.fest[slot]
+    + (eigen === null || eigen === undefined ? '' : ' · eigene Wahl „' + (eigen || 'keine') + '“ ruht');
+  td.appendChild(span);
 }
 
 function _buildWahlSelect(idx, klasse, kind, mb, slot, feld, leerText) {
@@ -928,6 +969,14 @@ function _buildWahlSelect(idx, klasse, kind, mb, slot, feld, leerText) {
   o.textContent = 'Standard (' + (std || 'keine') + ')';
   sel.insertBefore(o, sel.firstChild);
   sel.value = aktuell;
+  if (_istFest(mb, slot)) {
+    // Der Standard IST hier der Gruppenwert (die greifende Regel liefert beides).
+    sel.dataset.fest = '1';
+    o.textContent = 'Festgelegt (' + (std || 'keine') + ')';
+    sel.value = STANDARD_WAHL;
+    sel.disabled = true;
+    sel.title = 'Festgelegt durch Gruppe „' + mb.fest[slot] + '“';
+  }
   return sel;
 }
 
@@ -1146,9 +1195,9 @@ function renderMailboxTable(mailboxes) {
     var tdTpl = document.createElement('td');
     tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
     var tplSel = _buildWahlSelect(i, 'mb-template', 'signatur', mb, 'sig', 'template', null);
-    tplSel.disabled = !mb.sig;
-    tplSel.style.opacity = mb.sig ? '1' : '0.4';
+    _wahlStand(tplSel, !mb.sig);
     tdTpl.appendChild(tplSel);
+    _festHinweis(tdTpl, mb, 'sig', 'template');
 
     // Antwort-Signatur (ab 2. eigener Mail im Thread) und interne Signatur
     // (alle Empfänger intern) — Wahl-Slots, die am Signatur-Haken hängen.
@@ -1169,10 +1218,9 @@ function renderMailboxTable(mailboxes) {
     var tdOof = document.createElement('td');
     tdOof.style.cssText = 'text-align:center;padding:6px 8px';
     var oofSel = _buildWahlSelect(i, 'mb-oof', 'oof', mb, 'oof', 'oof_template', '— keine —');
-    var _oofDisabled = !(mb.sig || mb.smime);
-    oofSel.disabled = _oofDisabled;
-    oofSel.style.opacity = _oofDisabled ? '0.4' : '1';
+    _wahlStand(oofSel, !(mb.sig || mb.smime));
     tdOof.appendChild(oofSel);
+    _festHinweis(tdOof, mb, 'oof', 'oof_template');
     // Kalender-Automatik je Postfach wird jetzt im Abwesenheits-Dashboard gesetzt.
 
     // Add-in Vorlagen — greyed when policyActive
@@ -1205,18 +1253,14 @@ function renderMailboxTable(mailboxes) {
       var sig = sigCb.checked;
       var smime = smimeCb.checked;
       // Wahl-Slots hängen nur am Signatur- bzw. S/MIME-Haken, nicht an der Richtlinie.
-      tplSel.disabled = !sig;
-      tplSel.style.opacity = sig ? '1' : '0.4';
-      minSigSel.disabled = !sig;
-      minSigSel.style.opacity = sig ? '1' : '0.4';
-      internSigSel.disabled = !sig;
-      internSigSel.style.opacity = sig ? '1' : '0.4';
+      _wahlStand(tplSel, !sig);
+      _wahlStand(minSigSel, !sig);
+      _wahlStand(internSigSel, !sig);
       _richtlinienStand(bannerSel, sig, pol, mb.banner_template, 'policy-banner-tpl');
       _richtlinienStand(disclaimerSel, sig, pol, mb.disclaimer_template, 'policy-disclaimer-tpl');
       // Abwesenheit greift für aktivierte Postfächer (Signatur ODER S/MIME).
       var oofAus = !(sig || smime) || (isHybrid && !_hybridAbwesenheit);
-      oofSel.disabled = oofAus;
-      oofSel.style.opacity = oofAus ? '0.4' : '1';
+      _wahlStand(oofSel, oofAus);
       var addinAus = !sig || pol;
       addinCtrl.style.opacity = addinAus ? '0.4' : '1';
       addinCtrl.style.pointerEvents = addinAus ? 'none' : '';
@@ -1323,7 +1367,7 @@ function massenVorlageSetzen() {
     gesetzt++;
   });
   showMsg('mb-massen-status', gesetzt + ' Zeile(n) gesetzt'
-    + (gesperrt ? ', ' + gesperrt + ' übersprungen (Spalte gesperrt, etwa ohne Signatur-Haken)' : '')
+    + (gesperrt ? ', ' + gesperrt + ' übersprungen (Spalte gesperrt, etwa ohne Signatur-Haken oder durch eine Gruppe festgelegt)' : '')
     + ' — wirksam nach „Speichern“.', gesetzt > 0);
 }
 
@@ -1857,124 +1901,186 @@ async function saveGroups() {
 
 // ── Benutzerdefinierte Richtlinien ───────────────────────────────────────────
 
-var _customPolicies = []; // [{condition_type, group_name, applies_to, template}]
+var _customPolicies = []; // policies.regeln: [{condition_type, group_name, vorlagen: {slot: wert}, fest: [slot]}]
 
 var _APPLIES_TO_LABELS = {sig: 'Standardsignatur', min: 'Minimalsignatur', intern: 'Interne Signatur', banner: 'Banner', disclaimer: 'Disclaimer', oof: 'Abwesenheit', addin: 'Add-in-Auswahl'};
 // Welchen Vorlagentyp der jeweilige Slot zuweist — spiegelt signature_engine.SLOT_ART.
 var _SLOT_ART = {sig: 'signatur', min: 'signatur', intern: 'signatur', banner: 'banner', disclaimer: 'disclaimer', oof: 'oof'};
+function _cpolHat(pol, slot) {
+  return Object.prototype.hasOwnProperty.call(pol.vorlagen, slot);
+}
+
+// Slots einer Regel (policies.REGEL_SLOTS); festschreibbar sind die ersten vier,
+// die Wahl-Slots (policies.FEST_SLOTS).
+var _CPOL_SLOTS = ['sig', 'min', 'intern', 'oof', 'banner', 'disclaimer', 'addin'];
+var _CPOL_FEST = _CPOL_SLOTS.slice(0, 4);
+// „— nicht festgelegt —“: Der Slot FEHLT in `vorlagen` (die Regel sagt nichts).
+var CPOL_OFFEN = '__offen__';
 
 function _renderCustomPoliciesTable() {
-  var tbody = document.getElementById('cpol-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+  var liste = document.getElementById('cpol-liste');
+  if (!liste) return;
+  liste.innerHTML = '';
   if (!_customPolicies.length) {
-    tabelleHinweis(tbody, 5, 'Keine Regeln. Klicke "+ Gruppen-Regel" um eine hinzuzufügen.');
+    var p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = 'Keine Regeln. Klicke „+ Gruppen-Regel“, um eine hinzuzufügen.';
+    liste.appendChild(p);
     return;
   }
-  _customPolicies.forEach(function(pol, i) {
-    var tr = document.createElement('tr');
-    tr.style.borderBottom = '1px solid #f0f0f0';
+  _customPolicies.forEach(function(pol, i) { liste.appendChild(_cpolKarte(pol, i)); });
+}
 
-    // # cell
-    var tdNum = document.createElement('td');
-    tdNum.className = 'muted';
-    tdNum.style.cssText = 'text-align:center;padding:6px 8px;font-size:12px';
-    tdNum.textContent = i + 1;
-    tr.appendChild(tdNum);
+// Umbauen (Verschieben, Löschen, Hinzufügen): erst die Add-in-Kästchen in die
+// Regeln übernehmen — sie leben bis zum Speichern nur im DOM.
+function _cpolNeuZeichnen(aenderung) {
+  _cpolAddinLesen();
+  aenderung();
+  _renderCustomPoliciesTable();
+}
 
-    // Gruppe select
-    var tdGrp = document.createElement('td');
-    tdGrp.style.padding = '6px 8px';
-    var grpSel = document.createElement('select');
-    grpSel.style.cssText = 'font-size:12px;width:140px';
-    grpSel.dataset.idx = i;
-    var names = _groupNames();
-    if (!names.length) {
-      var opt = document.createElement('option');
-      opt.value = ''; opt.textContent = '— keine Gruppe —';
-      grpSel.appendChild(opt);
-    } else {
-      names.forEach(function(n) {
-        var opt = document.createElement('option');
-        opt.value = n; opt.textContent = n;
-        if (n === pol.group_name) opt.selected = true;
-        grpSel.appendChild(opt);
-      });
-    }
-    grpSel.addEventListener('change', function() { _customPolicies[i].group_name = this.value; });
-    tdGrp.appendChild(grpSel);
-    tr.appendChild(tdGrp);
+function _cpolKnopf(text, titel, aus, wirkung) {
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn secondary btn-sm';
+  b.textContent = text;
+  b.title = titel;
+  b.setAttribute('aria-label', titel);
+  b.disabled = !!aus;
+  b.onclick = function() { _cpolNeuZeichnen(wirkung); };
+  return b;
+}
 
-    // Betrifft select
-    var tdApp = document.createElement('td');
-    tdApp.style.padding = '6px 8px';
-    var appSel = document.createElement('select');
-    appSel.style.cssText = 'font-size:12px;width:130px';
-    // „Abwesenheit" nur bei eingeschalteter Funktion anbieten — eine bestehende
-    // Regel dieser Art bleibt aber sichtbar (sonst kippte sie beim Speichern um).
-    // „Add-in-Auswahl“: welche Vorlagen Mitglieder der Gruppe im Knopf-Add-in
-    // wählen dürfen (Liste statt einer Vorlage; mehrere Gruppen = Vereinigung,
-    // policies.addin_freigabe).
-    ['sig','min','intern','banner','disclaimer','oof','addin'].filter(function(slot) {
-      return slot !== 'oof' || _abwesenheitAktiv || pol.applies_to === 'oof';
-    }).forEach(function(slot) {
-      var opt = document.createElement('option');
-      opt.value = slot; opt.textContent = _APPLIES_TO_LABELS[slot];
-      if (slot === pol.applies_to) opt.selected = true;
-      appSel.appendChild(opt);
-    });
-    appSel.addEventListener('change', function() {
-      var warAddin = _customPolicies[i].applies_to === 'addin';
-      _customPolicies[i].applies_to = this.value;
-      // Wechsel zwischen Einzelvorlage und Auswahlliste: Wertart passt nicht
-      // mehr — neu belegen und die Zeile neu zeichnen.
-      if (warAddin !== (this.value === 'addin')) {
-        _customPolicies[i].template = this.value === 'addin' ? '*' : '';
-        _renderCustomPoliciesTable();
-        return;
-      }
-      // „Betrifft" bestimmt die Art — Vorlagenliste danach neu filtern, den
-      // aktuellen Wert als Sicherheitsnetz behalten.
-      _fuelleVorlagenSelect(tplSel, _SLOT_ART[this.value] || 'signatur',
-                            _customPolicies[i].template, {mitLeer: true});
-    });
-    tdApp.appendChild(appSel);
-    tr.appendChild(tdApp);
+function _cpolKarte(pol, i) {
+  var karte = document.createElement('div');
+  karte.className = 'cpol-karte';
+  karte.dataset.idx = String(i);
 
-    // Vorlage select — Art richtet sich nach „Betrifft"
-    var tdTpl = document.createElement('td');
-    tdTpl.style.padding = '6px 8px';
-    var tplSel = document.createElement('select');
-    if (pol.applies_to === 'addin') {
-      tdTpl.appendChild(_addinAuswahl(Array.isArray(pol.template) ? pol.template : '*',
-                                      {idx: i, allKlasse: 'cpol-addin-all', tplKlasse: 'cpol-addin-tpl'}));
-    } else {
-      tplSel.style.cssText = 'font-size:12px;width:130px';
-      _fuelleVorlagenSelect(tplSel, _SLOT_ART[pol.applies_to] || 'signatur', pol.template, {mitLeer: true});
-      tplSel.addEventListener('change', function() { _customPolicies[i].template = this.value; });
-      tdTpl.appendChild(tplSel);
-    }
-    tr.appendChild(tdTpl);
-
-    // Remove button
-    var tdDel = document.createElement('td');
-    tdDel.style.cssText = 'text-align:center;padding:6px 8px';
-    var delBtn = document.createElement('button');
-    delBtn.className = 'btn secondary';
-    delBtn.style.cssText = 'font-size:11px;padding:2px 8px';
-    delBtn.textContent = '✕';
-    delBtn.onclick = function() { _customPolicies.splice(i, 1); _renderCustomPoliciesTable(); };
-    tdDel.appendChild(delBtn);
-    tr.appendChild(tdDel);
-
-    tbody.appendChild(tr);
+  var kopf = document.createElement('div');
+  kopf.className = 'cpol-kopf';
+  var nr = document.createElement('label');
+  nr.className = 'muted';
+  nr.htmlFor = 'cpol-gruppe-' + i;
+  nr.textContent = (i + 1) + '. Gruppe';
+  kopf.appendChild(nr);
+  var grpSel = document.createElement('select');
+  grpSel.id = 'cpol-gruppe-' + i;
+  var names = _groupNames().slice();
+  // Gelöschte Gruppe sichtbar halten — sonst kippte die Regel beim Speichern still um.
+  if (pol.group_name && names.indexOf(pol.group_name) === -1) names.push(pol.group_name);
+  if (!names.length) names = [''];
+  names.forEach(function(n) {
+    var o = document.createElement('option');
+    o.value = n;
+    o.textContent = n ? (_groupNames().indexOf(n) !== -1 ? n : n + ' (gelöscht)') : '— keine Gruppe —';
+    grpSel.appendChild(o);
   });
+  grpSel.value = pol.group_name || names[0];
+  pol.group_name = grpSel.value;
+  grpSel.addEventListener('change', function() { pol.group_name = this.value; });
+  kopf.appendChild(grpSel);
+  var n = _customPolicies.length;
+  kopf.appendChild(_cpolKnopf('↑', 'Regel nach oben', i === 0, function() {
+    _customPolicies.splice(i - 1, 0, _customPolicies.splice(i, 1)[0]);
+  }));
+  kopf.appendChild(_cpolKnopf('↓', 'Regel nach unten', i === n - 1, function() {
+    _customPolicies.splice(i + 1, 0, _customPolicies.splice(i, 1)[0]);
+  }));
+  kopf.appendChild(_cpolKnopf('✕', 'Regel löschen', false, function() {
+    _customPolicies.splice(i, 1);
+  }));
+  karte.appendChild(kopf);
+
+  // „Abwesenheit" nur bei eingeschalteter Funktion — eine festgelegte bleibt
+  // aber sichtbar (sonst verschwände sie beim Speichern unbemerkt aus der Sicht).
+  _CPOL_SLOTS.filter(function(slot) {
+    return slot !== 'oof' || _abwesenheitAktiv || _cpolHat(pol, 'oof');
+  }).forEach(function(slot) { karte.appendChild(_cpolSlotZeile(pol, i, slot)); });
+  return karte;
+}
+
+function _cpolSlotZeile(pol, i, slot) {
+  var zeile = document.createElement('div');
+  zeile.className = 'cpol-zeile';
+  var id = 'cpol-' + i + '-' + slot;
+  var lbl = document.createElement('label');
+  lbl.htmlFor = id;
+  lbl.textContent = _APPLIES_TO_LABELS[slot];
+  zeile.appendChild(lbl);
+  var steuer = document.createElement('div');
+  steuer.className = 'cpol-steuer';
+  zeile.appendChild(steuer);
+  var sel = document.createElement('select');
+  sel.id = id;
+  var offen = document.createElement('option');
+  offen.value = CPOL_OFFEN;
+  offen.textContent = '— nicht festgelegt —';
+
+  if (slot === 'addin') {
+    // Auswahlliste statt einer Vorlage; mehrere Gruppen = Vereinigung
+    // (policies.addin_freigabe), deshalb ohne „fest“.
+    sel.appendChild(offen);
+    var ja = document.createElement('option');
+    ja.value = 'liste';
+    ja.textContent = 'festgelegt:';
+    sel.appendChild(ja);
+    sel.value = _cpolHat(pol, 'addin') ? 'liste' : CPOL_OFFEN;
+    var auswahl = _addinAuswahl(_cpolHat(pol, 'addin') ? pol.vorlagen.addin : '*',
+                                {idx: i, allKlasse: 'cpol-addin-all', tplKlasse: 'cpol-addin-tpl'});
+    auswahl.hidden = !_cpolHat(pol, 'addin');
+    sel.addEventListener('change', function() {
+      if (this.value === CPOL_OFFEN) { delete pol.vorlagen.addin; auswahl.hidden = true; }
+      else { if (!_cpolHat(pol, 'addin')) pol.vorlagen.addin = '*'; auswahl.hidden = false; }
+    });
+    steuer.appendChild(sel);
+    steuer.appendChild(auswahl);
+    return zeile;
+  }
+
+  var gesetzt = _cpolHat(pol, slot);
+  _fuelleVorlagenSelect(sel, _SLOT_ART[slot], gesetzt ? pol.vorlagen[slot] : '',
+                        {mitLeer: true, leerText: '— keine —'});
+  sel.insertBefore(offen, sel.firstChild);
+  sel.value = gesetzt ? pol.vorlagen[slot] : CPOL_OFFEN;
+  steuer.appendChild(sel);
+
+  var festCb = null;
+  if (_CPOL_FEST.indexOf(slot) !== -1) {
+    var festLbl = document.createElement('label');
+    festLbl.className = 'cpol-fest';
+    festLbl.title = 'Gilt auch gegen eine eigene Wahl des Postfachs; Self-Service und Postfachliste sperren die Auswahl.';
+    festCb = document.createElement('input');
+    festCb.type = 'checkbox';
+    festCb.checked = pol.fest.indexOf(slot) !== -1;
+    festCb.disabled = !gesetzt;      // „fest“ nur für einen festgelegten Wert
+    festCb.addEventListener('change', function() {
+      pol.fest = pol.fest.filter(function(s) { return s !== slot; });
+      if (this.checked) pol.fest.push(slot);
+    });
+    festLbl.appendChild(festCb);
+    festLbl.appendChild(document.createTextNode('fest'));
+    steuer.appendChild(festLbl);
+  }
+  sel.addEventListener('change', function() {
+    if (this.value === CPOL_OFFEN) {
+      delete pol.vorlagen[slot];
+      pol.fest = pol.fest.filter(function(s) { return s !== slot; });
+    } else {
+      pol.vorlagen[slot] = this.value;
+    }
+    if (festCb) {
+      festCb.disabled = this.value === CPOL_OFFEN;
+      if (festCb.disabled) festCb.checked = false;
+    }
+  });
+  return zeile;
 }
 
 function addCustomPolicy() {
-  var firstName = _groupNames()[0] || '';
-  _customPolicies.push({condition_type: 'group', group_name: firstName, applies_to: 'sig', template: _templateList[0] || ''});
-  _renderCustomPoliciesTable();
+  _cpolNeuZeichnen(function() {
+    _customPolicies.push({condition_type: 'group', group_name: _groupNames()[0] || '',
+                          vorlagen: {}, fest: []});
+  });
 }
 
 async function loadCustomPolicies() {
@@ -1982,7 +2088,11 @@ async function loadCustomPolicies() {
     // Antwort ist eine Liste: im Fehlerfall liefert getJSON ein Objekt.
     var d = await getJSON('/api/settings/custom-policies');
     if (!Array.isArray(d)) return;
-    _customPolicies = d;
+    // Der Server liefert das Regelformat (policies.regeln) — auch für Altbestand.
+    _customPolicies = d.map(function(pol) {
+      return {condition_type: 'group', group_name: pol.group_name || '',
+              vorlagen: pol.vorlagen || {}, fest: pol.fest || []};
+    });
     _renderCustomPoliciesTable();
     // Der Ausgangsstand steht erst jetzt — die Zeilen kommen per
     // Abruf. Ohne diese Zeile stünde beim Öffnen „noch nicht
@@ -1991,21 +2101,21 @@ async function loadCustomPolicies() {
   } catch(_) { ursache(_, 'mailboxes:1256'); }
 }
 
-// Auswahllisten der Regeln „Add-in-Auswahl“ aus den Kästchen lesen — "*" oder Namensliste.
+// Auswahllisten „Add-in-Auswahl“ aus den Kästchen lesen — "*" oder Namensliste.
 function _cpolAddinLesen() {
-  var tbody = document.getElementById('cpol-tbody');
+  var liste = document.getElementById('cpol-liste');
+  if (!liste) return;
   _customPolicies.forEach(function(pol, i) {
-    if (pol.applies_to !== 'addin') return;
-    var alle = tbody.querySelector('.cpol-addin-all[data-idx="' + i + '"]');
+    if (!_cpolHat(pol, 'addin')) return;
+    var alle = liste.querySelector('.cpol-addin-all[data-idx="' + i + '"]');
     if (!alle) return;
-    pol.template = alle.checked ? '*' : Array.prototype.map.call(
-      tbody.querySelectorAll('.cpol-addin-tpl[data-idx="' + i + '"]:checked'),
+    pol.vorlagen.addin = alle.checked ? '*' : Array.prototype.map.call(
+      liste.querySelectorAll('.cpol-addin-tpl[data-idx="' + i + '"]:checked'),
       function(cb) { return cb.value; });
   });
 }
 
 async function saveCustomPolicies() {
-  var res = document.getElementById('cpol-save-result');
   _cpolAddinLesen();
   try {
     var d = await postJSON('/api/settings/custom-policies/save', {policies: _customPolicies});
@@ -2038,8 +2148,9 @@ async function saveCustomPolicies() {
 // davon ab, wie weit gerade gerollt ist.
 document.addEventListener('DOMContentLoaded', function() {
   loadMailboxes(true);
-  loadGroups();
-  loadCustomPolicies();
+  // Regeln erst nach den Gruppen: Ihr Gruppenfeld bietet die Gruppen zur Wahl
+  // und kennzeichnet eine gelöschte — vorher ist die Liste leer.
+  loadGroups().then(loadCustomPolicies);
 });
 </script>
 {% endblock %}

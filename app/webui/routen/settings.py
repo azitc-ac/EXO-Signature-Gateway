@@ -109,17 +109,30 @@ async def api_save_internal_groups(request: Request, _=Depends(_require_admin)):
 
 @router.get("/api/settings/custom-policies")
 async def api_get_custom_policies(_=Depends(_require_admin)):
-    return JSONResponse(settings_store.get("CUSTOM_POLICIES") or [])
+    # Immer im aktuellen Format — auch wenn eine zurückgespielte Sicherung
+    # noch das Altformat trägt (policies.regeln).
+    import policies as _pol
+    return JSONResponse(_pol.regeln(settings_store.get("CUSTOM_POLICIES") or []))
 
 
 @router.post("/api/settings/custom-policies/save")
 async def api_save_custom_policies(request: Request, _=Depends(_require_admin)):
+    """Gruppen-Regeln speichern — normalisiert über `policies.regeln`: nur
+    bekannte Slots, Werte als Zeichenkette (`addin` Liste oder "*"), `fest` nur
+    für Wahl-Slots, die die Regel auch festlegt. Unbrauchbare Regeln entfallen.
+    Die Reihenfolge bleibt (first-match je Slot) — hier wird nichts
+    zusammengefasst."""
+    import policies as _pol
     data = await request.json()
-    policies = data.get("policies")
-    if not isinstance(policies, list):
+    roh = data.get("policies") if isinstance(data, dict) else None
+    if not isinstance(roh, list):
         raise HTTPException(400, "policies must be a list")
-    settings_store.update({"CUSTOM_POLICIES": policies})
-    return JSONResponse({"ok": True})
+    rg = _pol.regeln(roh)
+    if len(rg) != len(roh):
+        log.warning("Gruppen-Regeln: %d von %d unbrauchbar, verworfen",
+                    len(roh) - len(rg), len(roh))
+    settings_store.update({"CUSTOM_POLICIES": rg})
+    return JSONResponse({"ok": True, "regeln": rg})
 
 
 @router.post("/api/settings/sender-mailboxes/refresh")

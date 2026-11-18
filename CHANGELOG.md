@@ -5,6 +5,56 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.90 — 2026-11-19 — Gruppen-Regeln: alle Vorlagen in einer Regel, je Vorlage „fest“
+
+Unter **Postfächer → Vorlagenrichtlinien → Benutzerdefinierte Richtlinien** legt eine Regel
+für ihre Gruppe jetzt alle Vorlagen auf einmal fest: Signatur, Antwort-,
+interne Signatur, Abwesenheit, Banner, Disclaimer und die Add-in-Auswahl. Jede
+Regel ist eine Karte; je Vorlage wählst du *— nicht festgelegt —* (die Regel
+sagt dazu nichts), *— keine —* oder eine Vorlage. Mit den Pfeilen änderst du
+die Reihenfolge — je Vorlage gilt die erste passende Regel, die sie festlegt.
+
+**Neu: „fest“** für Signatur, Antwort-, interne Signatur und Abwesenheit. Bisher
+war ein Gruppenwert nur ein Standard: Wählte ein Postfach selbst (im
+Self-Service oder in der Postfachliste), galt diese Wahl. Das passt zu
+Ausnahmen je Postfach, nicht aber zu einer Markenvorgabe, die für eine ganze
+Gruppe verbindlich sein soll. Ist eine Vorlage *fest*, gilt der Gruppenwert
+auch gegen eine eigene Wahl:
+
+* **Self-Service** zeigt statt der Auswahl „Von deiner Organisation
+  festgelegt: …“ und nimmt für diese Vorlage nichts an.
+* **Postfachliste**: Die Auswahl ist gesperrt und zeigt den Gruppenwert samt
+  Gruppe; die Sammelauswahl überspringt solche Zeilen. Speichern lässt den
+  Eintrag für diese Vorlage unverändert.
+* **Gateway und Verfassen-Add-in** fügen die festgelegte Vorlage ein.
+* Eine schon getroffene eigene Wahl **ruht**: Sie bleibt gespeichert, die
+  Postfachliste zeigt „eigene Wahl … ruht“, und sie gilt wieder, sobald *fest*
+  entfällt. Der Haken *Vorlagen-Richtlinien* eines Postfachs hebt
+  *fest* nicht auf — er steuert weiterhin nur Banner, Disclaimer und
+  Add-in-Auswahl.
+* Entscheidend ist die Regel, die für die Vorlage greift: Legt eine frühere
+  Regel dieselbe Vorlage ohne *fest* fest, ist sie nicht gesperrt.
+
+Die **Add-in-Auswahl** bleibt davon unabhängig: Sie legt fest, welche Vorlagen
+im Knopf-Add-in zur Wahl stehen, und gilt wie bisher vereinigt über alle
+Gruppen eines Postfachs. Eine festgeschriebene Signatur schränkt sie nicht ein.
+
+**Umstellung beim Start:** Die bisherigen Regeln (eine Regel je Vorlage) werden
+in das neue Format übernommen. Aufeinanderfolgende Regeln derselben Gruppe
+werden zu einer zusammengefasst; legte eine spätere davon eine Vorlage fest,
+die eine frühere schon festlegte, war sie nie wirksam und entfällt (das
+Protokoll nennt sie). *fest* ist anfangs bei keiner Regel gesetzt — die Wirkung
+ändert sich durch das Update nicht. Eine ältere Sicherung mit Regeln im alten
+Format wird beim Zurückspielen weiterhin richtig gelesen.
+
+**Übersicht → Zertifikate:** Die Ablaufzeile des TLS-Zertifikats nutzt jetzt die
+Farben der Palette. Vorher stand sie in den Farbnamen „green/orange/red“, die der
+Dunkelmodus nicht umschaltet; das Grün war dort kaum lesbar.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.89 — 2026-11-18 — Prüfskripte der CI lokal in einem Lauf
 
 `tools/ci_lokal.py` führt die Prüfungen aus `.github/workflows/ci.yml` lokal
