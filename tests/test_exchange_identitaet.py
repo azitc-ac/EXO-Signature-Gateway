@@ -367,3 +367,15 @@ def test_vorabanfrage_erlaubt_den_kopf():
 def test_laufzeit_kennt_den_kopf(umgebung):
     konf = av._konfiguration(BASE)
     assert konf["identkopf"] == ei.KOPF
+
+
+def test_ablehnung_nennt_form_aber_nicht_den_wert():
+    """Die Ablehnung zeigt die Form von msexchuid und die appctx-Schlüssel, nicht
+    die Kennung selbst (Diagnose der ersten Live-Probe, 18.11.2026)."""
+    from exchange_identitaet import Abgelehnt, postfach_zuordnen
+    geheim = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+    with pytest.raises(Abgelehnt) as fehler:
+        postfach_zuordnen(geheim, ["amurl", "msexchuid", "version"])
+    text = str(fehler.value)
+    assert "8-4-4-4-12" in text and "amurl, msexchuid, version" in text
+    assert geheim not in text and "3f2504e0" not in text
