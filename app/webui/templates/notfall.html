@@ -287,7 +287,14 @@ textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--ak
 #ab-liste label:hover { background: var(--wahl); }
 #ab-liste .adr { color: var(--leise); font-size: 12px; overflow-wrap: anywhere; }
 
+/* Kalender, Kontakte, Meine Entwürfe: Die Mail-Filter und die Befehle für eine
+   geöffnete Mail haben dort keine Wirkung (ordnerWaehlen setzt data-art). */
+#app[data-art="andere"] .filter, #app[data-art="andere"] #befehle .nur-mail { display: none; }
+
 @media (max-width: 800px) {
+  /* Schmal steht die Adresse schon in der Postfach-Auswahl — der Text daneben
+     wiederholte sie (Klicktest 393 px). */
+  #kopf-rechts #ich { display: none; }
   /* 16 px in Eingabefeldern: Darunter zoomt Safari (iOS) beim Fokussieren
      heran — „Neue Mail“ setzt den Fokus sofort ins Feld „An“, danach lag die
      linke Spalte (An, Cc, Bcc) außerhalb des Bildes. */
@@ -1080,6 +1087,7 @@ const SONDERORDNER = ['__entwuerfe', '__kalender', '__kontakte'];
 function ordnerWaehlen(id) {
   nb.ordner = id;
   document.getElementById('listenspalte').dataset.art = id.startsWith('__') ? 'andere' : 'post';
+  document.getElementById('app').dataset.art = id.startsWith('__') ? 'andere' : 'post';
   document.getElementById('suche').value = '';
   document.querySelectorAll('#ordner .eintrag').forEach(e => e.setAttribute('aria-current', e.dataset.id === id));
   document.getElementById('ordnerwahl').value = id;

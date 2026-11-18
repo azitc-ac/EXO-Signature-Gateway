@@ -103,3 +103,19 @@ def test_sonderordner_werden_wiederhergestellt():
         assert f"'{sid}'" in sonder, f"{sid} fehlt in SONDERORDNER"
     wahl = s[s.index("async function postfachWaehlen(pf, ordnerWunsch)"):]
     assert "SONDERORDNER.includes(ordnerWunsch)" in wahl[:wahl.index("\n}\n")]
+
+
+def test_sonderbereiche_ohne_mailfilter_und_mailbefehle():
+    """Klicktest 18.11.: Kalender zeigte Ungelesen/Mit Anhang/… und die
+    Mail-Befehlsleiste. ordnerWaehlen setzt data-art am #app, die Regel blendet aus."""
+    s = SEITE.read_text(encoding="utf-8")
+    zweige = s[s.index("function ordnerWaehlen(id)"):]
+    zweige = zweige[:zweige.index("\n}\n")]
+    assert "getElementById('app').dataset.art" in zweige
+    assert '#app[data-art="andere"] .filter, #app[data-art="andere"] #befehle .nur-mail { display: none; }' in s
+
+
+def test_schmal_keine_doppelte_adresse():
+    s = SEITE.read_text(encoding="utf-8")
+    mobil = s[s.index("@media (max-width: 800px) {"):]
+    assert "#kopf-rechts #ich { display: none; }" in mobil[:mobil.index("\n}\n")]
