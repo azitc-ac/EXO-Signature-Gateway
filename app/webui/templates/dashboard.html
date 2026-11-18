@@ -217,19 +217,38 @@ function dismissWelcome() {
         <td style="padding:6px 12px;color:#888">SMTP + Web UI</td>
         <td style="padding:6px 0">{{ cert_expiry | safe }}</td>
       </tr>
-      {% for c in signing_certs %}
+    </tbody>
+  </table></div>
+  {% if signing_certs %}
+  {% set _abg = signing_certs | selectattr("expired") | list %}
+  {% set _bald = signing_certs | rejectattr("expired") | selectattr("warning") | list %}
+  {% set _naechst = signing_certs | rejectattr("expired") | sort(attribute="days_left") | first %}
+  {# Zusammengefasst statt einer Zeile je Postfach: Bei hunderten Nutzern war die
+     Übersicht sonst eine endlose Liste. Aufgeklappt sortiert nach Restlaufzeit. #}
+  <details style="margin-top:10px"{% if _abg %} open{% endif %}>
+    <summary style="cursor:pointer;font-size:13px">
+      <strong>S/MIME signieren:</strong> {{ signing_certs | length }} {{ 'Postfach' if signing_certs | length == 1 else 'Postfächer' }}
+      {%- if _abg %} · <span style="color:#dc2626;font-weight:700">{{ _abg | length }} abgelaufen</span>{% endif %}
+      {%- if _bald %} · <span style="color:#b45309;font-weight:700">{{ _bald | length }} laufen bald ab</span>{% endif %}
+      {%- if not _abg and not _bald %} · <span style="color:#15803d">alle gültig</span>{% endif %}
+      {%- if _naechst %} · nächster Ablauf {{ _naechst.expiry }} ({{ _naechst.email }}){% endif %}
+    </summary>
+    <div class="tabellen-rollbereich" style="max-height:420px;overflow-y:auto;margin-top:6px"><table style="min-width:420px;width:100%;border-collapse:collapse;font-size:13px">
+      <tbody>
+      {% for c in signing_certs | sort(attribute="days_left") %}
       <tr style="border-bottom:1px solid #f0f0f0">
-        <td style="padding:6px 12px 6px 0"><strong>{{ c.email }}</strong></td>
-        <td style="padding:6px 12px;color:#888">S/MIME signieren</td>
-        <td style="padding:6px 0">
-          {% if c.expired %}<span style="color:#e74c3c;font-weight:700">ABGELAUFEN</span>
-          {% elif c.warning %}<span style="color:#e67e22;font-weight:700">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>
-          {% else %}<span style="color:#27ae60">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>{% endif %}
+        <td style="padding:6px 12px 6px 0;word-break:break-all">{{ c.email }}</td>
+        <td style="padding:6px 0;white-space:nowrap">
+          {% if c.expired %}<span style="color:#dc2626;font-weight:700">ABGELAUFEN</span>
+          {% elif c.warning %}<span style="color:#b45309;font-weight:700">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>
+          {% else %}<span style="color:#15803d">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>{% endif %}
         </td>
       </tr>
       {% endfor %}
-    </tbody>
-  </table></div>
+      </tbody>
+    </table></div>
+  </details>
+  {% endif %}
 </div>
 
 <!-- System-Info -->

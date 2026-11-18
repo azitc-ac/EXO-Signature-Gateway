@@ -827,7 +827,7 @@ def _addin_rollen() -> dict:
                               "prüft dieser Punkt nicht.")
 
 
-def _addin_fassung() -> dict:
+def _addin_fassung_art(art: str, name: str) -> dict:
     """Liefert Exchange den Postfächern noch eine ältere Fassung des
     Verfassen-Add-ins aus — und muss der Betreiber dafür etwas tun?
 
@@ -844,17 +844,16 @@ def _addin_fassung() -> dict:
     import addin_verteilung as av
     import health_check
     import settings_store
-    name = "Verfassen-Add-in aktuell"
-    soll = next((a["version"] for a in health_check._addin_soll() if a["art"] == "verfassen"), "")
+    soll = next((a["version"] for a in health_check._addin_soll() if a["art"] == art), "")
     if not soll:
-        return _punkt(name, ENTFAELLT, "Verfassen-Add-in nicht eingerichtet.")
+        return _punkt(name, ENTFAELLT, "Add-in nicht eingerichtet.")
     gesundheit = settings_store.get("MAILBOX_HEALTH") or {}
     lagen: dict[str, list[str]] = {}
     for email, h in gesundheit.items():
-        c = ((h or {}).get("checks") or {}).get("addin_verfassen") or {} if isinstance(h, dict) else {}
+        c = ((h or {}).get("checks") or {}).get("addin_" + art) or {} if isinstance(h, dict) else {}
         if c.get("soll") != soll:
             continue                       # nicht abgefragt, oder gegen eine ältere Soll-Fassung
-        lagen.setdefault(av.einordnen("verfassen", soll, c.get("ist") or ""), []).append(email)
+        lagen.setdefault(av.einordnen(art, soll, c.get("ist") or ""), []).append(email)
     gesamt = sum(len(v) for v in lagen.values())
     if not gesamt:
         return _punkt(name, UNBEKANNT, "Noch keine Postfachprüfung gegen die aktuelle Fassung.",
@@ -869,18 +868,66 @@ def _addin_fassung() -> dict:
         alt = sorted(lagen[av.AKTUALISIEREN])
         return _punkt(name, OFFEN,
                       f"Kein Postfach hat die neue Fassung {soll}; {len(alt)} mit älterer "
-                      f"(z. B. {alt[0]}).", av.AKTUALISIEREN_WEG)
+                      f"(z. B. {alt[0]}).", av.aktualisieren_weg(art))
     if lagen.get(av.VERTEILUNG):
         return _punkt(name, OK,
                       f"Verteilung läuft: {aktuell} von {gesamt} Postfächern aktuell. Nichts "
                       "zu tun; Exchange braucht bis zu 72 Stunden.")
     if not aktuell:
         return _punkt(name, ENTFAELLT, f"Bei keinem der {gesamt} geprüften Postfächer installiert.")
-    zeiten = sorted(str((((h or {}).get("checks") or {}).get("addin_verfassen") or {}).get("checked_at") or "")
+    zeiten = sorted(str((((h or {}).get("checks") or {}).get("addin_" + art) or {}).get("checked_at") or "")
                     for h in gesundheit.values() if isinstance(h, dict))
     stand = f", geprüft {zeiten[-1]}" if zeiten and zeiten[-1] else ""
     return _punkt(name, OK, f"{aktuell} von {gesamt} Postfächern aktuell "
                             f"(Stand der letzten Postfachprüfung{stand}).")
+
+
+def _addin_fassung() -> dict:
+    return _addin_fassung_art("verfassen", "Verfassen-Add-in aktuell")
+
+
+def _addin_knopf_fassung() -> dict:
+    """Wie `_addin_fassung`, für das Knopf-Add-in („Signatur und Abwesenheit“).
+    Bis v1.12.85 gab es die Aufgabe nur für das Verfassen-Add-in; ein veralteter
+    Knopf zeigte sich allein als Warnung in der Postfachprüfung."""
+    return _addin_fassung_art("knopf", "Knopf-Add-in aktuell")
+
+
+def _ews_bereich() -> dict:
+    """Verweigert Exchange lokal dem EWS-Dienstkonto Hybrid-Postfächer
+    (ErrorImpersonateUserDenied/ErrorImpersonationDenied)?
+
+    Das Gateway kann den Management Scope der lokalen Organisation nicht selbst
+    erweitern — es spricht dort nur EWS mit dem Dienstkonto, keine
+    Verwaltungsshell. Bis v1.12.85 stand die Ablehnung nur in der Prüfung des
+    einzelnen Postfachs. Liest nur MAILBOX_HEALTH (`ews_code` aus
+    health_check._check_ews_zugriff/_check_postfach_lesen), fragt nichts live ab."""
+    import settings_store
+    name = "EWS-Zugriff auf alle Hybrid-Postfächer"
+    if not (settings_store.get("EWS_ONPREM_URL") or "").strip():
+        return _punkt(name, ENTFAELLT, "Anbindung an Exchange lokal (EWS) nicht eingerichtet.")
+    gesundheit = settings_store.get("MAILBOX_HEALTH") or {}
+    abgelehnt: dict[str, str] = {}
+    for email, h in gesundheit.items():
+        checks = (h or {}).get("checks") or {} if isinstance(h, dict) else {}
+        for c in (checks.get("abwesenheit"), checks.get("postfach_lesen")):
+            if isinstance(c, dict) and c.get("ews_code"):
+                abgelehnt[email] = c["ews_code"]
+    if not abgelehnt:
+        return _punkt(name, OK, "Keine Ablehnung durch Exchange lokal in der letzten Postfachprüfung.")
+    namen = sorted(abgelehnt)
+    if any(v == "ErrorImpersonationDenied" for v in abgelehnt.values()):
+        weg = ("In der Exchange-Verwaltungsshell dem Dienstkonto die Rolle zuweisen: "
+               "New-ManagementRoleAssignment -Role ApplicationImpersonation -User <Konto> "
+               "-CustomRecipientWriteScope <Scope>. Danach Postfächer → Status aktualisieren.")
+    else:
+        weg = ("Diese Postfächer liegen außerhalb des Management Scope des Dienstkontos. "
+               "In der Exchange-Verwaltungsshell den Scope erweitern (Get-ManagementScope "
+               "zeigt den Filter), z. B. über eine Gruppe im Filter: dann genügt künftig, "
+               "neue Hybrid-Nutzer in diese Gruppe aufzunehmen. Danach Postfächer → "
+               "Status aktualisieren.")
+    return _punkt(name, OFFEN, f"Exchange lokal verweigert {len(namen)} Postfach/Postfächern "
+                               f"den Zugriff (z. B. {', '.join(namen[:3])}).", weg)
 
 
 def _waechter_code() -> dict:
@@ -946,7 +993,7 @@ def _key_vault_zugriff() -> dict:
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _regel_auto_ausnahme, _implicit_anmeldung,
-              _addin_rollen, _addin_fassung, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
+              _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
               _smime_regeln_stand,

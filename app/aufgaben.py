@@ -102,6 +102,13 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     # Postfächer) — jede Installation muss es im Admin Center neu bestätigen.
     Aufgabe("addin-fassung", "Verfassen-Add-in im Admin Center aktualisieren",
             abnahme._addin_fassung, "/setup#addin-verfassen", seit="1.11.56"),
+    # Gleiches für das Knopf-Add-in — bis v1.12.85 nur als Warnung je Postfach.
+    Aufgabe("addin-knopf-fassung", "Knopf-Add-in im Admin Center aktualisieren",
+            abnahme._addin_knopf_fassung, "/setup#addin-knopf", seit="1.12.85"),
+    # Management Scope des EWS-Dienstkontos (Exchange lokal) — das Gateway kann
+    # ihn nicht selbst erweitern; bis v1.12.85 nur als Fehler je Postfach.
+    Aufgabe("ews-bereich", "EWS-Zugriff auf Hybrid-Postfächer erweitern",
+            abnahme._ews_bereich, "/settings#exchange-lokal-ews", seit="1.12.85"),
     # Function-Code der Azure-Wächter kam bis v1.11.63 nur beim Anlegen hinauf.
     Aufgabe("waechter-code", "Bypass-Wächter aktualisieren",
             abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),

@@ -5,6 +5,46 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.85 — 2026-11-18 — Aufgabe für veraltetes Knopf-Add-in, kompaktere Übersicht
+
+**Knopf-Add-in als Aufgabe:** Lieferte Exchange den Postfächern noch eine ältere
+Fassung des Knopf-Add-ins („Signatur und Abwesenheit“), erschien das nur als
+Warnung in der Prüfung des einzelnen Postfachs. Eine Aufgabe gab es bisher nur
+für das Verfassen-Add-in. Beide Add-ins teilen jetzt dieselbe Prüfung, und für
+jedes gibt es eine eigene Aufgabe im Sammelpunkt oben rechts. Die Aufgabe für
+das Knopf-Add-in führt zu *Einrichtung → Outlook Add-in → Knopf*. Das
+Aktualisieren selbst geschieht im Microsoft 365 Admin Center unter *Integrierte
+Apps*; eine Schnittstelle, über die das Gateway das übernehmen könnte, bietet
+Microsoft dafür nicht. Wie beim Verfassen-Add-in entsteht keine Aufgabe, solange
+Exchange eine bereits bestätigte Fassung noch verteilt (bis zu 72 Stunden).
+
+**EWS-Zugriff als Aufgabe:** Verweigert Exchange lokal dem EWS-Dienstkonto ein
+Hybrid-Postfach (`ErrorImpersonateUserDenied`: Postfach außerhalb des Management
+Scope; `ErrorImpersonationDenied`: Rolle ApplicationImpersonation fehlt),
+entsteht jetzt die Aufgabe „EWS-Zugriff auf Hybrid-Postfächer erweitern“. Sie
+nennt die betroffenen Postfächer und den Weg. Bisher stand das nur in der Prüfung
+des einzelnen Postfachs. Den Scope erweitert das Gateway nicht selbst: Es spricht
+mit Exchange lokal nur über EWS, nicht über die Verwaltungsshell. Am wenigsten
+Pflege macht ein Scope, dessen Filter auf eine Gruppe zeigt; dann genügt es, neue
+Hybrid-Nutzer in diese Gruppe aufzunehmen.
+
+**Übersicht → Zertifikate:** Die S/MIME-Zertifikate der Postfächer stehen nicht
+mehr als eine Zeile je Postfach in der Karte, sondern zusammengefasst: Anzahl,
+abgelaufene, bald ablaufende und der nächste Ablauf. Aufgeklappt erscheint die
+Liste nach Restlaufzeit sortiert und scrollt ab einer festen Höhe. Ist ein
+Zertifikat abgelaufen, ist sie von selbst aufgeklappt.
+
+**Postfächer → Standards und Richtlinien:** Die Tabelle ist in der Breite
+begrenzt und zieht sich auf breiten Bildschirmen nicht mehr auseinander. Die
+Schlosssymbole („nicht löschbar“) entfallen; diese Zeilen haben ohnehin keinen
+Löschknopf.
+
+**Zu tun:** Erscheint eine der neuen Aufgaben („Knopf-Add-in im Admin Center
+aktualisieren“, „EWS-Zugriff auf Hybrid-Postfächer erweitern“), folge dem Weg
+dort. Sonst nichts.
+
+---
+
 ## v1.12.84 — 2026-11-18 — CI: Browser-Tests auf Ubuntu 24.04 festgelegt
 
 Der GitHub-Runner `ubuntu-latest` wird auf Ubuntu 26.04 umgestellt. Playwright
