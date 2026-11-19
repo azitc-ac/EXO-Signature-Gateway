@@ -121,6 +121,10 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     # eingelesen — Mitglieder folgen Entra dann nicht mehr (Gruppen bleiben bestehen).
     Aufgabe("dynamische-gruppen", "Entra für dynamische Gruppen neu einlesen",
             abnahme._dynamische_gruppen_stand, "/mailboxes#interne-gruppen"),
+    # Zwei Ebenen mit Festschreiben (v1.12.99): Wo eine Postfach-Wahl bis dahin
+    # galt und nun unter einer Gruppen-Regel ruht, entscheidet der Betreiber.
+    Aufgabe("richtlinien-ruhend", "Ruhende Postfach-Wahlen nach der Richtlinien-Umstellung prüfen",
+            abnahme._richtlinien_ruhend, "/mailboxes#ruhend", seit="1.12.99"),
     # Function-Code der Azure-Wächter kam bis v1.11.63 nur beim Anlegen hinauf.
     Aufgabe("waechter-code", "Bypass-Wächter aktualisieren",
             abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),

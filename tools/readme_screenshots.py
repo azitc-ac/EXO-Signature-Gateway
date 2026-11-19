@@ -35,7 +35,7 @@ exo_mailboxes.list_mailboxes = lambda refresh=False: [
 cfg, health = {}, {}
 for i, (u, n, t) in enumerate(LEUTE[:8]):
     a = f"{u}@contoso.example"
-    cfg[a] = {"sig": True, "smime": i in (0, 1, 2, 6), "use_policy": True}
+    cfg[a] = {"sig": True, "smime": i in (0, 1, 2, 6)}
     health[a] = {"overall": "ok", "last_checked": "2026-10-18T09:00:00Z", "checks": {}}
 cfg["erika.mustermann@contoso.example"]["template"] = "Mit_Logo"
 settings_store.update({"MAILBOX_CONFIG": cfg, "MAILBOX_HEALTH": health,

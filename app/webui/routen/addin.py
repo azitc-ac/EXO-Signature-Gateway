@@ -113,8 +113,10 @@ def _addin_cfg(email: str) -> dict:
 
     `template`        = Standard-Signatur wie im Betrieb (policies: Postfach-Wahl >
                         Gruppe > global; NICHT das rohe Feld, das ohne eigene Wahl fehlt).
-    `addin_templates` = Freigabeliste: Richtlinien-Slot `addin` bei use_policy,
-                        sonst das Postfach-eigene Feld.
+    `addin_templates` = Freigabeliste, wirksam nach `policies.addin_auswahl`:
+                        fest → Gruppen- bzw. Standardwert, sonst die Postfach-Wahl,
+                        ohne Wahl der Standard (Vereinigung der Gruppen, sonst
+                        die Standardrichtlinie). Seit v1.12.99 ohne `use_policy`.
 
     ⚠️ Bis v1.9.112 wendete nur /api/addin/templates die Richtlinie an,
     /api/addin/signature nicht — eine dort angebotene Vorlage wurde beim Abruf
@@ -124,11 +126,7 @@ def _addin_cfg(email: str) -> dict:
     import policies
     mb_all = settings_store.get("MAILBOX_CONFIG") or {}
     cfg = dict(mailbox_match.match_sender(mb_all, email) or {})
-    if cfg.get("use_policy", True):
-        # Gruppen-Regel „Add-in-Auswahl“ vor der globalen Freigabe (policies.addin_freigabe).
-        gruppe = policies.addin_freigabe(email, mb_all)
-        cfg["addin_templates"] = (gruppe if gruppe is not None else
-                                  (settings_store.get("TEMPLATE_POLICIES") or {}).get("addin", "*"))
+    cfg["addin_templates"] = policies.addin_auswahl(email, mb_all, cfg)
     cfg["template"] = policies.vorlage_fuer(email, "sig", mb_all, cfg)
     return cfg
 

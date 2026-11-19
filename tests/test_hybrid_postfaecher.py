@@ -326,8 +326,7 @@ def test_speichern_verankert_hybrid_an_guid_mit_smime(speicher, monkeypatch):
     Add-in-Auswahl stehen (Bereitstellung in Exchange lokal)."""
     store, _ = speicher
     cfg, dg = _speichern(monkeypatch, store, [
-        {"email": HYBRID, "sig": True, "smime": True, "use_policy": False,
-         "addin_templates": ["X"]},
+        {"email": HYBRID, "sig": True, "smime": True, "addin_templates": ["X"]},
         {"email": CLOUD, "sig": True, "smime": False}])
     eintrag = cfg[GUID_HYBRID]
     assert eintrag["hybrid"] is True and eintrag["smime"] is True

@@ -15,7 +15,7 @@ läuft schon; Ende leer: läuft weiter). Leere Gruppe = alle.
 Welche Postfächer eine Kampagne erreicht, hängt zusätzlich an ihrem REGULÄREN
 Banner (dem ohne Kampagne): `fuer` nennt die Arten, die den Kampagnen-Banner
 bekommen — "richtlinie" (Banner aus der Richtlinie), "eigen" (eigener Banner
-am Postfach, Richtlinien-Übernahme aus) und "ohne" (kein Banner). So bleibt
+am Postfach, gewählt und nicht festgeschrieben) und "ohne" (kein Banner). So bleibt
 ein Postfach, für das bewusst kein Banner gilt, auch während einer Kampagne
 ohne. Bis v1.12.48 galt jede Kampagne ungefragt für alle; v1.12.49 kannte nur
 den Schalter `erzwingen` (für Postfächer ohne Richtlinien-Übernahme).
@@ -129,8 +129,12 @@ def banner_fuer(sender: str, regulaer: str, now: datetime | None = None) -> str:
     import mailbox_match
     mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
     schluessel = mailbox_match.match_sender_key(mailbox_cfg, sender)
-    # Dieselbe Lesart wie policies.aufloesen: fehlt der Eintrag, gilt "übernimmt".
-    uebernimmt = bool(mailbox_match.match_sender(mailbox_cfg, sender).get("use_policy", True))
+    # Dieselbe Lesart wie policies.aufloesen: Der reguläre Banner kommt aus der
+    # Richtlinie, wenn der Slot fest ist oder das Postfach keinen eigenen gewählt hat.
+    import policies
+    uebernimmt = ("banner" in policies.festgeschrieben(sender, mailbox_cfg)
+                  or not policies.hat_eigene_wahl(
+                      mailbox_match.match_sender(mailbox_cfg, sender), "banner"))
     return aktive_kampagne(kampagnen, now or datetime.now(timezone.utc),
                            schluessel, gruppen.interne_gruppen(),
                            art(regulaer, uebernimmt)) or regulaer

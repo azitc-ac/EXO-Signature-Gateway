@@ -63,6 +63,7 @@ const _ids = {};
 const tbody = new El('tbody');
 globalThis.document = {
   createElement: t => new El(t),
+  createTextNode: t => { const e = new El('#text'); e.textContent = t; return e; },
   getElementById: id => _ids[id] || null,
   querySelectorAll: s => {
     if (s === '#mb-tbody tr') return tbody.children;
@@ -90,7 +91,8 @@ def _var(t: str, name: str) -> str:
     return m.group(0)
 
 
-FUNKTIONEN = ["_fuelleVorlagenSelect", "_istFest", "_buildWahlSelect", "_festHinweis",
+FUNKTIONEN = ["_fuelleVorlagenSelect", "_istFest", "_festQuelle", "_wertText", "_festSperren",
+              "_buildWahlSelect", "_festHinweis", "massenRuhendVerwerfen",
               "_wahlInZelle", "_istAusnahme", "_ausnahmeStand", "filterMailboxes",
               "massenAufStandard", "_angehakt", "_selfTplStandText", "selfTplStandZeigen"]
 
@@ -235,21 +237,65 @@ def test_massenaktion_hat_einen_knopf():
     assert re.search(r'<button class="btn secondary btn-sm" onclick="massenAufStandard\(\)">', t)
     # Dieselben Spalten wie die Sammelauswahl und das Speichern.
     sel = re.search(r"^var WAHL_SELEKTOR = '(.*)';$", t, re.M).group(1)
+    # Seit v1.12.99 jede Vorlage — auch Banner, Disclaimer und die Add-in-Auswahl.
     assert {s.strip() for s in sel.split(",")} == {
-        "select.mb-template", "select.mb-min-sig", "select.mb-intern", "select.mb-oof"}
+        "select.mb-template", "select.mb-min-sig", "select.mb-intern", "select.mb-banner",
+        "select.mb-disclaimer", "select.mb-oof", "select.mb-addin-modus"}
+    for klasse in ("mb-banner", "mb-disclaimer", "mb-addin-modus"):
+        assert f"'{klasse}'" in t, f"keine Auswahl mit Klasse {klasse} in der Zeile"
 
 
-# ── 1. Haken „Banner/Disclaimer nach Richtlinie“ ─────────────────────────────
+# ── 1. Haken „Banner/Disclaimer nach Richtlinie“ entfällt (v1.12.99) ─────────
 
-def test_haken_heisst_was_er_tut():
+def test_haken_nach_richtlinie_entfaellt():
+    """Kein Unterbrechen der Vererbung mehr: Spalte, Kästchen und Feld sind weg —
+    eine Seite, die `use_policy` schickte, ließe den Server Banner/Disclaimer/Add-in
+    als nicht geschickt behandeln (mailboxes.api_save_mailboxes)."""
     t = SEITE.read_text(encoding="utf-8")
-    assert re.search(r'Übernahme erzwingen für\)\.">\s*Banner/Disclaimer nach Richtlinie', t)
-    assert "policyCb.title = 'Banner/Disclaimer nach Richtlinie:" in t
+    assert "use_policy" not in t
+    assert "mb-policy" not in t and "policyCb" not in t
+    assert "Banner/Disclaimer nach Richtlinie" not in t
     alt = [p.name for p in VORLAGEN.glob("*.html")
            if "Vorlagen-Richtlinien" in p.read_text(encoding="utf-8")]
     assert not alt, f"alte Bezeichnung noch in {alt}"
-    # Gespeicherter Schlüssel bleibt.
-    assert "use_policy: policyBoxes[i] ? policyBoxes[i].checked : true," in t
+
+
+# ── 6. Ruhende Wahl: sichtbar, filterbar, verwerfbar ─────────────────────────
+
+def test_ruhende_wahl_zeigt_verwerfen_und_filter():
+    r = _lauf(r"""
+      const cb = new El('input'); _ids['mb-ruhend-filter'] = cb;
+      _ids['mb-filter-count'] = new El('span');
+      const a = zeile(mb({email: 'a', template: 'lang'}));                       // Wahl, nicht fest
+      const b = zeile(mb({email: 'b', template: 'lang', fest: {sig: 'G'}}));      // ruht
+      const c = zeile(mb({email: 'c', fest: {sig: ''}}));                         // fest, keine Wahl
+      const v = {weg: [a, b, c].map(tr => tr.querySelectorAll('.mb-ruht-weg').length)};
+      const hinweis = b.querySelector('span.wahl-fest');
+      v.text = hinweis ? hinweis.textContent : null;
+      const hc = c.querySelector('span.wahl-fest');
+      v.textC = hc ? hc.textContent : null;
+      cb.checked = true; filterMailboxes(); v.mit = [a, b, c].map(tr => tr.style.display);
+      massenRuhendVerwerfen();
+      v.angehakt = b.querySelectorAll('.mb-ruht-weg:checked').map(x => x.dataset.feld);
+      v.meldung = meldung;
+      console.log(JSON.stringify(v));
+    """)
+    assert r["weg"] == [0, 1, 0]
+    assert r["text"] == "festgelegt durch Gruppe „G“ · eigene Wahl „lang“ ruht"
+    assert r["textC"] == "festgelegt durch Standardrichtlinie"
+    assert r["mit"] == ["none", "", "none"]
+    assert r["angehakt"] == ["template"]
+    assert r["meldung"]["ok"] is True and r["meldung"]["text"].startswith("1 ruhende Wahl(en)")
+
+
+def test_ruhend_filter_und_knopf_stehen_auf_der_seite():
+    t = SEITE.read_text(encoding="utf-8")
+    zeile = t[t.index('filterfeld("mb-filter"'):t.index('id="mb-filter-count"')]
+    assert 'id="mb-ruhend-filter" onchange="filterMailboxes()"' in zeile
+    assert 'id="ruhend"' in zeile, "Sprungziel der Aufgabe richtlinien-ruhend"
+    assert re.search(r'onclick="massenRuhendVerwerfen\(\)"', t)
+    # Speichern schickt die angehakten Felder mit.
+    assert "ruhend_verwerfen: verwerfen," in _funktion(t, "saveMailboxes")
 
 
 # ── 5. Self-Service: Kästchen je Gruppe, Zustandszeile ───────────────────────
@@ -299,4 +345,4 @@ def test_self_service_gruppen_sind_kaestchen_mit_zustandszeile():
     for f in ("saveSelfTplGroups", "saveSelfTplKategorien", "selfServiceUmschalten"):
         assert "selfTplStandZeigen();" in _funktion(t, f), f
     assert 'data-text="{{ text }}"' in t, "Kategorie-Kästchen brauchen ihren Anzeigenamen"
-    assert "<em>fest</em> vorgibt" in t
+    assert "ebenso eine festgelegte Vorlage" in t

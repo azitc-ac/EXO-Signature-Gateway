@@ -77,8 +77,9 @@ def _freigegeben(email: str) -> dict[str, bool]:
 
 
 def _waehlbar(email: str) -> dict[str, bool]:
-    """{slot: darf wählen} — freigegeben (`_freigegeben`) UND von keiner
-    Gruppen-Regel festgeschrieben (`policies.festgeschrieben`). Ein gesperrter
+    """{slot: darf wählen} — freigegeben (`_freigegeben`) UND nicht fest
+    (`policies.festgeschrieben`: Gruppen-Regel oder Standardrichtlinie, je
+    nach Schalter). Ein gesperrter
     Slot ist damit für Anzeige UND Speichern nicht wählbar; geschickte Werte
     verwirft `_wahl_ins_eintrag`, die ruhende Wahl im Eintrag bleibt."""
     frei = _freigegeben(email)
@@ -95,9 +96,10 @@ def _wahl_ins_eintrag(eintrag: dict, wahl, waehlbar: dict, by_kind: dict) -> Non
     ein Nutzer könnte per Hand z.B. einen Disclaimer oder eine Nutzer-Mail als
     Signatur eintragen.
 
-    ⚠️ `use_policy` wird hier NIE angefasst. Es steuert seit v1.9.113 nur noch
-    Banner/Disclaimer (Firma). Bis dahin setzte eine Signaturwahl es auf false und
-    nahm dem Postfach damit still Banner und Disclaimer der Richtlinie.
+    Banner, Disclaimer und Add-in-Auswahl sind hier nicht wählbar (nur in der
+    Postfachliste). Bis v1.9.113 setzte eine Signaturwahl `use_policy` auf
+    false und nahm dem Postfach damit still Banner und Disclaimer der
+    Richtlinie; seit v1.12.99 gibt es `use_policy` nicht mehr.
     """
     if not isinstance(wahl, dict):
         raise HTTPException(400, "Ungültige Vorlagenwahl")
@@ -372,7 +374,7 @@ async def _wahl_speichern(email: str, wahl, bereich: str) -> JSONResponse:
     if not isinstance(wahl, dict) or slot not in wahl:
         raise HTTPException(400, "Keine Auswahl übermittelt")
     if not _waehlbar(email).get(slot):
-        if _policies.festgeschrieben(email).get(slot):
+        if slot in _policies.festgeschrieben(email):
             raise HTTPException(403, "Diese Vorlage legt deine Organisation fest.")
         raise HTTPException(403, "Diese Auswahl ist für dein Postfach nicht freigegeben.")
     key, _cfg = _postfach(email)
@@ -454,7 +456,7 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
     #    (b) die Ankündigungs-Einstellungen (an/aus, Umfang, privat, extern) — die
     #        sind unabhängig von der Vorlagenwahl, denn die Abwesenheit selbst darf
     #        der Nutzer ohnehin steuern.
-    #    use_policy bleibt unberührt — siehe _wahl_ins_eintrag.
+    #    Feste Slots nimmt _wahl_ins_eintrag nicht an (_waehlbar).
     key, _cfg = _postfach(email)
     voll = settings_store.get("MAILBOX_CONFIG") or {}
     eintrag = dict(voll.get(key, {}))

@@ -268,6 +268,11 @@ REGISTER: dict[str, E] = {
     "SIGN_INTERNAL_ONLY_MAIL": E(art=OPTION, ort="settings_signature.html"),
     "INTERN_VOR_ANTWORT": E(art=OPTION, ort="settings_signature.html"),
     "INTERN_OHNE_ADDIN": E(art=OPTION, ort="settings_signature.html"),
+    # Festschreiben je Ebene (policies.py) — Signatur → Erweitert.
+    "RICHTLINIE_STANDARD_FEST": E(art=OPTION, ort="settings_signature.html"),
+    "RICHTLINIE_GRUPPE_FEST": E(art=OPTION, ort="settings_signature.html"),
+    # Von der Umstellung v1.12.99 erfasste ruhende Wahlen (Aufgabe „richtlinien-ruhend“).
+    "RICHTLINIE_RUHT_SEIT_UMSTELLUNG": E(art=ZUSTAND),
     "SIG_IMAGE_MODE": E(art=OPTION, ort="settings_signature.html"),
     "SIG_STRIP_MIN_MATCH_PCT": E(art=OPTION, ort="settings_signature.html"),
     # Bypass-Wächter: vom Wizard/Heartbeat gesetzt, kein direktes Bedienfeld.

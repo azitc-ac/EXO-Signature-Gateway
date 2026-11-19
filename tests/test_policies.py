@@ -1,12 +1,11 @@
 """Gemeinsame Vorlagen-Auflösung (policies.aufloesen) — EINE Quelle für Hot-Path,
 Abwesenheit, Self-Service, Add-in, Vorschau und Health-Check.
 
-Seit v1.9.113 zwei Arten von Slots:
-  * Wahl-Slots sig/min/oof: Postfach-Feld (auch "") > Gruppen-Default > global —
-    UNABHÄNGIG von use_policy.
-  * Richtlinien-Slots banner/disclaimer: use_policy → Richtlinie (+ Gruppe),
-    sonst das Postfach-eigene Feld.
-Dazu die einmalige Bestandsmigration (settings_store._migrate_v3_to_v4).
+Seit v1.12.99 gilt für jeden Slot dieselbe Regel: Postfach-Feld (auch "") >
+Gruppen-Regel > Standardrichtlinie — außer die greifende Ebene schreibt fest
+(Schalter RICHTLINIE_GRUPPE_FEST / RICHTLINIE_STANDARD_FEST; die Matrix steht in
+tests/test_gruppenregeln_fest.py). Dazu die Bestandsmigrationen v3→v4 und — für
+die Kette — v8→v9 (`use_policy` entfällt).
 """
 from __future__ import annotations
 
@@ -42,42 +41,35 @@ def test_gruppe_uebersteuert_den_default(monkeypatch):
     assert v["banner"] == "GruppeBanner"
 
 
-def test_wahl_slots_folgen_dem_default_auch_bei_use_policy_false(monkeypatch):
-    """Der Kern der Entkopplung: use_policy=false betrifft nur Banner/Disclaimer.
-    Ohne eigenes Feld gilt für sig/min/oof weiter der (Gruppen-)Default."""
-    mc = {"a@x.de": {"use_policy": False, "banner_template": "EigenBanner"}}
-    _store(monkeypatch, TEMPLATE_POLICIES={"oof": "Global", "min": "Kurz", "banner": "Firma"},
-           **_GRUPPE)
+def test_banner_ist_wahl_wie_die_signatur(monkeypatch):
+    """Seit v1.12.99: ohne Feld der Standard (hier Gruppe bzw. global), mit Feld
+    die Wahl — sofern nicht fest. `use_policy` wird nicht mehr gelesen."""
+    _store(monkeypatch, TEMPLATE_POLICIES={"oof": "Global", "min": "Kurz", "banner": "Firma",
+                                           "disclaimer": "Recht"},
+           RICHTLINIE_GRUPPE_FEST=False, **_GRUPPE)
+    mc = {"a@x.de": {"banner_template": "EigenBanner", "use_policy": True}}
     v = policies.aufloesen("a@x.de", mc, mc["a@x.de"])
-    assert v["oof"] == "GruppeOof"
-    assert v["sig"] == "GruppeSig"
-    assert v["min"] == "Kurz"
-    assert v["banner"] == "EigenBanner", "Postfach-Ausnahme für Banner muss gelten"
-    assert v["disclaimer"] == ""
-
-
-def test_eigene_wahl_bei_use_policy_true_behaelt_banner_der_richtlinie(monkeypatch):
-    """Vor v1.9.113 kostete eine eigene Signaturwahl (use_policy=false) still den
-    Banner der Richtlinie. Jetzt: Wahl gilt, Banner bleibt."""
-    cfg = {"use_policy": True, "template": "Meine", "banner_template": "Eingefroren"}
-    _store(monkeypatch, TEMPLATE_POLICIES={"sig": "Firma", "banner": "FirmenBanner"},
-           CUSTOM_POLICIES=[], INTERNAL_GROUPS={})
-    v = policies.aufloesen("a@x.de", {"a@x.de": cfg}, cfg)
-    assert v["sig"] == "Meine"
-    assert v["banner"] == "FirmenBanner"
+    assert v["banner"] == "EigenBanner", "eigene Banner-Wahl gilt, use_policy ist bedeutungslos"
+    assert v["disclaimer"] == "Recht" and v["min"] == "Kurz"
+    mc = {"a@x.de": {"banner_template": ""}}
+    assert policies.aufloesen("a@x.de", mc, mc["a@x.de"])["banner"] == "", "\"\" = ausdrücklich keiner"
 
 
 def test_leeres_feld_heisst_ausdruecklich_keine(monkeypatch):
     cfg = {"min_template": "", "oof_template": ""}
-    _store(monkeypatch, TEMPLATE_POLICIES={"min": "Kurz", "oof": "Global"}, **_GRUPPE)
+    _store(monkeypatch, TEMPLATE_POLICIES={"min": "Kurz", "oof": "Global"},
+           RICHTLINIE_GRUPPE_FEST=False, **_GRUPPE)
     v = policies.aufloesen("a@x.de", {"a@x.de": cfg}, cfg)
     assert v["min"] == "" and v["oof"] == ""
 
 
-def test_eigene_wahl_schlaegt_die_gruppe(monkeypatch):
+def test_eigene_wahl_schlaegt_die_gruppe_nur_ohne_festschreiben(monkeypatch):
     cfg = {"oof_template": "Eigene"}
-    _store(monkeypatch, TEMPLATE_POLICIES={}, **_GRUPPE)
+    _store(monkeypatch, TEMPLATE_POLICIES={}, RICHTLINIE_GRUPPE_FEST=False, **_GRUPPE)
     assert policies.vorlage_fuer("a@x.de", "oof", {"a@x.de": cfg}, cfg) == "Eigene"
+    # Vorgabe (Schalter fehlt = an): die Gruppe schreibt fest.
+    _store(monkeypatch, TEMPLATE_POLICIES={}, **_GRUPPE)
+    assert policies.vorlage_fuer("a@x.de", "oof", {"a@x.de": cfg}, cfg) == "GruppeOof"
 
 
 def test_signatur_ist_nie_leer(monkeypatch):
@@ -133,9 +125,13 @@ _TP = {"sig": "Firmensig", "min": "Minimal", "oof": "FirmenOof", "banner": "FB"}
 
 @pytest.mark.parametrize("key", sorted(_BESTAND))
 def test_migration_haelt_die_wirksame_vorlage_bitgleich(monkeypatch, key):
+    """v3→v4 und — weil `use_policy` seither nicht mehr gelesen wird — v8→v9
+    zusammen: die heutige Auflösung liefert, was vor v1.9.113 galt."""
     vorher = _alt_aufloesen(_BESTAND[key], _TP)
     daten = settings_store._migrate_v3_to_v4({"MAILBOX_CONFIG": {k: dict(v) for k, v in _BESTAND.items()}})
+    daten = settings_store._migrate_v8_to_v9(daten)
     mc = daten["MAILBOX_CONFIG"]
+    assert not any("use_policy" in e for e in mc.values())
     _store(monkeypatch, TEMPLATE_POLICIES=_TP, CUSTOM_POLICIES=[], INTERNAL_GROUPS={},
            MAILBOX_CONFIG=mc)
     nachher = policies.aufloesen(key, mc, mc[key])
@@ -157,8 +153,9 @@ def test_migrationskette_ab_v3():
     daten, geaendert = settings_store._run_migrations(
         {"_SCHEMA_VERSION": 3, "MAILBOX_CONFIG": {"g": {"use_policy": False}}})
     assert geaendert and daten["_SCHEMA_VERSION"] == settings_store.SETTINGS_SCHEMA_VERSION
-    assert daten["MAILBOX_CONFIG"]["g"] == {"use_policy": False, "template": "default",
-                                            "min_template": "", "oof_template": ""}
+    assert daten["MAILBOX_CONFIG"]["g"] == {"template": "default", "min_template": "",
+                                            "oof_template": "", "banner_template": "",
+                                            "disclaimer_template": "", "addin_templates": []}
 
 
 # ── Gruppenbasierte Variablen ──────────────────────────────────────────────────

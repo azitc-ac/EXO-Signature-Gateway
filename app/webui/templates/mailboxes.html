@@ -3,6 +3,8 @@
 {% from "_filterfeld.html" import filterfeld %}
 {% block content %}
 <h1>Postfächer</h1>
+{% set pol_gilt = "Für alle Postfächer, fest (außer eine Gruppen-Regel greift)" if richtlinie_standard_fest
+                  else "Standard für alle Postfächer ohne eigene Wahl — Postfächer können abweichen" %}
 
 <style>
   /* Marke am Postfach (JS setzt data-marke). 'wartet' = frisch aktiviert, die
@@ -28,10 +30,9 @@
   .cpol-zeile > label:first-child { flex:0 0 130px }
   .cpol-steuer { flex:1 1 180px; min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px }
   .cpol-steuer select { min-width:0; max-width:100%; font-size:12px }
-  .cpol-fest { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; cursor:pointer }
   /* Add-in-Auswahl: lange Vorlagennamen rollen in der Liste, nicht die Seite. */
   .cpol-steuer > details { flex:1 1 100%; min-width:0; overflow-x:auto }
-  /* Hinweis unter einer von einer Gruppe festgeschriebenen Auswahl (Farbe: .muted). */
+  /* Hinweis unter einer festgelegten Auswahl (Farbe: .muted). */
   .wahl-fest { display:block; font-size:10px; line-height:1.3; margin-top:2px;
                max-width:130px; margin-left:auto; margin-right:auto; white-space:normal }
   /* Ausnahme: Ein Wahl-Slot weicht vom Standard ab (JS setzt nur data-ausnahme
@@ -231,8 +232,12 @@ async function ankerAnwenden() {
         <option value="aus">S/MIME nicht aktiviert</option>
       </select>
       <label class="checkbox-label" style="font-size:13px;margin:0"
-             title="Nur Postfächer, bei denen mindestens eine Vorlage (Signatur, Antwort-, interne Signatur, Abwesenheit) bewusst vom Standard abweicht. Festgelegte Vorlagen zählen nicht.">
+             title="Nur Postfächer, bei denen mindestens eine Vorlage (Signatur, Antwort-, interne Signatur, Banner, Disclaimer, Abwesenheit, Add-in-Auswahl) bewusst vom Standard abweicht. Festgelegte Vorlagen zählen nicht.">
         <input type="checkbox" id="mb-ausnahme-filter" onchange="filterMailboxes()"> nur Ausnahmen
+      </label>
+      <label class="checkbox-label" id="ruhend" style="font-size:13px;margin:0"
+             title="Nur Postfächer mit einer eigenen Wahl, die gerade ruht: Die Vorlage ist festgelegt (Gruppen-Regel oder Standardrichtlinie), die Wahl bleibt gespeichert und gilt wieder, sobald die Festlegung entfällt.">
+        <input type="checkbox" id="mb-ruhend-filter" onchange="filterMailboxes()"> nur ruhende Wahl
       </label>
       <span id="mb-filter-count" style="font-size:12px;color:#64748b"></span>
     </div>
@@ -255,6 +260,8 @@ async function ankerAnwenden() {
           <option value="mb-template|signatur">Standardsignatur</option>
           <option value="mb-min-sig|signatur|leer">Antwort-Signatur</option>
           <option value="mb-intern|signatur|leer">Interne Signatur</option>
+          <option value="mb-banner|banner|leer">Banner</option>
+          <option value="mb-disclaimer|disclaimer|leer">Disclaimer</option>
           {% if abwesenheit_aktiv() %}<option value="mb-oof|oof|leer">Abwesenheit</option>{% endif %}
         </select>
         <select id="mb-massen-vorlage" aria-label="Vorlage für die Sammelauswahl"
@@ -262,9 +269,14 @@ async function ankerAnwenden() {
         <button class="btn secondary btn-sm" onclick="massenVorlageSetzen()">Setzen</button>
       </span>
       <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px"
-            title="Setzt in allen sichtbaren Zeilen Signatur, Antwort-, interne Signatur und Abwesenheit auf „Standard“ — die Ausnahmen entfallen. Festgelegte Vorlagen bleiben. Gespeichert wird erst mit „Speichern“.">
+            title="Setzt in allen sichtbaren Zeilen jede Vorlage (Signatur, Antwort-, interne Signatur, Banner, Disclaimer, Abwesenheit, Add-in-Auswahl) auf „Standard“ — die Ausnahmen entfallen. Festgelegte Vorlagen bleiben. Gespeichert wird erst mit „Speichern“.">
         Ausnahmen:
         <button class="btn secondary btn-sm" onclick="massenAufStandard()">Sichtbare auf Standard</button>
+      </span>
+      <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px"
+            title="Hakt in allen sichtbaren Zeilen „verwerfen“ bei jeder ruhenden eigenen Wahl an. Mit „Speichern“ entfällt sie; die festgelegte Vorlage gilt weiter.">
+        Ruhende Wahl:
+        <button class="btn secondary btn-sm" onclick="massenRuhendVerwerfen()">Sichtbare verwerfen</button>
       </span>
       <span id="mb-massen-status" hidden style="font-size:12px"></span>
       <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px"
@@ -282,11 +294,6 @@ async function ankerAnwenden() {
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:90px">Signatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
-              title="Wenn aktiv: Banner, Disclaimer und Add-in-Auswahl kommen aus der Richtlinie. Signatur, Antwort-, interne Signatur und Abwesenheit sind davon unabhängig. Ob eine Banner-Kampagne ein Postfach erreicht, legt die Kampagne fest (Übernahme erzwingen für).">
-            Banner/Disclaimer nach Richtlinie
-            <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block;margin-top:2px">auch Add-in-Auswahl</span>
-          </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Standardsignatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
               title="Signatur ab der ZWEITEN eigenen Mail im Thread. Die erste Antwort (und neue Mails) bekommen weiter die Standardsignatur.">
@@ -340,12 +347,16 @@ async function ankerAnwenden() {
        Felder" — statt nachzusehen. -->
   <div id="policy-felder">
   <p class="hint" style="margin-bottom:14px;line-height:1.6">
-    <strong>Signatur, Antwort-Signatur und Abwesenheit</strong> sind eine Wahl je Postfach: Hier steht der
-    <em>Standard</em> für alle Postfächer ohne eigene Wahl (eine Gruppen-Regel unten kann ihn je Gruppe ändern).
-    Abweichen lässt sich in der Postfach-Tabelle oder — falls freigegeben — im Self-Service.<br>
-    <strong>Banner und Disclaimer</strong> sind verbindlich: Sie gelten für alle Postfächer mit angehaktem
-    <em>Banner/Disclaimer nach Richtlinie</em> (Spalte der Postfach-Tabelle, steuert auch die Add-in-Auswahl);
-    nur wer den Haken dort abschaltet, bekommt eigene.
+    Zwei Ebenen, für jede Vorlage gleich: Die <strong>Standardrichtlinie</strong> hier gilt für alle
+    Postfächer; eine <strong>benutzerdefinierte Richtlinie</strong> (Gruppen-Regel unten) hat Vorrang
+    für die Mitglieder ihrer Gruppe.
+    {% if richtlinie_standard_fest %}Die Standardrichtlinie ist <strong>fest</strong>: Postfächer
+    können nicht abweichen.{% else %}Von der Standardrichtlinie kann ein Postfach abweichen — in der
+    Postfach-Tabelle oder, falls freigegeben, im Self-Service.{% endif %}
+    {% if richtlinie_gruppe_fest %}Gruppen-Regeln sind <strong>fest</strong>: Wer abweichen soll, darf in
+    keiner Gruppe mit einer Regel für diese Vorlage sein.{% else %}Auch von einer Gruppen-Regel kann ein
+    Postfach abweichen.{% endif %}
+    Umstellen: <a href="/settings/signature#festschreiben">Einstellungen → Signatur → Erweitert</a>.
   </p>
   <p class="hint" style="margin-bottom:14px;line-height:1.6">
     <strong>Antwort-Signatur:</strong> Antwortet ein Absender in einem Thread, in dem er <em>schon geschrieben</em> hat
@@ -370,7 +381,7 @@ async function ankerAnwenden() {
       <!-- Standardsignatur — aktiv -->
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">Standardsignatur</td>
-        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">{{ pol_gilt }}</td>
         <td style="padding:6px 8px">
           <select id="policy-sig-tpl" style="font-size:12px;width:160px">
             <!-- filled by JS -->
@@ -383,7 +394,7 @@ async function ankerAnwenden() {
           Antwort-Signatur
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">ab 2. eigener Mail im Thread</span>
         </td>
-        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">{{ pol_gilt }}</td>
         <td style="padding:6px 8px">
           <select id="policy-min-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -394,7 +405,7 @@ async function ankerAnwenden() {
           Interne Signatur
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">nur wenn alle Empfänger intern sind</span>
         </td>
-        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">{{ pol_gilt }}</td>
         <td style="padding:6px 8px">
           <select id="policy-intern-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -402,7 +413,7 @@ async function ankerAnwenden() {
       <!-- Banner -->
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">Banner</td>
-        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">{{ pol_gilt }}</td>
         <td style="padding:6px 8px">
           <select id="policy-banner-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -413,7 +424,7 @@ async function ankerAnwenden() {
           Disclaimer
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">wird hinter Banner angehängt</span>
         </td>
-        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">{{ pol_gilt }}</td>
         <td style="padding:6px 8px">
           <select id="policy-disclaimer-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -425,7 +436,7 @@ async function ankerAnwenden() {
           Abwesenheit
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">Text der Out-of-Office-Antwort</span>
         </td>
-        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">{{ pol_gilt }}</td>
         <td style="padding:6px 8px">
           <select id="policy-oof-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -433,7 +444,7 @@ async function ankerAnwenden() {
       <!-- Outlook Add-In — aktiv -->
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">Outlook Add-In</td>
-        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
+        <td class="pol-gilt" style="padding:6px 8px;font-size:12px;color:#555">{{ pol_gilt }}</td>
         <td style="padding:6px 8px"><div id="policy-addin-ctrl"></div></td>
       </tr>
     </tbody>
@@ -510,8 +521,8 @@ async function ankerAnwenden() {
     Mitglieder der angehakten Gruppen wählen im Self-Service ihre Vorlagen selbst,
     alle anderen nur an/aus/Zeitraum — welche Kategorien, legen die Schalter darunter
     fest. Einzelne Postfächer lassen sich über das Feld <code>self_templates</code> im
-    Postfach-Eintrag freischalten. Banner und Disclaimer sind nie wählbar, ebenso
-    eine Vorlage, die eine Gruppen-Regel <em>fest</em> vorgibt.
+    Postfach-Eintrag freischalten. Banner, Disclaimer und Add-in-Auswahl sind dort nie
+    wählbar, ebenso eine festgelegte Vorlage (siehe oben).
   </p>
   <h3 style="font-size:12px;font-weight:600;color:#374151;margin:12px 0 4px">Wählbare Kategorien
     <span id="self-tpl-kat-result" style="font-size:12px;font-weight:400;margin-left:8px"></span></h3>
@@ -579,17 +590,19 @@ async function ankerAnwenden() {
       keine Vorlage.
     </p>
     <p class="hint" style="margin:0 0 6px;max-width:640px">
-      <em>fest</em> (Signatur, Antwort-, interne Signatur, Abwesenheit): Die Vorlage gilt
-      auch, wenn das Postfach eine eigene gewählt hat. Die Auswahl ist dann im
-      Self-Service und in der Postfachliste gesperrt; eine eigene Wahl bleibt gespeichert
-      und gilt wieder, sobald <em>fest</em> entfällt. Der Haken <em>Banner/Disclaimer nach Richtlinie</em> eines
-      Postfachs hebt <em>fest</em> nicht auf.
+      {% if richtlinie_gruppe_fest %}Benutzerdefinierte Richtlinien schreiben <strong>fest</strong>: Was
+      eine Regel festlegt, gilt für die Mitglieder ihrer Gruppe auch gegen eine eigene Wahl des Postfachs.
+      Die Auswahl ist im Self-Service und in der Postfachliste gesperrt; eine eigene Wahl bleibt
+      gespeichert und gilt wieder, sobald keine Regel sie mehr festlegt.{% else %}Benutzerdefinierte
+      Richtlinien schreiben derzeit <strong>nicht</strong> fest: Was eine Regel festlegt, ist für die
+      Mitglieder ihrer Gruppe der Standard, von dem ein Postfach abweichen kann.{% endif %}
+      Umstellen: <a href="/settings/signature#festschreiben">Einstellungen → Signatur → Erweitert</a>.
     </p>
     <p class="hint" style="margin:0 0 6px;max-width:640px">
       <em>Add-in-Auswahl</em> legt fest, welche Vorlagen Mitglieder der Gruppe im
-      Outlook-Add-in wählen können — unabhängig von <em>fest</em>. Ist jemand in mehreren
-      solchen Gruppen, kann er die Vorlagen aller dieser Gruppen wählen. Wer in keiner
-      ist, bekommt die Auswahl aus <em>Vorlagenrichtlinien → Add-in</em>.
+      Outlook-Add-in wählen können. Ist jemand in mehreren solchen Gruppen, kann er die
+      Vorlagen aller dieser Gruppen wählen. Wer in keiner ist, bekommt die Auswahl aus
+      <em>Vorlagenrichtlinien → Add-in</em>.
     </p>
     <div id="cpol-liste" style="margin-bottom:6px"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1056,21 +1069,23 @@ async function refreshMailboxStatus() {
   setTimeout(function() { laeuftZeigen('mb-load-status', null); }, 3000);
 }
 
-// Wahl-Slots (Signatur, Antwort-Signatur, Abwesenheit) gehören dem Nutzer und
-// gelten unabhängig vom Haken „Banner/Disclaimer nach Richtlinie“ (use_policy, policies.py). Erste Auswahl ist
-// „Standard (X)": kein eigener Wert, das Postfach folgt dem Gruppen- bzw.
-// globalen Default und wandert mit, wenn der Betreiber ihn ändert.
+// Jeder Slot (Signatur, Antwort-, interne Signatur, Banner, Disclaimer,
+// Abwesenheit, Add-in-Auswahl) ist Postfach-Wahl, solange die greifende Ebene
+// ihn nicht festschreibt (policies.py). Erste Auswahl ist „Standard (X)": kein
+// eigener Wert, das Postfach folgt der Gruppen-Regel bzw. Standardrichtlinie
+// und wandert mit, wenn der Betreiber sie ändert.
 var STANDARD_WAHL = '__standard__';
 // Funktion „Zentrale Abwesenheiten verwalten" (Assistent) — steuert die Spalte.
 var _abwesenheitAktiv = {{ abwesenheit_aktiv() | tojson }};
 // Anbindung an Exchange lokal (EWS) eingerichtet → Abwesenheit auch für Hybrid-Nutzer.
 var _hybridAbwesenheit = false;
-// Zelle mit einer Signatur-Wahl, die am Signatur-Haken hängt (Antwort-,
-// interne Signatur). Ohne Haken ausgegraut — gleiche Regel wie die Standardsignatur.
-function _signaturWahlZelle(idx, klasse, mb, slot, feld) {
+// Zelle mit einer Wahl, die am Signatur-Haken hängt (Antwort-, interne
+// Signatur, Banner, Disclaimer). Ohne Haken ausgegraut — gleiche Regel wie die
+// Standardsignatur.
+function _signaturWahlZelle(idx, klasse, mb, slot, feld, kind, leerText) {
   var td = document.createElement('td');
   td.style.cssText = 'text-align:center;padding:6px 8px';
-  var sel = _buildWahlSelect(idx, klasse, 'signatur', mb, slot, feld, '— keine —');
+  var sel = _buildWahlSelect(idx, klasse, kind || 'signatur', mb, slot, feld, leerText || '— keine —');
   _wahlStand(sel, !mb.sig);
   _wahlInZelle(td, sel, mb, slot, feld);
   return td;
@@ -1079,13 +1094,15 @@ function _signaturWahlZelle(idx, klasse, mb, slot, feld) {
 // EIN Weg, eine Wahl-Auswahl in ihre Zelle zu setzen: Auswahl, Ausnahme-Marke
 // (direkt dahinter — der CSS-Selektor `select[data-ausnahme] + .wahl-ausnahme`
 // braucht die Nachbarschaft) und ggf. der Festgelegt-Hinweis.
-function _wahlInZelle(td, sel, mb, slot, feld) {
+// `o_nachMarke`: weiteres Element hinter der Marke (Add-in: die Auswahlliste).
+function _wahlInZelle(td, sel, mb, slot, feld, o_nachMarke) {
   td.appendChild(sel);
   var marke = document.createElement('span');
   marke.className = 'wahl-ausnahme';
   marke.textContent = 'Ausnahme';
   marke.title = 'Eigene Wahl dieses Postfachs — folgt nicht dem Standard (Gruppe bzw. global).';
   td.appendChild(marke);
+  if (o_nachMarke) td.appendChild(o_nachMarke);
   _festHinweis(td, mb, slot, feld);
   _ausnahmeStand(sel);
   sel.addEventListener('change', function() { _ausnahmeStand(sel); });
@@ -1103,11 +1120,21 @@ function _ausnahmeStand(sel) {
   else delete sel.dataset.ausnahme;
 }
 
-// Von einer Gruppen-Regel festgeschrieben (mb.fest = {slot: gruppe},
-// policies.festgeschrieben)? Dann bleibt die Auswahl gesperrt, egal welcher
-// Haken umspringt — und der Server nimmt für diesen Slot ohnehin nichts an.
+// Festgelegt (mb.fest = {slot: quelle}, policies.festgeschrieben)? Quelle ist
+// der Gruppenname oder '' (Standardrichtlinie). Dann bleibt die Auswahl
+// gesperrt, egal welcher Haken umspringt — und der Server nimmt für diesen Slot
+// ohnehin nichts an.
 function _istFest(mb, slot) {
   return !!mb.fest && Object.prototype.hasOwnProperty.call(mb.fest, slot);
+}
+function _festQuelle(mb, slot) {
+  return mb.fest[slot] ? 'Gruppe „' + mb.fest[slot] + '“' : 'Standardrichtlinie';
+}
+// Anzeige eines Slot-Werts: Add-in-Auswahl als Text, sonst der Vorlagenname.
+function _wertText(slot, wert) {
+  if (slot !== 'addin') return wert || 'keine';
+  if (wert === '*') return 'alle Vorlagen';
+  return (wert && wert.length) ? wert.join(', ') : 'nur Standardsignatur';
 }
 // Gesperrt, wenn ohne Wirkung (`aus`: Haken fehlt) ODER festgeschrieben.
 // Ausgegraut nur bei `aus` — der festgeschriebene Wert soll lesbar bleiben.
@@ -1115,15 +1142,30 @@ function _wahlStand(sel, aus) {
   sel.disabled = !!aus || sel.dataset.fest === '1';
   sel.style.opacity = aus ? '0.4' : '1';
 }
-// Zeile unter einer festgeschriebenen Auswahl: welche Gruppe, und ob eine
-// eigene Wahl ruht (bleibt gespeichert, gilt wieder ohne Festschreibung).
+// Zeile unter einer festgelegten Auswahl: durch wen, und ob eine eigene Wahl
+// ruht (bleibt gespeichert, gilt wieder ohne Festlegung). Eine ruhende Wahl
+// lässt sich hier verwerfen — Kästchen `.mb-ruht-weg`, wirksam mit „Speichern“
+// (Server: ruhend_verwerfen).
 function _festHinweis(td, mb, slot, feld) {
   if (!_istFest(mb, slot)) return;
   var eigen = mb[feld];
   var span = document.createElement('span');
   span.className = 'muted wahl-fest';
-  span.textContent = 'festgelegt durch ' + mb.fest[slot]
-    + (eigen === null || eigen === undefined ? '' : ' · eigene Wahl „' + (eigen || 'keine') + '“ ruht');
+  span.textContent = 'festgelegt durch ' + _festQuelle(mb, slot)
+    + (eigen === null || eigen === undefined ? '' : ' · eigene Wahl „' + _wertText(slot, eigen) + '“ ruht');
+  if (eigen !== null && eigen !== undefined) {
+    var lbl = document.createElement('label');
+    lbl.style.cssText = 'display:inline-flex;align-items:center;gap:3px;cursor:pointer';
+    lbl.title = 'Die ruhende eigene Wahl beim Speichern entfernen';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'mb-ruht-weg';
+    cb.dataset.feld = feld;
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode('verwerfen'));
+    span.appendChild(document.createTextNode(' '));
+    span.appendChild(lbl);
+  }
   td.appendChild(span);
 }
 
@@ -1142,56 +1184,52 @@ function _buildWahlSelect(idx, klasse, kind, mb, slot, feld, leerText) {
   o.textContent = 'Standard (' + (std || 'keine') + ')';
   sel.insertBefore(o, sel.firstChild);
   sel.value = aktuell;
-  if (_istFest(mb, slot)) {
-    // Der Standard IST hier der Gruppenwert (die greifende Regel liefert beides).
-    sel.dataset.fest = '1';
-    o.textContent = 'Festgelegt (' + (std || 'keine') + ')';
-    sel.value = STANDARD_WAHL;
-    sel.disabled = true;
-    sel.title = 'Festgelegt durch Gruppe „' + mb.fest[slot] + '“';
-  }
+  _festSperren(sel, o, mb, slot, std);
   return sel;
 }
 
-// Zelle mit Banner- bzw. Disclaimer-Auswahl einer Postfachzeile. Greift die
-// Vorlagenrichtlinie, zeigt sie deren Wert und ist gesperrt. Bis 2026-10-21 für
-// Banner und Disclaimer je einmal ausgeschrieben (Kopien-Finder).
-function _richtlinienZelle(i, mb, policyActive, klasse, art, eigenerWert, richtlinienId, leerText) {
+// Festgelegt: Die Auswahl zeigt den Standard — er IST hier der festgelegte
+// Wert (die greifende Ebene liefert beides) — und bleibt gesperrt.
+function _festSperren(sel, standardOption, mb, slot, std) {
+  if (!_istFest(mb, slot)) return;
+  sel.dataset.fest = '1';
+  standardOption.textContent = 'Festgelegt (' + _wertText(slot, std) + ')';
+  sel.value = STANDARD_WAHL;
+  sel.disabled = true;
+  sel.title = 'Festgelegt durch ' + _festQuelle(mb, slot);
+}
+
+// Add-in-Auswahl einer Postfachzeile: erst die Wahl wie bei jeder Vorlage
+// („Standard (…)“ oder „Eigene Auswahl“), darunter bei eigener Auswahl die
+// Liste. Gesperrt ohne Signatur, ohne aktiviertes Add-in oder festgelegt.
+function _addinWahlZelle(idx, mb) {
   var td = document.createElement('td');
-  td.style.cssText = 'text-align:center;padding:6px 8px';
+  td.style.cssText = 'padding:6px 8px;text-align:center';
+  var eigen = mb.addin_templates;               // null/undefined = folgt dem Standard
+  var hatEigene = eigen !== null && eigen !== undefined;
   var sel = document.createElement('select');
-  sel.className = klasse;
-  sel.dataset.idx = String(i);
+  sel.className = 'mb-addin-modus';
+  sel.dataset.idx = String(idx);
   sel.style.cssText = 'font-size:12px;max-width:130px';
-  var richtlinie = document.getElementById(richtlinienId).value || '';
-  _fuelleVorlagenSelect(sel, art, policyActive ? richtlinie : (eigenerWert || ''),
-    {mitLeer: true, leerText: leerText, auchZeigen: [eigenerWert, richtlinie]});
-  _richtlinienStand(sel, mb.sig, policyActive, eigenerWert, richtlinienId);
-  td.appendChild(sel);
+  var std = (mb.standard || {}).addin;
+  var o = document.createElement('option');
+  o.value = STANDARD_WAHL;
+  o.textContent = 'Standard (' + _wertText('addin', std) + ')';
+  sel.appendChild(o);
+  var e = document.createElement('option');
+  e.value = 'eigen';
+  e.textContent = 'Eigene Auswahl';
+  sel.appendChild(e);
+  sel.value = hatEigene ? 'eigen' : STANDARD_WAHL;
+  _festSperren(sel, o, mb, 'addin', std);
+  var liste = _addinAuswahl(hatEigene ? eigen : '*',
+                            {idx: idx, allKlasse: 'addin-all', tplKlasse: 'addin-tpl'});
+  liste.style.textAlign = 'left';
+  function zeigen() { liste.hidden = sel.value !== 'eigen'; }
+  sel.addEventListener('change', zeigen);
+  zeigen();
+  _wahlInZelle(td, sel, mb, 'addin', 'addin_templates', liste);
   return td;
-}
-
-// Zustand der Auswahl: gesperrt ohne Signatur oder unter Richtlinie; unter
-// Richtlinie deren Wert, sonst der eigene. Beim Aufbau UND beim Umschalten.
-function _richtlinienStand(sel, sig, pol, eigenerWert, richtlinienId) {
-  var gesperrt = !sig || pol;
-  sel.disabled = gesperrt;
-  sel.style.opacity = gesperrt ? '0.4' : '1';
-  sel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
-  sel.value = pol ? (document.getElementById(richtlinienId).value || '') : (eigenerWert || '');
-}
-
-function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActive) {
-  var details = _addinAuswahl(addinTemplates, {idx: idx, allKlasse: 'addin-all', tplKlasse: 'addin-tpl'});
-  var active = _addinEnabled && sigEnabled && !policyActive;
-  if (!active) {
-    details.style.opacity = '0.4';
-    details.style.pointerEvents = 'none';
-    details.title = policyActive
-      ? 'Wird durch Vorlagenrichtlinie gesteuert'
-      : (_addinEnabled ? 'Signatur deaktiviert' : 'Outlook Add-in nicht aktiviert (Einstellungen → Outlook Add-in)');
-  }
-  return details;
 }
 
 var _hasHealthData = false;
@@ -1351,20 +1389,7 @@ function renderMailboxTable(mailboxes) {
     if (isResource) { sigCb.disabled = true; sigCb.title = 'Raum-/Geräte-Postfächer können nicht aktiviert werden'; }
     tdSig.appendChild(sigCb);
 
-    // Haken „Banner/Disclaimer nach Richtlinie“ (use_policy)
-    var policyActive = (mb.use_policy !== false); // default true
-    var tdPolicy = document.createElement('td');
-    tdPolicy.style.cssText = 'text-align:center;padding:6px 8px';
-    var policyCb = document.createElement('input');
-    policyCb.type = 'checkbox';
-    policyCb.className = 'mb-policy';
-    policyCb.dataset.idx = String(i);
-    policyCb.checked = policyActive;
-    policyCb.title = 'Banner/Disclaimer nach Richtlinie: Banner, Disclaimer und Add-in-Auswahl kommen aus der Richtlinie. Signatur, Antwort-, interne Signatur und Abwesenheit betrifft der Haken nicht.';
-    if (isResource) policyCb.disabled = true;
-    tdPolicy.appendChild(policyCb);
-
-    // Signatur (Wahl-Slot, unabhängig von use_policy)
+    // Signatur
     var tdTpl = document.createElement('td');
     tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
     var tplSel = _buildWahlSelect(i, 'mb-template', 'signatur', mb, 'sig', 'template', null);
@@ -1378,13 +1403,13 @@ function renderMailboxTable(mailboxes) {
     var tdIntern = _signaturWahlZelle(i, 'mb-intern', mb, 'intern', 'intern_template');
     var internSigSel = tdIntern.firstChild;
 
-    // Banner und Disclaimer — Richtlinie (Vorlagenrichtlinie) statt Nutzerwahl
-    var tdBanner = _richtlinienZelle(i, mb, policyActive, 'mb-banner', 'banner',
-                                     mb.banner_template, 'policy-banner-tpl', '— kein Banner —');
-    var tdDisclaimer = _richtlinienZelle(i, mb, policyActive, 'mb-disclaimer', 'disclaimer',
-                                         mb.disclaimer_template, 'policy-disclaimer-tpl', '— kein —');
-    var bannerSel = tdBanner.querySelector('select');
-    var disclaimerSel = tdDisclaimer.querySelector('select');
+    // Banner und Disclaimer — Wahl wie die Signatur (seit v1.12.99)
+    var tdBanner = _signaturWahlZelle(i, 'mb-banner', mb, 'banner', 'banner_template',
+                                      'banner', '— kein Banner —');
+    var bannerSel = tdBanner.firstChild;
+    var tdDisclaimer = _signaturWahlZelle(i, 'mb-disclaimer', mb, 'disclaimer', 'disclaimer_template',
+                                          'disclaimer', '— kein —');
+    var disclaimerSel = tdDisclaimer.firstChild;
 
     // Abwesenheit (OOF) — Wahl-Slot; gilt für Signatur- ODER S/MIME-Postfächer
     var tdOof = document.createElement('td');
@@ -1394,11 +1419,10 @@ function renderMailboxTable(mailboxes) {
     _wahlInZelle(tdOof, oofSel, mb, 'oof', 'oof_template');
     // Kalender-Automatik je Postfach wird jetzt im Abwesenheits-Dashboard gesetzt.
 
-    // Add-in Vorlagen — greyed when policyActive
-    var tdAddin = document.createElement('td');
-    tdAddin.style.cssText = 'padding:6px 8px';
-    var addinCtrl = _buildAddinTemplatesControl(i, mb.addin_templates || [], mb.sig, policyActive);
-    tdAddin.appendChild(addinCtrl);
+    // Add-in-Auswahl — Wahl wie jede Vorlage, Liste darunter
+    var tdAddin = _addinWahlZelle(i, mb);
+    var addinSel = tdAddin.firstChild;
+    var addinCtrl = tdAddin.querySelector('details');
 
     // S/MIME checkbox
     var tdSmime = document.createElement('td');
@@ -1418,28 +1442,31 @@ function renderMailboxTable(mailboxes) {
     tdStatus.style.cssText = 'text-align:center;padding:6px 8px;' + (_hasHealthData ? '' : 'display:none');
     tdStatus.innerHTML = _healthBadge(mb);
 
-    // Wire policy checkbox → grey/enable tplSel, minSigSel, bannerSel and addinCtrl
-    function _applyPolicy() {
-      var pol = policyCb.checked;
+    // Haken → Auswahlen sperren/freigeben. Alle Vorlagen hängen am Signatur-
+    // Haken, die Abwesenheit an Signatur ODER S/MIME; festgelegte bleiben gesperrt.
+    function _hakenAnwenden() {
       var sig = sigCb.checked;
       var smime = smimeCb.checked;
-      // Wahl-Slots hängen nur am Signatur- bzw. S/MIME-Haken, nicht an der Richtlinie.
       _wahlStand(tplSel, !sig);
       _wahlStand(minSigSel, !sig);
       _wahlStand(internSigSel, !sig);
-      _richtlinienStand(bannerSel, sig, pol, mb.banner_template, 'policy-banner-tpl');
-      _richtlinienStand(disclaimerSel, sig, pol, mb.disclaimer_template, 'policy-disclaimer-tpl');
+      _wahlStand(bannerSel, !sig);
+      _wahlStand(disclaimerSel, !sig);
       // Abwesenheit greift für aktivierte Postfächer (Signatur ODER S/MIME).
       var oofAus = !(sig || smime) || (isHybrid && !_hybridAbwesenheit);
       _wahlStand(oofSel, oofAus);
-      var addinAus = !sig || pol;
-      addinCtrl.style.opacity = addinAus ? '0.4' : '1';
-      addinCtrl.style.pointerEvents = addinAus ? 'none' : '';
-      addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : (isHybrid ? HYBRID_ADDIN : '');
+      var addinAus = !sig || !_addinEnabled;
+      _wahlStand(addinSel, addinAus);
+      var listeAus = addinAus || addinSel.dataset.fest === '1';
+      addinCtrl.style.opacity = listeAus ? '0.4' : '1';
+      addinCtrl.style.pointerEvents = listeAus ? 'none' : '';
+      addinSel.title = addinSel.dataset.fest === '1' ? addinSel.title
+        : (!_addinEnabled ? 'Outlook Add-in nicht aktiviert (Einstellungen → Outlook Add-in)'
+           : (isHybrid ? HYBRID_ADDIN : ''));
     }
-    policyCb.addEventListener('change', _applyPolicy);
-    sigCb.addEventListener('change', _applyPolicy);
-    smimeCb.addEventListener('change', _applyPolicy);   // Abwesenheit gilt auch für S/MIME-only
+    sigCb.addEventListener('change', _hakenAnwenden);
+    smimeCb.addEventListener('change', _hakenAnwenden);   // Abwesenheit gilt auch für S/MIME-only
+    _hakenAnwenden();
 
     if (isResource) {
       tplSel.disabled = true; tplSel.style.opacity = '0.4';
@@ -1448,19 +1475,18 @@ function renderMailboxTable(mailboxes) {
       bannerSel.disabled = true; bannerSel.style.opacity = '0.4';
       disclaimerSel.disabled = true; disclaimerSel.style.opacity = '0.4';
       oofSel.disabled = true; oofSel.style.opacity = '0.4';
+      addinSel.disabled = true; addinSel.style.opacity = '0.4';
       addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
     }
     if (isHybrid && !_hybridAbwesenheit) {
       oofSel.disabled = true; oofSel.style.opacity = '0.4'; oofSel.title = HYBRID_HINWEIS;
     }
-    if (isHybrid && !addinCtrl.title) addinCtrl.title = HYBRID_ADDIN;
 
-    // Column order: Status, Postfach, Signatur, S/MIME, Banner/Disclaimer nach Richtlinie (use_policy), Standardsignatur, Minimalsignatur, Banner, Disclaimer, Abwesenheit, Outlook Add-In
+    // Column order: Status, Postfach, Signatur, S/MIME, Standardsignatur, Antwort-, interne Signatur, Banner, Disclaimer, Abwesenheit, Outlook Add-In
     tr.appendChild(tdStatus);
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
     tr.appendChild(tdSmime);
-    tr.appendChild(tdPolicy);
     tr.appendChild(tdTpl);
     tr.appendChild(tdMinSig);
     tr.appendChild(tdIntern);
@@ -1483,6 +1509,7 @@ function filterMailboxes() {
   var sigF = (document.getElementById('mb-sig-filter') || {}).value || '';
   var smimeF = (document.getElementById('mb-smime-filter') || {}).value || '';
   var nurAusnahmen = !!(document.getElementById('mb-ausnahme-filter') || {}).checked;
+  var nurRuhend = !!(document.getElementById('mb-ruhend-filter') || {}).checked;
   // Haken in der Zeile, nicht der gespeicherte Stand: Eine noch nicht
   // gespeicherte Änderung soll der Filter so zeigen, wie sie gleich gilt.
   function haken(tr, cls, soll) {
@@ -1495,13 +1522,14 @@ function filterMailboxes() {
   zeilen.forEach(function(tr) {
     var passt = tr.dataset.search.includes(q) && (!typ || tr.dataset.mbtype === typ)
       && haken(tr, '.mb-sig', sigF) && haken(tr, '.mb-smime', smimeF)
-      && (!nurAusnahmen || !!tr.querySelector('select[data-ausnahme="1"]'));
+      && (!nurAusnahmen || !!tr.querySelector('select[data-ausnahme="1"]'))
+      && (!nurRuhend || !!tr.querySelector('.mb-ruht-weg'));
     tr.style.display = passt ? '' : 'none';
     if (passt) sichtbar++;
   });
   var zaehler = document.getElementById('mb-filter-count');
   if (zaehler) {
-    zaehler.textContent = (q || typ || sigF || smimeF || nurAusnahmen)
+    zaehler.textContent = (q || typ || sigF || smimeF || nurAusnahmen || nurRuhend)
       ? sichtbar + ' von ' + zeilen.length + ' Postfächern'
       : '';
   }
@@ -1544,12 +1572,12 @@ function massenVorlageSetzen() {
     + ' — wirksam nach „Speichern“.', gesetzt > 0);
 }
 
-// Massenaktion „Sichtbare auf Standard“: alle Wahl-Slots der sichtbaren Zeilen
-// auf STANDARD_WAHL — die Ausnahmen entfallen. Festgeschriebene überspringt sie
-// (der Server nimmt dort ohnehin nichts an). Gesperrte ohne Signatur-Haken
-// setzt sie mit: Ihre Ausnahme steht im Eintrag, „nur Ausnahmen“ zeigt sie.
+// Massenaktion „Sichtbare auf Standard“: alle Slots der sichtbaren Zeilen auf
+// STANDARD_WAHL — die Ausnahmen entfallen. Festgelegte überspringt sie (der
+// Server nimmt dort ohnehin nichts an). Gesperrte ohne Signatur-Haken setzt sie
+// mit: Ihre Ausnahme steht im Eintrag, „nur Ausnahmen“ zeigt sie.
 // Wirksam erst mit „Speichern“, wie die übrigen Sammelauswahlen.
-var WAHL_SELEKTOR = 'select.mb-template, select.mb-min-sig, select.mb-intern, select.mb-oof';
+var WAHL_SELEKTOR = 'select.mb-template, select.mb-min-sig, select.mb-intern, select.mb-banner, select.mb-disclaimer, select.mb-oof, select.mb-addin-modus';
 function massenAufStandard() {
   var zeilen = 0, slots = 0, fest = 0;
   document.querySelectorAll('#mb-tbody tr').forEach(function(tr) {
@@ -1569,6 +1597,23 @@ function massenAufStandard() {
       + (fest ? ', ' + fest + ' festgelegte übersprungen' : '') + ' — wirksam nach „Speichern“.'
     : 'Keine Ausnahme in den sichtbaren Zeilen' + (fest ? ' (' + fest + ' festgelegte übersprungen)' : '') + '.',
     slots > 0);
+}
+
+// Massenaktion „Ruhende Wahl: Sichtbare verwerfen“ — hakt `.mb-ruht-weg` in den
+// sichtbaren Zeilen an. Wirksam mit „Speichern“ (Server: ruhend_verwerfen).
+function massenRuhendVerwerfen() {
+  var n = 0;
+  document.querySelectorAll('#mb-tbody tr').forEach(function(tr) {
+    if (tr.style.display === 'none') return;
+    tr.querySelectorAll('.mb-ruht-weg').forEach(function(cb) {
+      if (cb.checked) return;
+      cb.checked = true;
+      cb.dispatchEvent(new Event('change', {bubbles: true}));
+      n++;
+    });
+  });
+  showMsg('mb-massen-status', n ? n + ' ruhende Wahl(en) zum Verwerfen markiert — wirksam nach „Speichern“.'
+                                : 'Keine ruhende Wahl in den sichtbaren Zeilen.', n > 0);
 }
 
 function setAllVisible(type, state) {
@@ -1726,22 +1771,28 @@ async function saveMailboxes() {
   var bannerSelects = document.querySelectorAll('.mb-banner');
   var disclaimerSelects = document.querySelectorAll('.mb-disclaimer');
   var oofSelects = document.querySelectorAll('.mb-oof');
-  var policyBoxes = document.querySelectorAll('.mb-policy');
+  var addinModi = document.querySelectorAll('.mb-addin-modus');
   var payload = [];
   sigBoxes.forEach(function(cb, i) {
     var idx = parseInt(cb.dataset.idx);
+    var tr = cb.closest('tr');
+    // Add-in: „Standard“ → STANDARD_WAHL (kein Feld), sonst "*" oder die Liste.
+    var addinTemplates = STANDARD_WAHL;
     var addinWrap = document.querySelector('details[data-addin-idx="' + idx + '"]');
-    var addinTemplates = [];
-    if (addinWrap) {
+    if (addinWrap && addinModi[i] && addinModi[i].value === 'eigen') {
       var masterCb = addinWrap.querySelector('.addin-all');
       if (masterCb && masterCb.checked) {
         addinTemplates = '*';
       } else {
+        addinTemplates = [];
         addinWrap.querySelectorAll('.addin-tpl').forEach(function(tcb) {
           if (tcb.checked) addinTemplates.push(tcb.value);
         });
       }
     }
+    // Ruhende Wahl, die verworfen werden soll (Kästchen unter festgelegten Auswahlen).
+    var verwerfen = tr ? Array.prototype.map.call(tr.querySelectorAll('.mb-ruht-weg:checked'),
+                                                  function(r) { return r.dataset.feld; }) : [];
     payload.push({
       email: _mbData[idx].email,
       sig: cb.checked,
@@ -1749,10 +1800,10 @@ async function saveMailboxes() {
       template: templateSelects[i] ? templateSelects[i].value : 'default',
       min_template: minSigSelects[i] ? minSigSelects[i].value : '',
       intern_template: internSelects[i] ? internSelects[i].value : '',
-      banner_template: bannerSelects[i] ? bannerSelects[i].value : '',
-      disclaimer_template: disclaimerSelects[i] ? disclaimerSelects[i].value : '',
+      banner_template: bannerSelects[i] ? bannerSelects[i].value : STANDARD_WAHL,
+      disclaimer_template: disclaimerSelects[i] ? disclaimerSelects[i].value : STANDARD_WAHL,
       addin_templates: addinTemplates,
-      use_policy: policyBoxes[i] ? policyBoxes[i].checked : true,
+      ruhend_verwerfen: verwerfen,
     });
     // Abwesenheits-Spalte nur bei eingeschalteter Funktion. Fehlt sie, bleibt der
     // Schlüssel WEG — der Server übernimmt dann die bisherige Wahl. Ein '' hiesse
@@ -2484,7 +2535,7 @@ async function saveRegelModal() {
 
 // ── Benutzerdefinierte Richtlinien ───────────────────────────────────────────
 
-var _customPolicies = []; // policies.regeln: [{condition_type, group_name, vorlagen: {slot: wert}, fest: [slot]}]
+var _customPolicies = []; // policies.regeln: [{condition_type, group_name, vorlagen: {slot: wert}}]
 
 var _APPLIES_TO_LABELS = {sig: 'Standardsignatur', min: 'Minimalsignatur', intern: 'Interne Signatur', banner: 'Banner', disclaimer: 'Disclaimer', oof: 'Abwesenheit', addin: 'Add-in-Auswahl'};
 // Welchen Vorlagentyp der jeweilige Slot zuweist — spiegelt signature_engine.SLOT_ART.
@@ -2493,10 +2544,10 @@ function _cpolHat(pol, slot) {
   return Object.prototype.hasOwnProperty.call(pol.vorlagen, slot);
 }
 
-// Slots einer Regel (policies.REGEL_SLOTS); festschreibbar sind die ersten vier,
-// die Wahl-Slots (policies.FEST_SLOTS).
+// Slots einer Regel (policies.REGEL_SLOTS). Ob eine Regel festschreibt, sagt
+// der Schalter RICHTLINIE_GRUPPE_FEST (Einstellungen → Signatur → Erweitert) —
+// für alle Slots gleich, nicht mehr je Regel (bis v1.12.98 `fest`).
 var _CPOL_SLOTS = ['sig', 'min', 'intern', 'oof', 'banner', 'disclaimer', 'addin'];
-var _CPOL_FEST = _CPOL_SLOTS.slice(0, 4);
 // „— nicht festgelegt —“: Der Slot FEHLT in `vorlagen` (die Regel sagt nichts).
 var CPOL_OFFEN = '__offen__';
 
@@ -2601,7 +2652,7 @@ function _cpolSlotZeile(pol, i, slot) {
 
   if (slot === 'addin') {
     // Auswahlliste statt einer Vorlage; mehrere Gruppen = Vereinigung
-    // (policies.addin_freigabe), deshalb ohne „fest“.
+    // (policies._auswerten).
     sel.appendChild(offen);
     var ja = document.createElement('option');
     ja.value = 'liste';
@@ -2626,35 +2677,9 @@ function _cpolSlotZeile(pol, i, slot) {
   sel.insertBefore(offen, sel.firstChild);
   sel.value = gesetzt ? pol.vorlagen[slot] : CPOL_OFFEN;
   steuer.appendChild(sel);
-
-  var festCb = null;
-  if (_CPOL_FEST.indexOf(slot) !== -1) {
-    var festLbl = document.createElement('label');
-    festLbl.className = 'cpol-fest';
-    festLbl.title = 'Gilt auch gegen eine eigene Wahl des Postfachs; Self-Service und Postfachliste sperren die Auswahl.';
-    festCb = document.createElement('input');
-    festCb.type = 'checkbox';
-    festCb.checked = pol.fest.indexOf(slot) !== -1;
-    festCb.disabled = !gesetzt;      // „fest“ nur für einen festgelegten Wert
-    festCb.addEventListener('change', function() {
-      pol.fest = pol.fest.filter(function(s) { return s !== slot; });
-      if (this.checked) pol.fest.push(slot);
-    });
-    festLbl.appendChild(festCb);
-    festLbl.appendChild(document.createTextNode('fest'));
-    steuer.appendChild(festLbl);
-  }
   sel.addEventListener('change', function() {
-    if (this.value === CPOL_OFFEN) {
-      delete pol.vorlagen[slot];
-      pol.fest = pol.fest.filter(function(s) { return s !== slot; });
-    } else {
-      pol.vorlagen[slot] = this.value;
-    }
-    if (festCb) {
-      festCb.disabled = this.value === CPOL_OFFEN;
-      if (festCb.disabled) festCb.checked = false;
-    }
+    if (this.value === CPOL_OFFEN) delete pol.vorlagen[slot];
+    else pol.vorlagen[slot] = this.value;
   });
   return zeile;
 }
@@ -2662,7 +2687,7 @@ function _cpolSlotZeile(pol, i, slot) {
 function addCustomPolicy() {
   _cpolNeuZeichnen(function() {
     _customPolicies.push({condition_type: 'group', group_name: _groupNames()[0] || '',
-                          vorlagen: {}, fest: []});
+                          vorlagen: {}});
   });
 }
 
@@ -2674,7 +2699,7 @@ async function loadCustomPolicies() {
     // Der Server liefert das Regelformat (policies.regeln) — auch für Altbestand.
     _customPolicies = d.map(function(pol) {
       return {condition_type: 'group', group_name: pol.group_name || '',
-              vorlagen: pol.vorlagen || {}, fest: pol.fest || []};
+              vorlagen: pol.vorlagen || {}};
     });
     _renderCustomPoliciesTable();
     // Der Ausgangsstand steht erst jetzt — die Zeilen kommen per
@@ -2731,6 +2756,11 @@ async function saveCustomPolicies() {
 // davon ab, wie weit gerade gerollt ist.
 document.addEventListener('DOMContentLoaded', function() {
   selfTplStandZeigen();
+  // Aus der Aufgabe „Ruhende Postfach-Wahlen …“ (/mailboxes#ruhend): gleich filtern.
+  if (location.hash === '#ruhend') {
+    var rf = document.getElementById('mb-ruhend-filter');
+    if (rf) rf.checked = true;
+  }
   loadMailboxes(true);
   // Regeln erst nach den Gruppen: Ihr Gruppenfeld bietet die Gruppen zur Wahl
   // und kennzeichnet eine gelöschte — vorher ist die Liste leer.

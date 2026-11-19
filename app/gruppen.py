@@ -44,6 +44,32 @@ def interne_gruppen() -> dict[str, list[str]]:
         import dynamische_gruppen
         berechnet = dynamische_gruppen.mitglieder(
             {n: m for n, m in gespeichert.items() if not ist_berechnet(n)}, dyn, mc)
+    return _zusammensetzen(gespeichert, berechnet, mc)
+
+
+def interne_gruppen_aus(daten: dict) -> dict[str, list[str]]:
+    """`interne_gruppen()` aus einem Einstellungs-Wörterbuch — für Leser, die
+    den Speicher nicht befragen dürfen (Migration in `settings_store`, vor
+    `init()`).
+
+    Dynamische Gruppen über `dynamische_gruppen.mitglieder_lesend`: dieselbe
+    Berechnung wie `mitglieder()` (Schnappschuss, sonst letzter Stand), aber
+    ohne deren Seiteneffekte — kein `settings_store.revision()` (vor `init()`
+    nicht aufrufbar), kein Stand-Schreiben, kein Audit."""
+    gespeichert = daten.get("INTERNAL_GROUPS")
+    gespeichert = gespeichert if isinstance(gespeichert, dict) else {}
+    mc = daten.get("MAILBOX_CONFIG")
+    dyn = daten.get("DYNAMIC_GROUPS")
+    berechnet: dict = {}
+    if dyn and isinstance(dyn, dict) and isinstance(mc, dict):
+        import dynamische_gruppen
+        berechnet = dynamische_gruppen.mitglieder_lesend(
+            {n: m for n, m in gespeichert.items() if not ist_berechnet(n)}, dyn, mc)
+    return _zusammensetzen(gespeichert, berechnet, mc)
+
+
+def _zusammensetzen(gespeichert, berechnet: dict, mc) -> dict[str, list[str]]:
+    gespeichert = gespeichert if isinstance(gespeichert, dict) else {}
     ergebnis = {name: list(berechnet[name] if name in berechnet else (mitglieder or []))
                 for name, mitglieder in gespeichert.items()
                 if not ist_berechnet(name)}

@@ -250,6 +250,43 @@
   </div>
 </div>
 
+<!-- Festschreiben der Vorlagenrichtlinien (policies.py): zwei Ebenen, für jede
+     Vorlage gleich. Reine Schalter → speichern sofort (Speicher-Linie Regel 4). -->
+<div class="settings-card" data-adv="sig" style="display:none" id="festschreiben">
+  <h3 style="margin-top:0;margin-bottom:8px">Vorlagenrichtlinien festschreiben</h3>
+  <p class="hint" style="margin:0 0 10px;max-width:680px">
+    Unter <a href="/mailboxes">Postfächer</a> gibt es zwei Ebenen: die <strong>Standardrichtlinie</strong>
+    für alle und darunter <strong>benutzerdefinierte Richtlinien</strong> je Gruppe, die Vorrang haben.
+    Für jede Vorlage — Signatur, Antwort-, interne Signatur, Banner, Disclaimer, Abwesenheit und
+    Add-in-Auswahl — entscheidet die Ebene, die für das Postfach greift: Ist sie fest, ist die
+    Auswahl am Postfach und im Self-Service gesperrt; sonst ist ihr Wert der Ausgangspunkt, von dem
+    das Postfach abweichen kann. Eine gesperrte eigene Wahl ruht und gilt wieder, sobald die Sperre
+    entfällt.
+  </p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="richtlinie-gruppe-fest"
+             {% if s.RICHTLINIE_GRUPPE_FEST is not false %}checked{% endif %}
+             onchange="saveRichtlinieGruppeFest(this.checked)">
+      Benutzerdefinierte Richtlinien schreiben fest
+      <span id="richtlinie-gruppe-fest-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
+    </label>
+    <span class="hint">Was eine Gruppen-Regel festlegt, gilt für die Mitglieder der Gruppe. Wer selbst wählen
+      soll, darf in keiner Gruppe mit einer Regel für diese Vorlage sein.</span>
+  </div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="richtlinie-standard-fest"
+             {% if s.RICHTLINIE_STANDARD_FEST %}checked{% endif %}
+             onchange="saveRichtlinieStandardFest(this.checked)">
+      Standardrichtlinien schreiben fest
+      <span id="richtlinie-standard-fest-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
+    </label>
+    <span class="hint">Gilt für Postfächer, für die keine Gruppen-Regel greift. Aus: Die Standardrichtlinie
+      ist nur der Ausgangspunkt, jedes Postfach kann abweichen.</span>
+  </div>
+</div>
+
 <div class="settings-card" data-adv="sig" style="display:none">
   <h3 id="overrides" style="margin-top:0;margin-bottom:8px">Benutzer-Overrides</h3>
   <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. Eigene Variablen (custom.*) müssen vorher im Abschnitt „Eigene Variablen" definiert sein.</p>
@@ -600,6 +637,22 @@ async function saveWebsiteField() {
   wacheFertig('website-btn', await savePartial({ WEBSITE_URL: url }, null));
 }
 
+// Festschreiben (policies._schalter) — reine Schalter, speichern sofort.
+async function saveRichtlinieGruppeFest(an) {
+  await savePartial({ RICHTLINIE_GRUPPE_FEST: an }, 'richtlinie-gruppe-fest-result');
+}
+async function saveRichtlinieStandardFest(an) {
+  await savePartial({ RICHTLINIE_STANDARD_FEST: an }, 'richtlinie-standard-fest-result');
+}
+
 _initAdv('sig');
+// Verweis aus Postfächer (#festschreiben): Die Karte liegt unter „Erweitert“.
+if (location.hash === '#festschreiben') {
+  var _advCb = document.getElementById('adv-cb-sig');
+  if (_advCb) _advCb.checked = true;
+  _toggleAdv('sig', true);
+  var _karte = document.getElementById('festschreiben');
+  if (_karte) _karte.scrollIntoView();
+}
 </script>
 {% endblock %}

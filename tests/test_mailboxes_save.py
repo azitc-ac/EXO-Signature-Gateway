@@ -20,7 +20,7 @@ def _run(coro):
 
 def test_postfach_speichern_bewahrt_abwesenheits_felder(monkeypatch):
     vorher = {"a@x.de": {
-        "sig": True, "smime": False, "use_policy": True,
+        "sig": True, "smime": False,
         "ooo_calendar": True,
         "oof_announce": True, "oof_announce_mode": "tage", "oof_announce_x": 7,
         "oof_announce_privat": False, "oof_announce_extern": True,
@@ -43,8 +43,7 @@ def test_postfach_speichern_bewahrt_abwesenheits_felder(monkeypatch):
     monkeypatch.setattr(mbroute, "_auto_enrollment_anstossen", fake_auto)
 
     # Die Tabelle schickt NUR ihre eigenen Felder (keine Abwesenheits-Felder).
-    body = {"mailboxes": [{"email": "a@x.de", "sig": True, "smime": False,
-                           "use_policy": True}], "update_dg": False}
+    body = {"mailboxes": [{"email": "a@x.de", "sig": True, "smime": False}], "update_dg": False}
     r = _run(mbroute.api_save_mailboxes(body))
     assert r["ok"] is True
 
@@ -75,23 +74,24 @@ def _speichern(monkeypatch, vorher: dict, zeile: dict) -> dict:
     return gespeichert["MAILBOX_CONFIG"]["a@x.de"]
 
 
-def test_wahl_wird_auch_bei_use_policy_true_gespeichert(monkeypatch):
-    """Vorher wurden Signatur/Abwesenheit bei use_policy=true verworfen — eine
-    eigene Wahl ging nur mit use_policy=false und kostete Banner/Disclaimer."""
+def test_wahl_wird_gespeichert_fuer_jeden_slot(monkeypatch):
+    """Seit v1.12.99 ist jeder Slot Postfach-Wahl, auch Banner und Disclaimer;
+    `use_policy` wird nicht mehr geschrieben."""
     neu = _speichern(monkeypatch, {}, {
-        "email": "a@x.de", "sig": True, "smime": False, "use_policy": True,
+        "email": "a@x.de", "sig": True, "smime": False,
         "template": "Meine", "min_template": "", "oof_template": "Urlaub",
-        "banner_template": "Eingefroren"})
+        "banner_template": "EigenB", "disclaimer_template": "__standard__"})
     assert neu["template"] == "Meine"
     assert neu["min_template"] == "", "„keine“ ist eine Wahl und muss stehen bleiben"
     assert neu["oof_template"] == "Urlaub"
-    assert "banner_template" not in neu, "Richtlinien-Slot bei use_policy=true nicht einfrieren"
+    assert neu["banner_template"] == "EigenB"
+    assert "disclaimer_template" not in neu and "use_policy" not in neu
 
 
 def test_standard_wahl_entfernt_das_feld(monkeypatch):
     neu = _speichern(monkeypatch,
-                     {"a@x.de": {"sig": True, "use_policy": False, "template": "Alt"}},
-                     {"email": "a@x.de", "sig": True, "smime": False, "use_policy": False,
+                     {"a@x.de": {"sig": True, "template": "Alt"}},
+                     {"email": "a@x.de", "sig": True, "smime": False,
                       "template": "__standard__", "min_template": "__standard__",
                       "oof_template": "__standard__"})
     for feld in ("template", "min_template", "oof_template"):
@@ -102,8 +102,9 @@ def test_fehlende_angabe_behaelt_die_bisherige_wahl(monkeypatch):
     """Schickt eine Anfrage die Wahl-Felder nicht mit, bleibt die (z.B. im
     Self-Service getroffene) Wahl stehen, statt zu verschwinden."""
     neu = _speichern(monkeypatch,
-                     {"a@x.de": {"sig": True, "use_policy": True,
-                                 "template": "Selbst", "oof_template": ""}},
-                     {"email": "a@x.de", "sig": True, "smime": False, "use_policy": True})
+                     {"a@x.de": {"sig": True, "template": "Selbst", "oof_template": "",
+                                 "banner_template": "B"}},
+                     {"email": "a@x.de", "sig": True, "smime": False})
     assert neu["template"] == "Selbst"
     assert neu["oof_template"] == ""
+    assert neu["banner_template"] == "B"

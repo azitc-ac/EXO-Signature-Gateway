@@ -5,7 +5,7 @@ and supports a **dry-run** before anything is written. A guid-keyed entry carrie
 the policy flags plus a refreshable address cache:
 
     MAILBOX_CONFIG[<exchange_guid>] = {
-        sig, smime, use_policy, ...      # policy (unchanged)
+        sig, smime, template, ...        # policy (unchanged)
         known_addresses: [...],          # all SMTP addresses (EXO cache)
         primary, display_name            # display
     }
@@ -22,7 +22,9 @@ import logging
 log = logging.getLogger("mailbox_migrate")
 
 # Policy flags that are OR-merged when two e-mail entries map to the same mailbox.
-_POLICY_BOOLS = ("sig", "smime", "use_policy")
+# ⚠️ Ohne `use_policy` (seit v1.12.99 entfallen): Das ODER setzte den Schlüssel
+# sonst neu — und vorlagen_typ.use_policy_nachziehen deutete ihn beim Start um.
+_POLICY_BOOLS = ("sig", "smime")
 _MANAGED = ("known_addresses", "primary", "display_name", "_orphan")
 
 

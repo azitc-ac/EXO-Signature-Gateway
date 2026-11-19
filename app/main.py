@@ -940,12 +940,11 @@ def main() -> None:
         if umtypisiert:
             log.info("Vorlagen-Arten gesetzt: %s",
                      ", ".join(f"{n}→{a}" for n, a in umtypisiert))
-        # Einmaliges Aufräumen: eingefrorene Vorlagenfelder aus richtlinien-
-        # folgenden Postfach-Einträgen entfernen (idempotent, siehe vorlagen_typ).
-        bereinigt = vorlagen_typ.bereinige_eingefrorene_vorlagen()
-        if bereinigt:
-            log.info("Eingefrorene Vorlagenfelder aus %d richtlinien-folgenden "
-                     "Postfach-Eintrag/en entfernt", bereinigt)
+        # Einträge mit `use_policy` (zurückgespielter Altstand) ins Modell ohne
+        # use_policy bringen — idempotent, siehe vorlagen_typ.use_policy_nachziehen.
+        umgestellt = vorlagen_typ.use_policy_nachziehen()
+        if umgestellt:
+            log.info("use_policy aus %d Postfach-Eintrag/Einträgen abgelöst", umgestellt)
     except Exception as exc:
         log.warning("Auto-Typisierung der Vorlagen übersprungen: %s", exc)
 

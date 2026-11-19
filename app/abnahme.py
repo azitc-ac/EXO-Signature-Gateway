@@ -1010,6 +1010,38 @@ def _dynamische_gruppen_stand() -> dict:
                             f"zugeordnet, {st['ohne_treffer']} ohne Entra-Eintrag.")
 
 
+def _richtlinien_ruhend() -> dict:
+    """Ruht noch eine Postfach-Wahl, die bis v1.12.98 galt? Die Umstellung auf
+    zwei Ebenen (settings_store._migrate_v8_to_v9) hat sie in
+    RICHTLINIE_RUHT_SEIT_UMSTELLUNG festgehalten: Seither schreibt die
+    Gruppen-Regel fest. Offen, solange eine davon noch ruht — erledigt durch
+    Verwerfen der Wahl, Anpassen der Regel oder Ausschalten des Schalters.
+    Nur lokal."""
+    import policies
+    import settings_store
+    name = "Keine ruhende Postfach-Wahl aus der Umstellung"
+    erfasst = settings_store.get("RICHTLINIE_RUHT_SEIT_UMSTELLUNG") or {}
+    if not isinstance(erfasst, dict) or not erfasst:
+        return _punkt(name, ENTFAELLT, "Die Umstellung hat keine wirksame Wahl gesperrt.")
+    mc = settings_store.get("MAILBOX_CONFIG") or {}
+    fest = policies.festgeschrieben_schluessel([k for k in erfasst if k in mc], mc)
+    offen = []
+    for key, f in fest.items():
+        ruht = [s for s in policies.ruhende_wahl(mc[key], f) if s in (erfasst.get(key) or [])]
+        if ruht:
+            offen.append(f"{mc[key].get('primary') or key} ({', '.join(ruht)})")
+    if not offen:
+        return _punkt(name, OK, "Alle bei der Umstellung gesperrten Wahlen sind geklärt.")
+    return _punkt(name, OFFEN,
+                  f"{len(offen)} Postfach/Postfächer: eigene Wahl galt bis v1.12.98, ruht seither "
+                  f"unter einer Gruppen-Regel — {', '.join(offen[:5])}"
+                  + (" …" if len(offen) > 5 else ""),
+                  "Postfächer → Filter „nur ruhende Wahl“: die Wahl verwerfen (Kästchen bzw. "
+                  "„Ruhende verwerfen“, dann Speichern) oder die Gruppen-Regel anpassen — oder "
+                  "Einstellungen → Signatur → Erweitert: „Benutzerdefinierte Richtlinien "
+                  "schreiben fest“ ausschalten.")
+
+
 def _waechter_code() -> dict:
     """Läuft auf jedem Azure-Wächter der Function-Code, den dieses Gateway
     mitbringt? Bis v1.11.63 wurde er nur beim Anlegen hochgeladen; ein Fix am
@@ -1105,7 +1137,7 @@ def _teams_katalog_notfall() -> dict:
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _regel_auto_ausnahme, _implicit_anmeldung,
-              _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _ews_kontowechsel, _dynamische_gruppen_stand, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
+              _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _ews_kontowechsel, _dynamische_gruppen_stand, _richtlinien_ruhend, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
               _smime_regeln_stand,

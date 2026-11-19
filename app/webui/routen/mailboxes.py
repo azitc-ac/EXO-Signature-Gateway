@@ -170,16 +170,15 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
             # "" = ausdrücklich keine. Der Standard steht in "standard".
             "template": cfg.get("template"),
             "min_template": cfg.get("min_template"),
-            "banner_template": cfg.get("banner_template", ""),
-            "disclaimer_template": cfg.get("disclaimer_template", ""),
+            "banner_template": cfg.get("banner_template"),
+            "disclaimer_template": cfg.get("disclaimer_template"),
             "oof_template": cfg.get("oof_template"),
             "intern_template": cfg.get("intern_template"),
+            "addin_templates": cfg.get("addin_templates"),
             "standard": std_alle[email],
-            # Von einer Gruppen-Regel festgeschriebene Wahl-Slots {slot: gruppe}:
+            # Feste Slots {slot: quelle} — Gruppenname oder "" (Standardrichtlinie):
             # Auswahl gesperrt, eine eigene Wahl ruht (policies.festgeschrieben).
             "fest": fest_alle[email],
-            "addin_templates": cfg.get("addin_templates", []),
-            "use_policy": cfg.get("use_policy", True),
             "health_overall": h.get("overall"),
             "health_checked": h.get("last_checked"),
             "health_checks": h.get("checks", {}),
@@ -207,14 +206,13 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 # "" = ausdrücklich keine. Der Standard steht in "standard".
                 "template": cfg.get("template"),
                 "min_template": cfg.get("min_template"),
-                "banner_template": cfg.get("banner_template", ""),
-                "disclaimer_template": cfg.get("disclaimer_template", ""),
+                "banner_template": cfg.get("banner_template"),
+                "disclaimer_template": cfg.get("disclaimer_template"),
                 "oof_template": cfg.get("oof_template"),
                 "intern_template": cfg.get("intern_template"),
+                "addin_templates": cfg.get("addin_templates"),
                 "standard": std_alle[cemail],
                 "fest": fest_alle[cemail],
-                    "addin_templates": cfg.get("addin_templates", []),
-                "use_policy": cfg.get("use_policy", True),
                 "health_overall": h.get("overall"),
                 "health_checked": h.get("last_checked"),
                 "health_checks": h.get("checks", {}),
@@ -425,9 +423,10 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     config_map: dict = {}
     enabled_members: list[str] = []
     hybrid_mitglieder: set[str] = set()
-    # Festgeschriebene Wahl-Slots (Gruppen-Regel mit `fest`), gemessen am Stand
-    # VOR dem Speichern — derselbe, den die Liste angezeigt hat. Für sie zählt
-    # der geschickte Wert nicht: Die ruhende eigene Wahl bleibt, wie sie war.
+    # Feste Slots (policies.festgeschrieben), gemessen am Stand VOR dem
+    # Speichern — derselbe, den die Liste angezeigt hat. Für sie zählt der
+    # geschickte Wert nicht: Die ruhende eigene Wahl bleibt, wie sie war — außer
+    # die Liste schickt sie ausdrücklich in `ruhend_verwerfen`.
     fest_alle = _pol.festgeschrieben_alle(
         [(m.get("email") or "").lower().strip() for m in mailboxes if isinstance(m, dict)],
         vorher)
@@ -449,43 +448,40 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         smime = bool(m.get("smime", False))
         if not (sig or smime):
             continue    # both off → passthrough by default, not stored
-        banner_template = (m.get("banner_template") or "").strip()
-        disclaimer_template = (m.get("disclaimer_template") or "").strip()
-        addin_tpl = m.get("addin_templates", [])
-        use_policy = bool(m.get("use_policy", True))
-        entry: dict = {"sig": sig, "smime": smime, "use_policy": use_policy}
-        # Wahl-Slots (Signatur, Antwort-Signatur, Abwesenheit) gelten unabhängig
-        # von use_policy (policies.py): STANDARD_WAHL → kein Feld (folgt Gruppe/
-        # global), "" → ausdrücklich keine, sonst die Vorlage. Fehlt der Schlüssel
-        # in der Anfrage ganz, bleibt die bisherige Wahl (Übernahme unten).
+        entry: dict = {"sig": sig, "smime": smime}
+        # Jeder Slot ist Postfach-Wahl (policies.py): STANDARD_WAHL → kein Feld
+        # (folgt Gruppe/Standardrichtlinie), "" → ausdrücklich keine (Add-in:
+        # Liste oder "*"), sonst die Vorlage. Fehlt der Schlüssel in der Anfrage
+        # ganz, bleibt die bisherige Wahl (Übernahme unten). Feste Slots nehmen
+        # nichts an.
+        # ⚠️ Eine Seite von vor v1.12.99 (noch im Browser) schickt `use_policy`
+        # und für Banner/Disclaimer/Add-in den Richtlinienwert bzw. "" — das
+        # wäre jetzt eine Wahl. Von ihr gelten diese drei als nicht geschickt.
+        _alte_seite = "use_policy" in m
         _ohne_angabe: list[str] = []
         _gesperrt = fest_alle.get(email) or {}
+        _verwerfen = m.get("ruhend_verwerfen")
+        _verwerfen = {f for f in _verwerfen if isinstance(f, str)} if isinstance(_verwerfen, list) else set()
         _ruhend: list[str] = []
-        for _slot in _pol.WAHL_SLOTS:
+        for _slot in _pol.ALLE_SLOTS:
             _feld = _pol.SLOT_FELD[_slot]
             if _slot in _gesperrt:
-                _ruhend.append(_feld)        # Übernahme aus dem bisherigen Eintrag
+                if _feld not in _verwerfen:
+                    _ruhend.append(_feld)    # Übernahme aus dem bisherigen Eintrag
                 continue
-            if _feld not in m:
+            if _feld not in m or (_alte_seite and _slot in ("banner", "disclaimer", "addin")):
                 _ohne_angabe.append(_feld)
                 continue
             _wert = m.get(_feld)
+            if _slot == "addin":
+                if _wert == _pol.STANDARD_WAHL or not (_wert == "*" or isinstance(_wert, list)):
+                    continue
+                entry[_feld] = _pol._regel_wert("addin", _wert)
+                continue
             _wert = _wert.strip() if isinstance(_wert, str) else _pol.STANDARD_WAHL
             if _wert == _pol.STANDARD_WAHL or (_slot == "sig" and not _wert):
                 continue
             entry[_feld] = _wert
-        # Richtlinien-Slots (Banner, Disclaimer, Add-in-Liste) NUR speichern, wenn
-        # das Postfach den Richtlinien NICHT folgt. Bei use_policy=true sind diese
-        # Dropdowns ausgegraut und zeigen den Richtlinien-Wert; schriebe man ihn
-        # mit, fröre man eine Kopie der Richtlinie ins Postfach ein — unsichtbar,
-        # bis jemand die Übernahme abschaltet und ein veralteter Wert aktiv wird.
-        if not use_policy:
-            if banner_template:
-                entry["banner_template"] = banner_template
-            if disclaimer_template:
-                entry["disclaimer_template"] = disclaimer_template
-            if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
-                entry["addin_templates"] = addin_tpl
         if mb:
             key = mb["guid"]
             entry["known_addresses"] = list(mb.get("addresses", []))
@@ -694,6 +690,9 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                  "gateway_name": _gateway_name(),
                  "migration_offen": altbestand,
                  "addin_enabled": bool(settings_store.get("ADDIN_ENABLED")),
+                 # Festschreiben je Ebene (policies._schalter) — für die Hinweistexte.
+                 "richtlinie_standard_fest": _pol._schalter()[1],
+                 "richtlinie_gruppe_fest": _pol._schalter()[0],
                  # Die OOF-/Kalender-Betreiberschalter sind auf /abwesenheit umgezogen.
                  "self_service_enabled": settings_store.get("SELF_SERVICE_ENABLED") is True,
                  "self_datenschutz_url": settings_store.get("SELF_DATENSCHUTZ_URL") or "",

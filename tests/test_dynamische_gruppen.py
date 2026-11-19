@@ -529,7 +529,7 @@ def test_umwandeln_erhaelt_die_mitglieder(monkeypatch, audit):
     assert sorted(gruppen.interne_gruppen()["T"]) == sorted(vorher)
 
 
-# ── Gruppen-Regeln („fest“, v1.12.90) über eine dynamische Gruppe ────────────
+# ── Gruppen-Regeln (schreiben fest, v1.12.99) über eine dynamische Gruppe ────
 
 def test_fest_wirkt_ueber_dynamische_gruppe(monkeypatch, audit):
     _setze_snap(_snap())
@@ -538,7 +538,7 @@ def test_fest_wirkt_ueber_dynamische_gruppe(monkeypatch, audit):
            INTERNAL_GROUPS={"Marke": []},
            DYNAMIC_GROUPS={"Marke": _def(_b("extensionAttribute3", "ist", "MARKE-A"))},
            CUSTOM_POLICIES=[{"condition_type": "group", "group_name": "Marke",
-                             "vorlagen": {"sig": "Markensignatur"}, "fest": ["sig"]}])
+                             "vorlagen": {"sig": "Markensignatur"}}])
     assert policies.aufloesen("a.m@firma.at", mc)["sig"] == "Markensignatur"
     assert policies.festgeschrieben("anna@firma.at", mc) == {"sig": "Marke"}
     assert policies.standards_alle(["anna@firma.at", "bert@firma.at"], mc)["bert@firma.at"]["sig"] == "Global"
@@ -548,6 +548,49 @@ def test_fest_wirkt_ueber_dynamische_gruppe(monkeypatch, audit):
     _setze_snap(_snap(nutzer=nutzer))
     assert policies.aufloesen("anna@firma.at", mc)["sig"] == "Eigen"
     assert policies.festgeschrieben("anna@firma.at", mc) == {}
+
+
+# ── Migration (settings_store, vor init): lesende Berechnung ─────────────────
+
+@pytest.mark.parametrize("fall", ["schnappschuss", "nur_stand", "nichts"])
+def test_interne_gruppen_aus_gleich_interne_gruppen(monkeypatch, audit, fall):
+    """`gruppen.interne_gruppen_aus` (Migration) sieht für dynamische Gruppen
+    dieselben Mitglieder wie der Betrieb — über `mitglieder_lesend`, ohne
+    Stand zu schreiben, ohne Audit, ohne settings_store.revision()."""
+    daten = {"MAILBOX_CONFIG": _MC, "INTERNAL_GROUPS": {"Marke": [], "Fest": ["g-bert"]},
+             "DYNAMIC_GROUPS": {"Marke": _def(_b("extensionAttribute3", "ist", "MARKE-A"),
+                                              immer=["g-cleo"])}}
+    if fall == "nur_stand":
+        dg.secure_io.write_secret_json(dg.STAND, {"mitglieder": {"Marke": ["g-bert"]}})
+    elif fall == "schnappschuss":
+        _setze_snap(_snap())
+    dg.zuruecksetzen()
+    vor_stand = dg.STAND.read_bytes() if dg.STAND.exists() else None
+    monkeypatch.setattr(settings_store, "revision", lambda: pytest.fail("revision() in der Migration"))
+    aus = gruppen.interne_gruppen_aus(daten)
+    assert (dg.STAND.read_bytes() if dg.STAND.exists() else None) == vor_stand, "Stand geschrieben"
+    assert audit == [], "Audit in der Migration"
+    _store(monkeypatch, **daten)          # setzt auch revision() wieder
+    dg.zuruecksetzen()
+    assert aus == gruppen.interne_gruppen()
+    assert aus["Fest"] == ["g-bert"]
+    soll = {"schnappschuss": {"g-anna", "g-cleo"}, "nur_stand": {"g-bert"}, "nichts": {"g-cleo"}}[fall]
+    assert set(aus["Marke"]) == soll
+
+
+def test_migration_v9_sieht_dynamische_mitglieder(monkeypatch, audit):
+    """Eine eigene Wahl, die bis v1.12.98 galt, ruht ab v1.12.99 auch dann, wenn
+    die Gruppe der Regel dynamisch ist — die Migration muss ihre Mitglieder sehen."""
+    _setze_snap(_snap())
+    mc = {**_MC, "g-anna": {**_MC["g-anna"], "template": "Eigen"},
+          "g-bert": {**_MC["g-bert"], "template": "Eigen"}}
+    daten = settings_store._migrate_v8_to_v9({
+        "MAILBOX_CONFIG": mc, "INTERNAL_GROUPS": {"Marke": []},
+        "DYNAMIC_GROUPS": {"Marke": _def(_b("extensionAttribute3", "ist", "MARKE-A"))},
+        "CUSTOM_POLICIES": [{"condition_type": "group", "group_name": "Marke",
+                             "vorlagen": {"sig": "Markensignatur"}, "fest": []}]})
+    assert daten["RICHTLINIE_RUHT_SEIT_UMSTELLUNG"] == {"g-anna": ["sig"]}, "bert ist kein Mitglied"
+    assert audit == []
 
 
 # ── Leistung ──────────────────────────────────────────────────────────────────

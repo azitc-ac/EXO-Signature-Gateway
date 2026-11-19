@@ -96,9 +96,12 @@ def test_ohne_gruppe_gilt_die_globale_freigabe(stand):
     assert _im_addin("erik@x.at") == VORLAGEN
 
 
-def test_postfach_ohne_richtlinie_behaelt_eigene_liste(stand):
-    stand["MAILBOX_CONFIG"]["anna@a.at"] = {"sig": True, "use_policy": False,
-                                           "addin_templates": ["FirmaC"]}
+def test_eigene_liste_ruht_unter_der_gruppe_und_gilt_ohne_festschreiben(stand):
+    """Seit v1.12.99: Die Gruppen-Regel schreibt die Add-in-Auswahl fest (wie jede
+    Vorlage); die eigene Liste gilt nur, wenn Gruppen-Regeln nicht festschreiben."""
+    stand["MAILBOX_CONFIG"]["anna@a.at"] = {"sig": True, "addin_templates": ["FirmaC"]}
+    assert _im_addin("anna@a.at") == ["default", "FirmaA", "FirmaA-kurz"]
+    stand["RICHTLINIE_GRUPPE_FEST"] = False
     assert _im_addin("anna@a.at") == ["default", "FirmaC"]
 
 

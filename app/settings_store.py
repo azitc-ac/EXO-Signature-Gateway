@@ -21,11 +21,22 @@ DEFAULTS: dict = {
     "USER_OVERRIDES": {},  # {email: {"user.jobTitle": "...", "custom.var": "..."}} — per-user overrides
     "WEBSITE_URL": "",  # Globale Website-URL für alle Nutzer (user.website)
     "CUSTOM_TEMPLATE_VARS": [],   # [{"name": "mobile", "entra_field": "mobilePhone"}, ...]
-    "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true, "use_policy": true}} — empty = NOTHING processed (handler.py pass-through)
-    "TEMPLATE_POLICIES": {"sig": "default", "min": "Minimal", "addin": "*"},  # {sig, min, oof: DEFAULT der Nutzerwahl; banner, disclaimer, addin: Richtlinie} — policies.py
+    # {key: {"sig": true, "smime": true, "template": …, "addin_templates": …}} — empty = NOTHING processed
+    # (handler.py pass-through). Vorlagenfelder = Postfach-Wahl (policies.SLOT_FELD); `use_policy`
+    # gibt es seit v1.12.99 nicht mehr (policies.use_policy_abloesen, _migrate_v8_to_v9).
+    "MAILBOX_CONFIG": {},
+    "TEMPLATE_POLICIES": {"sig": "default", "min": "Minimal", "addin": "*"},  # Standardrichtlinie je Slot (unterste Ebene) — policies.py
     "INTERNAL_GROUPS": {},      # {"Vertrieb": ["<guid>", ...], ...} — interne Postfach-Gruppen
     "DYNAMIC_GROUPS": {},       # {"Vertrieb": {"regel": {...}, "immer": [...], "nie": [...]}} — dynamische interne Gruppen (dynamische_gruppen.py); Name steht zusätzlich in INTERNAL_GROUPS (Reihenfolge)
-    "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "vorlagen": {slot: wert}, "fest": [wahl-slots]}] — first-match je Slot; Lesen NUR über policies.regeln (Altformat applies_to/template wird mitgelesen)
+    "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "vorlagen": {slot: wert}}] — Benutzerdefinierte Richtlinien, first-match je Slot; Lesen NUR über policies.regeln (Altformat applies_to/template wird mitgelesen)
+    # Festschreiben je Ebene (policies.py, Einstellungen → Signatur → Erweitert):
+    # greift für einen Slot eine Gruppen-Regel, entscheidet RICHTLINIE_GRUPPE_FEST,
+    # sonst RICHTLINIE_STANDARD_FEST, ob die Postfach-Wahl zählt.
+    "RICHTLINIE_STANDARD_FEST": False,
+    "RICHTLINIE_GRUPPE_FEST": True,
+    # Bei der Umstellung v1.12.99 (Schema v9) wirksam gewordene Sperren: {config_key: [slot]}
+    # — eine Postfach-Wahl, die bis dahin galt, ruht seither. Aufgabe „richtlinien-ruhend“.
+    "RICHTLINIE_RUHT_SEIT_UMSTELLUNG": {},
     "GROUP_VARS": {},           # {"Vertrieb": {"vertreter_name": "...", ...}} — Custom-Var-Werte je Gruppe (first-match); Rang: Entra < Gruppe < Postfach-Override
     # Banner-Kampagnen: ein Banner zeitfenster-/gruppengesteuert (banner_campaigns.py).
     # [{"id","name","banner","start","end","group","enabled"}] — aktive Kampagne
@@ -662,7 +673,7 @@ def purge_obsolete() -> list:
 # new DEFAULTS key does NOT need a migration — that's handled automatically by
 # the dict-merge in init(). Migrations run once, in order, and are recorded via
 # the internal "_SCHEMA_VERSION" key so they never re-run on an already-migrated file.
-SETTINGS_SCHEMA_VERSION = 8
+SETTINGS_SCHEMA_VERSION = 9
 
 
 def _migrate_v0_to_v1(data: dict) -> dict:
@@ -831,8 +842,8 @@ def _migrate_v7_to_v8(data: dict) -> dict:
     `policies.regeln`, danach `policies.zusammenfassen`: benachbarte Regeln
     derselben Gruppe werden eine; ein Slot, den die frühere schon trug, war
     nie wirksam und entfällt (protokolliert). Wirkungsgleich, geprüft von
-    tests/test_gruppenregeln_fest.py. `fest` beginnt leer — niemandem wird
-    durch das Update eine Wahl gesperrt.
+    tests/test_gruppenregeln_fest.py. Damals begann `fest` je Regel leer;
+    seit v9 (`_migrate_v8_to_v9`) entfällt es — `regeln()` liefert es nicht mehr.
     """
     cp = data.get("CUSTOM_POLICIES")
     if not isinstance(cp, list) or not cp:
@@ -851,6 +862,86 @@ def _migrate_v7_to_v8(data: dict) -> dict:
     return data
 
 
+def _migrate_v8_to_v9(data: dict) -> dict:
+    """Zwei Ebenen mit Festschreiben statt `use_policy` und `fest` je Regel (v1.12.99).
+
+    Bis v1.12.98: `use_policy` am Postfach entschied, ob Banner, Disclaimer und
+    Add-in-Auswahl aus der Richtlinie kamen; Signatur, Antwort-, interne
+    Signatur und Abwesenheit waren Postfach-Wahl, festschreibbar nur über
+    `fest` je Gruppen-Regel. Seither gilt für JEDEN Slot dieselbe Regel
+    (policies.py): Greift eine Gruppen-Regel, schreibt sie fest
+    (RICHTLINIE_GRUPPE_FEST, Vorgabe an), sonst der Standard nur mit
+    RICHTLINIE_STANDARD_FEST (Vorgabe aus).
+
+    * `use_policy` entfällt — `policies.use_policy_abloesen` (wirkungsgleich:
+      wirkungslose Felder weg, „keine“ ausdrücklich gesetzt).
+    * `fest` je Regel entfällt (protokolliert, welche Regeln es trugen).
+    * Wo eine Postfach-Wahl bisher galt und jetzt unter einer Gruppen-Regel
+      ruht, steht das Postfach mit den Slots in RICHTLINIE_RUHT_SEIT_UMSTELLUNG
+      (Aufgabe „richtlinien-ruhend“) und im Protokoll. Das ist eine gewollte
+      Verhaltensänderung, keine Panne der Migration.
+    """
+    import gruppen
+    import policies
+    cp = data.get("CUSTOM_POLICIES")
+    cp = cp if isinstance(cp, list) else []
+    mc = data.get("MAILBOX_CONFIG")
+    mc = mc if isinstance(mc, dict) else {}
+
+    # Regeln einzeln normalisieren, damit das alte `fest` je Regel zugeordnet bleibt.
+    rg: list[dict] = []
+    alt_fest: list[set] = []
+    for pol in cp:
+        r = policies.regeln([pol])
+        if not r:
+            continue
+        rg.append(r[0])
+        roh = pol.get("fest") if "vorlagen" in pol else None
+        alt_fest.append({x for x in roh if isinstance(x, str)} if isinstance(roh, list) else set())
+        if alt_fest[-1]:
+            log.info("settings_store: Gruppen-Regel „%s“ trug fest=%s — ersetzt durch den "
+                     "Schalter RICHTLINIE_GRUPPE_FEST", r[0]["group_name"], sorted(alt_fest[-1]))
+
+    neu_mc, meldungen = policies.use_policy_abloesen(mc, nur_mit_schluessel=False)
+    for m in meldungen:
+        log.info("settings_store: use_policy abgelöst — %s", m)
+
+    gruppe_fest = data.get(policies.SCHALTER_GRUPPE, True) is not False
+    ruht: dict[str, list[str]] = {}
+    if rg and gruppe_fest:
+        groups = gruppen.interne_gruppen_aus(data)    # Schlüssel von MAILBOX_CONFIG bleiben gleich
+        for key, alt in mc.items():
+            if not isinstance(alt, dict):
+                continue
+            neu = neu_mc[key]
+            over, quelle = policies._auswerten(rg, groups, key)
+            eigen_galt_richtlinie = not bool(alt.get("use_policy", True))
+            for slot in policies.ALLE_SLOTS:
+                if slot not in quelle or not policies.hat_eigene_wahl(neu, slot):
+                    continue
+                if slot in ("banner", "disclaimer", "addin"):
+                    galt = eigen_galt_richtlinie
+                else:
+                    # Greifende Regel = erste passende, die den Slot trägt.
+                    i = next(i for i, r in enumerate(rg)
+                             if key in (groups.get(r["group_name"]) or ()) and slot in r["vorlagen"])
+                    galt = slot not in alt_fest[i]
+                eigen = policies._norm(slot, neu.get(policies.SLOT_FELD[slot]))
+                if galt and eigen != policies._norm(slot, over[slot]):
+                    ruht.setdefault(key, []).append(slot)
+        for key, slots in ruht.items():
+            log.warning("settings_store: Postfach %s — eigene Wahl für %s ruht ab jetzt "
+                        "(Gruppen-Regel schreibt fest)", key, ", ".join(slots))
+
+    if isinstance(data.get("MAILBOX_CONFIG"), dict):
+        data["MAILBOX_CONFIG"] = neu_mc
+    if isinstance(data.get("CUSTOM_POLICIES"), list):
+        data["CUSTOM_POLICIES"] = rg
+    if ruht:
+        data["RICHTLINIE_RUHT_SEIT_UMSTELLUNG"] = ruht
+    return data
+
+
 # Ordered list of (target_version, migration_fn). Each fn receives the full
 # settings dict and returns the migrated dict. Append new entries as the
 # schema evolves — never remove, reorder, or renumber existing ones, since a
@@ -864,6 +955,7 @@ _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
     (6, _migrate_v5_to_v6),
     (7, _migrate_v6_to_v7),
     (8, _migrate_v7_to_v8),
+    (9, _migrate_v8_to_v9),
 ]
 
 
