@@ -178,8 +178,14 @@ async def self_page(request: Request):
     # gültige Sitzung liefern die APIs 401 und die Seite leitet zur Anmeldung.
     # ?host=teams: als Tab in der linken Leiste (Teams-App-Paket, contentUrl).
     # Dann lädt die Seite TeamsJS und meldet sich darüber an.
-    # Im Tab zusätzlich MSAL + NAA-Angaben: still anmelden über das Konto des
-    # Hosts (auf dem Handy der Authenticator), Fenster nur als Rückfall.
+    # Tab UND Aufgabenbereich des Knopf-Add-ins (dieselbe Adresse /self, ohne
+    # Kennzeichen — das Manifest bleibt unverändert): MSAL + NAA-Angaben für die
+    # stille Anmeldung über das Konto des Hosts (auf dem Handy der
+    # Authenticator); im Aufgabenbereich für Konten auf Exchange lokal zusätzlich
+    # das Exchange-Identitätstoken (identkopf). Ablauf: static/addin_anmeldung.js.
+    # Das Fenster bleibt der Rückfall. Im eigenen Browserfenster bleibt alles
+    # ungenutzt (kein Office-Host, kein Tab).
+    import exchange_identitaet
     from webui.routen.addin import TEAMSJS_SRI, TEAMSJS_URL
     from webui.routen.addin_verfassen import MSAL_DATEI, TAB_SITZUNG_API, naa_konfiguration
     resp = templates.TemplateResponse(
@@ -188,7 +194,8 @@ async def self_page(request: Request):
                  "im_teams": request.query_params.get("host") == "teams",
                  "teamsjs_url": TEAMSJS_URL, "teamsjs_sri": TEAMSJS_SRI,
                  "msal_url": "/static/vendor/" + MSAL_DATEI.name,
-                 "naa": {**naa_konfiguration(), "sitzung": TAB_SITZUNG_API}},
+                 "naa": {**naa_konfiguration(), "sitzung": TAB_SITZUNG_API,
+                         "identkopf": exchange_identitaet.KOPF}},
     )
     resp.headers["Cache-Control"] = _NO_STORE   # in Outlook-WebView nie cachen
     return resp

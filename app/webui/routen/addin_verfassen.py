@@ -76,7 +76,7 @@ import sso as sso_mod
 from webui.deps import log
 from webui.hilfen import _addin_base_url
 from webui.routen.addin import (
-    _NO_STORE, OUTLOOK_SIGNATUR_MAX, _addin_cfg, _lokal_gesehen, _manifest_texte,
+    _NO_STORE, KNOPF_FORM_PFAD, OUTLOOK_SIGNATUR_MAX, _addin_cfg, _lokal_gesehen, _manifest_texte,
     _manifest_version, _ohne_adresse, markiert, signatur_zu_gross,
 )
 
@@ -85,6 +85,8 @@ router = APIRouter()
 _STATIC = Path(__file__).resolve().parent.parent / "static"
 MSAL_DATEI = _STATIC / "vendor" / "msal-browser-3.30.0.min.js"
 HANDLER_DATEI = _STATIC / "verfassen_ereignis.js"
+# Stille Anmeldung (NAA → Exchange-Identitätstoken), gemeinsam mit /self.
+ANMELDUNG_DATEI = _STATIC / "addin_anmeldung.js"
 
 LAUFZEIT_JS = "/addin/verfassen/laufzeit.js"
 LAUFZEIT_HTML = "/addin/verfassen/laufzeit.html"
@@ -254,13 +256,20 @@ def _konfiguration(base: str) -> dict:
             "hinweis_pc": bool(settings_store.get("VERFASSEN_HINWEIS_PC"))}
 
 
+def handler_quelltext() -> str:
+    """Anmelde-Baustein + Handler, in dieser Reihenfolge (der Handler nutzt
+    `ExoAnmeldung`). EINE Quelle für laufzeit.js und die Node-Tests."""
+    return (ANMELDUNG_DATEI.read_text(encoding="utf-8") + "\n;"
+            + HANDLER_DATEI.read_text(encoding="utf-8"))
+
+
 @router.get(LAUFZEIT_JS)
 async def verfassen_laufzeit_js(request: Request):
     """MSAL + Konfiguration + Handler in EINER Datei (Classic: keine Importe)."""
     konf = _json.dumps(_konfiguration(_addin_base_url(request)))
     inhalt = (MSAL_DATEI.read_text(encoding="utf-8")
               + f"\n;var EXO_VERFASSEN = {konf};\n"
-              + HANDLER_DATEI.read_text(encoding="utf-8"))
+              + handler_quelltext())
     return Response(content=inhalt, media_type="application/javascript",
                     headers={"Cache-Control": _NO_STORE})
 
@@ -389,33 +398,37 @@ async def _bezug_per_kennung(ident: str, message_id: str, weg: str) -> dict | No
     return graph_client.bezug_aus_treffern(treffer)
 
 
-def _aud_erwartet(request) -> str:
+def _aud_erwartet(request, pfad: str = LAUFZEIT_HTML) -> str:
     """`aud` eines Exchange-Identitätstokens: die erste SourceLocation unter
-    FormSettings (ItemEdit) im Manifest (MS Learn, „Inside the Exchange identity
-    token“) — hier LAUFZEIT_HTML. Ist eine Außenadresse eingestellt, gilt NUR
-    sie; die weitergereichte Adresse der Anfrage (X-Forwarded-Host) ist dann
-    nicht maßgeblich."""
+    FormSettings (ItemRead/ItemEdit) im Manifest des Add-ins, das das Token
+    holt (MS Learn, „Exchange identity token structure“) — beim
+    Verfassen-Add-in LAUFZEIT_HTML, beim Knopf-Add-in KNOPF_FORM_PFAD. Ist eine
+    Außenadresse eingestellt, gilt NUR sie; die weitergereichte Adresse der
+    Anfrage (X-Forwarded-Host) ist dann nicht maßgeblich."""
     import aussenadresse
     base = (aussenadresse.konfiguriert() or _addin_base_url(request)).rstrip("/")
-    return base + LAUFZEIT_HTML
+    return base + pfad
 
 
-async def _exchange_anmeldung(request) -> str:
+async def _exchange_anmeldung(request, pfad: str = LAUFZEIT_HTML,
+                              wer: str = "Verfassen-Add-in") -> str:
     """Adresse des Hybrid-Nutzers aus dem Exchange-Identitätstoken — "" bei
-    Ablehnung (der Grund steht im Protokoll, nicht in der Antwort)."""
+    Ablehnung (der Grund steht im Protokoll, nicht in der Antwort; das Token
+    selbst nie). `pfad`: FormSettings-Adresse des anfragenden Add-ins."""
     token = request.headers.get(exchange_identitaet.KOPF.lower()) or ""
     try:
-        email = await asyncio.to_thread(exchange_identitaet.pruefen, token, _aud_erwartet(request))
+        email = await asyncio.to_thread(exchange_identitaet.pruefen, token,
+                                        _aud_erwartet(request, pfad))
     except exchange_identitaet.Abgelehnt as exc:
-        log.warning("Verfassen-Add-in: Exchange-Identitätstoken abgelehnt (%s) — %s",
-                    _plattform(request), exc)
+        log.warning("%s: Exchange-Identitätstoken abgelehnt (%s) — %s",
+                    wer, _plattform(request), exc)
         return ""
     except Exception as exc:                                  # noqa: BLE001 — nie 500 ins Add-in
-        log.warning("Verfassen-Add-in: Exchange-Identitätstoken nicht prüfbar (%s) — %s: %s",
-                    _plattform(request), type(exc).__name__, str(exc)[:200])
+        log.warning("%s: Exchange-Identitätstoken nicht prüfbar (%s) — %s: %s",
+                    wer, _plattform(request), type(exc).__name__, str(exc)[:200])
         return ""
-    log.info("Verfassen-Add-in: %s angemeldet über Exchange-Identitätstoken (Exchange lokal, %s)",
-             email, _plattform(request))
+    log.info("%s: %s angemeldet über Exchange-Identitätstoken (Exchange lokal, %s)",
+             wer, email, _plattform(request))
     return email
 
 
@@ -667,7 +680,7 @@ async def addin_meldung(request: Request):
     return Response(status_code=204, headers=_MELDUNG_CORS)
 
 
-# ── Tab (Teams/Outlook): Anmeldung per NAA ─────────────────────────────────────
+# ── Tab und Aufgabenbereich: stille Anmeldung ──────────────────────────────────
 # Der Tab meldete sich bisher nur über ein Anmeldefenster an
 # (`authentication.authenticate`). Das ist eine Webanmeldung ohne Broker: Auf
 # dem Handy fragt sie nach dem Benutzernamen, statt das Konto des Authenticators
@@ -675,32 +688,53 @@ async def addin_meldung(request: Request):
 # dem Teams bzw. Outlook angemeldet ist, und tauscht es hier gegen dasselbe
 # Sitzungsmerkmal, das das Anmeldefenster liefert. Das Fenster bleibt als
 # Rückfall.
+#
+# Seit v1.12.95 meldet sich auch der Aufgabenbereich des Knopf-Add-ins (/self im
+# Outlook-Rahmen) hier still an — per NAA, und für Konten auf Exchange lokal per
+# Exchange-Identitätstoken (Kopf exchange_identitaet.KOPF, `aud` = erste
+# FormSettings-Adresse des KNOPF-Manifests). Ablauf im Client:
+# static/addin_anmeldung.js, derselbe Baustein wie im Verfassen-Add-in.
 
 TAB_SITZUNG_API = "/addin/tab/sitzung"
 
 
 @router.post(TAB_SITZUNG_API)
 async def tab_sitzung(request: Request):
-    """NAA-Zugriffstoken → Self-Service-Sitzungsmerkmal (als `X-Addin-Session`).
+    """Stille Anmeldung → Self-Service-Sitzungsmerkmal (als `X-Addin-Session`).
 
-    Bewusst NUR die Rolle `ROLE_SELF`, auch für Verwalter: Der Tab braucht
-    nichts anderes, und ein Bearer-Token soll keine Verwaltungssitzung
-    eröffnen. Wer verwalten will, meldet sich über das Fenster an. Ohne
-    freigeschalteten Self-Service (oder ohne betreutes Postfach) 403 — der Tab
-    bietet dann das Anmeldefenster an.
+    Zwei Wege, wie beim Verfassen-Add-in (verfassen_signatur):
+      * `Authorization: Bearer` — NAA-Zugriffstoken (Tab, Aufgabenbereich).
+      * Kopf `X-Exchange-Identitaet` OHNE Authorization — Exchange-
+        Identitätstoken des Knopf-Add-ins (Konto auf Exchange lokal). Geprüft
+        von exchange_identitaet.pruefen mit `aud` = KNOPF_FORM_PFAD; die Adresse
+        stammt allein aus dem Token (nur Hybrid-Nutzer, die das Gateway
+        betreut). Ein Bearer-Kopf, der nicht trägt, fällt NICHT hierher durch.
+
+    Bewusst NUR die Rolle `ROLE_SELF`, auch für Verwalter: Tab und
+    Aufgabenbereich brauchen nichts anderes, und ein Token soll keine
+    Verwaltungssitzung eröffnen. Wer verwalten will, meldet sich über das
+    Fenster an. Ohne freigeschalteten Self-Service (oder ohne betreutes
+    Postfach) 403 — die Seite bietet dann das Anmeldefenster an.
     """
     from webui.deps import self_service_rolle
+    nein = {"Cache-Control": _NO_STORE}
     kopf = request.headers.get("authorization") or ""
     claims = sso_mod.verify_access_token(kopf[7:].strip()) if kopf[:7].lower() == "bearer " else None
-    if not claims:
-        return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401,
-                            headers={"Cache-Control": _NO_STORE})
-    email = (claims.get("preferred_username") or claims.get("upn") or "").strip().lower()
+    if claims:
+        weg = "NAA"
+        email = (claims.get("preferred_username") or claims.get("upn") or "").strip().lower()
+    elif not kopf and request.headers.get(exchange_identitaet.KOPF.lower()):
+        weg = "Exchange-Identitätstoken"
+        email = await _exchange_anmeldung(request, KNOPF_FORM_PFAD, "Aufgabenbereich")
+        if not email:
+            return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401, headers=nein)
+    else:
+        return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401, headers=nein)
     rolle = self_service_rolle(email) if "@" in email else None
     if rolle != sso_mod.ROLE_SELF:
-        log.info("Tab-Anmeldung per NAA: %s ohne Self-Service — Anmeldefenster nötig", email or "?")
-        return JSONResponse({"detail": "Kein Self-Service"}, status_code=403,
-                            headers={"Cache-Control": _NO_STORE})
-    log.info("Tab-Anmeldung per NAA: %s", email)
+        log.info("Stille Anmeldung per %s: %s ohne Self-Service — Anmeldefenster nötig",
+                 weg, email or "?")
+        return JSONResponse({"detail": "Kein Self-Service"}, status_code=403, headers=nein)
+    log.info("Stille Anmeldung per %s: %s", weg, email)
     return JSONResponse({"token": sso_mod.create_session_cookie(email, role=sso_mod.ROLE_SELF)},
-                        headers={"Cache-Control": _NO_STORE})
+                        headers=nein)

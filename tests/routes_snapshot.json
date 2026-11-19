@@ -546,6 +546,13 @@
     "name": "api_ews_bereich_stand"
   },
   {
+    "pfad": "/api/ews-bereich/verwerfen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_ews_bereich_verwerfen"
+  },
+  {
     "pfad": "/api/ews-onprem/owa-signatur",
     "methoden": [
       "POST"

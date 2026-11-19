@@ -403,6 +403,13 @@
     so lange gilt eine Ablehnung nicht als Fehler.
   </p>
   <div id="ews-bereich-stand" class="hint" style="margin:0 0 10px;line-height:1.6"></div>
+  <div id="ews-bereich-ausstehend" hidden style="margin:0 0 10px;padding:8px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:13px;line-height:1.5">
+    <span id="ews-bereich-ausstehend-text"></span>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px">
+      <button class="btn danger btn-sm" id="ews-bereich-verwerfen-btn" type="button" onclick="ewsBereichVerwerfen()">Ausstehendes Konto verwerfen</button>
+      <span id="ews-bereich-verwerfen-ergebnis" style="font-size:12px"></span>
+    </div>
+  </div>
   <div class="settings-row">
     <label for="ews-ldap">Domänencontroller (LDAPS)</label>
     <div class="settings-control"><input type="text" id="ews-ldap" style="width:260px;max-width:100%"
@@ -464,7 +471,7 @@
     <label for="ews-bereich-konto">Name des Dienstkontos</label>
     <div class="settings-control"><input type="text" id="ews-bereich-konto" style="width:220px;max-width:100%"
          placeholder="{{ s.EWS_ONPREM_KONTO or 'svc-exo-gateway' }}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-      <small class="hint" style="display:block;margin-top:2px">Neu angelegt: zufälliges, langes Kennwort, das nicht abläuft; das Gateway trägt Konto und Kennwort oben ein.</small></div>
+      <small class="hint" style="display:block;margin-top:2px">Neu angelegt: zufälliges, langes Kennwort, das nicht abläuft. Gibt es oben schon ein Dienstkonto, arbeitet das Gateway damit weiter, bis die Exchange-Befehle ausgeführt sind und „Prüfen“ mit dem neuen Konto bestanden ist — erst dann ersetzt es das bisherige.</small></div>
   </div>
   <div class="settings-row">
     <label for="ews-bereich-ausgabe">Bisherige Zuweisung (optional)</label>
@@ -500,6 +507,11 @@
       <button class="copy-btn" data-copy-target="ews-bereich-befehle" title="Befehle kopieren" type="button"></button>
     </div>
   </div>
+  <p class="hint" style="margin:10px 0 0">
+    Vorher: Stammt das Zertifikat des Domänencontrollers nicht von einer öffentlichen CA
+    (selbstsigniert oder interne CA), trage es bzw. das Zertifikat seiner CA oben unter
+    „Eigene CA“ ein und speichere — sonst scheitert die Verbindung (LDAPS) an der TLS-Prüfung.
+  </p>
   <div class="settings-row" style="margin-top:10px">
     <label for="ews-bereich-admin">Admin-Konto (einmalig)</label>
     <div class="settings-control"><input type="text" id="ews-bereich-admin" style="width:260px;max-width:100%"
@@ -632,6 +644,14 @@ function _ewsListe(werte) {
 }
 
 function ewsBereichZeigen(d) {
+  const box = document.getElementById('ews-bereich-ausstehend');
+  box.hidden = !d.ausstehend;
+  if (d.ausstehend) {
+    document.getElementById('ews-bereich-ausstehend-text').textContent =
+      'Neues Dienstkonto ' + d.ausstehend + ' wartet auf die Exchange-Befehle und „Prüfen“ — bis dahin '
+      + 'arbeitet das Gateway mit ' + (d.wirksam || '—') + '.'
+      + (d.ausstehend_seit ? ' Angelegt ' + d.ausstehend_seit.slice(0, 16).replace('T', ' ') + ' UTC.' : '');
+  }
   const el = document.getElementById('ews-bereich-stand');
   if (!d.eingerichtet) {
     el.innerHTML = 'Noch nicht eingerichtet — der Bereich wird von Hand gepflegt. Hybrid-Nutzer mit '
@@ -674,19 +694,27 @@ async function ewsBereichNeu() {
   if (d.ok) ewsBereichZeigen(d);
 }
 
-async function ewsBereichAbgleichen() {
-  const el = document.getElementById('ews-bereich-ergebnis');
-  const d = await knopfAktion('ews-bereich-abgleich-btn', null, () => postJSON('/api/ews-bereich/abgleichen', {}));
-  showMsg(el, d.ok ? '✓ ' + (d.hinzu || []).length + ' aufgenommen, ' + (d.weg || []).length + ' entfernt'
-                   : '✗ ' + errText(d), d.ok);
+// Ein Knopf der Karte: POST, Meldung am Ort, Stand neu laden.
+async function _ewsBereichAktion(knopf, pfad, ergebnis, okText, fehlerText) {
+  const d = await knopfAktion(knopf, null, () => postJSON(pfad, {}));
+  showMsg(document.getElementById(ergebnis), d.ok ? '✓ ' + okText(d) : '✗ ' + (fehlerText ? fehlerText(d) : errText(d)), d.ok);
   ewsBereichNeu();
 }
 
-async function ewsBereichPruefen() {
-  const el = document.getElementById('ews-bereich-ergebnis');
-  const d = await knopfAktion('ews-bereich-pruefen-btn', null, () => postJSON('/api/ews-bereich/pruefen', {}));
-  showMsg(el, d.ok ? '✓ Prüfung bestanden' : '✗ ' + (d.error ? errText(d) : 'Prüfung nicht bestanden — Einzelheiten oben'), d.ok);
-  ewsBereichNeu();
+function ewsBereichAbgleichen() {
+  return _ewsBereichAktion('ews-bereich-abgleich-btn', '/api/ews-bereich/abgleichen', 'ews-bereich-ergebnis',
+    d => (d.hinzu || []).length + ' aufgenommen, ' + (d.weg || []).length + ' entfernt');
+}
+
+function ewsBereichPruefen() {
+  return _ewsBereichAktion('ews-bereich-pruefen-btn', '/api/ews-bereich/pruefen', 'ews-bereich-ergebnis',
+    d => 'Prüfung bestanden' + (d.zugang_gewechselt ? ' — neues Dienstkonto ist jetzt wirksam' : ''),
+    d => d.error ? errText(d) : 'Prüfung nicht bestanden — Einzelheiten oben');
+}
+
+function ewsBereichVerwerfen() {
+  return _ewsBereichAktion('ews-bereich-verwerfen-btn', '/api/ews-bereich/verwerfen', 'ews-bereich-verwerfen-ergebnis',
+    d => 'Verworfen. ' + d.hinweis);
 }
 
 function _ewsEinrichtung() {
@@ -728,7 +756,8 @@ async function ewsBereichEinrichten() {
   document.getElementById('ews-bereich-befehle').textContent = d.befehle;
   document.getElementById('ews-bereich-befehle-block').style.display = '';
   showMsg(el, '✓ AD-Teil erledigt (' + d.schritte.map(s => s.kennung + ': ' + s.ergebnis).join(', ')
-    + '). Jetzt die Exchange-Befehle unten ausführen, danach „Prüfen“.', true);
+    + '). Jetzt die Exchange-Befehle unten ausführen, danach „Prüfen“.'
+    + (d.konto_ausstehend ? ' Bis dahin arbeitet das Gateway mit dem bisherigen Dienstkonto.' : ''), true);
   ewsBereichNeu();
 }
 

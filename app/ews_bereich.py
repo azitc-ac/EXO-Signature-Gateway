@@ -48,6 +48,18 @@ als feste Adressliste), zeigt `bestand_erkennen` das an. Der Umbau übernimmt di
 alten Adressen in die Gruppe; die alte Zuweisung samt Scope steht erst in den
 Befehlen, wenn der Admin das bestätigt (`alt_entfernen`).
 
+KONTOWECHSEL
+------------
+Legt die Einrichtung ein NEUES Dienstkonto an, hat es bis zu den
+Exchange-Befehlen (Scope, Rollenzuweisung) keine ApplicationImpersonation.
+Würde es sofort EWS_ONPREM_KONTO/_KENNWORT ersetzen, fiele EWS für ALLE
+Hybrid-Nutzer aus — auch für die, die mit dem bisherigen Konto liefen. Darum
+steht es zunächst als AUSSTEHEND in EWS_BEREICH_NEU_KONTO/_KENNWORT; `pruefen`
+testet MIT IHM (LDAP-Delegation, EWS-Probe) und übernimmt es erst, wenn alles
+bestanden ist. `verwerfen` löscht es wieder. Alle drei schreiben über EINEN
+Weg (`_zugang_schreiben`). Nur ohne bisheriges Konto (Ersteinrichtung) gilt es
+sofort — da gibt es nichts, was ausfallen könnte.
+
 AUSBREITUNG
 -----------
 Exchange übernimmt Gruppen- und Scope-Änderungen für Impersonation verzögert
@@ -77,6 +89,8 @@ KEY_LDAP = "EWS_LDAP_SERVER"          # Domänencontroller (LDAPS), host[:port]
 KEY_BASIS = "EWS_LDAP_BASIS"          # Basis-DN der Suche; leer = aus dem RootDSE
 KEY_OU = "EWS_BEREICH_OU"             # Ablage für Konto und Gruppe; leer = CN=Users,<Basis>
 KEY_GRUPPE = "EWS_BEREICH_GRUPPE"     # sAMAccountName der Gruppe
+KEY_NEU_KONTO = "EWS_BEREICH_NEU_KONTO"        # ausstehendes Dienstkonto (noch nicht wirksam)
+KEY_NEU_KENNWORT = "EWS_BEREICH_NEU_KENNWORT"  # dessen Kennwort (SECRET_KEYS)
 STAND_KEY = "_EWS_BEREICH_STAND"      # Laufzeitzustand (INTERNAL_KEYS)
 
 GRUPPE_VORGABE = "EXO-Gateway-EWS"
@@ -445,7 +459,9 @@ class Verzeichnis:
                 import ews_onprem
                 raise BereichFehler("tls", "TLS-Prüfung am Domänencontroller fehlgeschlagen — "
                                     "Zertifikat nicht vertrauenswürdig oder nicht auf den Hostnamen "
-                                    "ausgestellt." + ews_onprem._tls_hinweis()) from None
+                                    "ausgestellt."
+                                    + ews_onprem._tls_hinweis("das Zertifikat des Domänencontrollers",
+                                                              "des Domänencontrollers")) from None
             raise BereichFehler("verbindung", "Domänencontroller nicht erreichbar "
                                 f"({_schwaerzen(exc, kennwort)})") from None
         self.basis = _wert(KEY_BASIS) or self._rootdse("defaultNamingContext")
@@ -530,11 +546,69 @@ def _verbinden(benutzer: str, kennwort: str) -> Verzeichnis:
 
 
 def _verbinden_dienst() -> Verzeichnis:
-    import ews_onprem
-    konto, kw = _wert(ews_onprem.KEY_KONTO), _wert(ews_onprem.KEY_KENNWORT)
+    konto, kw, _neu = dienst_zugang()
     if not (konto and kw):
         raise BereichFehler("konfiguration", "Dienstkonto oder Kennwort nicht gespeichert")
     return _verbinden(konto, kw)
+
+
+# ── Dienstkonto: wirksam und ausstehend ───────────────────────────────────────
+
+def ausstehend() -> str:
+    """Name des ausstehenden Dienstkontos oder "" — nur mit Kennwort ein Wechsel."""
+    konto = _wert(KEY_NEU_KONTO)
+    return konto if konto and settings_store.get(KEY_NEU_KENNWORT) else ""
+
+
+def wirksames_konto() -> str:
+    import ews_onprem
+    return _wert(ews_onprem.KEY_KONTO)
+
+
+def dienst_zugang() -> tuple[str, str, bool]:
+    """(Konto, Kennwort, ausstehend?) für LDAP. Ein ausstehendes Konto geht vor:
+    Die Einrichtung hat GENAU IHM die Delegation an der Gruppe erteilt — das
+    bisherige Konto darf die Mitglieder womöglich nicht ändern. EWS selbst
+    nutzt weiter das gespeicherte Konto (ews_onprem._zugang), bis `pruefen`
+    übernimmt."""
+    import ews_onprem
+    if ausstehend():
+        return _wert(KEY_NEU_KONTO), str(settings_store.get(KEY_NEU_KENNWORT) or ""), True
+    return _wert(ews_onprem.KEY_KONTO), _wert(ews_onprem.KEY_KENNWORT), False
+
+
+def _zugang_schreiben(wirksam: tuple[str, str] | None = None,
+                      ausstehend_neu: tuple[str, str] = ("", ""),
+                      weitere: dict | None = None) -> None:
+    """DER Schreibweg für Dienstkonto-Zugangsdaten — Anlegen (ausstehend oder,
+    bei Ersteinrichtung, wirksam), Übernehmen und Verwerfen. `wirksam` ersetzt
+    EWS_ONPREM_KONTO/_KENNWORT; `ausstehend_neu` setzt bzw. leert (Vorgabe)
+    EWS_BEREICH_NEU_*. Ein Aufruf, ein `update` — kein halber Zustand.
+    EWS_ONPREM_KENNWORT und EWS_BEREICH_NEU_KENNWORT sind SECRET_KEYS."""
+    import ews_onprem
+    felder = dict(weitere or {})
+    felder[KEY_NEU_KONTO], felder[KEY_NEU_KENNWORT] = ausstehend_neu
+    if wirksam is not None:
+        felder[ews_onprem.KEY_KONTO], felder[ews_onprem.KEY_KENNWORT] = wirksam
+    settings_store.update(felder)
+    _stand_setzen(ausstehend_seit=_iso() if ausstehend_neu[0] else "")
+
+
+def verwerfen(wer: str) -> dict:
+    """„Ausstehendes Konto verwerfen“: Zugangsdaten löschen, das bisherige
+    Konto bleibt. Das AD-Konto selbst bleibt bestehen — das Gateway löscht im
+    AD nichts, was es nicht pflegt."""
+    konto = ausstehend()
+    if not konto:
+        _zugang_schreiben()          # auch einen halben Rest (Konto ohne Kennwort) leeren
+        return {"ok": False, "error": "Kein ausstehendes Dienstkonto"}
+    _zugang_schreiben()
+    _audit("ews_bereich_konto_verworfen", konto,
+           f"Ausstehendes Dienstkonto {konto} verworfen durch {wer}; weiter wirksam: "
+           f"{wirksames_konto() or '—'}. Das AD-Konto besteht weiter.")
+    return {"ok": True, "konto": konto,
+            "hinweis": f"Das Konto {konto} besteht im AD weiter — entferne es dort, "
+                       "wenn du es nicht mehr brauchst."}
 
 
 # ── LDAP-Hilfen über dem Verzeichnis ──────────────────────────────────────────
@@ -1109,15 +1183,33 @@ def einrichten(daten: dict, admin_konto: str, admin_kennwort: str, wer: str) -> 
             felder[KEY_BASIS] = p.basis
         if not _wert(KEY_OU):
             felder[KEY_OU] = p.ou
+        wirksam_neu = False
         if neues_kennwort:
-            # Über den gewöhnlichen Weg: EWS_ONPREM_KENNWORT ist SECRET_KEYS.
-            felder[ews_onprem.KEY_KONTO] = p.konto_upn or p.konto_sam
-            felder[ews_onprem.KEY_KENNWORT] = neues_kennwort
-        settings_store.update(felder)
+            neu = (p.konto_upn or p.konto_sam, neues_kennwort)
+            if _wert(ews_onprem.KEY_KONTO) and _wert(ews_onprem.KEY_KENNWORT):
+                # Es gibt ein bisheriges Konto, mit dem EWS (vielleicht) läuft.
+                # Das neue hat bis zu den Exchange-Befehlen keine Impersonation —
+                # sofort wirksam, fiele EWS für ALLE Hybrid-Nutzer aus. Also
+                # ausstehend, bis `pruefen` es bestätigt.
+                vorher = ausstehend()
+                _zugang_schreiben(ausstehend_neu=neu, weitere=felder)
+                _audit("ews_bereich_konto_ausstehend", neu[0],
+                       f"Neues Dienstkonto {neu[0]} wartet auf Exchange-Befehle und Prüfung; "
+                       f"weiter wirksam: {wirksames_konto()}"
+                       + (f"; ersetzt das ausstehende {vorher}" if vorher else "") + f" ({wer})")
+            else:
+                # Ersteinrichtung: kein bisheriges Konto, also nichts, was
+                # ausfallen könnte — und EWS braucht ein gespeichertes Konto, damit
+                # „Verbindung testen“ und die Postfachprüfung überhaupt laufen.
+                _zugang_schreiben(wirksam=neu, weitere=felder)
+                wirksam_neu = True
+        else:
+            settings_store.update(felder)
         _stand_setzen(konto_dn=konto_dn, eingerichtet=_iso(), eingerichtet_von=wer,
                       scope=scope_name(p.gruppe), zuweisung=zuweisung_name(p.gruppe))
         offen = [s for s in schritte if s.art == "exchange"]
         return {"ok": True, "schritte": erledigt, "konto_neu": bool(neues_kennwort),
+                "konto_ausstehend": ausstehend(), "zugang_gewechselt": wirksam_neu,
                 "befehle": befehle_text(offen),
                 "plan": [s.__dict__ for s in schritte]}
     except BereichFehler as exc:
@@ -1142,21 +1234,56 @@ def einrichten(daten: dict, admin_konto: str, admin_kennwort: str, wer: str) -> 
 def pruefen(wer: str) -> dict:
     """Mit dem Dienstkonto: Gruppe da? Delegation da? Abweichung? Und EWS:
     Darf das Konto ein Mitglied übernehmen (belegt Scope und Zuweisung)?
-    Ändert nichts im AD. Ergebnis im Stand (`pruefung`)."""
+    Ändert nichts im AD. Ergebnis im Stand (`pruefung`).
+
+    Steht ein Konto AUS (`ausstehend`), prüft alles mit DESSEN Zugangsdaten.
+    Nur wenn jeder Punkt bestanden ist — auch die EWS-Probe, „nicht prüfbar“
+    reicht nicht —, wird es wirksam (`zugang_gewechselt`). Sonst bleibt das
+    bisherige Konto, und der Punkt „Kontowechsel“ nennt den Grund."""
+    konto, kw, neu = dienst_zugang()
+    punkte = _pruefpunkte(wer, konto, kw, neu)
+    if not neu:
+        return _pruefung_merken(punkte)
+    alt = wirksames_konto() or "—"
+    offen = [p for p in punkte if p["ok"] is not True]
+    if offen:
+        grund = "; ".join(f"{p['name']}: {p['detail']}" for p in offen)
+        punkte.append({"name": "Kontowechsel", "ok": False,
+                       "detail": _schwaerzen(f"{konto} nicht übernommen ({grund}) — das Gateway "
+                                             f"arbeitet weiter mit {alt}", kw)})
+        return _pruefung_merken(punkte)
+    with settings_store._lock:
+        # Zwischen Prüfung und Übernahme verworfen oder neu angelegt? Dann nicht.
+        if not (ausstehend() == konto and settings_store.get(KEY_NEU_KENNWORT) == kw):
+            punkte.append({"name": "Kontowechsel", "ok": False,
+                           "detail": "Ausstehendes Konto während der Prüfung geändert — erneut prüfen"})
+            return _pruefung_merken(punkte)
+        _zugang_schreiben(wirksam=(konto, kw))
+    _audit("ews_bereich_konto_gewechselt", konto,
+           f"Dienstkonto gewechselt von {alt} auf {konto} nach bestandener Prüfung ({wer})")
+    punkte.append({"name": "Kontowechsel", "ok": True,
+                   "detail": f"{konto} ist jetzt wirksam (vorher {alt})"})
+    return {**_pruefung_merken(punkte), "zugang_gewechselt": True}
+
+
+def _pruefpunkte(wer: str, konto: str, kw: str, neu: bool) -> list[dict]:
+    """Die Punkte von `pruefen`, mit genau diesen Zugangsdaten."""
     import ews_onprem
     punkte: list[dict] = []
     v = None
     try:
-        v = _verbinden_dienst()
+        if not (konto and kw):
+            raise BereichFehler("konfiguration", "Dienstkonto oder Kennwort nicht gespeichert")
+        v = _verbinden(konto, kw)
         g = gruppe_finden(v, gruppe_name())
         if not g:
             punkte.append({"name": "Gruppe", "ok": False, "detail": f"{gruppe_name()} nicht gefunden"})
-            return _pruefung_merken(punkte)
+            return punkte
         if stand().get("gruppe_dn", "").lower() != g["dn"].lower():
             _stand_setzen(gruppe_dn=g["dn"])
             _audit("ews_bereich_gruppe_erkannt", gruppe_name(), f"Gruppe {g['dn']} übernommen ({wer})")
         punkte.append({"name": "Gruppe", "ok": True, "detail": g["dn"]})
-        k = konto_finden(v, _wert(ews_onprem.KEY_KONTO))
+        k = konto_finden(v, konto)
         if not k:
             punkte.append({"name": "Delegation", "ok": False, "detail": "Dienstkonto im AD nicht gefunden"})
         else:
@@ -1170,8 +1297,8 @@ def pruefen(wer: str) -> dict:
                            "Dienstkonto darf die Mitglieder NICHT ändern — Einrichtung oder "
                            "Add-ADPermission ausführen"})
     except BereichFehler as exc:
-        punkte.append({"name": "Verzeichnis", "ok": False, "detail": exc.detail})
-        return _pruefung_merken(punkte)
+        punkte.append({"name": "Verzeichnis", "ok": False, "detail": _schwaerzen(exc.detail, kw)})
+        return punkte
     finally:
         if v is not None:
             v.schliessen()
@@ -1181,16 +1308,30 @@ def pruefen(wer: str) -> dict:
                    "detail": erg.get("error") or (f"Soll {erg.get('soll', 0)}, es fehlen "
                                                   f"{len(erg.get('fehlen') or [])}, zu viel "
                                                   f"{len(erg.get('zuviel') or [])}")})
-    mitglieder = [a for a in stand().get("mitglieder") or [] if not wartet(a)]
-    if not mitglieder:
-        punkte.append({"name": "EWS-Zugriff", "ok": None,
+    alle = list(stand().get("mitglieder") or [])
+    mitglieder = [a for a in alle if not wartet(a)]
+    name = "EWS-Zugriff" + (f" ({konto})" if neu else "")
+    # Ausstehendes Konto: notfalls auch ein frisches Mitglied versuchen — gelingt
+    # es, ist der Wechsel belegt; scheitert es, gilt das in der Wartezeit nicht
+    # als Fehler (Exchange übernimmt verzögert), übernommen wird trotzdem nicht.
+    if not mitglieder and neu and alle:
+        probe = alle[0]
+        t = ews_onprem.verbindung_testen(probe, sperre_umgehen=True, zugang=(konto, kw))
+        punkte.append({"name": name, "ok": True if t.get("ok") else None,
+                       "detail": _schwaerzen(f"{probe}: " + (
+                           t.get("detail") if t.get("ok") else
+                           f"wartet auf Exchange (bis {WARTEZEIT_S // 3600} h) — {t.get('detail') or ''}"),
+                           kw)})
+    elif not mitglieder:
+        punkte.append({"name": name, "ok": None,
                        "detail": "Kein Mitglied außerhalb der Wartezeit — noch nicht prüfbar"})
     else:
         probe = mitglieder[0]
-        t = ews_onprem.verbindung_testen(probe, sperre_umgehen=True)
-        punkte.append({"name": "EWS-Zugriff", "ok": bool(t.get("ok")),
-                       "detail": (f"{probe}: " + (t.get("detail") or ""))[:300]})
-    return _pruefung_merken(punkte)
+        t = ews_onprem.verbindung_testen(probe, sperre_umgehen=True,
+                                         zugang=(konto, kw) if neu else None)
+        punkte.append({"name": name, "ok": bool(t.get("ok")),
+                       "detail": _schwaerzen(f"{probe}: " + (t.get("detail") or ""), kw)})
+    return punkte
 
 
 def _pruefung_merken(punkte: list[dict]) -> dict:
@@ -1209,4 +1350,7 @@ def uebersicht() -> dict:
             "messung": s.get("messung") or {}, "pruefung": s.get("pruefung") or {},
             "wartend": sorted(a for a in (s.get("wartet") or {}) if wartet(a)),
             "abweichung": abweichung(), "aenderungen": letzte_aenderungen(),
-            "eingerichtet_am": s.get("eingerichtet", ""), "wartezeit_h": WARTEZEIT_S // 3600}
+            "eingerichtet_am": s.get("eingerichtet", ""), "wartezeit_h": WARTEZEIT_S // 3600,
+            # Nur Namen — das Kennwort verlässt das Modul nie.
+            "ausstehend": ausstehend(), "ausstehend_seit": s.get("ausstehend_seit", ""),
+            "wirksam": wirksames_konto()}

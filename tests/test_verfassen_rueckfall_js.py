@@ -8,8 +8,10 @@ Office-, MSAL- und fetch-Schnittstellen. Geprüft:
   18.11.2026, klassisches Outlook) → Identitätstoken im Kopf
   X-Exchange-Identitaet, Signatur wird eingefügt.
 * accountType office365 → nie der Rückfall, auch nicht bei crypto_nonexistent.
-* Andere NAA-Fehler bei unterstütztem NAA → kein Rückfall (Meldung wie bisher).
-* NAA laut isSetSupported nicht vorhanden → Rückfall bei jedem NAA-Fehler.
+* Andere NAA-Fehler bei unterstütztem NAA und unbekannter Kontoart → kein
+  Rückfall (Meldung wie bisher); Kontoart „enterprise“ → Rückfall.
+* NAA laut isSetSupported nicht vorhanden → gleich das Identitätstoken, ohne
+  MSAL-Versuch (seit v1.12.95, gemeinsamer Baustein addin_anmeldung.js).
 """
 from __future__ import annotations
 
@@ -20,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-SKRIPT = Path(__file__).resolve().parents[1] / "app/webui/static/verfassen_ereignis.js"
+from webui.routen import addin_verfassen as av   # noqa: E402
 
 HARNESS = r"""
 var fall = JSON.parse(process.argv[1]);
@@ -70,7 +72,7 @@ globalThis.fetch = function (url, opt) {
   return Promise.resolve({ ok: true, status: 200,
     json: function () { return Promise.resolve({ html: '<p>SIG</p>', vorlage: 'Voll' }); } });
 };
-require(fall.skript);
+(0, eval)(fall.quelltext);   // wie laufzeit.js: Baustein + Handler, global
 handler.beimVerfassen({ completed: function () {
   process.stdout.write(JSON.stringify(protokoll));
 } });
@@ -81,7 +83,8 @@ def _lauf(**fall):
     node = shutil.which("node")
     if not node:
         pytest.skip("node fehlt (in der CI vorhanden)")
-    f = {"naaSet": True, "naaFehler": None, "accountType": "office365", "skript": str(SKRIPT)}
+    f = {"naaSet": True, "naaFehler": None, "accountType": "office365",
+         "quelltext": av.handler_quelltext()}
     f.update(fall)
     out = subprocess.run([node, "-e", HARNESS, json.dumps(f)], capture_output=True,
                          text=True, timeout=30, check=True)
@@ -123,12 +126,25 @@ def test_cloud_konto_nie_rueckfall(art):
     assert "crypto_nonexistent" in p["hinweis"]             # Meldung wie bisher
 
 
-def test_anderer_naa_fehler_kein_rueckfall():
-    p = _lauf(accountType="enterprise", naaFehler="interaction_required")
+def test_anderer_naa_fehler_ohne_kontoart_kein_rueckfall():
+    """Kontoart unbekannt (Mailbox < 1.6) und NAA laut Host vorhanden: nur die
+    Fehler aus NAA_FEHLT führen zum Identitätstoken, sonst Meldung wie bisher."""
+    p = _lauf(accountType=None, naaFehler="interaction_required")
     assert p["identitaet"] == 0 and p["gesetzt"] is None
     assert "interaction_required" in p["hinweis"]
 
 
-def test_naa_nicht_unterstuetzt_rueckfall_bei_jedem_fehler():
-    p = _lauf(accountType="enterprise", naaFehler="no_network_connectivity", naaSet=False)
-    assert p["identitaet"] == 1 and p["gesetzt"] == "<p>SIG</p>"
+def test_konto_auf_exchange_lokal_rueckfall_bei_jedem_naa_fehler():
+    """accountType „enterprise“ = Postfach auf Exchange lokal (MS Learn, NAA-FAQ);
+    NAA kennt nur Microsoft-Konten und Entra-ID. Jeder NAA-Fehler führt dort zum
+    Identitätstoken — im Aufgabenbereich (mit Web Crypto) meldet MSAL einen
+    anderen Fehler als crypto_nonexistent."""
+    p = _lauf(accountType="enterprise", naaFehler="interaction_required")
+    assert p["naa"] == 1 and p["identitaet"] == 1 and p["gesetzt"] == "<p>SIG</p>"
+
+
+@pytest.mark.parametrize("art", ["enterprise", None])
+def test_naa_nicht_unterstuetzt_gleich_identitaetstoken(art):
+    """isSetSupported('NestedAppAuth', '1.1') === false: kein MSAL-Versuch."""
+    p = _lauf(accountType=art, naaFehler="no_network_connectivity", naaSet=False)
+    assert p["naa"] == 0 and p["identitaet"] == 1 and p["gesetzt"] == "<p>SIG</p>"

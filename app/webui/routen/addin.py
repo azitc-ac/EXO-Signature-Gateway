@@ -161,8 +161,14 @@ def _addin_allowed_templates(email: str, mailbox_cfg: dict) -> list[str]:
 
 _NO_STORE = "no-store, no-cache, must-revalidate, max-age=0"
 
+# Erste SourceLocation unter FormSettings im Knopf-Manifest. Das
+# Exchange-Identitätstoken des Knopf-Add-ins trägt genau diese Adresse als
+# `aud` (MS Learn, „Exchange identity token structure“) — auch wenn es aus dem
+# Aufgabenbereich /self geholt wird. Geprüft in addin_verfassen.tab_sitzung.
+KNOPF_FORM_PFAD = "/addin/compose"
 
-@router.get("/addin/compose", response_class=HTMLResponse)
+
+@router.get(KNOPF_FORM_PFAD, response_class=HTMLResponse)
 async def addin_compose(request: Request):
     # no-store: the taskpane is loaded in Outlook's WebView, which otherwise
     # caches it aggressively — an updated add-in never reaches the user until
@@ -733,7 +739,7 @@ def knopf_manifest_xml(base: str, lokal: bool = False) -> str:
   <FormSettings>
     <Form xsi:type="ItemEdit">
       <DesktopSettings>
-        <SourceLocation DefaultValue="{base}/addin/compose"/>
+        <SourceLocation DefaultValue="{base}{KNOPF_FORM_PFAD}"/>
       </DesktopSettings>
     </Form>
   </FormSettings>

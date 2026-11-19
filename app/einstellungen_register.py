@@ -233,6 +233,10 @@ REGISTER: dict[str, E] = {
     "EWS_BEREICH_OU": E(art=OPTION, ort="settings.html"),        # Ablage für Konto und Gruppe
     "EWS_BEREICH_GRUPPE": E(art=OPTION, ort="settings.html"),    # Name der Gruppe
     "EWS_BEREICH_AUTO": E(art=OPTION, ort="settings.html"),      # Mitglieder automatisch pflegen
+    # Ausstehendes Dienstkonto: entsteht bei „AD-Teil einrichten“, wird bei
+    # „Prüfen“ übernommen oder per „Ausstehendes Konto verwerfen“ gelöscht.
+    "EWS_BEREICH_NEU_KONTO": E(art=ZUSTAND),
+    "EWS_BEREICH_NEU_KENNWORT": E(art=GEHEIMNIS, ort="/api/ews-bereich/einrichten"),
     "OWA_SIGNATUR_LOKAL": E(art=OPTION, ort="settings.html"),    # Signatur in OWA lokal (Hybrid)
     "RELAY_USER": E(
         art=NOTNAGEL,

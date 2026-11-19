@@ -5,6 +5,82 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.96 — 2026-11-19 — EWS-Dienstkonto: neues Konto erst nach bestandener Prüfung wirksam
+
+Legte *Exchange lokal (EWS) → Zugriffsbereich → AD-Teil einrichten* ein **neues**
+Dienstkonto an, ersetzte das Gateway sofort Konto und Kennwort der EWS-Anbindung —
+bevor Scope und Rollenzuweisung in der Exchange-Verwaltungsshell bestanden. Bis
+dahin hat das neue Konto keine *ApplicationImpersonation*; EWS fiel damit für
+**alle** Hybrid-Nutzer aus (Abwesenheit, Zertifikatsbezug, OWA-Signatur,
+Add-in-Bezug), auch für die, die mit dem bisherigen Konto liefen.
+
+Jetzt gilt:
+
+* Gibt es schon ein Dienstkonto, bleibt das neue **ausstehend**. Das Gateway
+  arbeitet mit dem bisherigen weiter; die Karte zeigt „Neues Dienstkonto … wartet
+  auf die Exchange-Befehle und ‚Prüfen‘ — bis dahin arbeitet das Gateway mit …“,
+  und unter den offenen Aufgaben steht *Neues EWS-Dienstkonto prüfen oder verwerfen*.
+* **Prüfen** testet mit den Zugangsdaten des neuen Kontos — Delegation an der
+  Gruppe und eine EWS-Probe auf ein Mitglied. Erst wenn jeder Punkt besteht, wird
+  das neue Konto wirksam (Eintrag im Audit: „Dienstkonto gewechselt von … auf …“),
+  und die Hybrid-Nutzer werden neu geprüft. Scheitert ein Punkt, bleibt das
+  bisherige Konto, und der Punkt *Kontowechsel* nennt den Grund. Eine gescheiterte
+  Probe mit dem neuen Konto löst keine Ausfallsperre für das bisherige aus.
+* **Ausstehendes Konto verwerfen** löscht die Zugangsdaten des neuen Kontos; das
+  Konto im AD bleibt bestehen — entferne es dort, wenn du es nicht brauchst.
+* Ohne bisheriges Konto (Ersteinrichtung) gilt das neue wie bisher sofort.
+* Das Gruppenpflegen per LDAPS nutzt während des Wechsels das neue Konto — ihm hat
+  die Einrichtung die Delegation an der Gruppe erteilt.
+
+Außerdem: Scheitert LDAPS an der TLS-Prüfung (etwa an einem selbstsignierten
+Zertifikat des Domänencontrollers), nennt die Meldung jetzt den Domänencontroller
+statt des Exchange-Zertifikats und verweist auf *Eigene CA*. Die Karte nennt diesen
+Schritt vor *AD-Teil einrichten*.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.95 — 2026-11-19 — Add-in-Aufgabenbereich meldet sich still an
+
+Der Knopf *Signatur & Abwesenheit* (ohne Abwesenheiten: *Signatur*) öffnet in
+Outlook den Aufgabenbereich mit deinen Self-Service-Einstellungen. Bisher verlangte er dort eine Anmeldung über
+das Office-Anmeldefenster; still ging es nur im Teams-/Outlook-Tab. Die Seite
+ist für Aufgabenbereich und Tab dieselbe, bekam die Angaben für die stille
+Anmeldung aber nur im Tab.
+
+Jetzt meldet sich auch der Aufgabenbereich zuerst still an, auf demselben Weg
+wie das Verfassen-Add-in:
+
+1. **NAA** (Nested App Authentication): Outlook reicht das angemeldete Konto
+   durch, kein Fenster.
+2. Für Konten auf **Exchange lokal** (Hybrid-Nutzer), für die es kein NAA gibt:
+   das **Exchange-Identitätstoken** von Outlook. Das Gateway prüft es wie beim
+   Verfassen-Add-in (Signatur gegen die eingetragene lokale Exchange, Zeiten,
+   Zielgruppe) und stellt eine Self-Service-Sitzung nur für genau das Postfach
+   aus, das das Token nennt — und nur für Hybrid-Nutzer, die das Gateway
+   betreut. Ein Token des Verfassen-Add-ins gilt hier nicht; die Zielgruppe ist
+   die Adresse aus dem Manifest des Knopf-Add-ins. Konten in Exchange Online
+   nehmen diesen Weg nie (Microsoft hat die Exchange-Online-Tokens abgeschaltet).
+3. Erst wenn beides scheitert, kommt wie bisher das Anmeldefenster. Der stille
+   Versuch läuft je Öffnen des Aufgabenbereichs genau einmal.
+
+Der Ablauf steht in **einem** Baustein, den Aufgabenbereich, Tab und
+Verfassen-Add-in gemeinsam nutzen. Für das Verfassen-Add-in ändert sich dabei
+eine Kleinigkeit: Meldet Outlook ein Konto ausdrücklich als Exchange lokal
+(Kontoart `enterprise`), führt jetzt jeder NAA-Fehler zum Identitätstoken, nicht
+nur `crypto_nonexistent` — NAA gibt es für solche Konten laut Microsoft
+grundsätzlich nicht. Meldet Outlook NAA als nicht verfügbar, entfällt der
+vergebliche NAA-Versuch.
+
+Manifest und Entra-Registrierung bleiben unverändert: Der Aufgabenbereich liegt
+unter derselben Adresse wie das Verfassen-Add-in, und dafür ist die
+NAA-Umleitung bereits eingetragen (Prüfung unter *Anmeldeprüfung* bzw. Abnahme).
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.94 — 2026-11-19 — EWS-Karte: technische Felder ohne Autokorrektur
 
 Die neuen Felder der Karte *Exchange lokal (EWS) → Zugriffsbereich* (Domänencontroller,
