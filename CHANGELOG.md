@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.108 — 2026-11-19 — Self-Service: Antwort-Signatur auch als reine Ansicht
+
+Unter *Self-Service* (`/self`, auch im Knopf-Add-in und im Teams-Tab) erschien
+der Reiter *Antwort-Signatur* nur, wenn die Antwort-Signatur wählbar oder
+festgeschrieben war. Wirkte eine aus der Standardrichtlinie oder einer
+Gruppen-Regel, ohne dass der Nutzer sie wählen durfte, blieb der Reiter ganz
+verborgen, und niemand sah, welche Antwort-Signatur gilt. Jetzt erscheint er in
+diesem Fall als reine Ansicht: ohne Auswahl und ohne Speichern-Knopf, mit dem
+Hinweis „Von deiner Organisation vorgegeben: …“ und der Vorschau. Ohne
+Antwort-Signatur bleibt er weg.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.107 — 2026-11-19 — Vorschau: aufgeklappte unwirksame Vorlage nicht mehr abgeschnitten; „Antwort-Signatur“ einheitlich
 
 * **Vorschau (Richtlinienergebnis):** Die als unwirksam markierte, bearbeitete

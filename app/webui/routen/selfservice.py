@@ -249,6 +249,10 @@ async def self_context(email: str = Depends(_require_self)):
         "fest": fest,                    # {slot: vorlage} — von einer Gruppe festgeschrieben
         "oof_template": oof_eff,         # wirksam (für Vorschau/Anzeige)
         "sig_template": sig_eff,
+        # Wirksame Antwort-Signatur (policies.aufloesen) — für den Reiter als
+        # reine Ansicht, wenn sie weder wählbar noch festgeschrieben ist
+        # (Entscheidung 19.11.2026). "" = keine, dann entfällt der Reiter.
+        "min_template": aufgeloest.get("min", ""),
         # Je Wahl-Slot: der Standard, den das Postfach ohne eigene Wahl bekäme, und
         # die eigene Wahl (STANDARD = keine eigene Wahl, "" = ausdrücklich keine).
         "standard": {s: std[s] for s in _SLOT_ART},
