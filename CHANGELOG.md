@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.93 — 2026-11-19 — EWS-Karte auf dem Telefon
+
+In der Karte *Exchange lokal (EWS)* ragte auf schmalen Bildschirmen (bis 600 px)
+das Feld *Bisherige Zuweisung* über den Rand: Der Befehl darin ist lang, und die
+Spalte nahm seine volle Breite an, statt ihn in sich rollen zu lassen. Die Spalte
+ist jetzt auf die Zeilenbreite begrenzt.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.92 — 2026-11-19 — Exchange lokal: Zugriffsbereich des EWS-Dienstkontos als Gruppe
 
 Für Hybrid-Nutzer spricht das Gateway per EWS mit einem Dienstkonto, das über

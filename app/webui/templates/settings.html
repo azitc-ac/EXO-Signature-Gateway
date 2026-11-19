@@ -468,7 +468,10 @@
   </div>
   <div class="settings-row">
     <label for="ews-bereich-ausgabe">Bisherige Zuweisung (optional)</label>
-    <div class="settings-control">
+    {# align-self/width: Unter 600 px stellt die Zeile auf Spalten um (align-items:
+       flex-start) — die Spalte nähme sonst die volle Breite des <pre> an und ragte
+       hinaus (test_mobil_alle_seiten, 393 px). #}
+    <div class="settings-control" style="align-self:stretch;width:100%">
       <div style="display:flex;gap:6px;align-items:flex-start">
         <pre id="ews-bereich-bestand-befehl" style="margin:0;flex:1;min-width:0;font-size:11px;border:1px solid #e2e8f0;border-radius:5px;padding:6px;overflow-x:auto;white-space:pre">{{ ews_bereich_befehl }}</pre>
         <button class="copy-btn" data-copy-target="ews-bereich-bestand-befehl" title="Befehl kopieren" type="button"></button>
