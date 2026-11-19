@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.102 — 2026-11-19 — Gruppen-Regeln: Vorlagen auf breiten Bildschirmen nebeneinander
+
+Unter *Postfächer → Vorlagenrichtlinien* stand in jeder Gruppen-Regel eine Zeile
+je Vorlage (Signatur, Antwort, Intern, Banner, Disclaimer, Abwesenheit, Add-in).
+Auf breiten Bildschirmen blieb rechts der größte Teil leer. Ist die Karte breit
+genug (ab 760 px), stehen die Auswahlfelder jetzt nebeneinander wie die Spalten
+der Postfachliste, die Beschriftung jeweils darüber. Die Add-in-Auswahl mit
+ihrer Liste nimmt eine eigene Zeile ein. Schmal bleibt es bei einer Zeile je
+Vorlage. Maßgeblich ist die Breite der Karte, nicht die des Fensters.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.101 — 2026-11-19 — EWS-Zugriffsbereich: Befehlsvorschau ohne Basis-DN, Mitgliederzahl nach der Einrichtung
 
 Zwei Fehler in der Karte *Einstellungen → Exchange lokal (EWS) →
