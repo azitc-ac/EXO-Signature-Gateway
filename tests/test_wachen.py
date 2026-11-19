@@ -244,6 +244,9 @@ def test_ausnahmeliste_enthaelt_nichts_verwaistes():
 EDITOR_DARF: dict[str, str] = {
     "/template":                        "Editor-Seite (ansehen und speichern)",
     "/preview":                         "Vorschauseite",
+    "/richtlinienergebnis":             "Richtlinienergebnis je Postfach (nur ansehen)",
+    "/api/richtlinienergebnis":         ("Daten dafür — dieselbe Auskunft, die bis v1.12.109 "
+                                         "die Editor-Vorschau gab"),
     "/api/templates":                   "Liste der Vorlagen",
     "/api/templates/{name}":            "Vorlage löschen",
     "/api/templates/{name}/meta":       "Baukasten-Daten lesen und speichern",

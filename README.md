@@ -80,9 +80,10 @@ im selben Abschnitt.
 
 - **Live-Daten aus Entra ID** je Absender beim Versand: Name, Position,
   Telefon, Abteilung, eigene Attribute.
-- **Baukasten** mit Vorschau des Richtlinienergebnisses (was ein Postfach
-  wirklich bekommt, je Teil mit Herkunft), oder freies HTML. Eine vorhandene
-  Signatur lässt sich übernehmen und in Bausteine zerlegen.
+- **Baukasten** mit Vorschau für ein gewähltes Postfach, oder freies HTML.
+  Eine vorhandene Signatur lässt sich übernehmen und in Bausteine zerlegen.
+- **Richtlinienergebnis** je Postfach: was das Gateway bei neuer Mail,
+  Antwort, interner Mail und `#nosig` wirklich anhängt, je Teil mit Herkunft.
 - **Antwort-Signatur, Banner, Disclaimer** getrennt zuweisbar, global, je
   Gruppe oder je Postfach. **Banner-Kampagnen** mit Zeitfenster und
   Zielgruppe, gepflegt von einer eigenen Rolle.

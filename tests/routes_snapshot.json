@@ -1288,6 +1288,13 @@
     "name": "api_restart"
   },
   {
+    "pfad": "/api/richtlinienergebnis",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_richtlinienergebnis"
+  },
+  {
     "pfad": "/api/self/context",
     "methoden": [
       "GET"
@@ -2742,6 +2749,13 @@
       "GET"
     ],
     "name": "relay_page"
+  },
+  {
+    "pfad": "/richtlinienergebnis",
+    "methoden": [
+      "GET"
+    ],
+    "name": "richtlinienergebnis"
   },
   {
     "pfad": "/self",

@@ -47,9 +47,51 @@
     .cpol-slots > .cpol-zeile[data-slot="addin"] { grid-column:1 / -1 }
     .cpol-slots > .cpol-zeile[data-slot="addin"] > .cpol-steuer > select { width:auto }
   }
+  /* Werkzeugleiste über der Postfachliste: Suche, „Filter“, „Aktionen“ in EINER
+     Zeile (auch bei 393 px); die Bereiche klappen darunter auf (mbKlappe). Das
+     Suchfeld kommt aus dem Makro mit flex-basis 200 px — hier schmaler, sonst
+     bräche die Zeile auf dem Telefon um (320 px: 274 px Inhalt). */
+  .mb-werkzeug { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin-bottom:8px }
+  .mb-werkzeug > span:first-child { flex:1 1 100px !important; min-width:0 }
+  #mb-filter-count:empty { display:none }
+  .mb-werkzeug button { white-space:nowrap }
+  .mb-klappfeld { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-bottom:10px;
+                  padding:8px 10px; border:1px solid #e2e8f0; border-radius:6px }
+  [data-theme="dark"] .mb-klappfeld { border-color:#495166 }
+  .mb-klappfeld select { max-width:100% }
+  .mb-aktionen { flex-direction:column; align-items:stretch; gap:6px }
+  .mb-aktion { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; font-size:12px }
+  .mb-aktion-name { flex:0 0 130px; font-weight:600 }
+  @media (max-width: 600px) { .mb-aktion-name { flex-basis:100% } }
   /* Hinweis unter einer festgelegten Auswahl (Farbe: .muted). */
   .wahl-fest { display:block; font-size:10px; line-height:1.3; margin-top:2px;
                max-width:130px; margin-left:auto; margin-right:auto; white-space:normal }
+  .wahl-ruht { display:block; margin-top:1px }
+  /* Gruppenfarbe: JS setzt nur data-gruppenfarbe (gruppenFarbe(), 0…7, oder
+     „standard“ für die Standardrichtlinie) — die Farben stehen allein hier,
+     hell und dunkel, nur aus der Palette in CLAUDE.md. */
+  .gruppen-chip { display:inline-block; max-width:100%; font-size:10px; font-weight:600; line-height:1.4;
+                  padding:0 6px; border:1px solid transparent; border-radius:8px; overflow-wrap:anywhere;
+                  vertical-align:middle; cursor:help }
+  .gruppen-punkt { width:10px; height:10px; padding:0; border-radius:50%; margin-right:4px; cursor:default }
+  .gruppen-chip[data-gruppenfarbe="0"] { background:#dbeafe; color:#1e40af; border-color:#bfdbfe }
+  .gruppen-chip[data-gruppenfarbe="1"] { background:#dcfce7; color:#166534; border-color:#bbf7d0 }
+  .gruppen-chip[data-gruppenfarbe="2"] { background:#fef3c7; color:#92400e; border-color:#fcd34d }
+  .gruppen-chip[data-gruppenfarbe="3"] { background:#ede9fe; color:#334155; border-color:#e2e8f0 }
+  .gruppen-chip[data-gruppenfarbe="4"] { background:#fef2f2; color:#991b1b; border-color:#fca5a5 }
+  .gruppen-chip[data-gruppenfarbe="5"] { background:#e0f2fe; color:#0369a1; border-color:#bae6fd }
+  .gruppen-chip[data-gruppenfarbe="6"] { background:#fff7ed; color:#c2410c; border-color:#fed7aa }
+  .gruppen-chip[data-gruppenfarbe="7"] { background:#ecfdf5; color:#065f46; border-color:#a7f3d0 }
+  .gruppen-chip[data-gruppenfarbe="standard"] { background:#f1f5f9; color:#334155; border-color:#e2e8f0 }
+  [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="0"] { background:#0a1827; color:#93c5fd; border-color:#1e3a5f }
+  [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="1"] { background:#0a1f10; color:#4ade80; border-color:#14532d }
+  [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="2"] { background:#1a1200; color:#fbbf24; border-color:#78350f }
+  [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="3"] { background:#1a0d2e; color:#a78bfa; border-color:#495166 }
+  [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="4"] { background:#1f0a0a; color:#fca5a5; border-color:#7f1d1d }
+  [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="5"] { background:#0a1827; color:#7dd3fc; border-color:#0369a1 }
+  [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="6"] { background:#1a1200; color:#fb923c; border-color:#92400e }
+  [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="7"] { background:#0a1f10; color:#86efac; border-color:#166534 }
+  [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="standard"] { background:#2a2d3e; color:#cbd5e1; border-color:#495166 }
   /* Ausnahme: Ein Wahl-Slot weicht vom Standard ab (JS setzt nur data-ausnahme
      am Select, _ausnahmeStand). Die Marke steht direkt dahinter und erscheint nur
      über diesen Selektor — Farbe allein hier, hell und dunkel. */
@@ -214,19 +256,35 @@ async function ankerAnwenden() {
 
 <!-- Postfach-Konfiguration -->
 <div class="settings-card">
-  <p class="hint" style="margin-bottom:12px">
-    Nur markierte Postfächer werden verarbeitet — alle anderen Mails fließen unverändert durch. Ohne Markierung verarbeitet das Gateway <strong>nichts</strong>.<br>
-    Beim Speichern wird <code>{{ gateway_name }} - Enabled Mailboxes</code> aktualisiert; die EXO-Transportregel leitet nur Mitglieder dieser Gruppe über das Gateway.
-  </p>
+  <!-- Werkzeugleiste über der Liste (v1.12.110): Suche + EIN Knopf „Filter“ +
+       EIN Knopf „Aktionen“, die Bereiche klappen darunter auf. Vorher standen
+       Erklärtext, sechs Filter und sechs Sammelaktionen offen über der Liste —
+       auf dem Telefon lag die erste Zeile unterhalb des Bildschirms.
+       Die Ids der Felder und Knöpfe sind unverändert (Tests, Sprungziel #ruhend). -->
+  <details class="feld-gruppe" style="margin-bottom:8px">
+    <summary>Was bewirkt die Markierung?</summary>
+    <p class="hint" style="margin:4px 0 0">
+      Nur markierte Postfächer werden verarbeitet — alle anderen Mails fließen unverändert durch. Ohne Markierung verarbeitet das Gateway <strong>nichts</strong>.<br>
+      Beim Speichern wird <code>{{ gateway_name }} - Enabled Mailboxes</code> aktualisiert; die EXO-Transportregel leitet nur Mitglieder dieser Gruppe über das Gateway.
+    </p>
+  </details>
   <div class="actions" style="margin-bottom:8px">
     <button class="btn secondary btn-sm" id="mb-load-btn" onclick="loadMailboxes()">Postfächer laden</button>
     <button class="btn secondary btn-sm" id="mb-refresh-btn" onclick="refreshMailboxStatus()" style="display:none">Status aktualisieren</button>
     <span id="mb-load-status" hidden style="margin-left:8px"></span>
   </div>
   <div id="mb-table-wrap" style="display:none">
-    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
-      {{ filterfeld("mb-filter", oninput="filterMailboxes()", gegen_autofill=true) }}
-      <select id="mb-type-filter" onchange="filterMailboxes()"
+    <div class="mb-werkzeug">
+      {{ filterfeld("mb-filter", placeholder="Postfach suchen…", oninput="filterMailboxes()", gegen_autofill=true) }}
+      <button type="button" class="btn secondary btn-sm" id="mb-filter-knopf" aria-expanded="false"
+              aria-controls="mb-filter-feld" onclick="mbKlappe('mb-filter-feld')">Filter<span
+              id="mb-filter-aktiv"></span> ▾</button>
+      <button type="button" class="btn secondary btn-sm" id="mb-aktionen-knopf" aria-expanded="false"
+              aria-controls="mb-aktionen-feld" onclick="mbKlappe('mb-aktionen-feld')">Aktionen ▾</button>
+      <span id="mb-filter-count" style="font-size:12px;color:#64748b"></span>
+    </div>
+    <div id="mb-filter-feld" class="mb-klappfeld" hidden>
+      <select id="mb-type-filter" onchange="filterMailboxes()" aria-label="Nach Postfachtyp filtern"
               style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
         <option value="">Alle Typen</option>
         <option value="user">Benutzer</option>
@@ -254,22 +312,23 @@ async function ankerAnwenden() {
              title="Nur Postfächer mit einer eigenen Wahl, die gerade ruht: Die Vorlage ist festgelegt (Gruppen-Regel oder Standardrichtlinie), die Wahl bleibt gespeichert und gilt wieder, sobald die Festlegung entfällt.">
         <input type="checkbox" id="mb-ruhend-filter" onchange="filterMailboxes()"> nur ruhende Wahl
       </label>
-      <span id="mb-filter-count" style="font-size:12px;color:#64748b"></span>
     </div>
-    <div style="display:flex;gap:18px;margin-bottom:10px;flex-wrap:wrap">
-      <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px">
-        Signatur aktivieren:
+    <div id="mb-aktionen-feld" class="mb-klappfeld mb-aktionen" hidden>
+      <p class="hint" style="margin:0">Wirkt auf alle <strong>sichtbaren</strong> Zeilen (Suche und Filter
+        grenzen ein). Gespeichert wird erst mit „Speichern“ — außer der Regelprüfung.</p>
+      <div class="mb-aktion">
+        <span class="mb-aktion-name">Signatur aktivieren</span>
         <button class="btn secondary btn-sm" onclick="setAllVisible('sig', true)">Alle</button>
         <button class="btn secondary btn-sm" onclick="setAllVisible('sig', false)">Kein</button>
-      </span>
-      <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px">
-        S/MIME aktivieren:
+      </div>
+      <div class="mb-aktion">
+        <span class="mb-aktion-name">S/MIME aktivieren</span>
         <button class="btn secondary btn-sm" onclick="setAllVisible('smime', true)">Alle</button>
         <button class="btn secondary btn-sm" onclick="setAllVisible('smime', false)">Kein</button>
-      </span>
-      <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap"
-            title="Setzt die Auswahl in allen sichtbaren Zeilen, in denen die Spalte bedienbar ist. Gespeichert wird erst mit „Speichern“.">
-        Vorlage für Sichtbare:
+      </div>
+      <div class="mb-aktion"
+           title="Setzt die Auswahl in allen sichtbaren Zeilen, in denen die Spalte bedienbar ist. Gespeichert wird erst mit „Speichern“.">
+        <span class="mb-aktion-name">Vorlage setzen</span>
         <select id="mb-massen-spalte" onchange="massenVorlagenListe()" aria-label="Spalte für die Sammelauswahl"
                 style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;max-width:100%">
           <option value="mb-template|signatur">Standardsignatur</option>
@@ -282,23 +341,23 @@ async function ankerAnwenden() {
         <select id="mb-massen-vorlage" aria-label="Vorlage für die Sammelauswahl"
                 style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;max-width:100%"></select>
         <button class="btn secondary btn-sm" onclick="massenVorlageSetzen()">Setzen</button>
-      </span>
-      <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px"
-            title="Setzt in allen sichtbaren Zeilen jede Vorlage (Signatur, Antwort-, interne Signatur, Banner, Disclaimer, Abwesenheit, Add-in-Auswahl) auf „Standard“ — die Ausnahmen entfallen. Festgelegte Vorlagen bleiben. Gespeichert wird erst mit „Speichern“.">
-        Ausnahmen:
+      </div>
+      <div class="mb-aktion"
+           title="Setzt in allen sichtbaren Zeilen jede Vorlage (Signatur, Antwort-, interne Signatur, Banner, Disclaimer, Abwesenheit, Add-in-Auswahl) auf „Standard“ — die Ausnahmen entfallen. Festgelegte Vorlagen bleiben. Gespeichert wird erst mit „Speichern“.">
+        <span class="mb-aktion-name">Ausnahmen</span>
         <button class="btn secondary btn-sm" onclick="massenAufStandard()">Sichtbare auf Standard</button>
-      </span>
-      <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px"
-            title="Hakt in allen sichtbaren Zeilen „verwerfen“ bei jeder ruhenden eigenen Wahl an. Mit „Speichern“ entfällt sie; die festgelegte Vorlage gilt weiter.">
-        Ruhende Wahl:
+      </div>
+      <div class="mb-aktion"
+           title="Hakt in allen sichtbaren Zeilen „verwerfen“ bei jeder ruhenden eigenen Wahl an. Mit „Speichern“ entfällt sie; die festgelegte Vorlage gilt weiter.">
+        <span class="mb-aktion-name">Ruhende Wahl</span>
         <button class="btn secondary btn-sm" onclick="massenRuhendVerwerfen()">Sichtbare verwerfen</button>
-      </span>
+      </div>
       <span id="mb-massen-status" hidden style="font-size:12px"></span>
-      <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px"
-            title="Je Postfach eine Prüfmail: Greift die Transportregel schon? Nur sichtbare, gespeichert aktivierte Postfächer. Hybrid-Nutzer senden über Exchange lokal an das Absender-Postfach der Benachrichtigungen.">
-        Transportregel:
+      <div class="mb-aktion"
+           title="Je Postfach eine Prüfmail: Greift die Transportregel schon? Nur sichtbare, gespeichert aktivierte Postfächer. Hybrid-Nutzer senden über Exchange lokal an das Absender-Postfach der Benachrichtigungen.">
+        <span class="mb-aktion-name">Transportregel</span>
         <button class="btn secondary btn-sm" id="regel-probe-alle-btn" onclick="regelPruefenSichtbare()">Sichtbare prüfen</button>
-      </span>
+      </div>
       <span id="regel-probe-alle-status" hidden style="font-size:12px"></span>
     </div>
     <div class="tabellen-rollbereich">
@@ -1146,6 +1205,38 @@ function _istFest(mb, slot) {
 function _festQuelle(mb, slot) {
   return mb.fest[slot] ? 'Gruppe „' + mb.fest[slot] + '“' : 'Standardrichtlinie';
 }
+// Namen der festlegenden Gruppen; [] = Standardrichtlinie. Die Add-in-Auswahl
+// vereinigt mehrere Gruppen (policies._auswerten: „A, B“) — dort je Gruppe ein
+// Chip, außer der ganze Text ist selbst ein Gruppenname.
+function _festGruppen(mb, slot) {
+  var q = mb.fest[slot];
+  if (!q) return [];
+  var bekannt = typeof _groups !== 'undefined' && Object.prototype.hasOwnProperty.call(_groups, q);
+  return (slot === 'addin' && !bekannt) ? q.split(', ') : [q];
+}
+
+// Gruppenfarbe — EINE Stelle für die ganze Seite (Postfachzeilen, Gruppenliste,
+// Gruppen-Regeln). Stabil aus dem Namen: gleicher Name, gleiche Farbe, auf jedem
+// Rechner. Die Farben selbst stehen im <style>-Block (.gruppen-chip[data-gruppenfarbe]).
+var GRUPPEN_FARBEN = 8;
+function gruppenFarbe(name) {
+  var h = 0, s = String(name || '');
+  for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % GRUPPEN_FARBEN;
+}
+// Chip mit dem Gruppennamen; ohne Namen „Standardrichtlinie“ (neutral).
+function _gruppenChip(name) {
+  var chip = document.createElement('span');
+  chip.className = 'gruppen-chip';
+  chip.dataset.gruppenfarbe = name ? String(gruppenFarbe(name)) : 'standard';
+  chip.textContent = name || 'Standardrichtlinie';
+  return chip;
+}
+// Farbpunkt vor einem Gruppennamen (Gruppenliste, Regelkarte) — als HTML-Text.
+function _gruppenPunktHtml(name) {
+  return '<span class="gruppen-chip gruppen-punkt" data-gruppenfarbe="' + gruppenFarbe(name)
+       + '" aria-hidden="true"></span>';
+}
 // Anzeige eines Slot-Werts: Add-in-Auswahl als Text, sonst der Vorlagenname.
 function _wertText(slot, wert) {
   if (slot !== 'addin') return wert || 'keine';
@@ -1158,18 +1249,29 @@ function _wahlStand(sel, aus) {
   sel.disabled = !!aus || sel.dataset.fest === '1';
   sel.style.opacity = aus ? '0.4' : '1';
 }
-// Zeile unter einer festgelegten Auswahl: durch wen, und ob eine eigene Wahl
-// ruht (bleibt gespeichert, gilt wieder ohne Festlegung). Eine ruhende Wahl
-// lässt sich hier verwerfen — Kästchen `.mb-ruht-weg`, wirksam mit „Speichern“
+// Zeile unter einer festgelegten Auswahl: nur die Quelle als Chip in der
+// Gruppenfarbe (der ganze Satz steht im title), dazu ob eine eigene Wahl ruht
+// (bleibt gespeichert, gilt wieder ohne Festlegung). Eine ruhende Wahl lässt
+// sich hier verwerfen — Kästchen `.mb-ruht-weg`, wirksam mit „Speichern“
 // (Server: ruhend_verwerfen).
 function _festHinweis(td, mb, slot, feld) {
   if (!_istFest(mb, slot)) return;
   var eigen = mb[feld];
   var span = document.createElement('span');
   span.className = 'muted wahl-fest';
-  span.textContent = 'festgelegt durch ' + _festQuelle(mb, slot)
-    + (eigen === null || eigen === undefined ? '' : ' · eigene Wahl „' + _wertText(slot, eigen) + '“ ruht');
+  span.title = 'Festgelegt durch ' + _festQuelle(mb, slot);
+  var gruppen = _festGruppen(mb, slot);
+  (gruppen.length ? gruppen : ['']).forEach(function(name) {
+    var chip = _gruppenChip(name);
+    chip.title = span.title;
+    span.appendChild(chip);
+    span.appendChild(document.createTextNode(' '));
+  });
   if (eigen !== null && eigen !== undefined) {
+    var ruht = document.createElement('span');
+    ruht.className = 'wahl-ruht';
+    ruht.textContent = 'eigene Wahl „' + _wertText(slot, eigen) + '“ ruht';
+    span.appendChild(ruht);
     var lbl = document.createElement('label');
     lbl.style.cssText = 'display:inline-flex;align-items:center;gap:3px;cursor:pointer';
     lbl.title = 'Die ruhende eigene Wahl beim Speichern entfernen';
@@ -1179,8 +1281,8 @@ function _festHinweis(td, mb, slot, feld) {
     cb.dataset.feld = feld;
     lbl.appendChild(cb);
     lbl.appendChild(document.createTextNode('verwerfen'));
-    span.appendChild(document.createTextNode(' '));
-    span.appendChild(lbl);
+    ruht.appendChild(document.createTextNode(' '));
+    ruht.appendChild(lbl);
   }
   td.appendChild(span);
 }
@@ -1205,11 +1307,13 @@ function _buildWahlSelect(idx, klasse, kind, mb, slot, feld, leerText) {
 }
 
 // Festgelegt: Die Auswahl zeigt den Standard — er IST hier der festgelegte
-// Wert (die greifende Ebene liefert beides) — und bleibt gesperrt.
+// Wert (die greifende Ebene liefert beides) — und bleibt gesperrt. Die Option
+// nennt nur den wirksamen Wert; dass er festgelegt ist, zeigen die Sperre und
+// der Quell-Chip darunter (_festHinweis), der ganze Satz steht im title.
 function _festSperren(sel, standardOption, mb, slot, std) {
   if (!_istFest(mb, slot)) return;
   sel.dataset.fest = '1';
-  standardOption.textContent = 'Festgelegt (' + _wertText(slot, std) + ')';
+  standardOption.textContent = (slot !== 'addin' && !std) ? '— keine —' : _wertText(slot, std);
   sel.value = STANDARD_WAHL;
   sel.disabled = true;
   sel.title = 'Festgelegt durch ' + _festQuelle(mb, slot);
@@ -1543,12 +1647,29 @@ function filterMailboxes() {
     tr.style.display = passt ? '' : 'none';
     if (passt) sichtbar++;
   });
+  // Am Knopf „Filter“: wie viele Filter im eingeklappten Bereich greifen.
+  var aktiv = [typ, sigF, smimeF, nurAusnahmen, nurRuhend].filter(Boolean).length;
+  var marke = document.getElementById('mb-filter-aktiv');
+  if (marke) marke.textContent = aktiv ? ' (' + aktiv + ')' : '';
   var zaehler = document.getElementById('mb-filter-count');
   if (zaehler) {
     zaehler.textContent = (q || typ || sigF || smimeF || nurAusnahmen || nurRuhend)
       ? sichtbar + ' von ' + zeilen.length + ' Postfächern'
       : '';
   }
+}
+
+// Werkzeugleiste: „Filter“ und „Aktionen“ klappen ihren Bereich unter der
+// Leiste auf — immer nur einer offen, damit die Liste nicht weit nach unten rutscht.
+var MB_KLAPPEN = {'mb-filter-feld': 'mb-filter-knopf', 'mb-aktionen-feld': 'mb-aktionen-knopf'};
+function mbKlappe(id, o_offen) {
+  Object.keys(MB_KLAPPEN).forEach(function(feldId) {
+    var feld = document.getElementById(feldId), knopf = document.getElementById(MB_KLAPPEN[feldId]);
+    if (!feld || !knopf) return;
+    var offen = feldId === id && (o_offen !== undefined ? !!o_offen : feld.hidden);
+    feld.hidden = !offen;
+    knopf.setAttribute('aria-expanded', String(offen));
+  });
 }
 
 // Sammelauswahl „Vorlage für Sichtbare“: dieselben Werte wie die Zeilen-Auswahl
@@ -1944,7 +2065,7 @@ function _renderGroupsTable() {
       // löschbar, Mitglieder nicht von Hand pflegbar. Variablen gehen wie überall.
       tr.innerHTML =
         '<td style="padding:6px 8px;font-size:12px;font-weight:500">' +
-          '<input type="hidden" value="' + escAttr(_grpState) + '">' + esc(name) +
+          '<input type="hidden" value="' + escAttr(_grpState) + '">' + _gruppenPunktHtml(name) + esc(name) +
           '<span style="display:block;font-size:10px;font-weight:400;color:#94a3b8">vordefiniert</span></td>' +
         '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
           '<span>automatisch: ' + members.length + (members.length === 1 ? ' Postfach' : ' Postfächer') + '</span> ' +
@@ -1972,7 +2093,7 @@ function _renderGroupsTable() {
           'style="margin-left:2px" title="Bisherige Mitglieder werden „immer dabei“">In dynamische umwandeln</button>';
     tr.innerHTML =
       '<td style="padding:6px 8px">' +
-        '<input type="hidden" value="' + escAttr(_grpState) + '">' +
+        '<input type="hidden" value="' + escAttr(_grpState) + '">' + _gruppenPunktHtml(name) +
         '<input type="text" value="' + esc(name) + '" ' +
         'data-orig="' + esc(name) + '" autocapitalize="off" autocorrect="off" spellcheck="false" ' +
         'style="font-size:12px;width:150px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" ' +
@@ -2627,7 +2748,13 @@ function _cpolKarte(pol, i) {
   });
   grpSel.value = pol.group_name || names[0];
   pol.group_name = grpSel.value;
-  grpSel.addEventListener('change', function() { pol.group_name = this.value; });
+  var punkt = document.createElement('span');
+  punkt.className = 'gruppen-chip gruppen-punkt';
+  punkt.setAttribute('aria-hidden', 'true');
+  function punktFarbe() { punkt.dataset.gruppenfarbe = String(gruppenFarbe(pol.group_name)); }
+  punktFarbe();
+  grpSel.addEventListener('change', function() { pol.group_name = this.value; punktFarbe(); });
+  kopf.appendChild(punkt);
   kopf.appendChild(grpSel);
   var n = _customPolicies.length;
   kopf.appendChild(_cpolKnopf('↑', 'Regel nach oben', i === 0, function() {
@@ -2780,6 +2907,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (location.hash === '#ruhend') {
     var rf = document.getElementById('mb-ruhend-filter');
     if (rf) rf.checked = true;
+    mbKlappe('mb-filter-feld', true);    // gesetzter Filter bleibt sichtbar
   }
   loadMailboxes(true);
   // Regeln erst nach den Gruppen: Ihr Gruppenfeld bietet die Gruppen zur Wahl

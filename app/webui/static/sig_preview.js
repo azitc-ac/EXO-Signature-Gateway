@@ -49,3 +49,31 @@ function sigVorschau(box, html) {
   // anpassen() dieselbe Höhe, meldet er nichts mehr (keine Schleife).
   if (typeof ResizeObserver === 'function') new ResizeObserver(anpassen).observe(rahmen);
 }
+
+
+/* Postfach- und „Schreibt“-Auswahl der Signatur-Vorschauen füllen.
+ *
+ * EINE Stelle für Vorlagen-Editor, Was-wäre-wenn-Vorschau und
+ * Richtlinienergebnis (seit v1.12.110; vorher je Seite eine Kopie).
+ * `postfaecher` aus /api/mailboxes/namen ({email, name}). „Schreibt“ bekommt
+ * dieselben Postfächer ohne die Leerzeile. Eine Adresse aus der Aufrufadresse
+ * (`vorgabe`) geht vor, sonst das zuletzt gewählte bzw. erste Postfach.
+ * Liefert, ob ein Postfach gewählt ist.
+ */
+/* global vorschauPostfachWaehlen */  // common.js — alle drei Seiten erben es über base.html
+function vorschauPostfaecherFuellen(sel, schreibt, postfaecher, vorgabe) {
+  const adressen = [];
+  (postfaecher || []).forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.email;
+    o.textContent = m.name !== m.email ? `${m.name} <${m.email}>` : m.email;
+    sel.appendChild(o);
+    adressen.push(m.email);
+  });
+  if (schreibt) Array.from(sel.options).slice(1).forEach(o => schreibt.appendChild(o.cloneNode(true)));
+  if (vorgabe && adressen.includes(vorgabe)) {
+    sel.value = vorgabe;
+    return true;
+  }
+  return Boolean(vorschauPostfachWaehlen(sel, adressen));
+}

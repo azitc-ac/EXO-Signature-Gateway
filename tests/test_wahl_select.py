@@ -117,7 +117,8 @@ def test_festgeschriebene_wahl_zeigt_den_gruppenwert_gesperrt():
                             "fest": {"sig": "Firma"}}, "sig", "template", None)
     assert r["gesperrt"] is True
     assert r["wert"] == r["standard"]
-    assert r["optionen"][0] == [r["standard"], "Festgelegt (Marke)"]
+    # v1.12.110: nur der wirksame Wert — die Sperre und der Chip darunter zeigen die Festlegung.
+    assert r["optionen"][0] == [r["standard"], "Marke"]
     assert "Firma" in r["titel"]
     # Ohne Festschreibung bleibt die eigene Wahl gewählt und bedienbar.
     r = _zeile("signatur", {"template": "kurz", "standard": {"sig": "Marke"}, "fest": {}},
@@ -154,7 +155,7 @@ console.log(JSON.stringify({wert: sel.value, gesperrt: sel.disabled, titel: sel.
      {"wert": "eigen", "text": "Standard (alle Vorlagen)", "versteckt": False, "gesperrt": False}),
     # Festgelegt: zeigt den festgelegten Wert, gesperrt, auch bei ruhender Wahl.
     ({"addin_templates": ["X"], "standard": {"addin": ["A", "B"]}, "fest": {"addin": "Marke"}},
-     {"wert": "__standard__", "text": "Festgelegt (A, B)", "versteckt": True, "gesperrt": True}),
+     {"wert": "__standard__", "text": "A, B", "versteckt": True, "gesperrt": True}),
 ])
 def test_addin_zelle_wie_jede_vorlage(mb, soll):
     r = _lauf(_ADDIN.replace("MB", json.dumps(mb)))
@@ -164,3 +165,16 @@ def test_addin_zelle_wie_jede_vorlage(mb, soll):
     assert r["gesperrt"] is soll["gesperrt"]
     if mb["addin_templates"] is not None:
         assert r["liste"] == mb["addin_templates"], "die eigene Liste muss in der Auswahl stehen"
+
+
+def test_festgelegt_ohne_wort_im_auswahlfeld():
+    """v1.12.110: Die Option nennt nur den wirksamen Wert, nie „festgelegt“ —
+    auch nicht bei „keine“ (dort „— keine —“ wie in jeder anderen Auswahl).
+    Der Satz mit der Quelle bleibt im title (Bildschirmleser, Tooltip)."""
+    for std, soll in (("Marke", "Marke"), ("", "— keine —")):
+        r = _zeile("signatur", {"min_template": "kurz", "standard": {"min": std},
+                                "fest": {"min": "Vertrieb"}}, "min", "min_template", "— keine —")
+        texte = [text for _, text in r["optionen"]]
+        assert r["optionen"][0] == [r["standard"], soll], r["optionen"]
+        assert not any("estgelegt" in x for x in texte), texte
+        assert r["titel"] == "Festgelegt durch Gruppe „Vertrieb“"
