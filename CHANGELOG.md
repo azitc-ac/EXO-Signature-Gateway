@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.103 — 2026-11-19 — EWS-Kontowechsel füllt die Gruppe, „wartet“ endet beim ersten Zugriff; Classic-Aufgabenbereich startet nicht mehr zur Anmeldeseite
+
+**Kontowechsel.** Ein neues Dienstkonto wird erst wirksam, wenn „Prüfen“ alle
+Punkte besteht, darunter die vollständige Gruppe. Gefüllt wurde die Gruppe aber
+nur vom Abgleich. Stand der Schalter „automatisch pflegen“ noch aus, scheiterte
+die Prüfung nach den Exchange-Befehlen an „es fehlen N“, obwohl EWS schon ging.
+Jetzt nimmt das ausstehende Konto bei „Prüfen“ die fehlenden Mitglieder selbst
+auf, mit seiner eigenen Delegation. Es fügt nur hinzu und entfernt nichts. Das
+Audit nennt jede Aufnahme.
+
+**„wartet“.** Ein frisch aufgenommenes Mitglied galt pauschal zwei Stunden lang
+als „wartet“, weil Exchange die Gruppe verzögert übernimmt. In der Messung
+waren es rund 50 Sekunden. Solange „wartet“ galt, verdeckte es auch echte
+Fehler. Die Wartezeit endet jetzt beim ersten erfolgreichen EWS-Zugriff auf das
+Postfach. Zwei Stunden bleiben die Obergrenze.
+
+**Knopf-Add-in in Classic Outlook.** Classic Outlook (Windows) zeigt den
+Aufgabenbereich in einem eigenen Fenster statt in einem Rahmen. `/self` hielt
+sich dort für ein normales Browserfenster und startete nach 1,5 Sekunden
+unabhängig von Office. Lud office.js länger, sprang der Aufgabenbereich zur
+Anmeldeseite. Erkannt wird der Office-Aufgabenbereich jetzt zusätzlich an dem
+Adressparameter `_host_Info`, den Office anhängt. Dann wartet `/self` auf
+Office.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.102 — 2026-11-19 — Gruppen-Regeln: Vorlagen auf breiten Bildschirmen nebeneinander
 
 Unter *Postfächer → Vorlagenrichtlinien* stand in jeder Gruppen-Regel eine Zeile

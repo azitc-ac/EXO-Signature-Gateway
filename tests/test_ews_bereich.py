@@ -756,3 +756,37 @@ def test_befehle_vorschau_ohne_basis_liest_rootdse(umgebung, monkeypatch):
         app.dependency_overrides.pop(deps._require_admin, None)
     assert r["ok"], r
     assert f"CN=Users,{BASIS}" in r["text"]
+
+
+def test_kontowechsel_fuellt_die_gruppe_mit_dem_neuen_konto(umgebung, ews):
+    """Lab: Nach den Exchange-Befehlen scheiterte „Prüfen“ an „es fehlen 9“,
+    weil die Gruppe erst der Abgleich füllt — bei ausgeschaltetem Schalter nie.
+    Jetzt nimmt das ausstehende Konto die fehlenden selbst auf (nur hinzu)."""
+    v = umgebung
+    _erg, neu_kw = _neu_einrichten(v)
+    assert not eb.stand().get("mitglieder")            # Gruppe leer, kein Abgleich
+    fremd = f"CN=Fremd,{OU}"
+    v.objekte[GRUPPE_DN].setdefault("member", []).append(fremd.encode())
+    ews.berechtigt.add(NEU_KONTO)
+    erg = eb.pruefen("admin")
+    namen = {p["name"]: p for p in erg["punkte"]}
+    assert "Gruppe aufgefüllt" in namen, erg
+    mitglieder = [m.decode() for m in v.objekte[GRUPPE_DN]["member"]]
+    assert _dn(v, MAX) in mitglieder and _dn(v, ERIKA) in mitglieder
+    assert fremd in mitglieder                           # nur hinzu, nichts entfernt
+    # Mit dem NEUEN Konto geschrieben, nicht mit dem Admin
+    assert v.angemeldet[-1][0] == NEU_KONTO or any(b == NEU_KONTO for b, _k in v.angemeldet)
+
+
+def test_wartezeit_endet_beim_ersten_erfolgreichen_zugriff(umgebung, ews):
+    import ews_onprem
+    _eingerichtet(umgebung)
+    eb.abgleichen("Test")
+    assert eb.wartet(MAX)
+    assert ews_onprem.verbindung_testen(MAX)["ok"]
+    assert not eb.wartet(MAX)
+    # Ein gescheiterter Zugriff beendet sie nicht.
+    eb._stand_setzen(wartet={ERIKA: eb._iso()})
+    ews.berechtigt.clear()
+    assert not ews_onprem.verbindung_testen(ERIKA, sperre_umgehen=True)["ok"]
+    assert eb.wartet(ERIKA)

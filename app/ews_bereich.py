@@ -719,15 +719,35 @@ def _mail_von(v: Verzeichnis, dn: str) -> str:
 
 # ── Abgleich ──────────────────────────────────────────────────────────────────
 
+def zugriff_bestaetigt(adresse: str) -> None:
+    """Erster erfolgreicher EWS-Zugriff auf ein frisches Mitglied: Die
+    Wartezeit ist vorbei. Gemessen im Lab ~50 s statt der pauschalen 2 h —
+    „wartet“ verdeckte so lange auch echte Fehler. Aufgerufen von
+    ews_onprem._aufruf nach NoError; billig, wenn nichts wartet."""
+    a = (adresse or "").strip().lower()
+    if not a or a not in (stand().get("wartet") or {}):
+        return
+    with settings_store._lock:
+        w = dict(stand().get("wartet") or {})
+        seit = w.pop(a, None)
+        if seit is None:
+            return
+        _stand_setzen(wartet=w)
+    log.info("EWS-Bereich: %s per EWS erreichbar — Wartezeit beendet (aufgenommen %s)", a, seit)
+
+
 def wartet(adresse: str, jetzt: datetime | None = None) -> bool:
     """Frisch in die Gruppe aufgenommen — Exchange übernimmt das verzögert."""
     seit = _aus_iso((stand().get("wartet") or {}).get((adresse or "").lower(), ""))
     return bool(seit and ((jetzt or _jetzt()) - seit).total_seconds() < WARTEZEIT_S)
 
 
-def abgleichen(ausloeser: str, aendern: bool = True, verzeichnis: Verzeichnis | None = None) -> dict:
+def abgleichen(ausloeser: str, aendern: bool = True, verzeichnis: Verzeichnis | None = None,
+               nur_hinzu: bool = False) -> dict:
     """Soll ↔ Ist der Gruppe. `aendern=False` misst nur (Schalter aus):
     keine Änderung, aber die Abweichung steht danach im Stand (Aufgabe).
+    `nur_hinzu=True` nimmt fehlende Mitglieder auf, entfernt aber keines
+    (Kontowechsel: erweitert nur, was das neue Konto erreicht).
 
     → {ok, hinzu, weg, fehlt, fehler, soll, ist, geaendert}"""
     if not _lauf.acquire(blocking=False):
@@ -772,7 +792,7 @@ def abgleichen(ausloeser: str, aendern: bool = True, verzeichnis: Verzeichnis | 
                 wartend[adresse] = _iso()
                 _audit("ews_bereich_mitglied_hinzu", adresse,
                        f"in Gruppe {gruppe_name()} aufgenommen ({ausloeser})")
-            for dn in weg:
+            for dn in ([] if nur_hinzu else weg):
                 adresse = weg_adr[dn]
                 try:
                     v.mitglied(gdn, dn, False)
@@ -1349,6 +1369,17 @@ def _pruefpunkte(wer: str, konto: str, kw: str, neu: bool) -> list[dict]:
                            "detail": "Dienstkonto darf die Mitglieder ändern" if ok else
                            "Dienstkonto darf die Mitglieder NICHT ändern — Einrichtung oder "
                            "Add-ADPermission ausführen"})
+            # Kontowechsel: Das neue Konto füllt die Gruppe selbst auf (nur
+            # hinzufügen, mit SEINER Delegation — belegt sie zugleich). Sonst
+            # scheiterte „Prüfen“ nach den Exchange-Befehlen an „es fehlen N“,
+            # obwohl EWS schon ging, solange der Schalter „automatisch pflegen“
+            # aus war (Lab: 9 von 11 fehlten).
+            if ok and neu:
+                erg_neu = abgleichen(f"Kontowechsel, Prüfung durch {wer}", aendern=True,
+                                     verzeichnis=v, nur_hinzu=True)
+                if erg_neu.get("hinzu"):
+                    punkte.append({"name": "Gruppe aufgefüllt", "ok": True,
+                                   "detail": f"{len(erg_neu['hinzu'])} Mitglieder mit {konto} aufgenommen"})
     except BereichFehler as exc:
         punkte.append({"name": "Verzeichnis", "ok": False, "detail": _schwaerzen(exc.detail, kw)})
         return punkte

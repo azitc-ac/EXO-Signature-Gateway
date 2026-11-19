@@ -299,7 +299,15 @@
   var TAB_KEINE_ANTWORT = 'Outlook/Teams hat die Verbindung zum Tab nicht bestätigt (nach 10 s ohne Antwort).';
   // Eingebettet (Aufgabenbereich des Add-ins, fremder Rahmen): Eine Weiterleitung
   // zur Anmeldeseite endet dort im gesperrten Rahmen (X-Frame-Options: DENY).
-  var IM_RAHMEN = (function () { try { return window.self !== window.top; } catch (e) { return true; } }());
+  // Office-Aufgabenbereich: im Web ein Rahmen, in Classic Outlook (Win32)
+  // dagegen ein eigenes Fenster (window.self === window.top). Dort trägt nur
+  // der Parameter _host_Info, den Office an die Add-in-Adresse hängt. Ohne ihn
+  // lief Classic in den Zweig „eigenes Browserfenster“ mit 1,5-s-Zeitgeber:
+  // Lud office.js länger, war imOffice() noch falsch und die Seite sprang zur
+  // Anmeldeseite.
+  var IM_OFFICE_HOST = /[?&]_host_info=/i.test(window.location.search);
+  var IM_RAHMEN = IM_OFFICE_HOST
+    || (function () { try { return window.self !== window.top; } catch (e) { return true; } }());
   var ADDIN_KEINE_ANTWORT = 'Outlook hat das Add-in nicht initialisiert (nach 10 s ohne Antwort).';
   var ADDIN_OHNE_DIALOG = 'Anmeldung hier nicht möglich: Outlook stellt dem Add-in kein Anmeldefenster bereit.';
 

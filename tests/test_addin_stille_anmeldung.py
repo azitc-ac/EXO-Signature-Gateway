@@ -636,3 +636,19 @@ def test_ausgestellte_sitzung_traegt_die_meldung(compose_api, caplog):
                    headers={**kopf, "Content-Type": "application/json"})
     assert r.status_code == 204
     assert any(HYBRID in rec.getMessage() for rec in caplog.records)
+
+
+def test_classic_aufgabenbereich_gilt_als_office_auch_ohne_rahmen():
+    """Classic Outlook (Win32) zeigt den Aufgabenbereich in einem eigenen
+    Fenster: window.self === window.top. Ohne Erkennung über _host_Info lief
+    /self in den Browser-Zweig mit 1,5-s-Zeitgeber und sprang bei langsamem
+    office.js zur Anmeldeseite (Lab, 1 von 3 Erstaufrufen)."""
+    from pathlib import Path
+    seite = (Path(__file__).resolve().parent.parent / "app/webui/templates/self.html").read_text("utf-8")
+    m = re.search(r"var IM_OFFICE_HOST = ([^;]+);", seite)
+    assert m and "_host_info" in m.group(1).lower(), "Erkennung über _host_Info fehlt"
+    rahmen = re.search(r"var IM_RAHMEN = ([^;]+);", seite, re.S)
+    assert rahmen and "IM_OFFICE_HOST" in rahmen.group(1)
+    # Der Zeitgeber-Zweig darf nur für echte Browserfenster bleiben.
+    zweig = seite[seite.index("} else if (IM_RAHMEN) {"):]
+    assert zweig.index("} else {") < zweig.index("setTimeout(start, 1500)")
