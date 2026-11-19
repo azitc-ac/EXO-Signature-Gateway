@@ -5,6 +5,79 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.99 — 2026-11-19 — Vorlagenrichtlinien in zwei Ebenen: Gruppen-Regeln schreiben fest
+
+Die Zuweisung der Vorlagen folgt jetzt für **jede** Vorlage derselben Regel —
+Signatur, Antwort-, interne Signatur, Banner, Disclaimer, Abwesenheit und
+Add-in-Auswahl. Es gibt zwei Ebenen:
+
+1. **Standardrichtlinie** (*Postfächer → Vorlagenrichtlinien*) — gilt für alle,
+   niedrigste Priorität.
+2. **Benutzerdefinierte Richtlinien** (Gruppen-Regeln darunter) — eine Ebene
+   tiefer, mit Vorrang für die Mitglieder ihrer Gruppe.
+
+Für jede Vorlage eines Postfachs greift die Gruppen-Regel, sobald eine passende
+Regel diese Vorlage festlegt, sonst die Standardrichtlinie. Ob die greifende
+Ebene **festschreibt**, stellst du unter *Einstellungen → Signatur → Erweiterte
+Einstellungen → Vorlagenrichtlinien festschreiben* ein:
+
+* **Benutzerdefinierte Richtlinien schreiben fest** — Vorgabe **an**. Die
+  Auswahl ist am Postfach und im Self-Service ausgegraut („festgelegt durch
+  Gruppe …“).
+* **Standardrichtlinien schreiben fest** — Vorgabe **aus**. Die Standardrichtlinie
+  ist der Ausgangspunkt („Standard (…)“), jedes Postfach kann abweichen.
+
+Warum Gruppen festschreiben: Eine Gruppen-Regel ist eine bewusste Zuweisung für
+eine bestimmte Personengruppe (Marke, Firma, Abteilung). Bisher war sie für
+Signatur, Antwort-, interne Signatur und Abwesenheit nur ein Standard, den jede
+eigene Wahl still überstimmte — außer jemand setzte an der Regel je Vorlage
+*fest*. Banner, Disclaimer und Add-in-Auswahl hingen dagegen am Haken
+*Banner/Disclaimer nach Richtlinie* je Postfach. Drei Mechanismen für dieselbe
+Frage — jetzt ist es einer.
+
+Ein **Unterbrechen der Vererbung** gibt es nicht mehr: Der Haken
+*Banner/Disclaimer nach Richtlinie* (`use_policy`) und die *fest*-Kästchen je
+Regel sind entfallen. Wer an einem Postfach selbst wählen soll, darf in keiner
+Gruppe mit einer Regel für diese Vorlage sein — oder du schaltest das
+Festschreiben der Gruppen-Regeln aus. Banner, Disclaimer und Add-in-Auswahl sind
+in der Postfachliste wählbar wie die Signatur („Standard (…)“, eine Vorlage oder
+„— kein —“; Add-in: „Standard“ oder „Eigene Auswahl“). Im Self-Service bleiben
+wie bisher nur Signatur, Antwort-Signatur und Abwesenheit wählbar.
+
+Eine eigene Wahl unter Sperre **ruht**: Sie bleibt gespeichert und gilt wieder,
+sobald die Sperre entfällt. Die Postfachliste zeigt sie unter der Auswahl
+(„eigene Wahl … ruht“) mit einem Kästchen *verwerfen*; dazu der Filter *nur
+ruhende Wahl* und die Sammelaktion *Ruhende Wahl: Sichtbare verwerfen*. Filter
+*nur Ausnahmen* und *Sichtbare auf Standard* erfassen jetzt alle Vorlagen,
+*Vorlage für Sichtbare* auch Banner und Disclaimer.
+
+Was beim Update umgestellt wird (Schema v9, im Protokoll je Postfach vermerkt):
+
+* Postfächer **mit** Haken *nach Richtlinie*: Ihre gespeicherten Banner-,
+  Disclaimer- und Add-in-Felder galten nicht und werden entfernt — sonst griffen
+  sie jetzt als Wahl. Keine Wirkungsänderung.
+* Postfächer **ohne** Haken: Ihre eigenen Banner, Disclaimer und Add-in-Auswahl
+  bleiben als Wahl; ein leeres Feld wird ausdrücklich „— kein —“ bzw. „nur
+  Standardsignatur“. Keine Wirkungsänderung — außer das Postfach liegt in einer
+  Gruppe mit Regel für diese Vorlage.
+* Die *fest*-Angaben der Gruppen-Regeln entfallen; der neue Schalter schreibt
+  alle Gruppen-Regeln fest.
+
+**Was sich wirksam ändert:** Liegt ein Postfach in einer Gruppe, deren Regel eine
+Vorlage festlegt, und hatte es dort eine eigene, abweichende Wahl, die bisher galt
+(Signatur usw. ohne *fest* an der Regel; Banner, Disclaimer, Add-in bei
+abgeschaltetem Haken), gilt ab jetzt der Wert der Gruppe; die Wahl ruht.
+
+**Zu tun:** Sind Postfächer davon betroffen, steht unter den offenen Aufgaben
+*Ruhende Postfach-Wahlen nach der Richtlinien-Umstellung prüfen*. Öffne
+*Postfächer* mit dem Filter *nur ruhende Wahl* und entscheide je Postfach:
+Wahl verwerfen (Kästchen *verwerfen*, dann *Speichern*), das Postfach aus der
+Gruppe nehmen bzw. die Regel anpassen — oder, wenn eigene Wahlen allgemein
+Vorrang behalten sollen, *Benutzerdefinierte Richtlinien schreiben fest*
+ausschalten. Sonst nichts.
+
+---
+
 ## v1.12.98 — 2026-11-19 — Dynamische interne Gruppen
 
 Interne Gruppen (*Postfächer → Interne Gruppen*) können jetzt **dynamisch** sein:

@@ -30,6 +30,7 @@ class El {
   insertBefore(c, ref){ const i = this.children.indexOf(ref);
     this.children.splice(i < 0 ? this.children.length : i, 0, c); return c; }
   get firstChild(){ return this.children[0] || null; }
+  addEventListener(){}
   get value(){ if (this.tagName !== 'select') return this._v;
     const s = this.children.find(o => o.selected); return s ? s.value : ''; }
   set value(v){ if (this.tagName !== 'select') { this._v = v; return; }
@@ -56,7 +57,9 @@ def _lauf(js: str):
     vorspann = (_DOM + standard.group(0) + "\n"
                 + "var _templatesByKind = {signatur: ['default', 'kurz'], oof: ['urlaub']};\n"
                 + _funktion(t, "_fuelleVorlagenSelect") + "\n" + _funktion(t, "_istFest") + "\n"
-                + _funktion(t, "_buildWahlSelect"))
+                + _funktion(t, "_festQuelle") + "\n" + _funktion(t, "_wertText") + "\n"
+                + _funktion(t, "_festSperren") + "\n" + _funktion(t, "_buildWahlSelect") + "\n"
+                + _funktion(t, "_addinWahlZelle"))
     out = subprocess.run(["node", "-e", vorspann + "\n" + js],
                          capture_output=True, text=True, check=True).stdout
     return json.loads(out)
@@ -120,3 +123,44 @@ def test_festgeschriebene_wahl_zeigt_den_gruppenwert_gesperrt():
     r = _zeile("signatur", {"template": "kurz", "standard": {"sig": "Marke"}, "fest": {}},
                "sig", "template", None)
     assert r["gesperrt"] is False and r["wert"] == "kurz"
+
+
+def test_festgelegt_durch_standardrichtlinie_nennt_sie():
+    """Quelle "" = Standardrichtlinie (policies.QUELLE_STANDARD): gesperrt wie
+    bei einer Gruppe, der Titel nennt die Standardrichtlinie — nicht „Gruppe „““."""
+    r = _zeile("signatur", {"template": "kurz", "standard": {"sig": "Firma"},
+                            "fest": {"sig": ""}}, "sig", "template", None)
+    assert r["gesperrt"] is True and r["wert"] == r["standard"]
+    assert r["titel"] == "Festgelegt durch Standardrichtlinie"
+
+
+_ADDIN = """
+function _addinAuswahl(wert, o) { const d = document.createElement('details'); d.wert = wert; return d; }
+function _wahlInZelle(td, sel, mb, slot, feld, nach) { td.appendChild(sel); if (nach) td.appendChild(nach); }
+const td = _addinWahlZelle(0, MB);
+const sel = td.children[0], liste = td.children[1];
+console.log(JSON.stringify({wert: sel.value, gesperrt: sel.disabled, titel: sel.title || '',
+  optionen: sel.children.map(o => [o.value, o.textContent]), liste: liste.wert,
+  versteckt: !!liste.hidden}));
+"""
+
+
+@pytest.mark.parametrize("mb,soll", [
+    # Ohne eigene Wahl: Standard, Liste versteckt (die Liste zeigt dann "*").
+    ({"addin_templates": None, "standard": {"addin": ["A"]}},
+     {"wert": "__standard__", "text": "Standard (A)", "versteckt": True, "gesperrt": False}),
+    # Eigene Wahl [] (nur Standardsignatur) ist eine Wahl, nicht „Standard“.
+    ({"addin_templates": [], "standard": {"addin": "*"}},
+     {"wert": "eigen", "text": "Standard (alle Vorlagen)", "versteckt": False, "gesperrt": False}),
+    # Festgelegt: zeigt den festgelegten Wert, gesperrt, auch bei ruhender Wahl.
+    ({"addin_templates": ["X"], "standard": {"addin": ["A", "B"]}, "fest": {"addin": "Marke"}},
+     {"wert": "__standard__", "text": "Festgelegt (A, B)", "versteckt": True, "gesperrt": True}),
+])
+def test_addin_zelle_wie_jede_vorlage(mb, soll):
+    r = _lauf(_ADDIN.replace("MB", json.dumps(mb)))
+    assert r["wert"] == soll["wert"]
+    assert r["optionen"][0][1] == soll["text"]
+    assert r["versteckt"] is soll["versteckt"]
+    assert r["gesperrt"] is soll["gesperrt"]
+    if mb["addin_templates"] is not None:
+        assert r["liste"] == mb["addin_templates"], "die eigene Liste muss in der Auswahl stehen"

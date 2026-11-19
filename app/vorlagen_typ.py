@@ -192,41 +192,27 @@ def migriere_bestand() -> list[tuple[str, str]]:
     return geaendert
 
 
-# Postfach-eigene Felder der RICHTLINIEN-Slots. Bei use_policy=true wirkungslos
-# (die Richtlinie entscheidet) — siehe policies.py und addin.py:api_addin_templates.
-# ⚠️ NICHT template/min_template/oof_template: Das sind seit v1.9.113 Nutzerwahlen,
-# die unabhängig von use_policy gelten (policies.WAHL_SLOTS). Stünden sie hier,
-# löschte dieser bei JEDEM Start laufende Aufräumer jede Self-Service-Wahl.
-_POLICY_FELDER = ("banner_template", "disclaimer_template", "addin_templates")
+def use_policy_nachziehen() -> int:
+    """Einträge, die noch `use_policy` tragen, ins Modell ohne `use_policy`
+    bringen (policies.use_policy_abloesen) — idempotent, bei jedem Start.
 
-
-def bereinige_eingefrorene_vorlagen() -> int:
-    """Entfernt postfach-eigene Vorlagenfelder aus Einträgen mit use_policy=true.
-
-    Diese Felder wurden früher beim Speichern mitgeschrieben, auch wenn das
-    Postfach den Richtlinien folgt — eine eingefrorene Kopie der damaligen
-    Richtlinie. Wirkungslos, solange die Übernahme an ist; schaltet man sie
-    später ab, würden die veralteten Werte unbemerkt aktiv. Idempotent; gibt die
-    Zahl der bereinigten Einträge zurück.
-
-    ⚠️ Nur bei EXPLIZITEM use_policy=true. Ein Alt-Eintrag ohne use_policy-Schlüssel
-    (vor Einführung der Richtlinien-Übernahme) trug seine Vorlagen postfach-eigen
-    und MUSS sie behalten — darum `is True`, nicht `.get(..., True)`.
+    Die einmalige Umstellung ist `settings_store._migrate_v8_to_v9`. Ein
+    zurückgespielter Altstand (Import ohne `_SCHEMA_VERSION`, siehe
+    webui/app.py) bringt den Schlüssel aber wieder mit; ohne diesen Lauf
+    griffen dessen wirkungslose Banner-/Disclaimer-/Add-in-Felder plötzlich
+    als Wahl. Nur Einträge MIT Schlüssel werden angefasst. Gibt die Zahl der
+    umgestellten Einträge zurück.
     """
+    import policies
     import settings_store
     cfg = settings_store.get("MAILBOX_CONFIG") or {}
     if not isinstance(cfg, dict):
         return 0
-    neu: dict = {}
-    bereinigt = 0
-    for key, eintrag in cfg.items():
-        if isinstance(eintrag, dict) and eintrag.get("use_policy") is True:
-            rest = {k: v for k, v in eintrag.items() if k not in _POLICY_FELDER}
-            if len(rest) != len(eintrag):
-                bereinigt += 1
-                neu[key] = rest
-                continue
-        neu[key] = eintrag
-    if bereinigt:
-        settings_store.update({"MAILBOX_CONFIG": neu})
-    return bereinigt
+    anzahl = sum(1 for e in cfg.values() if isinstance(e, dict) and "use_policy" in e)
+    if not anzahl:
+        return 0
+    neu, meldungen = policies.use_policy_abloesen(cfg, nur_mit_schluessel=True)
+    for m in meldungen:
+        log.info("use_policy abgelöst — %s", m)
+    settings_store.update({"MAILBOX_CONFIG": neu})
+    return anzahl

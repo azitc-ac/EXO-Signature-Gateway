@@ -648,6 +648,33 @@ def _namen_liste(schluessel: list[str], mc: dict) -> str:
     return ", ".join(teile) + (f" und {rest} weitere" if rest > 0 else "")
 
 
+def mitglieder_lesend(gespeichert: dict, dyn: dict, mc: dict) -> dict[str, list[str]]:
+    """Wie `mitglieder()`, aber ohne jeden Seiteneffekt: liest Schnappschuss und
+    letzten Stand direkt aus den Dateien, rechnet, merkt und schreibt nichts,
+    kein Audit, kein `settings_store`. Für die Migration (`settings_store`,
+    vor `init()`, über `gruppen.interne_gruppen_aus`).
+
+    Dieselbe Regel wie `mitglieder()`: ohne Schnappschuss den letzten
+    berechneten Stand halten, sonst (auch ohne Stand) berechnen.
+    tests/test_gruppenregeln_fest.py vergleicht beide."""
+    namen = [n for n in gespeichert if isinstance(dyn, dict) and n in dyn]
+    if not namen:
+        return {}
+    snap = _laden_json(SCHNAPPSCHUSS)
+    vorher = (_laden_json(STAND) or {}).get("mitglieder") or {}
+    neu: dict[str, list[str]] = {}
+    for n in namen:
+        try:
+            if snap is None and n in vorher:
+                neu[n] = list(vorher[n])
+            else:
+                neu[n] = list(berechnen(dyn[n], mc, snap))
+        except Exception as exc:                                # noqa: BLE001
+            log.warning("dynamische_gruppen: %s nicht berechenbar, letzter Stand: %s", n, exc)
+            neu[n] = list(vorher.get(n) or [])
+    return neu
+
+
 def mitglieder(gespeichert: dict, dyn: dict, mc: dict) -> dict[str, list[str]]:
     """{name: [schluessel]} der dynamischen Gruppen — gemerkt, solange sich keine
     Eingabe geändert hat. Für `gruppen.interne_gruppen()`."""

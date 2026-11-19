@@ -1328,8 +1328,8 @@ class SignatureHandler:
             _vorlage_extra = {"bearbeiter": _bearbeiter_daten}
             # Vorlagen-Auflösung (sig/min/banner/disclaimer/oof) — EINE Quelle für
             # Hot-Path, Abwesenheit, Self-Service, Add-in und Vorschau (siehe
-            # policies.aufloesen: Wahl-Slots Postfach > Gruppe > global, Banner/
-            # Disclaimer über use_policy).
+            # policies.aufloesen: je Slot Postfach-Wahl, außer die greifende Ebene —
+            # Gruppen-Regel oder Standardrichtlinie — schreibt fest).
             import policies as _policies_mod
             _vorlagen = _policies_mod.aufloesen(_sig_absender, _mailbox_cfg, _sender_cfg)
             _force_sig = False
@@ -1514,8 +1514,8 @@ class SignatureHandler:
             _banner_tpl = _vorlagen["banner"] if "banner" in _zusatz else ""
             # Banner-Kampagne (Zeitfenster + optionale Zielgruppe) hat Vorrang:
             # ist zum Sendezeitpunkt eine passende Kampagne aktiv, gewinnt ihr
-            # Banner über das der Richtlinie/des Postfachs. Unabhängig von
-            # use_policy — eine Kampagne ist ein Marketing-Vorgang, kein
+            # Banner über das der Richtlinie/des Postfachs. Unabhängig von der
+            # Festschreibung — eine Kampagne ist ein Marketing-Vorgang, kein
             # Postfach-Attribut. Rein additiv, kein Mailfluss-Eingriff.
             # Auswahl in banner_campaigns.banner_fuer — dieselbe wie in den Vorschauen.
             if "banner" in _zusatz:

@@ -797,9 +797,9 @@ async def api_preview_data(
     else:
         sig_html, sig_txt = signature_engine.render(user_data, template_name=template, extra=vorlage_extra)
     # Resolve banner and disclaimer: explicit param > was das Postfach im Betrieb
-    # bekäme (policies.aufloesen — Richtlinie bzw. Postfach-Ausnahme). Bis v1.9.112
-    # stand hier das rohe Postfach-Feld; bei use_policy=true fehlte der Banner der
-    # Richtlinie dann in der Vorschau.
+    # bekäme (policies.aufloesen — Richtlinie bzw. Postfach-Wahl). Bis v1.9.112
+    # stand hier das rohe Postfach-Feld; folgte das Postfach der Richtlinie, fehlte
+    # deren Banner dann in der Vorschau.
     if not explizit and email and (not banner or not disclaimer):
         import banner_campaigns
         import policies as _pol

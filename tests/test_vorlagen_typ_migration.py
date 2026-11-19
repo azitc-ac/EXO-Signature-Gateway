@@ -194,7 +194,7 @@ def test_default_bleibt_unberuehrt(verz, monkeypatch):
     assert geaendert == []
 
 
-# ── Aufräumen eingefrorener Vorlagenfelder (use_policy=true) ──────────────────
+# ── use_policy nachziehen (seit v1.12.99, ersetzt das Aufräumen eingefrorener Felder) ──
 
 def _store(monkeypatch, mailbox_config):
     """settings_store.get liefert MAILBOX_CONFIG; update() fängt den Schreibwert."""
@@ -206,39 +206,31 @@ def _store(monkeypatch, mailbox_config):
     return geschrieben
 
 
-def test_bereinige_entfernt_felder_bei_use_policy_true(monkeypatch):
+def test_nachziehen_entfernt_felder_bei_use_policy_true(monkeypatch):
     cfg = {"guid1": {"sig": True, "use_policy": True,
                      "banner_template": "B", "oof_template": "O",
                      "known_addresses": ["a@x.de"]}}
     geschrieben = _store(monkeypatch, cfg)
-    n = vorlagen_typ.bereinige_eingefrorene_vorlagen()
-    assert n == 1
+    assert vorlagen_typ.use_policy_nachziehen() == 1
     neu = geschrieben["MAILBOX_CONFIG"]["guid1"]
-    assert "banner_template" not in neu
+    assert "banner_template" not in neu and "use_policy" not in neu
     assert neu["sig"] is True and neu["known_addresses"] == ["a@x.de"]  # Rest bleibt
-    # Wahl-Slots (sig/min/oof) sind seit v1.9.113 Nutzerwahl und gelten auch bei
-    # use_policy=true — der bei jedem Start laufende Aufräumer darf sie NIE löschen.
+    # Wahl-Slots (sig/min/oof) galten auch bei use_policy=true — nie löschen.
     assert neu["oof_template"] == "O"
 
 
-def test_bereinige_laesst_nutzerwahl_bei_use_policy_true_stehen(monkeypatch):
-    cfg = {"g": {"sig": True, "use_policy": True, "template": "Eigene",
-                 "min_template": "", "oof_template": "Urlaub"}}
-    geschrieben = _store(monkeypatch, cfg)
-    assert vorlagen_typ.bereinige_eingefrorene_vorlagen() == 0
-    assert geschrieben == {}
-
-
-def test_bereinige_laesst_use_policy_false_in_ruhe(monkeypatch):
+def test_nachziehen_setzt_keine_bei_use_policy_false(monkeypatch):
     cfg = {"g": {"sig": True, "use_policy": False, "oof_template": "Eigene"}}
     geschrieben = _store(monkeypatch, cfg)
-    assert vorlagen_typ.bereinige_eingefrorene_vorlagen() == 0
-    assert geschrieben == {}        # kein Schreibvorgang
+    assert vorlagen_typ.use_policy_nachziehen() == 1
+    assert geschrieben["MAILBOX_CONFIG"]["g"] == {
+        "sig": True, "oof_template": "Eigene", "banner_template": "",
+        "disclaimer_template": "", "addin_templates": []}
 
 
-def test_bereinige_laesst_altbestand_ohne_use_policy_in_ruhe(monkeypatch):
-    """Alt-Eintrag ohne use_policy-Schlüssel trug Vorlagen postfach-eigen → behalten."""
-    cfg = {"g": {"sig": True, "template": "Firma"}}
+def test_nachziehen_laesst_eintraege_ohne_schluessel_in_ruhe(monkeypatch):
+    """Ohne `use_policy` ist ein Eintrag im neuen Modell: Felder sind Wahl."""
+    cfg = {"g": {"sig": True, "template": "Firma", "banner_template": "B"}}
     geschrieben = _store(monkeypatch, cfg)
-    assert vorlagen_typ.bereinige_eingefrorene_vorlagen() == 0
+    assert vorlagen_typ.use_policy_nachziehen() == 0
     assert geschrieben == {}

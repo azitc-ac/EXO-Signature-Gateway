@@ -440,7 +440,7 @@
     // trotzdem (über ctx.oof_template/ctx.sig_template).
     el('oof-tpl-block').hidden = !w.oof;
     el('sig-block').hidden = !w.sig;
-    // Von einer Gruppen-Regel festgeschrieben (policies.festgeschrieben): statt
+    // Festgeschrieben (Gruppen-Regel oder Standardrichtlinie, policies.festgeschrieben): statt
     // der Auswahl ein Hinweis mit der geltenden Vorlage. Der Server nimmt für
     // diese Slots ohnehin nichts an.
     ['oof', 'sig', 'min'].forEach(function (slot) {
@@ -547,7 +547,7 @@
     s.value = aktuell;
   }
   // Die WIRKSAME Vorlage eines Slots — für die Vorschau.
-  // Von einer Gruppen-Regel festgeschrieben? (ctx.fest, /api/self/context)
+  // Festgeschrieben? (ctx.fest, /api/self/context)
   function istFest(slot) {
     return !!ctx.fest && Object.prototype.hasOwnProperty.call(ctx.fest, slot);
   }

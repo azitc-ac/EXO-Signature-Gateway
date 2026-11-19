@@ -54,12 +54,11 @@ def mit_konfiguriertem_banner(monkeypatch, tmp_path):
 
     def gefaelscht(schluessel, *a, **kw):
         if schluessel == "MAILBOX_CONFIG":
-            # use_policy=false: Banner/Disclaimer sind die Postfach-Ausnahme.
-            return {"erika@example.org": {"use_policy": False,
-                                          "banner_template": "Werbung",
+            # erika wählt Banner/Disclaimer selbst; max folgt der Richtlinie
+            # (seit v1.12.99 ohne use_policy: kein Feld = Standard).
+            return {"erika@example.org": {"banner_template": "Werbung",
                                           "disclaimer_template": "Recht"},
-                    "max@example.org": {"use_policy": True,
-                                        "banner_template": "Recht"}}
+                    "max@example.org": {}}
         if schluessel == "TEMPLATE_POLICIES":
             return {"sig": "default", "banner": "Werbung"}
         if schluessel in ("CUSTOM_POLICIES", "INTERNAL_GROUPS"):

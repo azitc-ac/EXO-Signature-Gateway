@@ -286,7 +286,7 @@ def oof_vorlage_fuer(sender: str, mailbox_cfg: dict, sender_cfg: dict) -> str:
 
     Dieselbe Auflösung wie die Signatur (policies.aufloesen): die Wahl des
     Postfachs (`oof_template`, auch "" = keine), sonst der Gruppen-, sonst der
-    globale Default — unabhängig von use_policy.
+    globale Default; fest geschrieben gilt der Standard (policies.py).
     """
     return _policies.vorlage_fuer(sender, "oof", mailbox_cfg, sender_cfg)
 

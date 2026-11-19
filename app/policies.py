@@ -3,41 +3,49 @@
 Herausgelöst aus handler.py (v1.9.68), damit der Signatur-Hot-Path, die zentrale
 Abwesenheitsnotiz, Self-Service, Add-in, Vorschau und Health-Check DIESELBE
 Auflösung teilen. Wer eine Vorlage für ein Postfach braucht, ruft `vorlage_fuer()`
-bzw. `aufloesen()` — nie `TEMPLATE_POLICIES` oder `sender_cfg["template"]` direkt.
+bzw. `aufloesen()` (Add-in-Auswahl: `addin_auswahl()`) — nie `TEMPLATE_POLICIES`
+oder `sender_cfg["template"]` direkt.
 
-Zwei Arten von Slots (seit v1.9.113):
+Zwei Ebenen (seit v1.12.99), für JEDEN Slot gleich — sig, min, oof, intern,
+banner, disclaimer und addin:
 
-* **Wahl-Slots** `sig`, `min`, `oof` — gehören dem Nutzer. Rangfolge:
-  Postfach-Wahl > Gruppen-Default (CUSTOM_POLICIES, first-match-wins) >
-  globaler Default (TEMPLATE_POLICIES) — ausser die Gruppe schreibt den Slot
-  fest (siehe unten). Eine Postfach-Wahl liegt vor, sobald
-  das Feld im Eintrag STEHT — auch mit `""` („ausdrücklich keine"). Fehlt das
-  Feld, folgt das Postfach dem Default. `use_policy` spielt hier keine Rolle.
-* **Richtlinien-Slots** `banner`, `disclaimer` — gehören der Firma. Bei
-  `use_policy` (Vorgabe true): globale Richtlinie, von der Gruppe übersteuert.
-  Bei `use_policy=false`: das Postfach-eigene Feld (Betreiber-Ausnahme).
+1. **Standardrichtlinie** (`TEMPLATE_POLICIES`, je Slot) — niedrigste Ebene.
+2. **Benutzerdefinierte Richtlinie** (`CUSTOM_POLICIES`, Gruppen-Regeln) —
+   eine Ebene tiefer, mit Vorrang: Je Slot gilt die ERSTE passende Regel, die
+   ihn trägt; `addin` ist die Vereinigung über alle passenden Regeln.
 
-⚠️ Vor v1.9.113 koppelte `use_policy` ALLE Slots: eine Signaturwahl im
-Self-Service setzte use_policy=false und nahm dem Postfach damit still auch
-Banner und Disclaimer der Richtlinie. Die Trennung oben hebt das auf; die
-Bestandsmigration ist `settings_store._migrate_v3_to_v4`.
+Die für einen Slot GREIFENDE Ebene ist die Gruppen-Regel, sobald eine passende
+Regel den Slot trägt, sonst die Standardrichtlinie. Sie liefert den Standard des
+Postfachs und entscheidet, ob er FEST ist:
+
+* Gruppen-Regel greift → fest, wenn `RICHTLINIE_GRUPPE_FEST` (Vorgabe an).
+* Standardrichtlinie greift → fest, wenn `RICHTLINIE_STANDARD_FEST` (Vorgabe aus).
+
+Ist der Slot fest, gilt der Standard, und die Auswahl ist in Postfachliste und
+Self-Service gesperrt. Sonst gilt die Postfach-Wahl, sobald das Feld im Eintrag
+STEHT (auch `""` = „ausdrücklich keine“, bei `addin` `[]` = nur die
+Standardsignatur); fehlt es, der Standard. Eine Wahl unter Sperre RUHT: Sie
+bleibt gespeichert und gilt wieder, sobald die Sperre entfällt.
+
+Es gibt kein Unterbrechen der Vererbung: Wer selbst wählen soll, muss außerhalb
+jeder Gruppen-Regel für den Slot liegen (oder der Schalter ist aus).
+
+⚠️ Bis v1.12.98 steuerte `use_policy` je Postfach, ob Banner, Disclaimer und
+Add-in-Auswahl aus der Richtlinie kamen, und jede Regel trug `fest` je Slot.
+Beides ist entfallen; Bestandsmigration `settings_store._migrate_v8_to_v9` mit
+`use_policy_abloesen`, das auch beim Start und beim Import zurückgespielter
+Konfigurationen läuft.
 
 Gruppen-Regeln (`CUSTOM_POLICIES`, Format seit v1.12.90):
 
     {"condition_type": "group", "group_name": G,
-     "vorlagen": {"sig": "X", "min": "", "addin": ["A", "B"] | "*", …},
-     "fest": ["sig", "min"]}
+     "vorlagen": {"sig": "X", "min": "", "addin": ["A", "B"] | "*", …}}
 
 * Fehlt ein Slot in `vorlagen`, sagt die Regel dazu nichts; `""` heisst
-  „ausdrücklich keine“. Je Slot gilt die ERSTE passende Regel, die ihn trägt;
-  `addin` ist die Vereinigung über alle passenden Regeln (`addin_freigabe`).
-* `fest` (nur Wahl-Slots): Ist der Slot in der für ihn GREIFENDEN Regel fest,
-  zählt die Postfach-Wahl nicht (`aufloesen`), Self-Service und Postfachliste
-  sperren die Auswahl. Die Wahl bleibt gespeichert und gilt wieder, sobald die
-  Sperre fällt. `use_policy` hebt die Sperre nicht auf.
+  „ausdrücklich keine“.
 * Das Altformat (`applies_to` + `template`, eine Regel je Slot) liest
   `regeln()` weiter — jeder Leser geht darüber, auch für zurückgespielte
-  Sicherungen. Migration: `settings_store._migrate_v7_to_v8`.
+  Sicherungen. Ein mitgeliefertes `fest` wird verworfen.
 """
 from __future__ import annotations
 
@@ -45,13 +53,15 @@ import gruppen
 import mailbox_match
 import settings_store
 
-WAHL_SLOTS = ("sig", "min", "oof", "intern")
+# Einzelwert-Slots — alle sind Postfach-Wahl unter der Festschreibung.
+WAHL_SLOTS = ("sig", "min", "oof", "intern", "banner", "disclaimer")
+# Dazu die Add-in-Auswahl ("*" oder Namensliste).
+ALLE_SLOTS = WAHL_SLOTS + ("addin",)
 
 # Oberflächen-Wert „folgt dem Standard" (Gruppen- bzw. globaler Default) — beim
 # Speichern wird das Feld aus dem Postfach-Eintrag ENTFERNT. "" heisst dagegen
 # „ausdrücklich keine". Self-Service und Postfach-Seite nutzen denselben Wert.
 STANDARD_WAHL = "__standard__"
-RICHTLINIEN_SLOTS = ("banner", "disclaimer")
 
 # Slot → Feld im MAILBOX_CONFIG-Eintrag.
 SLOT_FELD = {
@@ -61,16 +71,24 @@ SLOT_FELD = {
     "intern": "intern_template",     # nur interne Empfänger (seit v1.11.56); "" = keine
     "banner": "banner_template",
     "disclaimer": "disclaimer_template",
+    "addin": "addin_templates",      # "*" oder Liste; [] = nur die Standardsignatur
 }
 
-
-# Slots, die eine Gruppen-Regel tragen kann, und die davon festschreibbaren.
+# Slots, die eine Gruppen-Regel tragen kann.
 REGEL_SLOTS = ("sig", "min", "intern", "oof", "banner", "disclaimer", "addin")
-FEST_SLOTS = WAHL_SLOTS
+
+# Die beiden Schalter (Einstellungen → Signatur → Erweitert).
+SCHALTER_STANDARD = "RICHTLINIE_STANDARD_FEST"     # Vorgabe aus
+SCHALTER_GRUPPE = "RICHTLINIE_GRUPPE_FEST"         # Vorgabe an
+
+# Quelle einer Festschreibung durch die Standardrichtlinie. Sonst steht im
+# fest-Wörterbuch der Gruppenname. ⚠️ Leer ist falsy: Leser prüfen
+# `slot in fest`, nie `fest.get(slot)`.
+QUELLE_STANDARD = ""
 
 
 def _regel_wert(slot: str, wert):
-    """Wert eines Regel-Slots in seiner einzigen Form: `addin` "*" oder
+    """Wert eines Slots in seiner einzigen Form: `addin` "*" oder
     Namensliste (ohne Doppelte), alle übrigen eine Zeichenkette."""
     if slot == "addin":
         if wert == "*":
@@ -86,12 +104,12 @@ def _regel_wert(slot: str, wert):
 def regeln(custom) -> list[dict]:
     """Gruppen-Regeln in EINER Form — für jeden Leser von CUSTOM_POLICIES.
 
-    Liefert `[{"condition_type": "group", "group_name", "vorlagen", "fest"}]`.
+    Liefert `[{"condition_type": "group", "group_name", "vorlagen"}]`.
     Das Altformat `{applies_to, template}` wird zu `{"vorlagen": {applies_to:
-    template}, "fest": []}`. Verworfen wird, was die Auflösung ohnehin nie
-    ausgewertet hätte: keine Gruppen-Regel, Gruppenname keine Zeichenkette,
-    unbekannter Slot im Altformat. `fest` enthält nur Wahl-Slots, die in
-    `vorlagen` stehen. Verändert die Eingabe nicht."""
+    template}}`. Verworfen wird, was die Auflösung ohnehin nie ausgewertet
+    hätte: keine Gruppen-Regel, Gruppenname keine Zeichenkette, unbekannter
+    Slot im Altformat — und `fest` (bis v1.12.98 je Regel; seither entscheiden
+    die beiden Schalter). Verändert die Eingabe nicht."""
     if not isinstance(custom, list):
         return []
     ergebnis: list[dict] = []
@@ -106,17 +124,13 @@ def regeln(custom) -> list[dict]:
             if not isinstance(roh, dict):
                 continue
             vorlagen = {s: _regel_wert(s, roh[s]) for s in REGEL_SLOTS if s in roh}
-            fest_roh = pol.get("fest")
-            fest_roh = fest_roh if isinstance(fest_roh, list) else []
-            fest = [s for s in FEST_SLOTS if s in fest_roh and s in vorlagen]
         else:
             slot = pol.get("applies_to")
             if slot not in REGEL_SLOTS:
                 continue
             vorlagen = {slot: _regel_wert(slot, pol.get("template"))}
-            fest = []
         ergebnis.append({"condition_type": "group", "group_name": gruppe,
-                         "vorlagen": vorlagen, "fest": fest})
+                         "vorlagen": vorlagen})
     return ergebnis
 
 
@@ -128,13 +142,13 @@ def zusammenfassen(rg: list[dict]) -> tuple[list[dict], list[str]]:
     dieselben Postfächer: Jeder Slot der zweiten gilt also genau dann, wenn er
     in der ersten fehlt. Steht er in beiden, war der zweite Wert nie wirksam
     (first-match) und entfällt — er wird gemeldet. `addin` wird vereinigt,
-    wie `addin_freigabe` es über alle Regeln tut. Liefert (Regeln, Meldungen)."""
+    wie die Auswertung es über alle Regeln tut. Liefert (Regeln, Meldungen)."""
     aus: list[dict] = []
     tot: list[str] = []
     for r in rg:
         if not (aus and aus[-1]["group_name"] == r["group_name"]):
             aus.append({"condition_type": "group", "group_name": r["group_name"],
-                        "vorlagen": dict(r["vorlagen"]), "fest": list(r["fest"])})
+                        "vorlagen": dict(r["vorlagen"])})
             continue
         letzte = aus[-1]
         for slot, wert in r["vorlagen"].items():
@@ -148,14 +162,21 @@ def zusammenfassen(rg: list[dict]) -> tuple[list[dict], list[str]]:
                 tot.append(f"{r['group_name']}/{slot}={wert!r}")
             else:
                 letzte["vorlagen"][slot] = wert
-                if slot in r["fest"]:
-                    letzte["fest"].append(slot)
-        letzte["fest"] = [s for s in FEST_SLOTS if s in letzte["fest"]]
     return aus, tot
 
 
+def _schalter() -> tuple[bool, bool]:
+    """(Gruppen-Regeln schreiben fest, Standardrichtlinie schreibt fest).
+
+    Gruppe: alles außer ausdrücklich False ist „an“ (Vorgabe an); Standard:
+    nur True ist „an“ (Vorgabe aus) — ein fehlender Wert fällt jeweils auf die
+    Vorgabe."""
+    return (settings_store.get(SCHALTER_GRUPPE) is not False,
+            settings_store.get(SCHALTER_STANDARD) is True)
+
+
 def _gruppen_auswertung(sender: str, mailbox_cfg: dict) -> tuple[dict, dict]:
-    """(overrides, fest) aus den Gruppen-Richtlinien — siehe `_auswerten`."""
+    """(overrides, quelle) aus den Gruppen-Richtlinien — siehe `_auswerten`."""
     rg = regeln(settings_store.get("CUSTOM_POLICIES") or [])
     if not rg:
         return {}, {}
@@ -165,121 +186,132 @@ def _gruppen_auswertung(sender: str, mailbox_cfg: dict) -> tuple[dict, dict]:
 
 
 def _auswerten(rg: list[dict], groups: dict, sender_key: str) -> tuple[dict, dict]:
-    """({slot: vorlage}, {slot: gruppe}) für einen Postfach-Schlüssel.
+    """({slot: wert}, {slot: gruppe}) für einen Postfach-Schlüssel.
 
-    Je Slot die ERSTE passende Regel, die ihn trägt (first-match-wins); ist er
-    dort in `fest`, ist er festgeschrieben — durch genau diese Gruppe. Eine
-    spätere Regel mit `fest` ändert daran nichts. `addin` fehlt hier
-    (Auswahlliste, `addin_freigabe`). `rg` kommt aus `regeln()`."""
+    Je Einzelwert-Slot die ERSTE passende Regel, die ihn trägt
+    (first-match-wins); `quelle` nennt deren Gruppe. `addin` ist die
+    VEREINIGUNG über alle passenden Regeln (Wunsch aus einem Kundentermin,
+    11.11.2026: drei Firmen mit eigenem Markenauftritt, je Gruppe die passenden
+    Vorlagen) — eine Auswahl, die von der Regelreihenfolge abhängt, wäre nicht
+    vorhersehbar; `quelle["addin"]` nennt alle beteiligten Gruppen. `rg` kommt
+    aus `regeln()`."""
     if not sender_key:
         return {}, {}
-    overrides: dict[str, str] = {}
-    fest: dict[str, str] = {}
+    overrides: dict = {}
+    quelle: dict[str, str] = {}
+    addin_gruppen: list[str] = []
     for r in rg:
         if sender_key not in (groups.get(r["group_name"]) or ()):
             continue
         for slot, wert in r["vorlagen"].items():
-            if slot == "addin" or slot in overrides:
+            if slot == "addin":
+                if r["group_name"] not in addin_gruppen:
+                    addin_gruppen.append(r["group_name"])
+                bisher = overrides.get("addin")
+                if bisher is None:
+                    overrides["addin"] = wert if wert == "*" else list(wert)
+                elif bisher != "*":
+                    overrides["addin"] = "*" if wert == "*" else (
+                        bisher + [n for n in wert if n not in bisher])
+                continue
+            if slot in overrides:
                 continue
             overrides[slot] = wert
-            if slot in r["fest"]:
-                fest[slot] = r["group_name"]
-    return overrides, fest
+            quelle[slot] = r["group_name"]
+    if addin_gruppen:
+        quelle["addin"] = ", ".join(addin_gruppen)
+    return overrides, quelle
+
+
+def _fest_aus(quelle: dict, schalter: tuple[bool, bool]) -> dict[str, str]:
+    """{slot: quelle} der festen Slots — Gruppenname oder `QUELLE_STANDARD`.
+
+    Entscheidend ist die GREIFENDE Ebene: Greift eine Gruppen-Regel, zählt nur
+    der Gruppen-Schalter; der Standard-Schalter betrifft allein Slots, für die
+    keine Gruppen-Regel greift."""
+    gruppe_fest, standard_fest = schalter
+    fest: dict[str, str] = {}
+    for slot in ALLE_SLOTS:
+        if slot in quelle:
+            if gruppe_fest:
+                fest[slot] = quelle[slot]
+        elif standard_fest:
+            fest[slot] = QUELLE_STANDARD
+    return fest
 
 
 def addin_freigabe(sender: str, mailbox_cfg: dict | None = None):
     """Welche Vorlagen darf der Absender im Knopf-Add-in wählen — laut GRUPPEN?
 
-    Gruppen-Regeln mit `vorlagen["addin"]` tragen eine Liste
-    von Vorlagennamen oder "*" (alle). Ist der Absender in mehreren solchen
-    Gruppen, gilt die VEREINIGUNG (Wunsch aus einem Kundentermin, 11.11.2026:
-    drei Firmen mit eigenem Markenauftritt, je Gruppe die passenden Vorlagen).
-    Anders als bei den Einzelwert-Slots gibt es hier kein first-match-wins —
-    eine Auswahl, die von der Regelreihenfolge abhängt, wäre nicht vorhersehbar.
-    Unabhängig von `fest`: Eine festgeschriebene Signatur schränkt die
-    Add-in-Auswahl nicht ein.
-
-    None = keine Gruppen-Regel greift; dann gilt die globale Freigabe
-    (TEMPLATE_POLICIES["addin"]).
-    """
-    rg = regeln(settings_store.get("CUSTOM_POLICIES") or [])
-    if not rg:
-        return None
+    Die Vereinigung über alle passenden Gruppen-Regeln mit `vorlagen["addin"]`
+    ("*" = alle). None = keine Gruppen-Regel greift. Die wirksame Auswahl
+    (mit Standardrichtlinie und Postfach-Wahl) liefert `addin_auswahl`."""
     if mailbox_cfg is None:
         mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
-    sender_key = mailbox_match.match_sender_key(mailbox_cfg, sender)
-    if not sender_key:
-        return None
-    groups = gruppen.interne_gruppen()
-    treffer = False
-    namen: list[str] = []
-    for r in rg:
-        if "addin" not in r["vorlagen"]:
-            continue
-        if sender_key not in (groups.get(r["group_name"]) or []):
-            continue
-        treffer = True
-        wert = r["vorlagen"]["addin"]
-        if wert == "*":
-            return "*"
-        for n in wert:
-            if n not in namen:
-                namen.append(n)
-    return namen if treffer else None
+    over, _q = _gruppen_auswertung(sender, mailbox_cfg)
+    return over.get("addin")
 
 
-def _norm(slot: str, wert) -> str:
+def _norm(slot: str, wert):
+    if slot == "addin":
+        return _regel_wert("addin", wert)
     wert = (wert or "").strip() if isinstance(wert, str) else ""
     if slot == "sig":
         return wert or "default"
     return wert
 
 
-def standards(sender: str, mailbox_cfg: dict | None = None) -> dict[str, str]:
-    """Der DEFAULT je Slot für dieses Postfach — ohne dessen eigene Wahl.
+def standards(sender: str, mailbox_cfg: dict | None = None) -> dict:
+    """Der Standard je Slot für dieses Postfach — ohne dessen eigene Wahl
+    (Gruppen-Regel, sonst Standardrichtlinie).
 
-    Für die Oberfläche („Standard: X") und für die Auflösung der Wahl-Slots.
+    Für die Oberfläche („Standard: X") und für die Auflösung.
     """
     if mailbox_cfg is None:
         mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
     return _std_aus(_gruppen_auswertung(sender, mailbox_cfg)[0])
 
 
-def _std_aus(over: dict, tp: dict | None = None) -> dict[str, str]:
+def _std_aus(over: dict, tp: dict | None = None) -> dict:
     if tp is None:
         tp = settings_store.get("TEMPLATE_POLICIES") or {}
-    return {slot: _norm(slot, over.get(slot, tp.get(slot))) for slot in SLOT_FELD}
+    std = {slot: _norm(slot, over.get(slot, tp.get(slot))) for slot in WAHL_SLOTS}
+    # Ohne Angabe bietet das Add-in alle Vorlagen an (wie bisher).
+    std["addin"] = _norm("addin", over["addin"] if "addin" in over else tp.get("addin", "*"))
+    return std
 
 
 def festgeschrieben(sender: str, mailbox_cfg: dict | None = None) -> dict[str, str]:
-    """{slot: gruppe} der Wahl-Slots, die eine Gruppen-Regel für dieses Postfach
-    festschreibt — die Postfach-Wahl zählt dort nicht (siehe Modul-Docstring)."""
+    """{slot: quelle} der Slots, die für dieses Postfach FEST sind — die
+    Postfach-Wahl zählt dort nicht. Quelle: Gruppenname oder `QUELLE_STANDARD`
+    (siehe Modul-Docstring). Prüfen mit `slot in …`."""
     if mailbox_cfg is None:
         mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
-    return _gruppen_auswertung(sender, mailbox_cfg)[1]
+    return _fest_aus(_gruppen_auswertung(sender, mailbox_cfg)[1], _schalter())
 
 
-def standards_alle(adressen, mailbox_cfg: dict) -> dict[str, dict[str, str]]:
+def standards_alle(adressen, mailbox_cfg: dict) -> dict[str, dict]:
     """Siehe `standards_und_fest_alle` — nur die Standards."""
     return standards_und_fest_alle(adressen, mailbox_cfg)[0]
 
 
 def festgeschrieben_alle(adressen, mailbox_cfg: dict) -> dict[str, dict[str, str]]:
-    """`festgeschrieben()` für viele Adressen — {adresse: {slot: gruppe}}."""
+    """`festgeschrieben()` für viele Adressen — {adresse: {slot: quelle}}."""
     return standards_und_fest_alle(adressen, mailbox_cfg)[1]
 
 
 def standards_und_fest_alle(adressen, mailbox_cfg: dict):
     """`standards()` und `festgeschrieben()` für viele Adressen auf einmal —
-    ({adresse: {slot: vorlage}}, {adresse: {slot: gruppe}}).
+    ({adresse: {slot: vorlage}}, {adresse: {slot: quelle}}).
 
     Gleiches Ergebnis wie `standards(a, mailbox_cfg)` je Adresse
-    (tests/test_postfach_index.py), aber Gruppen, Schlüsselindex und
+    (tests/test_postfach_index.py), aber Gruppen, Schlüsselindex, Schalter und
     Richtlinien werden EINMAL gelesen: In der Postfachliste kostete die
     Einzelfassung mit einer Gruppenregel je Zeile einen Lauf über alle Einträge
     und eine Kopie aller Gruppenlisten — n² bei hunderten Postfächern."""
     tp = settings_store.get("TEMPLATE_POLICIES") or {}
     custom = regeln(settings_store.get("CUSTOM_POLICIES") or [])
+    schalter = _schalter()
     groups: dict = {}
     keys: dict[str, str] = {}
     if custom:
@@ -288,19 +320,40 @@ def standards_und_fest_alle(adressen, mailbox_cfg: dict):
         groups = {n: {x for x in (m or ()) if isinstance(x, str)}
                   for n, m in gruppen.interne_gruppen().items()}
         keys = mailbox_match.build_key_index(mailbox_cfg)
-    ergebnis: dict[str, dict[str, str]] = {}
+    ergebnis: dict[str, dict] = {}
     fest_alle: dict[str, dict[str, str]] = {}
     for a in adressen:
-        over, fest = (_auswerten(custom, groups, keys.get((a or "").lower(), ""))
-                      if custom else ({}, {}))
+        over, quelle = (_auswerten(custom, groups, keys.get((a or "").lower(), ""))
+                        if custom else ({}, {}))
         ergebnis[a] = _std_aus(over, tp)
-        fest_alle[a] = fest
+        fest_alle[a] = _fest_aus(quelle, schalter)
     return ergebnis, fest_alle
 
 
+def festgeschrieben_schluessel(schluessel, mailbox_cfg: dict) -> dict[str, dict[str, str]]:
+    """`festgeschrieben()` je Konfigurationsschlüssel statt je Adresse —
+    {schlüssel: {slot: quelle}}; für Leser, die Einträge durchgehen."""
+    custom = regeln(settings_store.get("CUSTOM_POLICIES") or [])
+    schalter = _schalter()
+    groups = {n: set(m or ()) for n, m in gruppen.interne_gruppen().items()} if custom else {}
+    return {k: _fest_aus(_auswerten(custom, groups, k)[1] if custom else {}, schalter)
+            for k in schluessel}
+
+
 def hat_eigene_wahl(sender_cfg: dict | None, slot: str) -> bool:
-    """Steht für diesen Wahl-Slot eine Postfach-Wahl fest (Feld vorhanden)?"""
+    """Steht für diesen Slot eine Postfach-Wahl fest (Feld vorhanden)?"""
     return isinstance(sender_cfg, dict) and SLOT_FELD[slot] in sender_cfg
+
+
+def ruhende_wahl(sender_cfg: dict | None, fest: dict) -> list[str]:
+    """Slots, deren eigene Wahl gerade ruht (fest UND Feld vorhanden)."""
+    return [s for s in ALLE_SLOTS if s in fest and hat_eigene_wahl(sender_cfg, s)]
+
+
+def _wirksam(slot: str, std: dict, fest: dict, sender_cfg) -> object:
+    if slot not in fest and hat_eigene_wahl(sender_cfg, slot):
+        return _norm(slot, sender_cfg.get(SLOT_FELD[slot]))
+    return std[slot]
 
 
 def aufloesen(sender: str, mailbox_cfg: dict | None = None,
@@ -309,26 +362,82 @@ def aufloesen(sender: str, mailbox_cfg: dict | None = None,
 
     `sig` ist nie leer (Rückfall "default"); die übrigen Slots sind `""`, wenn
     keine Vorlage gilt. `mailbox_cfg`/`sender_cfg` können vorberechnet übergeben
-    werden (Hot-Path in handler.py hat sie bereits).
+    werden (Hot-Path in handler.py hat sie bereits). Die Add-in-Auswahl
+    liefert `addin_auswahl`.
     """
     if mailbox_cfg is None:
         mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
     if sender_cfg is None:
         sender_cfg = mailbox_match.match_sender(mailbox_cfg, sender)
-    over, fest = _gruppen_auswertung(sender, mailbox_cfg)
+    over, quelle = _gruppen_auswertung(sender, mailbox_cfg)
     std = _std_aus(over)
-    use_pol = bool(sender_cfg.get("use_policy", True))   # wie bisher: Wahrheitswert
-    ergebnis: dict[str, str] = {}
-    for slot in WAHL_SLOTS:
-        # Festgeschrieben: die eigene Wahl ruht (bleibt gespeichert, zählt nicht).
-        if slot not in fest and hat_eigene_wahl(sender_cfg, slot):
-            ergebnis[slot] = _norm(slot, sender_cfg.get(SLOT_FELD[slot]))
+    fest = _fest_aus(quelle, _schalter())
+    # Fest: die eigene Wahl ruht (bleibt gespeichert, zählt nicht).
+    return {slot: _wirksam(slot, std, fest, sender_cfg) for slot in WAHL_SLOTS}
+
+
+def addin_auswahl(sender: str, mailbox_cfg: dict | None = None,
+                  sender_cfg: dict | None = None):
+    """Wirksame Add-in-Auswahl: "*" oder Namensliste ([] = nur die
+    Standardsignatur) — nach derselben Regel wie `aufloesen`."""
+    if mailbox_cfg is None:
+        mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    if sender_cfg is None:
+        sender_cfg = mailbox_match.match_sender(mailbox_cfg, sender)
+    over, quelle = _gruppen_auswertung(sender, mailbox_cfg)
+    return _wirksam("addin", _std_aus(over), _fest_aus(quelle, _schalter()), sender_cfg)
+
+
+# ── Ablösung von use_policy (bis v1.12.98) ───────────────────────────────────
+# Postfach-eigene Felder, die nur bei use_policy=false galten.
+_RICHTLINIEN_FELDER = ("banner_template", "disclaimer_template", "addin_templates")
+
+
+def use_policy_abloesen(mc, nur_mit_schluessel: bool) -> tuple[dict, list[str]]:
+    """MAILBOX_CONFIG ohne `use_policy` — wirkungsgleich, soweit das neue
+    Modell es zulässt. Liefert (neue Konfiguration, Meldungen). Verändert die
+    Eingabe nicht.
+
+    * use_policy wahr (oder fehlend, wenn `nur_mit_schluessel` aus ist): Banner,
+      Disclaimer und Add-in-Auswahl des Postfachs galten NICHT — die Felder
+      entfallen, sonst würden sie jetzt als Wahl greifen.
+    * use_policy falsch: Die Felder galten; ein fehlendes Feld hiess „keine“
+      bzw. „nur die Standardsignatur“ und wird ausdrücklich gesetzt, weil ein
+      fehlendes Feld jetzt „folgt dem Standard“ heisst.
+
+    `nur_mit_schluessel`: Beim Start und beim Import zurückgespielter
+    Konfigurationen werden nur Einträge angefasst, die den Schlüssel noch
+    tragen — ohne ihn ist ein Eintrag bereits im neuen Modell. Die einmalige
+    Migration behandelt einen fehlenden Schlüssel wie alle früheren Leser: als
+    wahr.
+    """
+    if not isinstance(mc, dict):
+        return mc, []
+    neu: dict = {}
+    meldungen: list[str] = []
+    for key, eintrag in mc.items():
+        if not isinstance(eintrag, dict) or (nur_mit_schluessel and "use_policy" not in eintrag):
+            neu[key] = eintrag
+            continue
+        e = dict(eintrag)
+        if bool(e.pop("use_policy", True)):
+            weg = [f for f in _RICHTLINIEN_FELDER if f in e]
+            for f in weg:
+                e.pop(f)
+            if weg:
+                meldungen.append(f"{key}: folgte der Richtlinie, wirkungslose Felder "
+                                 f"{', '.join(weg)} entfernt")
         else:
-            ergebnis[slot] = std[slot]
-    for slot in RICHTLINIEN_SLOTS:
-        ergebnis[slot] = (std[slot] if use_pol
-                          else _norm(slot, sender_cfg.get(SLOT_FELD[slot])))
-    return ergebnis
+            gesetzt = [f for f in _RICHTLINIEN_FELDER if f not in e]
+            e.setdefault("banner_template", "")
+            e.setdefault("disclaimer_template", "")
+            e.setdefault("addin_templates", [])
+            if gesetzt:
+                meldungen.append(f"{key}: eigene Banner/Disclaimer/Add-in-Auswahl, "
+                                 f"bisher leer gelassene Felder ausdrücklich gesetzt: "
+                                 f"{', '.join(gesetzt)}")
+        neu[key] = e
+    return neu, meldungen
 
 
 def antwort_vorlage(vorlagen: dict, in_kette: bool) -> str:

@@ -198,10 +198,11 @@ def test_banner_fuer_gruppe_ueber_postfachschluessel(store):
 
 def _postfaecher(store):
     store["MAILBOX_CONFIG"] = {
-        "guid-r": {"primary": "r@x.de", "use_policy": True},     # Richtlinien-Banner
-        "guid-e": {"primary": "e@x.de", "use_policy": False},    # eigener Banner
-        "guid-o": {"primary": "o@x.de", "use_policy": False},    # keiner
-        "guid-p": {"primary": "p@x.de", "use_policy": True},     # Richtlinie ohne Banner
+        # Seit v1.12.99: eigener Banner = Feld gewählt und nicht fest (ohne Gruppen-Regel).
+        "guid-r": {"primary": "r@x.de"},                              # Richtlinien-Banner
+        "guid-e": {"primary": "e@x.de", "banner_template": "eigen-banner"},   # eigener Banner
+        "guid-o": {"primary": "o@x.de", "banner_template": ""},       # keiner
+        "guid-p": {"primary": "p@x.de"},                              # Richtlinie ohne Banner
     }
     # regulärer Banner je Postfach, wie policies.aufloesen ihn liefert
     return {"r@x.de": "richtlinie-banner", "e@x.de": "eigen-banner",

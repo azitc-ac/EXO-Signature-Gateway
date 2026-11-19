@@ -50,7 +50,7 @@ globalThis.document = { createElement: t => new El(t), createTextNode: t => { co
 def _funktionen() -> str:
     t = SEITE.read_text(encoding="utf-8")
     teile = []
-    for name in ("_addinAuswahl", "_buildPolicyAddinControl", "_buildAddinTemplatesControl"):
+    for name in ("_addinAuswahl", "_buildPolicyAddinControl"):
         a = t.index(f"function {name}(")
         tiefe, i = 0, t.index("{", a)
         for j in range(i, len(t)):
@@ -91,7 +91,7 @@ def test_anfangszustand(wert, label, an):
 
 def test_alle_umschalten_und_einzeln_waehlen():
     r = _lauf(_ZUSTAND + """
-      const d = _buildAddinTemplatesControl(4, [], true, false);
+      const d = _addinAuswahl([], {idx: 4, allKlasse: 'addin-all', tplKlasse: 'addin-tpl'});
       const m = d.querySelector('.addin-all'); const tpl = d.querySelectorAll('.addin-tpl');
       const schritte = [];
       m.checked = true; m.fire('change'); schritte.push(zustand(d, '.addin-all', '.addin-tpl'));
@@ -106,12 +106,6 @@ def test_alle_umschalten_und_einzeln_waehlen():
     assert r["idx"] == ["4"] * 5                     # die Zeilen-Speicherung liest über data-idx
 
 
-def test_postfachzeile_gesperrt_wenn_richtlinie_greift():
-    r = _lauf("const d = _buildAddinTemplatesControl(0, '*', true, true);"
-              "console.log(JSON.stringify({o: d.style.opacity, t: d.title, pe: d.style.pointerEvents}));")
-    assert r == {"o": "0.4", "t": "Wird durch Vorlagenrichtlinie gesteuert", "pe": "none"}
-
-
 def test_namen_fuer_das_auslesen_bleiben():
     t = SEITE.read_text(encoding="utf-8")
     assert "getElementById('policy-addin-all')" in t and "'.policy-addin-tpl:checked'" in t
@@ -119,54 +113,12 @@ def test_namen_fuer_das_auslesen_bleiben():
     assert len(re.findall(r"function _addinAuswahl\(", t)) == 1
 
 
-def _richtlinien_lauf(js: str):
+def test_banner_und_disclaimer_sind_wahl_wie_die_signatur():
+    """Seit v1.12.99 gibt es keine Richtlinien-Zelle mehr (use_policy entfiel):
+    Banner und Disclaimer laufen über denselben Baustein wie die Antwort-Signatur,
+    die Add-in-Auswahl über _addinWahlZelle (Verhalten: tests/test_wahl_select.py)."""
     t = SEITE.read_text(encoding="utf-8")
-    teile = []
-    for name in ("_richtlinienZelle", "_richtlinienStand"):
-        a = t.index(f"function {name}(")
-        tiefe, i = 0, t.index("{", a)
-        for j in range(i, len(t)):
-            tiefe += {"{": 1, "}": -1}.get(t[j], 0)
-            if tiefe == 0:
-                break
-        teile.append(t[a:j + 1])
-    vorspann = _DOM + """
-      const felder = {'policy-banner-tpl': {value: 'Richtlinien-Banner'}};
-      document.getElementById = id => felder[id];
-      globalThis._fuelleVorlagenSelect = (sel, art, wert, o) => { sel.value = wert; sel._art = art; sel._o = o; };
-    """ + "\n".join(teile)
-    out = subprocess.run(["node", "-e", vorspann + "\n" + js], capture_output=True, text=True, check=True).stdout
-    return json.loads(out)
-
-
-_SEL = ("const s = td.querySelector('select');"
-        "console.log(JSON.stringify({v: s.value, aus: s.disabled, op: s.style.opacity, t: s.title,"
-        " k: s.className, i: s.dataset.idx, art: s._art, leer: s._o.leerText}));")
-
-
-def test_richtlinienzelle_ohne_richtlinie():
-    r = _richtlinien_lauf("const td = _richtlinienZelle(2, {sig: true}, false, 'mb-banner', 'banner',"
-                          " 'Eigen', 'policy-banner-tpl', '— kein Banner —');" + _SEL)
-    assert r == {"v": "Eigen", "aus": False, "op": "1", "t": "", "k": "mb-banner", "i": "2",
-                 "art": "banner", "leer": "— kein Banner —"}
-
-
-def test_richtlinienzelle_unter_richtlinie_und_ohne_signatur():
-    r = _richtlinien_lauf("const td = _richtlinienZelle(0, {sig: true}, true, 'mb-banner', 'banner',"
-                          " 'Eigen', 'policy-banner-tpl', 'x');" + _SEL)
-    assert r["v"] == "Richtlinien-Banner" and r["aus"] is True and r["t"] == "Wird durch Vorlagenrichtlinie gesteuert"
-    r = _richtlinien_lauf("const td = _richtlinienZelle(0, {sig: false}, false, 'mb-banner', 'banner',"
-                          " 'Eigen', 'policy-banner-tpl', 'x');" + _SEL)
-    assert r["v"] == "Eigen" and r["aus"] is True and r["op"] == "0.4"
-
-
-def test_umschalten_nutzt_denselben_stand():
-    r = _richtlinien_lauf("""
-      const td = _richtlinienZelle(0, {sig: true}, true, 'mb-banner', 'banner', 'Eigen', 'policy-banner-tpl', 'x');
-      const s = td.querySelector('select');
-      _richtlinienStand(s, true, false, 'Eigen', 'policy-banner-tpl');
-      console.log(JSON.stringify({v: s.value, aus: s.disabled, t: s.title}));""")
-    assert r == {"v": "Eigen", "aus": False, "t": ""}
-    t = SEITE.read_text(encoding="utf-8")
-    assert t.count("_richtlinienStand(bannerSel, sig, pol") == 1
-    assert t.count("_richtlinienStand(disclaimerSel, sig, pol") == 1
+    assert "_richtlinienZelle" not in t and "_richtlinienStand" not in t
+    assert "_signaturWahlZelle(i, 'mb-banner', mb, 'banner', 'banner_template',\n" in t
+    assert "_signaturWahlZelle(i, 'mb-disclaimer', mb, 'disclaimer', 'disclaimer_template',\n" in t
+    assert "var tdAddin = _addinWahlZelle(i, mb);" in t

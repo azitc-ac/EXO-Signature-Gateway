@@ -360,7 +360,7 @@ def test_speichern_verwirft_die_addin_auswahl_nicht_mehr():
 def test_oberflaeche_sperrt_die_addin_spalte_nicht_fuer_hybrid():
     html = (WURZEL / "app/webui/templates/mailboxes.html").read_text("utf-8")
     zeile = [z for z in html.splitlines() if "var addinAus" in z]
-    assert zeile == ["      var addinAus = !sig || pol;"]
+    assert zeile == ["      var addinAus = !sig || !_addinEnabled;"]   # kein isHybrid darin
     assert "addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';\n" \
            "      addinCtrl.title = HYBRID_HINWEIS" not in html
 

@@ -1108,6 +1108,15 @@ async def api_config_import(
         except Exception:
             pass
 
+    # Zurückgespielter Altstand: `use_policy` (bis v1.12.98) gleich ablösen,
+    # sonst griffen dessen wirkungslose Banner-/Disclaimer-Felder als Wahl.
+    if isinstance(patch.get("MAILBOX_CONFIG"), dict):
+        import policies as _pol
+        patch["MAILBOX_CONFIG"], _meld = _pol.use_policy_abloesen(
+            patch["MAILBOX_CONFIG"], nur_mit_schluessel=True)
+        for _m in _meld:
+            log.info("Import: use_policy abgelöst — %s", _m)
+
     settings_store.update(patch)
 
     # Apply timezone change immediately to all active log handlers
