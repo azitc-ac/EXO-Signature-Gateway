@@ -58,7 +58,11 @@ BEKANNTE_FELDER = {
 }
 
 _VAR = re.compile(r"\{\{\s*user\.([A-Za-z0-9_]+)\s*\}\}")
-_CUSTOM_VAR = re.compile(r"\{\{\s*custom\.([A-Za-z0-9_]+)\s*\}\}")
+# Eigene Variablen in allen drei Schreibweisen (template_builder._CUSTOM_PREFIXE).
+# Gruppe 1 ist der VOLLE Pfad samt Präfix — `field` im Baustein braucht ihn,
+# sonst hält template_builder._resolve_var("abteilung") ihn für ein
+# unbekanntes Benutzerfeld und der Baustein entfällt beim nächsten Speichern.
+_CUSTOM_VAR = re.compile(r"\{\{\s*((?:custom|custom_u|custom_b)\.[A-Za-z0-9_]+)\s*\}\}")
 _JINJA_IF = re.compile(r"\{%-?\s*(?:if|endif)[^%]*-?%\}")
 # Eine Bedingung, die GENAU EINE Zeile umschliesst — die Form, die der Renderer
 # fuer optionale Felder erzeugt.

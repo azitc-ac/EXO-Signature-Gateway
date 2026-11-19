@@ -353,7 +353,8 @@ def render_oof(user_data, template_name: str, zeitraum: str,
                period: str | None = None) -> tuple[str, str]:
     """(html, txt) der Abwesenheitsnotiz aus der oof-Vorlage.
 
-    Die Vorlage kennt alle Signatur-Variablen (`{{ user.x }}`, `{{ custom.x }}`).
+    Die Vorlage kennt alle Signatur-Variablen (`{{ user.x }}`, `{{ custom_u.x }}`,
+    `{{ custom.x }}` …) — derselbe Kontext wie beim Versand (signature_engine._kontext).
     Die abwesenheitsspezifischen Werte stehen in ZWEI Formen bereit — bewusst
     redundant, damit beide Bedienweisen funktionieren:
 

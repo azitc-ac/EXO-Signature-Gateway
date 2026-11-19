@@ -5,6 +5,48 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.106 — 2026-11-19 — Eigene Variablen auch für die schreibende Person (custom_u / custom_b)
+
+Eigene Variablen galten bisher nur für den Postfachinhaber. Schreibt jemand
+„im Auftrag von“ eines geteilten Postfachs, gab es für die Person zwar
+`{{ bearbeiter.* }}`, aber keine eigenen Variablen. Jetzt gibt es jede eigene
+Variable zweimal:
+
+* `{{ custom_u.NAME }}` — Wert des Postfachinhabers (wie `user.*`),
+* `{{ custom_b.NAME }}` — Wert der schreibenden Person (wie `bearbeiter.*`;
+  ohne „im Auftrag von“ ist das der Inhaber selbst).
+
+Gleichwertig ist die lange Schreibweise `{{ user.custom.NAME }}` bzw.
+`{{ bearbeiter.custom.NAME }}`; die Vorschlagsliste bietet beide an.
+
+`{{ custom.NAME }}` ist der alte Name für `custom_u.NAME` und gilt weiter;
+bestehende Vorlagen rendern unverändert. Unterstrich statt Bindestrich, weil
+`custom-b` in Vorlagen eine Subtraktion wäre. Die Werte der Person kommen aus
+denselben Quellen wie beim Inhaber (Entra-Feld, Gruppen-Zuweisung,
+Benutzer-Override nach ihrer Adresse) — ein eigener „Bearbeiter-Override“ ist
+deshalb nicht nötig.
+
+* **Einstellungen → Signaturen** zeigt unter *Alle Variablen* die vier
+  Namensräume, alle Benutzerfelder und die eigenen Variablen; jede Zeile einer
+  eigenen Variablen nennt ihre Namen `custom_u.…`, `custom_b.…` und den alten.
+* **Vorlagen-Editor:** Die Vorschlagsliste bietet `custom_u.` und `custom_b.`
+  an (wer `custom.` tippt, bekommt beide). Ein gewählter Vorschlag setzt
+  `{{ … }}` selbst, außer der Cursor steht schon in einem offenen `{{` oder
+  `{%` — dort bleibt es beim Namen. Die Feldauswahl im Baukasten führt beide
+  Gruppen.
+* **Import in den Baukasten:** Ein Feld mit eigener Variable (`{{ custom.abt }}`)
+  wurde als Benutzerfeld „abt“ gelesen, das der Baukasten nicht kennt — der
+  Baustein fiel beim nächsten Speichern weg. Der Import behält jetzt den
+  vollen Namen, in allen drei Schreibweisen.
+
+Daneben nennt das Protokoll jetzt auch in der Zeile „Stille Anmeldung per …“
+(NAA wie Identitätstoken) die Plattform; bisher stand sie nur in der Zeile des
+Identitätstokens.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.105 — 2026-11-19 — Browser-Tests an v1.12.104 angepasst
 
 Nur Testgerüst, keine Änderung am Gateway: Die Attrappe der Self-Service-Vorschau
