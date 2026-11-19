@@ -240,8 +240,8 @@
       <div class="karte">
         <h2>Antwort-Signatur</h2>
         <p class="erklaer">Ab deiner 2. eigenen Mail im selben Verlauf steht statt der vollen Signatur
-          diese – die volle steht dann ja schon weiter unten im Verlauf. Bei „— keine —“ hängt das
-          Gateway an solche Antworten nichts an, und du schreibst deinen Gruß selbst.</p>
+          diese – die volle steht dann ja schon weiter unten im Verlauf.<span id="min-keine-hinweis"> Bei „— keine —“ hängt das
+          Gateway an solche Antworten nichts an, und du schreibst deinen Gruß selbst.</span></p>
         <div id="min-block">
           <label for="min-sel">Antwort-Signatur</label>
           <select id="min-sel"></select>
@@ -468,6 +468,7 @@
     if (minNurAnsicht) {
       el('min-block').hidden = true;
       el('min-speichern').hidden = true;
+      el('min-keine-hinweis').hidden = true;   // „— keine —“ gibt es hier nicht
       el('min-org').hidden = false;
       el('min-org').textContent = 'Von deiner Organisation vorgegeben: ' + ctx.min_template;
     }

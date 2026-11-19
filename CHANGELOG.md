@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.109 — 2026-11-19 — Self-Service: Erklärtext der Antwort-Signatur in der reinen Ansicht
+
+In der reinen Ansicht des Reiters *Antwort-Signatur* (seit v1.12.108) verwies
+der Erklärtext auf die Auswahl „— keine —“, die es dort nicht gibt. Der Satz
+entfällt in dieser Ansicht.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.108 — 2026-11-19 — Self-Service: Antwort-Signatur auch als reine Ansicht
 
 Unter *Self-Service* (`/self`, auch im Knopf-Add-in und im Teams-Tab) erschien
