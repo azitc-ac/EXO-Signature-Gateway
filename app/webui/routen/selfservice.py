@@ -185,17 +185,14 @@ async def self_page(request: Request):
     # das Exchange-Identitätstoken (identkopf). Ablauf: static/addin_anmeldung.js.
     # Das Fenster bleibt der Rückfall. Im eigenen Browserfenster bleibt alles
     # ungenutzt (kein Office-Host, kein Tab).
-    import exchange_identitaet
     from webui.routen.addin import TEAMSJS_SRI, TEAMSJS_URL
-    from webui.routen.addin_verfassen import MSAL_DATEI, TAB_SITZUNG_API, naa_konfiguration
+    from webui.routen.addin_verfassen import naa_seitenangaben
     resp = templates.TemplateResponse(
         request=request, name="self.html",
         context={"gateway_name": _gateway_name(),
                  "im_teams": request.query_params.get("host") == "teams",
                  "teamsjs_url": TEAMSJS_URL, "teamsjs_sri": TEAMSJS_SRI,
-                 "msal_url": "/static/vendor/" + MSAL_DATEI.name,
-                 "naa": {**naa_konfiguration(), "sitzung": TAB_SITZUNG_API,
-                         "identkopf": exchange_identitaet.KOPF}},
+                 **naa_seitenangaben()},
     )
     resp.headers["Cache-Control"] = _NO_STORE   # in Outlook-WebView nie cachen
     return resp

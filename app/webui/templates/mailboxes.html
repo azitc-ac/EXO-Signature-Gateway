@@ -43,6 +43,32 @@
   [data-theme="dark"] select[data-ausnahme="1"] + .wahl-ausnahme { background:#1a1200; color:#fbbf24 }
   select[data-ausnahme="1"] { border-color:#fcd34d }
   [data-theme="dark"] select[data-ausnahme="1"] { border-color:#92400e }
+  /* Dynamische Gruppen: Regel-Editor (Modal). Zeilen brechen um — auf dem
+     Telefon steht jede Bedingung über zwei, drei Zeilen, nichts rollt quer. */
+  .regel-zeile { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; margin:4px 0 }
+  .regel-zeile select, .regel-zeile input { font-size:12px; min-width:0; max-width:100%;
+      padding:3px 6px; border:1px solid #d1d5db; border-radius:4px }
+  .regel-zeile .regel-feld { flex:1 1 190px }
+  .regel-zeile .regel-vergleich { flex:0 1 130px }
+  .regel-zeile .regel-wert { flex:1 1 150px }
+  .regel-untergruppe { border:1px solid #e2e8f0; border-radius:8px; padding:6px 8px; margin:6px 0 }
+  [data-theme="dark"] .regel-untergruppe { border-color:#495166 }
+  .regel-kopf { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; font-size:12px }
+  .regel-kopf select { font-size:12px }
+  .regel-chips { display:flex; flex-wrap:wrap; gap:4px; margin:4px 0 }
+  .regel-chip { display:inline-flex; align-items:center; gap:4px; font-size:11px; padding:1px 4px 1px 8px;
+      border:1px solid #e2e8f0; border-radius:10px; max-width:100%; overflow-wrap:anywhere }
+  [data-theme="dark"] .regel-chip { border-color:#495166 }
+  .regel-chip button { background:none; border:none; cursor:pointer; font-size:12px; padding:0 2px; color:inherit }
+  .regel-mitglied { font-size:12px; padding:2px 0; overflow-wrap:anywhere }
+  .regel-mitglied summary { cursor:pointer }
+  .regel-mitglied ul { margin:2px 0 4px 18px; padding:0 }
+  .regel-marke { font-size:10px; font-weight:600; padding:0 6px; border-radius:8px; margin-left:4px;
+      background:#dcfce7; color:#166534 }
+  [data-theme="dark"] .regel-marke { background:#0a1f10; color:#4ade80 }
+  .dyn-warnung { color:#92400e }
+  [data-theme="dark"] .dyn-warnung { color:#fbbf24 }
+  #regel-modal-overlay h3 { font-size:13px; margin:14px 0 4px }
 </style>
 
 <!-- Fair-Use-Zähler -->
@@ -502,7 +528,7 @@ async function ankerAnwenden() {
      style="margin:6px 0 0;max-width:640px;font-weight:600"></p>
 
   <!-- Interne Gruppen -->
-  <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
+  <div id="interne-gruppen" style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
     <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:8px">
       Interne Gruppen
       <span style="font-size:11px;font-weight:400;color:#888">(rein interne Zuordnungen — keine Entra-Gruppen)</span>
@@ -518,6 +544,19 @@ async function ankerAnwenden() {
       </thead>
       <tbody id="groups-tbody"></tbody>
     </table>
+    </div>
+    <p class="hint" style="margin:0 0 6px;max-width:640px">
+      <em>Statisch</em>: Mitglieder von Hand gewählt. <em>Dynamisch</em>: Mitglieder per Regel
+      aus Entra-Attributen (Abteilung, Erweiterungsattribute …) und Gateway-Feldern, dazu
+      „immer dabei“, ohne „nie dabei“. Die Entra-Werte liest das Gateway stündlich ein.
+    </p>
+    <div id="dyn-status" hidden style="font-size:12px;margin:0 0 8px;max-width:640px">
+      <span id="dyn-status-text"></span>
+      <span id="dyn-status-fehler" class="dyn-warnung" style="display:block"></span>
+      <details id="dyn-aenderungen" style="margin-top:2px">
+        <summary style="cursor:pointer">Letzte Änderungen der Mitglieder</summary>
+        <ul id="dyn-aenderungen-liste" style="margin:4px 0 0 18px;padding:0"></ul>
+      </details>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn secondary btn-sm" onclick="addGroup()">+ Gruppe erstellen</button>
@@ -571,6 +610,60 @@ async function ankerAnwenden() {
     <div style="margin-top:16px;display:flex;gap:8px">
       <button class="btn secondary btn-sm" onclick="saveMembersModal()">Speichern</button>
       <button class="btn secondary btn-sm" onclick="closeMembersModal()">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Regel-Editor dynamischer Gruppen -->
+<div id="regel-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;max-width:760px;width:94%;max-height:92vh;overflow-y:auto;padding:20px;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.18);box-sizing:border-box">
+    <button onclick="closeRegelModal()" aria-label="Schließen" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:#888">✕</button>
+    <h2 id="regel-modal-title" style="margin-top:0;font-size:15px;margin-bottom:4px;padding-right:24px"></h2>
+    <p class="hint" style="margin:0 0 8px">
+      Mitglied ist jedes aktivierte Postfach, auf das die Regel zutrifft, dazu „immer dabei“,
+      ohne „nie dabei“ — <em>nie</em> schlägt alles. Groß-/Kleinschreibung zählt nicht,
+      Werte werden getrimmt. Eine Regel ohne Bedingung trifft niemanden.
+    </p>
+    <div class="regel-kopf">Mitglied, wenn
+      <select id="regel-wurzel" onchange="_regelWurzel(this.value)">
+        <option value="alle">alle</option><option value="eine">mindestens eine</option>
+      </select> der folgenden zutreffen:</div>
+    <div id="regel-baum"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0">
+      <button class="btn secondary btn-sm" onclick="_regelNeu(null)">+ Bedingung</button>
+      <button class="btn secondary btn-sm" onclick="_regelNeueUntergruppe()">+ Untergruppe</button>
+    </div>
+    <h3>Immer dabei</h3>
+    <div id="regel-immer" class="regel-chips"></div>
+    <div class="regel-zeile">
+      <input id="regel-immer-neu" class="regel-wert" list="dyn-postfaecher" placeholder="Postfach-Adresse"
+             autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button class="btn secondary btn-sm" onclick="_regelListeDazu('immer')">Hinzufügen</button>
+    </div>
+    <h3>Nie dabei</h3>
+    <div id="regel-nie" class="regel-chips"></div>
+    <div class="regel-zeile">
+      <input id="regel-nie-neu" class="regel-wert" list="dyn-postfaecher" placeholder="Postfach-Adresse"
+             autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button class="btn secondary btn-sm" onclick="_regelListeDazu('nie')">Hinzufügen</button>
+    </div>
+    <datalist id="dyn-postfaecher"></datalist>
+    <h3>Vorschau</h3>
+    <div class="regel-zeile">
+      <span id="regel-stand" class="hint"></span>
+      <button id="regel-einlesen-btn" class="btn secondary btn-sm" onclick="regelEinlesen()">Entra neu einlesen</button>
+      <span id="regel-einlesen-ergebnis" style="font-size:12px"></span>
+    </div>
+    <div id="regel-vorschau-zahl" aria-live="polite" style="font-size:12px;margin:4px 0"></div>
+    <div class="regel-zeile">
+      <input id="regel-filter" class="regel-wert" placeholder="Mitglieder filtern …"
+             autocapitalize="off" autocorrect="off" spellcheck="false" oninput="_regelVorschauBald()">
+    </div>
+    <div id="regel-vorschau-liste" style="max-height:300px;overflow-y:auto"></div>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn secondary btn-sm" id="regel-speichern-btn" onclick="saveRegelModal()">Speichern</button>
+      <button class="btn secondary btn-sm" onclick="closeRegelModal()">Abbrechen</button>
+      <span id="regel-save-result" style="font-size:12px"></span>
     </div>
   </div>
 </div>
@@ -1749,6 +1842,14 @@ var _editingGroupRow = null; // TR-Element das gerade bearbeitet wird
 var GRUPPE_ALLE = {{ gruppe_alle | tojson }};
 function _groupNames() { return Object.keys(_groups); }
 
+// Dynamische Gruppen: {name: {regel, immer, nie}} (dynamische_gruppen.py). Eine
+// Gruppe ist dynamisch, wenn sie hier steht; _groups[name] trägt dann die
+// zuletzt BERECHNETEN Mitglieder (für Anzeige und Rückwandlung).
+var _dynGroups = {};
+var _dynStatus = null;
+var DYN_FELDER = {{ dyn_felder | tojson }};
+var DYN_VERGLEICHE = {{ dyn_vergleiche | tojson }};
+
 function _renderGroupsTable() {
   var tbody = document.getElementById('groups-tbody');
   if (!tbody) return;
@@ -1768,7 +1869,8 @@ function _renderGroupsTable() {
     // Speichern-Knopf grau (die JS-Variablen _groups/_groupVars sind für die Wache
     // unsichtbar). Ändert ein Modal den Zustand, ändert sich hier der Wert → die
     // Wache erkennt „noch nicht gespeichert".
-    var _grpState = members.join(',') + '||' + JSON.stringify(_groupVars[name] || {});
+    var _grpState = members.join(',') + '||' + JSON.stringify(_groupVars[name] || {}) +
+                    '||' + JSON.stringify(_dynGroups[name] || null);
     if (name === GRUPPE_ALLE) {
       // Vordefiniert und berechnet (gruppen.py): Mitglieder sind immer alle
       // aktivierten Postfächer, auch neu hinzugekommene — weder umbenennbar noch
@@ -1787,6 +1889,20 @@ function _renderGroupsTable() {
       tbody.appendChild(tr);
       return;
     }
+    var dyn = !!_dynGroups[name];
+    var anzahl = members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '');
+    var mitgliederZelle = dyn
+      ? '<span>dynamisch: ' + anzahl + '</span> ' +
+        '<button class="btn secondary btn-sm" onclick="openRegelModal(this.dataset.group)" data-group="' + escAttr(name) + '" ' +
+          'style="margin-left:4px">Regel</button> '
+      : '<span>' + anzahl + '</span> ' +
+        '<button class="btn secondary btn-sm" onclick="openMembersModal(this)" data-group="' + esc(name) + '" ' +
+          'style="margin-left:4px">Bearbeiten</button> ';
+    var umwandeln = dyn
+      ? '<button class="btn secondary btn-sm" onclick="zuStatisch(this.dataset.group)" data-group="' + escAttr(name) + '" ' +
+          'style="margin-left:2px" title="Aktuelle Mitglieder festschreiben">In statische umwandeln</button>'
+      : '<button class="btn secondary btn-sm" onclick="zuDynamisch(this.dataset.group)" data-group="' + escAttr(name) + '" ' +
+          'style="margin-left:2px" title="Bisherige Mitglieder werden „immer dabei“">In dynamische umwandeln</button>';
     tr.innerHTML =
       '<td style="padding:6px 8px">' +
         '<input type="hidden" value="' + escAttr(_grpState) + '">' +
@@ -1795,13 +1911,11 @@ function _renderGroupsTable() {
         'style="font-size:12px;width:150px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" ' +
         'onchange="renameGroup(this)"></td>' +
       '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
-        '<span>' + members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '') + '</span> ' +
-        '<button class="btn secondary btn-sm" onclick="openMembersModal(this)" data-group="' + esc(name) + '" ' +
-          'style="margin-left:4px">Bearbeiten</button> ' +
+        mitgliederZelle +
         '<button class="btn secondary btn-sm" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +
           'style="margin-left:2px" ' +
           'title="Custom-Variablen für diese Gruppe (z.B. Vertreter)">Variablen (' +
-          Object.keys(_groupVars[name] || {}).length + ')</button></td>' +
+          Object.keys(_groupVars[name] || {}).length + ')</button> ' + umwandeln + '</td>' +
       '<td style="text-align:center;padding:6px 8px">' +
         '<button class="btn secondary btn-sm" onclick="removeGroup(\'' + escJsAttr(name) + '\')" ' +
           '>✕</button></td>';
@@ -1824,6 +1938,10 @@ function renameGroup(input) {
     _groupVars[newName] = _groupVars[oldName];
     delete _groupVars[oldName];
   }
+  if (_dynGroups[oldName] !== undefined) {   // Regel der Gruppe mitziehen
+    _dynGroups[newName] = _dynGroups[oldName];
+    delete _dynGroups[oldName];
+  }
   // update custom policies referencing old name
   (_customPolicies || []).forEach(function(p) {
     if (p.group_name === oldName) p.group_name = newName;
@@ -1844,6 +1962,7 @@ function removeGroup(name) {
   if (!confirm('Gruppe "' + name + '" löschen?')) return;
   delete _groups[name];
   delete _groupVars[name];
+  delete _dynGroups[name];
   _renderGroupsTable();
   _renderCustomPoliciesTable();
 }
@@ -1977,11 +2096,24 @@ async function saveVarsModal() {
   else alert('Speichern fehlgeschlagen — bitte erneut versuchen.');
 }
 
+// Gruppen (Wörterbuch Name → Mitglieder, daher fetch statt getJSON) und die
+// Definitionen der dynamischen Gruppen neu holen.
+async function _gruppenHolen() {
+  var r = await fetch('/api/settings/internal-groups');
+  if (!r.ok) return false;
+  _groups = await r.json();
+  var d = await getJSON('/api/gruppen/dynamisch');
+  if (d.ok) {
+    _dynGroups = d.definitionen || {};
+    _dynStatus = d.status || null;
+  }
+  _dynStatusZeigen();
+  return true;
+}
+
 async function loadGroups() {
   try {
-    var r = await fetch('/api/settings/internal-groups');
-    if (!r.ok) return;
-    _groups = await r.json();
+    if (!await _gruppenHolen()) return;
     _renderGroupsTable();
     // Der Ausgangsstand steht erst jetzt — die Zeilen kommen per
     // Abruf. Ohne diese Zeile stünde beim Öffnen „noch nicht
@@ -1994,16 +2126,360 @@ async function loadGroups() {
 // die Modals (sofort speichern) darauf reagieren können.
 async function saveGroups() {
   try {
-    var d = await postJSON('/api/settings/internal-groups/save', {groups: _groups, group_vars: _groupVars});
+    var d = await postJSON('/api/settings/internal-groups/save',
+                           {groups: _groups, group_vars: _groupVars, dynamic: _dynGroups});
+    // Berechnete Mitglieder dynamischer Gruppen kommen erst vom Server — neu holen.
+    if (d.ok && await _gruppenHolen()) _renderGroupsTable();
     // Farbe über die Wache, nicht über style.color: JS-gesetzte Farben
     // normalisiert der Browser zu rgb(), die Dark-Mode-Regeln greifen dann
     // nicht mehr. `wacheFertig` setzt `data-zustand`, das CSS färbt.
+    _gruppenFehler = d.ok ? '' : errText(d);
     wacheFertig('groups-btn', !!d.ok, d.ok ? '✓ Gespeichert' : '✗ ' + errText(d));
     return !!d.ok;
   } catch(e) {
+    _gruppenFehler = e.message;
     wacheFertig('groups-btn', false, '✗ ' + e.message);
     return false;
   }
+}
+var _gruppenFehler = '';
+
+// ── Dynamische Gruppen: Stand, Umwandeln, Regel-Editor ─────────────────────
+
+function _zeit(iso) {
+  if (!iso) return '—';
+  var d = new Date(iso);
+  return isNaN(d) ? iso : d.toLocaleString('de-DE', {dateStyle: 'short', timeStyle: 'short'});
+}
+
+function _dynStatusZeigen() {
+  var box = document.getElementById('dyn-status');
+  if (!box) return;
+  var st = _dynStatus;
+  box.hidden = !Object.keys(_dynGroups).length || !st;
+  if (box.hidden) return;
+  document.getElementById('dyn-status-text').textContent =
+    'Dynamische Gruppen — Entra-Stand: ' + (st.stand ? _zeit(st.stand) + ' (' + st.zugeordnet +
+      ' Postfächer zugeordnet, ' + st.ohne_treffer + ' ohne Entra-Eintrag)' : 'noch nicht eingelesen') +
+    ' · zuletzt neu berechnet: ' + _zeit(st.berechnet) + (st.grund ? ' (' + st.grund + ')' : '');
+  var fehler = [];
+  if (st.veraltet) fehler.push('Der Entra-Stand ist älter als 24 Stunden.');
+  if (st.letzter_fehler) fehler.push('Letztes Einlesen gescheitert (' + _zeit(st.letzter_fehler.ts) + '): ' +
+                                     st.letzter_fehler.text);
+  document.getElementById('dyn-status-fehler').textContent = fehler.join(' ');
+  var ul = document.getElementById('dyn-aenderungen-liste');
+  ul.innerHTML = '';
+  (st.aenderungen || []).forEach(function (e) {
+    var li = document.createElement('li');
+    li.textContent = _zeit(e.ts) + ' · ' + e.mailbox + ': ' + e.detail;
+    ul.appendChild(li);
+  });
+  if (!(st.aenderungen || []).length) ul.innerHTML = '<li>Noch keine.</li>';
+}
+
+async function zuDynamisch(name) {
+  if (!confirm('„' + name + '“ in eine dynamische Gruppe umwandeln? Die bisherigen ' +
+               'Mitglieder werden „immer dabei“; die Regel legst du danach fest.')) return;
+  _dynGroups[name] = {regel: {verknuepfung: 'alle', bedingungen: []},
+                      immer: (_groups[name] || []).slice(), nie: []};
+  _renderGroupsTable();
+  if (await saveGroups()) openRegelModal(name);
+}
+
+async function zuStatisch(name) {
+  if (!confirm('„' + name + '“ in eine statische Gruppe umwandeln? Die aktuellen ' +
+               (_groups[name] || []).length + ' Mitglieder werden festgeschrieben; die Regel entfällt.')) return;
+  // _groups[name] trägt die zuletzt berechneten Mitglieder (nach jedem Speichern neu geholt).
+  delete _dynGroups[name];
+  _renderGroupsTable();
+  await saveGroups();
+}
+
+// Arbeitskopie des Editors — erst „Speichern“ übernimmt sie nach _dynGroups.
+var _regelName = null;
+var _regelArbeit = null;
+var _regelTakt = null;
+var _regelLauf = 0;
+
+function _feldInfo(wert) {
+  for (var i = 0; i < DYN_FELDER.length; i++) if (DYN_FELDER[i].value === wert) return DYN_FELDER[i];
+  return null;
+}
+function _ohneWert(v) {
+  for (var i = 0; i < DYN_VERGLEICHE.length; i++) if (DYN_VERGLEICHE[i].value === v) return DYN_VERGLEICHE[i].ohne_wert;
+  return false;
+}
+
+function _postfachZuSchluessel(text) {
+  var t = (text || '').trim().toLowerCase();
+  if (!t) return '';
+  for (var i = 0; i < _mbData.length; i++) {
+    var m = _mbData[i];
+    if (!(m.sig || m.smime)) continue;
+    if ((m.email || '').toLowerCase() === t || (m.config_key || '').toLowerCase() === t) return m.config_key || m.email;
+  }
+  return '';
+}
+function _schluesselText(k) {
+  for (var i = 0; i < _mbData.length; i++) {
+    if ((_mbData[i].config_key || _mbData[i].email) === k) return _mbData[i].email;
+  }
+  return k;
+}
+
+function openRegelModal(name) {
+  var d = _dynGroups[name];
+  if (!d) return;
+  _regelName = name;
+  _regelArbeit = JSON.parse(JSON.stringify(d));
+  document.getElementById('regel-modal-title').textContent = 'Regel: ' + name;
+  var dl = document.getElementById('dyn-postfaecher');
+  dl.innerHTML = '';
+  _mbData.filter(function (m) { return m.sig || m.smime; }).forEach(function (m) {
+    var o = document.createElement('option');
+    o.value = m.email;
+    if (m.name && m.name !== m.email) o.label = m.name;
+    dl.appendChild(o);
+  });
+  document.getElementById('regel-filter').value = '';
+  document.getElementById('regel-save-result').textContent = '';
+  document.getElementById('regel-einlesen-ergebnis').textContent = '';
+  _regelZeichnen();
+  document.getElementById('regel-modal-overlay').style.display = 'flex';
+  _regelVorschau();
+}
+
+function closeRegelModal() {
+  document.getElementById('regel-modal-overlay').style.display = 'none';
+  clearTimeout(_regelTakt);
+  _regelName = null;
+  _regelArbeit = null;
+}
+
+function _regelWurzel(v) { _regelArbeit.regel.verknuepfung = v; _regelVorschauBald(); }
+
+function _leereBedingung() { return {feld: DYN_FELDER[0].value, vergleich: 'ist', wert: ''}; }
+
+function _regelNeu(gruppe) {
+  (gruppe || _regelArbeit.regel).bedingungen.push(_leereBedingung());
+  _regelZeichnen();
+}
+function _regelNeueUntergruppe() {
+  _regelArbeit.regel.bedingungen.push({verknuepfung: 'eine', bedingungen: [_leereBedingung()]});
+  _regelZeichnen();
+}
+
+function _verknuepfungSelect(gruppe) {
+  var sel = _auswahl('', 'Verknüpfung', [{value: 'alle', label: 'alle'},
+                                         {value: 'eine', label: 'mindestens eine'}], gruppe.verknuepfung);
+  sel.addEventListener('change', function () { gruppe.verknuepfung = sel.value; _regelVorschauBald(); });
+  return sel;
+}
+
+function _knopf(text, titel, wirkung) {
+  var k = document.createElement('button');
+  k.className = 'btn secondary btn-sm';
+  k.textContent = text;
+  if (titel) k.title = titel;
+  k.addEventListener('click', wirkung);
+  return k;
+}
+
+// Auswahlfeld aus [{value, label}] — Feld, Vergleich und Verknüpfung.
+function _auswahl(klasse, beschriftung, eintraege, wert) {
+  var sel = document.createElement('select');
+  if (klasse) sel.className = klasse;
+  sel.setAttribute('aria-label', beschriftung);
+  eintraege.forEach(function (e) {
+    var o = document.createElement('option'); o.value = e.value; o.textContent = e.label;
+    sel.appendChild(o);
+  });
+  sel.value = wert;
+  return sel;
+}
+
+function _bedingungZeile(b, liste) {
+  var z = document.createElement('div');
+  z.className = 'regel-zeile';
+  var feld = _auswahl('regel-feld', 'Feld', DYN_FELDER, b.feld);
+  var vergl = _auswahl('regel-vergleich', 'Vergleich', DYN_VERGLEICHE, b.vergleich);
+  var wert = document.createElement('input');
+  wert.className = 'regel-wert';
+  wert.setAttribute('aria-label', 'Wert');
+  wert.setAttribute('autocapitalize', 'off');
+  wert.setAttribute('autocorrect', 'off');
+  wert.spellcheck = false;
+  function wertStand() {
+    var info = _feldInfo(b.feld);
+    wert.hidden = _ohneWert(b.vergleich);
+    wert.placeholder = b.vergleich === 'eine_von' ? 'Werte, durch Komma getrennt' : 'Wert';
+    if (info && info.werte) {
+      var id = 'dyn-werte-' + info.value.replace(/[^a-z0-9]/gi, '-');
+      if (!document.getElementById(id)) {
+        var dl = document.createElement('datalist'); dl.id = id;
+        info.werte.forEach(function (w) { var o = document.createElement('option'); o.value = w; dl.appendChild(o); });
+        document.getElementById('regel-modal-overlay').appendChild(dl);
+      }
+      wert.setAttribute('list', id);
+    } else {
+      wert.removeAttribute('list');
+    }
+  }
+  wert.value = Array.isArray(b.wert) ? b.wert.join(', ') : (b.wert || '');
+  wertStand();
+  feld.addEventListener('change', function () { b.feld = feld.value; wertStand(); _regelVorschauBald(); });
+  vergl.addEventListener('change', function () {
+    b.vergleich = vergl.value;
+    b.wert = wert.value;
+    wertStand(); _regelVorschauBald();
+  });
+  wert.addEventListener('input', function () { b.wert = wert.value; _regelVorschauBald(); });
+  z.appendChild(feld); z.appendChild(vergl); z.appendChild(wert);
+  z.appendChild(_knopf('✕', 'Bedingung entfernen', function () {
+    liste.splice(liste.indexOf(b), 1);
+    _regelZeichnen();
+  }));
+  return z;
+}
+
+function _regelZeichnen() {
+  var r = _regelArbeit.regel;
+  document.getElementById('regel-wurzel').value = r.verknuepfung;
+  var baum = document.getElementById('regel-baum');
+  baum.innerHTML = '';
+  if (!r.bedingungen.length) {
+    baum.innerHTML = '<p class="hint" style="margin:4px 0">Noch keine Bedingung — es zählen nur „immer dabei“.</p>';
+  }
+  r.bedingungen.forEach(function (b) {
+    if (!b.bedingungen) { baum.appendChild(_bedingungZeile(b, r.bedingungen)); return; }
+    var box = document.createElement('div');
+    box.className = 'regel-untergruppe';
+    var kopf = document.createElement('div');
+    kopf.className = 'regel-kopf';
+    kopf.appendChild(document.createTextNode('Untergruppe: '));
+    kopf.appendChild(_verknuepfungSelect(b));
+    kopf.appendChild(document.createTextNode(' der folgenden'));
+    kopf.appendChild(_knopf('✕ Untergruppe', 'Untergruppe entfernen', function () {
+      r.bedingungen.splice(r.bedingungen.indexOf(b), 1);
+      _regelZeichnen();
+    }));
+    box.appendChild(kopf);
+    b.bedingungen.forEach(function (u) { box.appendChild(_bedingungZeile(u, b.bedingungen)); });
+    box.appendChild(_knopf('+ Bedingung', '', function () { _regelNeu(b); }));
+    baum.appendChild(box);
+  });
+  ['immer', 'nie'].forEach(function (art) {
+    var el = document.getElementById('regel-' + art);
+    el.innerHTML = '';
+    _regelArbeit[art].forEach(function (k) {
+      var chip = document.createElement('span');
+      chip.className = 'regel-chip';
+      chip.appendChild(document.createTextNode(_schluesselText(k)));
+      var x = document.createElement('button');
+      x.textContent = '✕';
+      x.title = 'Entfernen';
+      x.addEventListener('click', function () {
+        _regelArbeit[art].splice(_regelArbeit[art].indexOf(k), 1);
+        _regelZeichnen();
+      });
+      chip.appendChild(x);
+      el.appendChild(chip);
+    });
+    if (!_regelArbeit[art].length) el.innerHTML = '<span class="hint">— niemand —</span>';
+  });
+  _regelVorschauBald();
+}
+
+function _regelListeDazu(art) {
+  var feld = document.getElementById('regel-' + art + '-neu');
+  var k = _postfachZuSchluessel(feld.value);
+  if (!k) { showMsg('regel-save-result', 'Kein aktiviertes Postfach mit dieser Adresse.', false); return; }
+  var andere = art === 'immer' ? 'nie' : 'immer';
+  if (_regelArbeit[art].indexOf(k) < 0) _regelArbeit[art].push(k);
+  var i = _regelArbeit[andere].indexOf(k);
+  if (i >= 0) _regelArbeit[andere].splice(i, 1);    // ein Postfach steht nur in einer Liste
+  feld.value = '';
+  _regelZeichnen();
+}
+
+function _regelVorschauBald() {
+  clearTimeout(_regelTakt);
+  _regelTakt = setTimeout(_regelVorschau, 400);
+}
+
+async function _regelVorschau() {
+  if (!_regelArbeit) return;
+  var lauf = ++_regelLauf;
+  var zahl = document.getElementById('regel-vorschau-zahl');
+  laeuftZeigen(zahl, 'rechnet …');
+  var d = await postJSON('/api/gruppen/dynamisch/vorschau', {
+    name: _regelName, definition: _regelArbeit, filter: feldWert('regel-filter')});
+  if (lauf !== _regelLauf || !_regelArbeit) return;      // inzwischen weitergetippt
+  laeuftZeigen(zahl, null);
+  var liste = document.getElementById('regel-vorschau-liste');
+  liste.innerHTML = '';
+  if (!d.ok) { showMsg(zahl, 'Regel noch unvollständig: ' + errText(d), false); return; }
+  var st = d.schnappschuss || {};
+  document.getElementById('regel-stand').textContent = 'Entra-Stand: ' +
+    (st.stand ? _zeit(st.stand) : 'noch nicht eingelesen — Entra-Felder gelten als leer');
+  var text = d.anzahl + ' Mitglied' + (d.anzahl === 1 ? '' : 'er') + ' · +' + d.neu + ' neu, −' + d.weg +
+             ' fallen raus (gegenüber dem gespeicherten Stand)';
+  if (d.ausgeschlossen) text += ' · ' + d.ausgeschlossen + ' durch „nie dabei“ ausgeschlossen';
+  if (d.gefiltert < d.anzahl) text += ' · ' + d.gefiltert + ' passen zum Filter';
+  if (d.mitglieder.length < d.gefiltert) text += ' · die ersten ' + d.mitglieder.length + ' gezeigt';
+  showMsg(zahl, text, true);
+  d.mitglieder.forEach(function (m) {
+    var det = document.createElement('details');
+    det.className = 'regel-mitglied';
+    var sum = document.createElement('summary');
+    sum.textContent = (m.name ? m.name + ' <' + m.adresse + '>' : m.adresse) +
+                      (m.entra ? '' : ' (ohne Entra-Eintrag)') + ' — Warum?';
+    if (m.neu) {
+      var marke = document.createElement('span');
+      marke.className = 'regel-marke'; marke.textContent = 'neu';
+      sum.appendChild(marke);
+    }
+    det.appendChild(sum);
+    var ul = document.createElement('ul');
+    (m.warum.length ? m.warum : ['—']).forEach(function (g) {
+      var li = document.createElement('li'); li.textContent = g; ul.appendChild(li);
+    });
+    det.appendChild(ul);
+    liste.appendChild(det);
+  });
+  if (d.weg_liste && d.weg_liste.length) {
+    var raus = document.createElement('details');
+    raus.className = 'regel-mitglied';
+    var rs = document.createElement('summary');
+    rs.textContent = 'Fallen raus (' + d.weg + ')';
+    raus.appendChild(rs);
+    var rl = document.createElement('ul');
+    d.weg_liste.forEach(function (a) { var li = document.createElement('li'); li.textContent = a; rl.appendChild(li); });
+    raus.appendChild(rl);
+    liste.appendChild(raus);
+  }
+}
+
+async function regelEinlesen() {
+  var d = await knopfAktion('regel-einlesen-btn', 'liest ein …', function () {
+    return postJSON('/api/gruppen/dynamisch/einlesen', {});
+  }, {anzeige: 'regel-einlesen-ergebnis'});
+  showMsg('regel-einlesen-ergebnis', d.ok ? '✓ eingelesen' : '✗ ' + errText(d), !!d.ok);
+  if (d.ok && d.status) { _dynStatus = d.status; _dynStatusZeigen(); }
+  _regelVorschau();
+}
+
+async function saveRegelModal() {
+  if (!_regelName || !_regelArbeit) return;
+  var name = _regelName;
+  var vorher = _dynGroups[name];
+  _dynGroups[name] = JSON.parse(JSON.stringify(_regelArbeit));
+  _renderGroupsTable();
+  var ok = await knopfAktion('regel-speichern-btn', '', saveGroups);
+  if (ok) { closeRegelModal(); return; }
+  _dynGroups[name] = vorher;                           // Puffer zurück — nichts halb übernehmen
+  _renderGroupsTable();
+  showMsg('regel-save-result', '✗ ' + _gruppenFehler, false);
 }
 
 // ── Benutzerdefinierte Richtlinien ───────────────────────────────────────────

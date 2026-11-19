@@ -173,7 +173,12 @@ async def addin_compose(request: Request):
     # no-store: the taskpane is loaded in Outlook's WebView, which otherwise
     # caches it aggressively — an updated add-in never reaches the user until
     # they clear the Office web cache. Always serve fresh.
-    resp = templates.TemplateResponse(request=request, name="addin_compose.html", context={})
+    # Stille Anmeldung (seit v1.12.97) wie im Aufgabenbereich /self: dieselben
+    # Angaben aus derselben Quelle, derselbe Baustein, derselbe Tausch-Endpunkt.
+    # Das Exchange-Identitätstoken trägt hier ohnehin KNOPF_FORM_PFAD als `aud`.
+    from webui.routen.addin_verfassen import naa_seitenangaben
+    resp = templates.TemplateResponse(request=request, name="addin_compose.html",
+                                      context=naa_seitenangaben())
     resp.headers["Cache-Control"] = _NO_STORE
     return resp
 

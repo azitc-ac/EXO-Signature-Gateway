@@ -85,7 +85,8 @@ async def api_get_internal_groups(_=Depends(_require_admin)):
 
 
 @router.post("/api/settings/internal-groups/save")
-async def api_save_internal_groups(request: Request, _=Depends(_require_admin)):
+async def api_save_internal_groups(request: Request, user=Depends(_require_admin)):
+    import dynamische_gruppen as _dg
     data = await request.json()
     groups = data.get("groups")
     if not isinstance(groups, dict):
@@ -94,7 +95,28 @@ async def api_save_internal_groups(request: Request, _=Depends(_require_admin)):
     # entstehen bei jedem Zugriff neu. Ihre Variablen dürfen aber gespeichert werden.
     alle_namen = set(groups) | {gruppen.ALLE}
     groups = gruppen.nur_gespeicherte(groups)
-    aenderung: dict = {"INTERNAL_GROUPS": groups}
+    # Dynamische Gruppen: Definition je Name prüfen (400 bei unbekanntem Feld/
+    # Vergleich, Tiefe > 2 …). Fehlt „dynamic“ ganz, bleiben die bisherigen
+    # Definitionen der weiter bestehenden Gruppen — ein älterer Aufrufer löscht
+    # so keine Regel.
+    dyn_roh = data.get("dynamic")
+    if dyn_roh is None:
+        dyn_roh = {n: d for n, d in (settings_store.get("DYNAMIC_GROUPS") or {}).items()
+                   if n in groups}
+    if not isinstance(dyn_roh, dict):
+        raise HTTPException(400, "dynamic must be a dict")
+    dyn: dict = {}
+    for name, definition in dyn_roh.items():
+        if name not in groups:
+            continue                     # verwaist oder „Alle Postfächer“ — nicht dynamisch
+        try:
+            dyn[name] = _dg.definition_pruefen(definition)
+        except _dg.RegelFehler as exc:
+            raise HTTPException(400, f"Gruppe „{name}“: {exc}")
+    for name in dyn:
+        groups[name] = []                # Mitglieder werden berechnet; Eintrag hält die Reihenfolge
+    vorher = settings_store.get("DYNAMIC_GROUPS") or {}
+    aenderung: dict = {"INTERNAL_GROUPS": groups, "DYNAMIC_GROUPS": dyn}
     # Gruppen-Variablen (optional) im selben Speichervorgang: {Gruppe: {var: wert}}.
     # Nur Gruppen behalten, die es auch gibt — sonst bleiben Werte verwaister
     # Gruppen ewig liegen.
@@ -103,8 +125,45 @@ async def api_save_internal_groups(request: Request, _=Depends(_require_admin)):
         bereinigt = {g: v for g, v in group_vars.items()
                      if g in alle_namen and isinstance(v, dict) and v}
         aenderung["GROUP_VARS"] = bereinigt
+    if dyn != vorher:
+        wer = user if isinstance(user, str) else "Verwaltung"
+        _dg.grund_vormerken(f"Regel gespeichert von {wer}")
     settings_store.update(aenderung)
+    # Gleich neu rechnen: Änderungen der Mitglieder stehen sofort im Audit, mit
+    # dem Grund von oben — nicht erst bei der nächsten Mail.
+    gruppen.interne_gruppen()
     return JSONResponse({"ok": True})
+
+
+@router.get("/api/gruppen/dynamisch")
+async def api_dynamische_gruppen(_=Depends(_require_admin)):
+    """Definitionen der dynamischen Gruppen und Stand des Entra-Schnappschusses."""
+    import dynamische_gruppen as _dg
+    namen = gruppen.dynamische_namen()
+    dyn = settings_store.get("DYNAMIC_GROUPS") or {}
+    return JSONResponse({"ok": True, "definitionen": {n: dyn[n] for n in namen},
+                         "status": _dg.status()})
+
+
+@router.post("/api/gruppen/dynamisch/vorschau")
+async def api_dynamische_vorschau(request: Request, _=Depends(_require_admin)):
+    """Noch nicht gespeicherte Regel gegen den Schnappschuss auswerten — ändert nichts."""
+    import dynamische_gruppen as _dg
+    data = await request.json()
+    if not isinstance(data, dict):
+        raise HTTPException(400, "Objekt erwartet")
+    try:
+        return JSONResponse(_dg.vorschau(str(data.get("name") or ""), data.get("definition"),
+                                         str(data.get("filter") or "")))
+    except _dg.RegelFehler as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.post("/api/gruppen/dynamisch/einlesen")
+async def api_dynamische_einlesen(user=Depends(_require_admin)):
+    """Knopf „Entra neu einlesen“. Scheitert der Abruf, bleibt der alte Stand."""
+    import dynamische_gruppen as _dg
+    return JSONResponse(await _dg.einlesen(user if isinstance(user, str) else "Verwaltung"))
 
 
 @router.get("/api/settings/custom-policies")
