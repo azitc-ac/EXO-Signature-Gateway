@@ -967,6 +967,25 @@ def _ews_gruppe() -> dict:
     return _punkt(name, OFFEN, f"Gruppe {gruppe}: " + "; ".join(teile) + ".", weg)
 
 
+def _ews_kontowechsel() -> dict:
+    """Wartet ein neu angelegtes EWS-Dienstkonto auf die Exchange-Befehle und
+    „Prüfen“ (ews_bereich.ausstehend)? Seit v1.12.96 wird es erst nach
+    bestandener Prüfung wirksam — bis dahin ist der Wechsel offen. Nur lokal."""
+    import ews_bereich
+    name = "Kein Wechsel des EWS-Dienstkontos offen"
+    neu = ews_bereich.ausstehend()
+    if not neu:
+        return _punkt(name, ENTFAELLT if not ews_bereich.eingerichtet() else OK,
+                      "Kein neues Dienstkonto ausstehend.")
+    alt = ews_bereich.wirksames_konto() or "—"
+    return _punkt(name, OFFEN,
+                  f"Neues Dienstkonto {neu} wartet auf die Exchange-Befehle und „Prüfen“ — bis "
+                  f"dahin arbeitet das Gateway mit {alt}.",
+                  "Einstellungen → Exchange lokal (EWS) → Zugriffsbereich: Scope und "
+                  "Rollenzuweisung in der Exchange-Verwaltungsshell ausführen, danach „Prüfen“ — "
+                  "oder „Ausstehendes Konto verwerfen“.")
+
+
 def _waechter_code() -> dict:
     """Läuft auf jedem Azure-Wächter der Function-Code, den dieses Gateway
     mitbringt? Bis v1.11.63 wurde er nur beim Anlegen hochgeladen; ein Fix am
@@ -1030,7 +1049,7 @@ def _key_vault_zugriff() -> dict:
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _regel_auto_ausnahme, _implicit_anmeldung,
-              _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
+              _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _ews_kontowechsel, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
               _smime_regeln_stand,

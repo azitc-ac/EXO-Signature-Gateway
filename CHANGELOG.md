@@ -5,6 +5,42 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.96 — 2026-11-19 — EWS-Dienstkonto: neues Konto erst nach bestandener Prüfung wirksam
+
+Legte *Exchange lokal (EWS) → Zugriffsbereich → AD-Teil einrichten* ein **neues**
+Dienstkonto an, ersetzte das Gateway sofort Konto und Kennwort der EWS-Anbindung —
+bevor Scope und Rollenzuweisung in der Exchange-Verwaltungsshell bestanden. Bis
+dahin hat das neue Konto keine *ApplicationImpersonation*; EWS fiel damit für
+**alle** Hybrid-Nutzer aus (Abwesenheit, Zertifikatsbezug, OWA-Signatur,
+Add-in-Bezug), auch für die, die mit dem bisherigen Konto liefen.
+
+Jetzt gilt:
+
+* Gibt es schon ein Dienstkonto, bleibt das neue **ausstehend**. Das Gateway
+  arbeitet mit dem bisherigen weiter; die Karte zeigt „Neues Dienstkonto … wartet
+  auf die Exchange-Befehle und ‚Prüfen‘ — bis dahin arbeitet das Gateway mit …“,
+  und unter den offenen Aufgaben steht *Neues EWS-Dienstkonto prüfen oder verwerfen*.
+* **Prüfen** testet mit den Zugangsdaten des neuen Kontos — Delegation an der
+  Gruppe und eine EWS-Probe auf ein Mitglied. Erst wenn jeder Punkt besteht, wird
+  das neue Konto wirksam (Eintrag im Audit: „Dienstkonto gewechselt von … auf …“),
+  und die Hybrid-Nutzer werden neu geprüft. Scheitert ein Punkt, bleibt das
+  bisherige Konto, und der Punkt *Kontowechsel* nennt den Grund. Eine gescheiterte
+  Probe mit dem neuen Konto löst keine Ausfallsperre für das bisherige aus.
+* **Ausstehendes Konto verwerfen** löscht die Zugangsdaten des neuen Kontos; das
+  Konto im AD bleibt bestehen — entferne es dort, wenn du es nicht brauchst.
+* Ohne bisheriges Konto (Ersteinrichtung) gilt das neue wie bisher sofort.
+* Das Gruppenpflegen per LDAPS nutzt während des Wechsels das neue Konto — ihm hat
+  die Einrichtung die Delegation an der Gruppe erteilt.
+
+Außerdem: Scheitert LDAPS an der TLS-Prüfung (etwa an einem selbstsignierten
+Zertifikat des Domänencontrollers), nennt die Meldung jetzt den Domänencontroller
+statt des Exchange-Zertifikats und verweist auf *Eigene CA*. Die Karte nennt diesen
+Schritt vor *AD-Teil einrichten*.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.95 — 2026-11-19 — Add-in-Aufgabenbereich meldet sich still an
 
 Der Knopf *Signatur & Abwesenheit* (ohne Abwesenheiten: *Signatur*) öffnet in

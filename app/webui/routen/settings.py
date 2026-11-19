@@ -478,9 +478,20 @@ async def api_ews_bereich_einrichten(request: Request, user: str = Depends(_requ
     admin_kennwort = ""                                   # nicht länger als nötig
     log.info("EWS-Bereich: Einrichtung durch %s — %s", user,
              "AD-Teil erledigt" if erg.get("ok") else erg.get("code"))
+    _nach_kontowechsel(erg)
     import aufgaben
     aufgaben.vergessen()
     return JSONResponse(erg)
+
+
+def _nach_kontowechsel(erg: dict) -> None:
+    """Wurde das Dienstkonto wirksam (Ersteinrichtung oder bestandene Prüfung),
+    gilt dasselbe wie beim Speichern der Anbindung über POST /settings: Hybrid-
+    Nutzer neu prüfen, statt ein „OK“ des alten Kontos stehen zu lassen. Hier,
+    im Event-Loop — ews_bereich läuft in einem Thread ohne Loop."""
+    if erg.get("zugang_gewechselt"):
+        import health_check
+        health_check.nach_ews_aenderung()
 
 
 @router.post("/api/ews-bereich/abgleichen")
@@ -497,6 +508,17 @@ async def api_ews_bereich_pruefen(user: str = Depends(_require_admin)):
     import asyncio
     import ews_bereich
     erg = await asyncio.to_thread(ews_bereich.pruefen, user)
+    _nach_kontowechsel(erg)
+    import aufgaben
+    aufgaben.vergessen()
+    return JSONResponse(erg)
+
+
+@router.post("/api/ews-bereich/verwerfen")
+async def api_ews_bereich_verwerfen(user: str = Depends(_require_admin)):
+    """„Ausstehendes Konto verwerfen“ — das bisherige Dienstkonto bleibt wirksam."""
+    import ews_bereich
+    erg = ews_bereich.verwerfen(user)
     import aufgaben
     aufgaben.vergessen()
     return JSONResponse(erg)

@@ -151,6 +151,10 @@ _AUSFALL_CODES = frozenset({"anmeldung", "tls", "verbindung", "ErrorServerBusy"}
 _ausfall_lock = threading.Lock()
 _ausfall: dict = {}              # {"bis", "seit", "code", "detail", "uebersprungen"}
 _sperre_umgehen = contextvars.ContextVar("ews_sperre_umgehen", default=False)
+# Zugangsdaten für EINE Probe (`verbindung_testen(zugang=…)`), ohne die
+# gespeicherten zu ändern — ews_bereich prüft so ein ausstehendes Dienstkonto,
+# bevor es wirksam wird. Gelesen nur von `_zugang()`.
+_zugang_probe = contextvars.ContextVar("ews_zugang_probe", default=None)
 
 
 def _konfig_marke() -> str:
@@ -177,6 +181,11 @@ def _ausfall_pruefen() -> None:
 
 
 def _ausfall_merken(exc: "EwsFehler") -> None:
+    if _zugang_probe.get() is not None:
+        # Probe mit fremden Zugangsdaten: Ihr Scheitern (etwa „anmeldung“ eines
+        # noch nicht berechtigten Kontos) darf die Anbindung mit dem GESPEICHERTEN
+        # Konto nicht sperren.
+        return
     with _ausfall_lock:
         neu = not _ausfall
         jetzt = time.monotonic()
@@ -190,6 +199,8 @@ def _ausfall_merken(exc: "EwsFehler") -> None:
 
 
 def _ausfall_vorbei() -> None:
+    if _zugang_probe.get() is not None:
+        return          # eine Probe mit anderen Zugangsdaten belegt nichts über die gespeicherten
     with _ausfall_lock:
         if not _ausfall:
             return
@@ -220,7 +231,17 @@ def _wert(key: str) -> str:
 def konfiguriert() -> bool:
     """URL, Konto und Kennwort gesetzt? Sonst ist die Anbindung aus — und
     niemand ruft dieses Modul auf."""
-    return bool(_wert(KEY_URL) and _wert(KEY_KONTO) and _wert(KEY_KENNWORT))
+    konto, kennwort = _zugang()
+    return bool(_wert(KEY_URL) and konto and kennwort)
+
+
+def _zugang() -> tuple[str, str]:
+    """(Konto, Kennwort) für die NTLM-Anmeldung — DIE eine Quelle: die
+    gespeicherten, oder während `verbindung_testen(zugang=…)` die übergebenen."""
+    probe = _zugang_probe.get()
+    if probe is not None:
+        return probe
+    return _wert(KEY_KONTO), _wert(KEY_KENNWORT)
 
 
 def url_pruefen(url: str) -> str:
@@ -842,19 +863,22 @@ def _sitzung_und_url():
     if ip and verbinden_pruefen(ip):
         raise EwsFehler("konfiguration", verbinden_pruefen(ip))
     sitzung, url = _tls_sitzung(url, ip, _wert(KEY_CA))
-    sitzung.auth = HttpNtlmAuth(_wert(KEY_KONTO), _wert(KEY_KENNWORT))
+    sitzung.auth = HttpNtlmAuth(*_zugang())
     return sitzung, url
 
 
-def _tls_hinweis() -> str:
-    """Zusatz zur TLS-Fehlermeldung: Ist eine eigene CA hinterlegt?"""
+def _tls_hinweis(zertifikat: str = "das Exchange-Zertifikat",
+                 hostname: str = "der EWS-Adresse") -> str:
+    """Zusatz zur TLS-Fehlermeldung: Ist eine eigene CA hinterlegt? Derselbe Text
+    für EWS und LDAPS (ews_bereich) — beide prüfen gegen denselben Kontext."""
     n = ca_hinterlegt()
     if n:
-        return (f" Eigenes CA-Zertifikat hinterlegt ({n}) — passt es zur CA, die das "
-                "Exchange-Zertifikat ausgestellt hat, und lautet das Zertifikat auf den "
-                "Hostnamen der EWS-Adresse?")
-    return (" Kein eigenes CA-Zertifikat hinterlegt — stammt das Exchange-Zertifikat von "
-            "einer internen CA, trage deren Zertifikat unter „Eigene CA“ ein.")
+        return (f" Eigenes CA-Zertifikat hinterlegt ({n}) — passt es zur CA, die "
+                f"{zertifikat} ausgestellt hat, und lautet das Zertifikat auf den "
+                f"Hostnamen {hostname}?")
+    return (f" Kein eigenes CA-Zertifikat hinterlegt — ist {zertifikat} selbstsigniert "
+            "oder von einer internen CA, trage das Zertifikat bzw. das der CA unter "
+            "„Eigene CA“ ein.")
 
 
 def _senden(ziel: str, umschlag: bytes) -> tuple[int, bytes]:
@@ -954,14 +978,19 @@ def kalender_lesen(adresse: str, von: datetime, bis: datetime) -> list[dict]:
                                         anfrage_kalender(ziel, von, bis)))
 
 
-def verbindung_testen(adresse: str, sperre_umgehen: bool = False) -> dict:
+def verbindung_testen(adresse: str, sperre_umgehen: bool = False,
+                      zugang: tuple[str, str] | None = None) -> dict:
     """Probe für den Knopf „Verbindung testen“ und die Gesundheitsprüfung:
     GetUserOofSettings auf `adresse`. {ok, code, detail, dauer}.
     `sperre_umgehen` (nur der Knopf): immer ein echter Aufruf, auch während der
     Ausfallsperre — sonst sähe der Betreiber nach der Behebung bis zu
-    AUSFALL_PAUSE_S lang weiter den alten Fehler."""
+    AUSFALL_PAUSE_S lang weiter den alten Fehler.
+    `zugang` (Konto, Kennwort): nur für diese Probe statt der gespeicherten —
+    ews_bereich.pruefen testet so ein ausstehendes Dienstkonto. Die
+    Ausfallsperre bleibt davon unberührt (`_ausfall_merken`)."""
     t0 = time.monotonic()
     marke = _sperre_umgehen.set(sperre_umgehen)
+    marke_zugang = _zugang_probe.set(tuple(zugang) if zugang else None)
     try:
         oof = oof_lesen(adresse)
     except EwsFehler as exc:
@@ -973,6 +1002,7 @@ def verbindung_testen(adresse: str, sperre_umgehen: bool = False) -> dict:
                 "dauer": round(time.monotonic() - t0, 2)}
     finally:
         _sperre_umgehen.reset(marke)
+        _zugang_probe.reset(marke_zugang)
     return {"ok": True, "code": "NoError",
             "detail": f"Abwesenheit lesbar (Zustand {oof['state']})",
             "dauer": round(time.monotonic() - t0, 2)}

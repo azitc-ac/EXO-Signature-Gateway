@@ -333,9 +333,10 @@ def test_admin_kennwort_nirgends(umgebung, caplog):
     assert v.angemeldet[0] == ("admin@firma.at", ADMIN_KW)        # benutzt — und dann nirgends
     assert _alles_durchsuchen(v, caplog, erg) == []
     # Das neue Dienstkonto-Kennwort liegt im Geheimnis-Schlüssel, nicht im Protokoll.
-    neu = settings_store.get("EWS_ONPREM_KENNWORT")
+    # Seit v1.12.96 zunächst AUSSTEHEND (es gibt ein bisheriges Konto).
+    neu = settings_store.get("EWS_BEREICH_NEU_KENNWORT")
     assert len(neu) >= 32 and neu == v.objekte[f"CN=svc-neu,{OU}"]["_kennwort"]
-    assert "EWS_ONPREM_KENNWORT" in settings_store.SECRET_KEYS
+    assert "EWS_BEREICH_NEU_KENNWORT" in settings_store.SECRET_KEYS
     assert neu not in caplog.text and neu not in json.dumps(erg)
 
 
@@ -474,3 +475,247 @@ def test_tls_kontext_auch_ohne_eigene_ca():
     import ews_onprem
     ctx = ews_onprem._tls_kontext("")
     assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.cert_store_stats()["x509_ca"] > 0
+
+
+# ── Kontowechsel: neues Dienstkonto erst nach bestandener Prüfung (v1.12.96) ──
+# Bis v1.12.94 ersetzte „AD-Teil einrichten“ mit neuem Konto sofort
+# EWS_ONPREM_KONTO/_KENNWORT — bevor Scope und Rollenzuweisung bestanden. EWS
+# fiel damit für ALLE Hybrid-Nutzer aus, auch für die, die mit dem alten Konto liefen.
+
+ALT_KONTO, ALT_KW = "svc-exo-gateway@firma.at", "dienst-testwert"
+NEU_KONTO = "svc-neu@firma.at"
+
+
+class FalscheEws:
+    """Exchange lokal als `_senden`: merkt, mit welchen Zugangsdaten jeder
+    Aufruf ging (ews_onprem._zugang), und antwortet je Konto."""
+
+    def __init__(self):
+        self.berechtigt = {ALT_KONTO}
+        self.abgewiesen: set[str] = set()         # NTLM lehnt ab (401)
+        self.aufrufe: list[tuple[str, str]] = []
+
+    def __call__(self, ziel, umschlag):
+        import ews_onprem
+        from test_ews_onprem import LAB_ANTWORT, LAB_VERWEIGERT
+        konto, kw = ews_onprem._zugang()
+        self.aufrufe.append((konto, kw))
+        if konto in self.abgewiesen:
+            return 401, b""
+        if konto in self.berechtigt:
+            return 200, LAB_ANTWORT.format(start="2026-11-01T00:00:00Z",
+                                           ende="2026-11-02T00:00:00Z").encode()
+        return 500, LAB_VERWEIGERT.encode()
+
+
+@pytest.fixture
+def ews(umgebung, monkeypatch):
+    import ews_onprem
+    fx = FalscheEws()
+    monkeypatch.setattr(ews_onprem, "_senden", fx)
+    return fx
+
+
+def _neu_einrichten(v):
+    erg = eb.einrichten({"konto_anlegen": True, "konto": "svc-neu"}, "admin@firma.at", ADMIN_KW, "admin")
+    assert erg["ok"], erg
+    return erg, v.objekte[f"CN=svc-neu,{OU}"]["_kennwort"]
+
+
+def _nicht_gewechselt(neu_kw):
+    assert settings_store.get("EWS_ONPREM_KONTO") == ALT_KONTO
+    assert settings_store.get("EWS_ONPREM_KENNWORT") == ALT_KW
+    assert settings_store.get("EWS_BEREICH_NEU_KONTO") == NEU_KONTO
+    assert settings_store.get("EWS_BEREICH_NEU_KENNWORT") == neu_kw
+
+
+def test_neues_konto_bleibt_ausstehend_altes_wirkt_weiter(umgebung, ews):
+    import ews_onprem
+    erg, neu_kw = _neu_einrichten(umgebung)
+    _nicht_gewechselt(neu_kw)
+    assert erg["konto_ausstehend"] == NEU_KONTO and erg["zugang_gewechselt"] is False
+    assert eb.ausstehend() == NEU_KONTO
+    # EWS läuft weiter mit dem ALTEN Konto — der eigentliche Befund aus dem Lab.
+    assert ews_onprem.verbindung_testen(MAX)["ok"]
+    assert ews.aufrufe[-1] == (ALT_KONTO, ALT_KW)
+    # Die Karte zeigt beide Namen — und nie ein Kennwort.
+    u = eb.uebersicht()
+    assert u["ausstehend"] == NEU_KONTO and u["wirksam"] == ALT_KONTO
+    assert neu_kw not in json.dumps(u) and ALT_KW not in json.dumps(u)
+    assert abnahme._ews_kontowechsel()["zustand"] == abnahme.OFFEN
+    aufgaben.vergessen()
+    assert any(a["kennung"] == "ews-kontowechsel" for a in aufgaben.offene())
+    audit = [e["action"] for e in settings_store.get("GATEWAY_AUDIT_LOG")]
+    assert "ews_bereich_konto_ausstehend" in audit
+
+
+def test_ersteinrichtung_ohne_altes_konto_sofort_wirksam(umgebung):
+    settings_store.update({"EWS_ONPREM_KONTO": "", "EWS_ONPREM_KENNWORT": ""})
+    erg, neu_kw = _neu_einrichten(umgebung)
+    assert erg["zugang_gewechselt"] is True and erg["konto_ausstehend"] == ""
+    assert settings_store.get("EWS_ONPREM_KONTO") == NEU_KONTO
+    assert settings_store.get("EWS_ONPREM_KENNWORT") == neu_kw
+    assert settings_store.get("EWS_BEREICH_NEU_KONTO") == ""
+    assert settings_store.get("EWS_BEREICH_NEU_KENNWORT") == ""
+    assert abnahme._ews_kontowechsel()["zustand"] == abnahme.OK
+
+
+def test_pruefen_mit_fehler_uebernimmt_nichts(umgebung, ews):
+    import ews_onprem
+    v = umgebung
+    _erg, neu_kw = _neu_einrichten(v)
+    eb.abgleichen("Test")                                   # MAX, ERIKA in die Gruppe (frisch)
+    # Exchange-Befehle noch nicht ausgeführt: das neue Konto wird abgelehnt.
+    v.angemeldet.clear()
+    erg = eb.pruefen("admin")
+    assert not erg["ok"] and not erg.get("zugang_gewechselt")
+    _nicht_gewechselt(neu_kw)
+    # Geprüft wurde MIT DEN NEUEN Zugangsdaten — LDAP und EWS.
+    assert v.angemeldet and all(a == (NEU_KONTO, neu_kw) for a in v.angemeldet)
+    assert ews.aufrufe == [(NEU_KONTO, neu_kw)]
+    wechsel = next(p for p in erg["punkte"] if p["name"] == "Kontowechsel")
+    assert wechsel["ok"] is False and ALT_KONTO in wechsel["detail"] and "EWS-Zugriff" in wechsel["detail"]
+    # Die gescheiterte Probe sperrt die Anbindung des alten Kontos nicht.
+    assert ews_onprem.ausfall_stand() == {}
+    assert ews_onprem.verbindung_testen(MAX)["ok"] and ews.aufrufe[-1] == (ALT_KONTO, ALT_KW)
+
+
+def test_abgewiesene_probe_sperrt_altes_konto_nicht(umgebung, ews):
+    """401 ist ein Ausfall-Code (sperrt die Anbindung AUSFALL_PAUSE_S lang). Kommt
+    er von der Probe mit dem NEUEN Konto, darf das alte nicht gesperrt werden."""
+    import ews_onprem
+    _erg, neu_kw = _neu_einrichten(umgebung)
+    ews.abgewiesen.add(NEU_KONTO)
+    t = ews_onprem.verbindung_testen(MAX, sperre_umgehen=True, zugang=(NEU_KONTO, neu_kw))
+    assert t["code"] == "anmeldung"
+    assert ews_onprem.ausfall_stand() == {}
+    # Ohne Sperre geht der nächste gewöhnliche Aufruf wirklich ans Netz — mit dem alten Konto.
+    assert ews_onprem.verbindung_testen(MAX)["ok"] and ews.aufrufe[-1] == (ALT_KONTO, ALT_KW)
+
+
+def test_pruefen_mit_fehlender_delegation_uebernimmt_nichts(umgebung, ews):
+    v = umgebung
+    _erg, neu_kw = _neu_einrichten(v)
+    eb.abgleichen("Test")
+    ews.berechtigt.add(NEU_KONTO)                           # EWS ginge …
+    v.objekte[GRUPPE_DN]["nTSecurityDescriptor"] = [_sd_start()]   # … Delegation fehlt
+    erg = eb.pruefen("admin")
+    assert not erg.get("zugang_gewechselt")
+    assert next(p for p in erg["punkte"] if p["name"] == "Delegation")["ok"] is False
+    _nicht_gewechselt(neu_kw)
+
+
+def test_pruefen_alles_ok_uebernimmt(umgebung, ews, caplog):
+    import ews_onprem
+    caplog.set_level(logging.DEBUG)
+    _erg, neu_kw = _neu_einrichten(umgebung)
+    eb.abgleichen("Test")
+    ews.berechtigt.add(NEU_KONTO)                           # Scope + Zuweisung ausgeführt
+    erg = eb.pruefen("admin")
+    assert erg["ok"] and erg["zugang_gewechselt"] is True, erg
+    assert settings_store.get("EWS_ONPREM_KONTO") == NEU_KONTO
+    assert settings_store.get("EWS_ONPREM_KENNWORT") == neu_kw
+    assert settings_store.get("EWS_BEREICH_NEU_KONTO") == ""
+    assert settings_store.get("EWS_BEREICH_NEU_KENNWORT") == ""
+    assert eb.ausstehend() == "" and eb.stand().get("ausstehend_seit") == ""
+    gewechselt = [e for e in settings_store.get("GATEWAY_AUDIT_LOG")
+                  if e["action"] == "ews_bereich_konto_gewechselt"]
+    assert len(gewechselt) == 1
+    assert f"von {ALT_KONTO} auf {NEU_KONTO}" in gewechselt[0]["detail"]
+    # Ab jetzt läuft EWS mit dem neuen Konto.
+    assert ews_onprem.verbindung_testen(MAX)["ok"] and ews.aufrufe[-1] == (NEU_KONTO, neu_kw)
+    # Das neue Kennwort steht in keinem Protokoll, keiner Antwort, keiner Übersicht.
+    assert neu_kw not in caplog.text
+    assert neu_kw not in json.dumps(erg, ensure_ascii=False)
+    assert neu_kw not in json.dumps(eb.uebersicht(), ensure_ascii=False)
+    assert neu_kw not in json.dumps(settings_store.get("GATEWAY_AUDIT_LOG"), ensure_ascii=False)
+    assert abnahme._ews_kontowechsel()["zustand"] == abnahme.OK
+
+
+def test_verwerfen_altes_bleibt(umgebung, ews):
+    v = umgebung
+    _erg, neu_kw = _neu_einrichten(v)
+    erg = eb.verwerfen("admin")
+    assert erg["ok"] and erg["konto"] == NEU_KONTO and "AD" in erg["hinweis"]
+    assert neu_kw not in json.dumps(erg)
+    assert settings_store.get("EWS_ONPREM_KONTO") == ALT_KONTO
+    assert settings_store.get("EWS_ONPREM_KENNWORT") == ALT_KW
+    assert settings_store.get("EWS_BEREICH_NEU_KONTO") == ""
+    assert settings_store.get("EWS_BEREICH_NEU_KENNWORT") == ""
+    assert f"CN=svc-neu,{OU}" in v.objekte                  # AD-Konto bleibt
+    assert "ews_bereich_konto_verworfen" in [e["action"] for e in settings_store.get("GATEWAY_AUDIT_LOG")]
+    # Auf der Platte bleibt nichts vom verworfenen Kennwort.
+    assert neu_kw not in settings_store.SETTINGS_FILE.read_text("utf-8")
+    assert not eb.verwerfen("admin")["ok"]                  # zweimal: nichts mehr da
+    # Danach prüft LDAP wieder mit dem alten Konto.
+    v.angemeldet.clear()
+    eb.pruefen("admin")
+    assert v.angemeldet[0] == (ALT_KONTO, ALT_KW)
+
+
+def test_neues_kennwort_geheim_und_nie_gerendert(umgebung):
+    from pathlib import Path
+    assert "EWS_BEREICH_NEU_KENNWORT" in settings_store.SECRET_KEYS
+    _neu_einrichten(umgebung)
+    assert settings_store.public_view()["EWS_BEREICH_NEU_KENNWORT"] == settings_store.MASK
+    seite = (Path(__file__).resolve().parent.parent / "app/webui/templates/settings.html").read_text("utf-8")
+    assert "EWS_BEREICH_NEU_KENNWORT" not in seite
+
+
+def test_ldaps_tls_fehler_nennt_eigene_ca(umgebung, monkeypatch, tmp_path):
+    """Echter TLS-Handshake gegen ein selbstsigniertes Zertifikat (wie im Lab):
+    ohne „Eigene CA“ scheitert er, und die Meldung sagt, was zu tun ist. Mit dem
+    Zertifikat unter „Eigene CA“ kommt TLS durch (danach scheitert nur noch LDAP,
+    weil hier kein LDAP-Server spricht)."""
+    import socket
+    import ssl
+    import threading
+    from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
+    from test_ews_onprem import _pem, _schluessel, _zert
+    k = _schluessel()
+    z = _zert("localhost", k, dns="localhost", grund=False)
+    (tmp_path / "c.pem").write_text(_pem(z))
+    (tmp_path / "k.pem").write_bytes(k.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(str(tmp_path / "c.pem"), str(tmp_path / "k.pem"))
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(5)
+
+    def lauf():
+        while True:
+            try:
+                c, _ = srv.accept()
+            except OSError:
+                return
+            try:
+                t = ctx.wrap_socket(c, server_side=True)
+                t.recv(10)
+                t.close()
+            except (OSError, ssl.SSLError):
+                c.close()
+
+    threading.Thread(target=lauf, daemon=True).start()
+    monkeypatch.setattr(eb, "_verbinden", lambda b, kw: eb.Verzeichnis(b, kw))
+    settings_store.update({"EWS_LDAP_SERVER": f"localhost:{srv.getsockname()[1]}", "EWS_ONPREM_CA": ""})
+    try:
+        with pytest.raises(eb.BereichFehler) as fehler:
+            eb._verbinden("a@firma.at", "x-kennwort")
+        assert fehler.value.code == "tls"
+        assert "Domänencontrollers" in fehler.value.detail and "„Eigene CA“" in fehler.value.detail
+        assert "Exchange" not in fehler.value.detail
+        settings_store.update({"EWS_ONPREM_CA": _pem(z)})
+        with pytest.raises(eb.BereichFehler) as fehler:
+            eb._verbinden("a@firma.at", "x-kennwort")
+        assert fehler.value.code != "tls"
+    finally:
+        srv.close()
+
+
+def test_karte_nennt_ca_schritt_und_ausstehendes_konto():
+    from pathlib import Path
+    seite = (Path(__file__).resolve().parent.parent / "app/webui/templates/settings.html").read_text("utf-8")
+    vor_einrichten = seite[seite.index('id="ews-bereich"'):seite.index('id="ews-bereich-einrichten-btn"')]
+    assert "„Eigene CA“" in vor_einrichten and "Domänencontrollers" in vor_einrichten
+    assert 'id="ews-bereich-verwerfen-btn"' in seite and "/api/ews-bereich/verwerfen" in seite
+    assert "wartet auf die Exchange-Befehle und „Prüfen“" in seite

@@ -286,6 +286,10 @@ DEFAULTS: dict = {
     "EWS_BEREICH_OU": "",        # Ablage für Dienstkonto und Gruppe; leer = CN=Users,<Basis>
     "EWS_BEREICH_GRUPPE": "",    # Name der Gruppe; leer = ews_bereich.GRUPPE_VORGABE
     "EWS_BEREICH_AUTO": False,   # Mitglieder automatisch pflegen (sonst nur messen)
+    # Neu angelegtes Dienstkonto, das erst nach bestandener Prüfung EWS_ONPREM_KONTO/
+    # _KENNWORT ersetzt (ews_bereich._zugang_schreiben). Leer = kein Wechsel offen.
+    "EWS_BEREICH_NEU_KONTO": "",
+    "EWS_BEREICH_NEU_KENNWORT": "",  # Geheimnis (SECRET_KEYS)
     "OWA_SIGNATUR_LOKAL": False,  # Signatur der Hybrid-Nutzer in OWA lokal schreiben (owa_signatur.py)
     # Parameter des on-prem-Koexistenz-Connectors (Hybrid). NUR zum erneuten
     # Erzeugen des Auf-/Abbau-Skripts (coexistence.py) — das Gateway führt on-prem
@@ -473,6 +477,7 @@ SECRET_KEYS = frozenset({
     "RELAY_TARGET_PW",            # {ziel_id: klartext} — SMTP-AUTH-Passwörter der Routing-Ziele
     "DIREKT_SMARTHOST_PW",        # SMTP-AUTH am Smarthost des Direktversands
     "EWS_ONPREM_KENNWORT",        # Dienstkonto der lokalen Exchange (EWS, NTLM)
+    "EWS_BEREICH_NEU_KENNWORT",   # ausstehendes Dienstkonto (ews_bereich), bis zur Prüfung
     "SMIME_KEY_PASSWORD",         # entschlüsselt die S/MIME-Privatschlüssel
     "SMTP_SUBMIT_CLIENT_SECRET",
     "SMTP_SUBMIT_PASSWORD",
