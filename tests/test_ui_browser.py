@@ -1113,6 +1113,7 @@ def test_self_antwort_signatur_als_reine_ansicht(browser, server):
     assert pg.is_visible("#p-min") and not pg.is_visible("#min-block")
     assert not pg.is_visible("#min-speichern")
     assert "Von deiner Organisation vorgegeben: Kurz" in pg.text_content("#min-org")
+    assert not pg.is_visible("#min-keine-hinweis")      # verweist auf eine Auswahl, die fehlt
     ctx.close()
 
 
