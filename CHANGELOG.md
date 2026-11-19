@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.111 — 2026-11-19 — Browser-Test der Postfach-Werkzeugleiste misst Zeilen richtig
+
+Nur Testgerüst, keine Änderung am Gateway: Der Test zur Werkzeugleiste der
+Postfachliste (v1.12.110) zählte verschiedene Oberkanten als Zeilenumbruch.
+Suchfeld und Knöpfe sind verschieden hoch und mittig ausgerichtet, ihre
+Oberkanten liegen deshalb 3 px auseinander, obwohl alles in einer Zeile steht.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.110 — 2026-11-19 — Postfächer: kompakte Werkzeugleiste, Festlegung als farbiger Gruppen-Chip; Signaturen: Richtlinienergebnis als eigene Seite
 
 ### Postfächer

@@ -1514,7 +1514,12 @@ def test_erste_postfachzeile_ohne_rollen_sichtbar(seite, breite, hoehe):
       const kinder = Array.from(leiste.children).filter(e => e.offsetParent !== null);
       return {oben: tr.getBoundingClientRect().top + scrollY,
               breit: document.documentElement.scrollWidth,
-              zeilen: new Set(kinder.map(e => Math.round(e.getBoundingClientRect().top))).size}; }""")
+              // Eine Zeile = jedes Element beginnt oberhalb der Unterkante des
+              // obersten. Gleiche Oberkante zu verlangen wäre falsch: Suchfeld
+              // und Knöpfe sind verschieden hoch und mittig ausgerichtet.
+              zeilen: (() => { const r = kinder.map(e => e.getBoundingClientRect());
+                               const unten = Math.min(...r.map(x => x.bottom));
+                               return r.some(x => x.top >= unten) ? 2 : 1; })()}; }""")
     assert r["oben"] < hoehe - 100, f"erste Postfachzeile erst bei {r['oben']:.0f} px"
     assert r["breit"] <= breite, f"waagerechte Rollleiste: {r['breit']} px"
     assert r["zeilen"] == 1, "Suche, Filter und Aktionen brechen um"
