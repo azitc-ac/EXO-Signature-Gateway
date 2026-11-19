@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.107 — 2026-11-19 — Vorschau: aufgeklappte unwirksame Vorlage nicht mehr abgeschnitten; „Antwort-Signatur“ einheitlich
+
+* **Vorschau (Richtlinienergebnis):** Die als unwirksam markierte, bearbeitete
+  Vorlage liegt in einem zugeklappten Bereich. Dort hatte die Vorschau beim
+  Laden die Höhe 0 gemessen und blieb nach dem Aufklappen bei 60 px stehen;
+  der Inhalt war abgeschnitten. Die Vorschau misst jetzt neu, sobald sie
+  sichtbar wird oder ihre Breite ändert. Das gilt für jede Signatur-Vorschau.
+* **Gruppen-Regeln:** Der Slot hieß dort „Minimalsignatur“, überall sonst
+  „Antwort-Signatur“. Jetzt heißt er überall „Antwort-Signatur“.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.106 — 2026-11-19 — Eigene Variablen auch für die schreibende Person (custom_u / custom_b)
 
 Eigene Variablen galten bisher nur für den Postfachinhaber. Schreibt jemand

@@ -43,4 +43,9 @@ function sigVorschau(box, html) {
     }
   };
   rahmen.addEventListener('load', () => { anpassen(); setTimeout(anpassen, 400); });
+  // Unsichtbar gefüllt (z. B. im geschlossenen <details>) misst scrollHeight 0
+  // und der Rahmen blieb bei 60 px, auch nach dem Aufklappen. Der Beobachter
+  // misst neu, sobald der Rahmen sichtbar wird oder seine Breite ändert; setzt
+  // anpassen() dieselbe Höhe, meldet er nichts mehr (keine Schleife).
+  if (typeof ResizeObserver === 'function') new ResizeObserver(anpassen).observe(rahmen);
 }
