@@ -479,6 +479,17 @@
     el('min-block').hidden = !w.min && istFest('min');
     if (istFest('sig')) el('sig-speichern').hidden = true;
     if (istFest('min')) el('min-speichern').hidden = true;
+    // Weder wählbar noch festgeschrieben, aber eine Antwort-Signatur wirkt
+    // (Standard/Gruppe): Reiter als reine Ansicht — ohne Auswahl und Knopf,
+    // mit Hinweis. Bis v1.12.107 blieb der Reiter dann ganz verborgen, und
+    // niemand sah, welche Antwort-Signatur gilt.
+    var minNurAnsicht = !w.min && !istFest('min') && !!ctx.min_template;
+    if (minNurAnsicht) {
+      el('min-block').hidden = true;
+      el('min-speichern').hidden = true;
+      el('min-org').hidden = false;
+      el('min-org').textContent = 'Von deiner Organisation vorgegeben: ' + ctx.min_template;
+    }
     el('sig-fest').hidden = !!w.sig || istFest('sig');
     el('sig-auch-oof').hidden = !ctx.oof_mit_signatur;
     el('abw-mit-sig').hidden = !ctx.oof_mit_signatur;
@@ -489,8 +500,11 @@
     // sonst nichts übrig, zeigt der Signatur-Reiter die zugewiesene zur Ansicht.
     var sichtbar = { abw: ctx.abwesenheit_aktiv !== false,
                      sig: !!w.sig || istFest('sig'),
-                     min: !!w.min || istFest('min') };
-    if (!sichtbar.abw && !sichtbar.min) sichtbar.sig = true;
+                     min: !!w.min || istFest('min') || minNurAnsicht };
+    // Ohne Abwesenheit und ohne wählbare Antwort-Signatur zeigt der Signatur-
+    // Reiter die zugewiesene zur Ansicht (eine reine Ansicht der Antwort zählt
+    // dafür nicht).
+    if (!sichtbar.abw && !w.min && !istFest('min')) sichtbar.sig = true;
     REITER.forEach(function (r) { el('r-' + r).hidden = !sichtbar[r]; });
     var anzahl = REITER.filter(function (r) { return sichtbar[r]; }).length;
     el('reiter-leiste').hidden = anzahl < 2;

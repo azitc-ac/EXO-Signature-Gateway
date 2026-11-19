@@ -765,3 +765,13 @@ def test_aufgabe_ruhend_offen_bis_geklaert(monkeypatch):
     a = next(x for x in aufgaben.AUFGABEN if x.kennung == "richtlinien-ruhend")
     assert a.pruefung is abnahme._richtlinien_ruhend and a.seit == "1.12.99"
     assert a.link == "/mailboxes#ruhend"
+
+
+def test_self_service_kontext_nennt_die_wirksame_antwort_signatur(monkeypatch):
+    """Für den Reiter „Antwort-Signatur“ als reine Ansicht (weder wählbar noch
+    fest): der Server liefert die wirksame Vorlage — dieselbe wie aufloesen."""
+    sv, _d, _g = _self_umgebung(monkeypatch)
+    monkeypatch.setattr(sv.abwesenheit, "fuer_postfach", lambda e: False)
+    import json
+    daten = json.loads(asyncio.run(sv.self_context(email="a@firma.at")).body)
+    assert daten["min_template"] == "EigenKurz" == sv._policies.aufloesen("a@firma.at")["min"]

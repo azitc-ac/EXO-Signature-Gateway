@@ -1101,6 +1101,29 @@ def test_self_nur_ein_reiter_ohne_leiste(browser, server):
     ctx.close()
 
 
+def test_self_antwort_signatur_als_reine_ansicht(browser, server):
+    """Weder wählbar noch festgeschrieben, aber eine Antwort-Signatur wirkt:
+    Reiter als Ansicht (Entscheidung 19.11.2026) — ohne Auswahl und Knopf, mit
+    Hinweis. Bis v1.12.107 blieb er verborgen."""
+    gesendet = []
+    k = _self_kontext(waehlbar={"sig": True, "min": False, "oof": False}, min_template="Kurz")
+    ctx, pg = _self_seite(browser, server, k, 393, gesendet)
+    assert pg.is_visible("#r-min")
+    pg.click("#r-min")
+    assert pg.is_visible("#p-min") and not pg.is_visible("#min-block")
+    assert not pg.is_visible("#min-speichern")
+    assert "Von deiner Organisation vorgegeben: Kurz" in pg.text_content("#min-org")
+    ctx.close()
+
+
+def test_self_ohne_antwort_signatur_kein_ansichts_reiter(browser, server):
+    gesendet = []
+    k = _self_kontext(waehlbar={"sig": True, "min": False, "oof": False}, min_template="")
+    ctx, pg = _self_seite(browser, server, k, 393, gesendet)
+    assert not pg.is_visible("#r-min")
+    ctx.close()
+
+
 # ── Self-Service im Aufgabenbereich des Add-ins ──────────────────────────────
 #
 # Anlass (13.10.2026): Der Lese-Knopf öffnete /self?et= im Aufgabenbereich von
