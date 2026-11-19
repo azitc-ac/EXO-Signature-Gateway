@@ -108,6 +108,12 @@ def signatur_zu_gross(html: str) -> int:
     return n if n > OUTLOOK_SIGNATUR_MAX else 0
 
 
+def mailbox_match_eintrag(email: str) -> dict:
+    """Roher MAILBOX_CONFIG-Eintrag des Postfachs ({} = nicht betreut)."""
+    import mailbox_match
+    return mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, email) or {}
+
+
 def _addin_cfg(email: str) -> dict:
     """Wirksame Add-in-Sicht eines Postfachs — EINE Quelle für beide Endpunkte.
 
@@ -998,7 +1004,11 @@ async def api_addin_signature(request: Request, email: str, template: str = "",
     _lokal_gesehen(email, "knopf")
 
     import mail_processor
+    import policies
     mailbox_cfg = _addin_cfg(email)
+    if policies.ohne_signatur(mailbox_match_eintrag(email)):
+        # Nur S/MIME: auch der Knopf fügt nichts ein (policies.ohne_signatur).
+        return JSONResponse({"marked_html": "", "preview_html": "", "ohne_signatur": True})
     default_template = mailbox_cfg["template"]
 
     # Use requested template only if it's in the user's allowed set
@@ -1053,6 +1063,9 @@ async def api_addin_templates(request: Request, email: str,
                               user: str = Depends(_require_self)):
     """Return list of templates available for this user in the add-in."""
     email = _addin_postfach(request, email, user)
+    import policies
+    if policies.ohne_signatur(mailbox_match_eintrag(email)):
+        return JSONResponse({"templates": [], "default": "", "ohne_signatur": True})
     mailbox_cfg = _addin_cfg(email)
     allowed = _addin_allowed_templates(email, mailbox_cfg)
     default_template = mailbox_cfg["template"]

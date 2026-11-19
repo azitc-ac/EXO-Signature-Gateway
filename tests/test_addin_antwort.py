@@ -119,8 +119,13 @@ def test_gateway_und_addin_teilen_eine_regel():
     assert policies.antwort_vorlage(v, True) == "Kurz"
     assert policies.antwort_vorlage({"sig": "Voll", "min": ""}, True) == ""
     from pathlib import Path
-    quelle = (Path(__file__).resolve().parents[1] / "app/handler.py").read_text("utf-8")
-    assert "antwort_vorlage(_vorlagen, True)" in quelle
+    # Seit v1.12.103 entscheidet der handler über policies.entscheiden, das die
+    # Antwort-Signatur über vorlage_waehlen → antwort_vorlage bestimmt.
+    wurzel = Path(__file__).resolve().parents[1]
+    assert "_policies_mod.entscheiden(" in (wurzel / "app/handler.py").read_text("utf-8")
+    pol = (wurzel / "app/policies.py").read_text("utf-8")
+    assert "vorlage, art = vorlage_waehlen(vorlagen, in_kette, alle_intern)" in pol
+    assert 'return antwort_vorlage(vorlagen, True), "antwort"' in pol
 
 
 @pytest.mark.parametrize("block, erwartet", [

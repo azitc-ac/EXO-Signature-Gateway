@@ -38,7 +38,7 @@ def client(monkeypatch, tmp_path):
 
     def gefaelscht(schluessel, *a, **kw):
         if schluessel == "MAILBOX_CONFIG":
-            return {"info@example.org": {"use_policy": False, "banner_template": "Werbung"}}
+            return {"info@example.org": {"sig": True, "banner_template": "Werbung"}}
         if schluessel in ("TEMPLATE_POLICIES", "INTERNAL_GROUPS"):
             return {}
         if schluessel in ("CUSTOM_POLICIES", "BANNER_CAMPAIGNS"):

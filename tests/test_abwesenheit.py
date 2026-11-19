@@ -191,7 +191,7 @@ def test_oof_anhang_signatur_und_banner(monkeypatch):
     def fake_render(u, template_name=None, extra=None):
         return (f"<sig:{template_name}>", f"sig:{template_name}")
     monkeypatch.setattr(signature_engine, "render", fake_render)
-    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"use_policy": True})
+    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"sig": True})
     assert "<sig:Sig>" in h and "<sig:Ban>" in h
     assert "Disc" not in h          # ohne OOO_APPEND_DISCLAIMER kein Disclaimer
 
@@ -205,11 +205,11 @@ def test_oof_anhang_disclaimer_nach_banner(monkeypatch):
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
     monkeypatch.setattr(signature_engine, "render",
                         lambda u, template_name=None, extra=None: (f"<{template_name}>", template_name))
-    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"use_policy": True})
+    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"sig": True})
     assert h == "<Sig><Ban><Disc>"
     assert t == "Sig\nBan\nDisc"
     store.update(OOO_APPEND_SIGNATURE=False, OOO_APPEND_BANNER=False)
-    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"use_policy": True})
+    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"sig": True})
     assert h == "<Disc>"
 
 
@@ -217,7 +217,7 @@ def test_oof_anhang_aus_wenn_schalter_aus(monkeypatch):
     store = {"OOO_APPEND_SIGNATURE": False, "OOO_APPEND_BANNER": False,
              "TEMPLATE_POLICIES": {"sig": "Sig"}, "CUSTOM_POLICIES": [], "INTERNAL_GROUPS": {}}
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
-    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"use_policy": True})
+    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"sig": True})
     assert h == "" and t == ""
 
 
@@ -931,7 +931,7 @@ def test_render_intern_extern_haengt_signatur_und_banner_selbst_an(tmp_path, mon
     import asyncio
     _anhang_umgebung(tmp_path, monkeypatch)
     html, extern = asyncio.run(abwesenheit.render_intern_extern(
-        UserData(displayName="E", custom={}), "a@x.de", "", "K", {"use_policy": True}, {}, ""))
+        UserData(displayName="E", custom={}), "a@x.de", "", "K", {"sig": True}, {}, ""))
     assert html == "<p>OOF</p><p>Sig</p><p>Ban</p>" and extern == html
 
 
@@ -939,7 +939,7 @@ def test_render_intern_extern_ohne_anhang_nur_fuer_vorschau(tmp_path, monkeypatc
     import asyncio
     _anhang_umgebung(tmp_path, monkeypatch)
     html, _ = asyncio.run(abwesenheit.render_intern_extern(
-        UserData(displayName="E", custom={}), "a@x.de", "", "K", {"use_policy": True}, {}, "",
+        UserData(displayName="E", custom={}), "a@x.de", "", "K", {"sig": True}, {}, "",
         mit_anhang=False))
     assert html == "<p>OOF</p>"
 

@@ -300,59 +300,69 @@ async def self_context(email: str = Depends(_require_self)):
 _datum_zeit = abwesenheit.datum_zeit   # EINE Quelle in abwesenheit.py
 
 
-async def _banner_disclaimer_html(email: str) -> tuple[str, str]:
-    """(banner_html, disclaimer_html), die das Postfach TATSÄCHLICH bekäme — wie im
-    Betrieb aufgelöst (Richtlinie bzw. Postfach-eigene Felder, eine laufende
-    Banner-Kampagne geht vor). Nicht nutzerwählbar; gehört aber in die Vorschau,
-    damit sie vollständig ist."""
-    import banner_campaigns
-    v = _policies.aufloesen(email)
-    banner = banner_campaigns.banner_fuer(email, v["banner"])
-    disclaimer = v["disclaimer"]
-    if not banner and not disclaimer:
-        return "", ""
-    user_data = await graph_client.get_user(email)
-    b = signature_engine.render(user_data, template_name=banner)[0] if banner else ""
-    d = signature_engine.render(user_data, template_name=disclaimer)[0] if disclaimer else ""
-    return b, d
-
-
 @router.get("/api/self/preview")
-async def self_preview(oof: str = "", sig: str = "", min: str = "",
+async def self_preview(oof: str | None = None, sig: str | None = None, min: str | None = None,
                        status: str = "scheduled",
                        start: str = "", ende: str = "",
                        start_zeit: str = "", ende_zeit: str = "",
                        ank_an: str = "1", ank_mode: str = "anzahl", ank_x: str = "3",
                        ank_privat: str = "1", ank_extern: str = "0",
                        email: str = Depends(_require_self)):
-    """Korrekte, VOLLSTÄNDIGE Vorschau fürs eigene Postfach: OOF (über der Signatur)
-    + Signatur + Banner + Disclaimer (wie die echte Mail). Die ank_*-Parameter
-    spiegeln die noch ungespeicherten Ankündigungs-Einstellungen in die Vorschau."""
+    """Korrekte, VOLLSTÄNDIGE Vorschau fürs eigene Postfach — mit den noch
+    ungespeicherten Auswahlen.
+
+    `sig`/`min`/`oof` sind die Werte der Auswahllisten (STANDARD = Standard,
+    "" = keine), so wie sie gespeichert würden; sie zählen nur für Slots, die
+    der Nutzer wählen darf (`_waehlbar`). Was daraus wird, entscheidet der
+    Server mit DERSELBEN Funktion wie der Mailweg (vorschau.zusammenstellen →
+    policies.entscheiden): `neu` (neue Mail) und `antwort` (Antwort in einer
+    Kette, in der das Postfach schon signiert hat) sind fertige Ergebnisse,
+    Banner und Disclaimer schon dort angehängt, wo der Mailweg sie anhängt.
+
+    Bis v1.12.102 rechnete die Seite die wirksame Vorlage selbst nach
+    (`wirksam()` in self.html): Ein Slot, den der Nutzer weder wählen durfte
+    noch festgeschrieben bekam, ergab "" — „Keine Antwort-Signatur“, obwohl
+    die Richtlinie eine lieferte —, und Banner und Disclaimer standen bei
+    Antworten immer bzw. nie darunter, statt nach KETTE_BEHAELT.
+
+    `sig_html`/`banner_html`/`disclaimer_html` sind die Teile unter der
+    Abwesenheitsnotiz (abwesenheit.oof_anhang_teile — ohne Kampagne, die Notiz
+    ist ein Schnappschuss); welche davon erscheinen, sagen OOO_APPEND_*
+    (ctx.oof_mit_*). Die ank_*-Parameter spiegeln die noch ungespeicherten
+    Ankündigungs-Einstellungen in die Vorschau."""
+    import vorschau
+    _key, cfg = _postfach(email)
+    wahl = {slot: wert for slot, wert in (("sig", sig), ("min", min), ("oof", oof))
+            if wert is not None}
+    _wahl_ins_eintrag(cfg, wahl, _waehlbar(email), signature_engine.templates_nach_art())
+    mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    oof_tpl = _policies.aufloesen(email, mailbox_cfg, cfg)["oof"]
     # Token (best effort), damit die Vorschau die Ankündigung mitzeigt, falls die
     # Vorlage sie nutzt. Ohne Token zeigt die Vorschau den Text ohne Ankündigung.
     token = await graph_client._acquire_token_async()
     announce = {"an": ank_an != "0", "mode": ank_mode, "x": ank_x,
                 "privat": ank_privat != "0", "extern": ank_extern == "1"}
-    # mit_anhang=False: Die Seite setzt Signatur, Banner und Disclaimer selbst
-    # darunter (self.html) — mit Anhang stünden sie doppelt.
+    # mit_anhang=False: Die Seite setzt die Teile unter der Notiz selbst darunter
+    # (self.html, nach ctx.oof_mit_*) — mit Anhang stünden sie doppelt.
     oof_html, _oof_extern, oof_txt = await _render_oof_fuer(
-        email, oof, status, start, ende, start_zeit, ende_zeit, token, announce,
+        email, oof_tpl, status, start, ende, start_zeit, ende_zeit, token, announce,
         mit_anhang=False)
-    sig_html, sig_txt = "", ""
-    min_html = ""
-    if sig or min:
-        user_data = await graph_client.get_user(email)
-        if sig:
-            sig_html, sig_txt = signature_engine.render(user_data, template_name=sig)
-        # Antwort-Signatur (ab der 2. eigenen Mail im Verlauf). Leer = keine: Dann
-        # hängt das Gateway dort gar nichts an, auch Banner und Disclaimer nicht
-        # (handler.py: suppress_html_sig) — die Seite zeigt das so.
-        if min:
-            min_html = signature_engine.render(user_data, template_name=min)[0]
-    banner_html, disclaimer_html = await _banner_disclaimer_html(email)
+    user_data = await graph_client.get_user(email)
+    oof_teile = abwesenheit.oof_anhang_teile(user_data, email, mailbox_cfg, cfg)
+    faelle = {}
+    for fall in ("neu", "antwort"):
+        erg = await vorschau.zusammenstellen(email, fall, sender_cfg=cfg)
+        faelle[fall] = {"html": erg["html"], "txt": erg["txt"],
+                        "signatur_unterdrueckt": erg["signatur_unterdrueckt"],
+                        "grund": erg["grund"], "grund_text": erg["grund_text"],
+                        "teile": [{k: t[k] for k in ("slot", "name", "vorlage", "quelle", "fest")}
+                                  for t in erg["teile"]]}
     return JSONResponse({"oof_html": oof_html, "oof_txt": oof_txt,
-                         "sig_html": sig_html, "sig_txt": sig_txt, "min_html": min_html,
-                         "banner_html": banner_html, "disclaimer_html": disclaimer_html})
+                         "sig_html": oof_teile.get("sig", ("", ""))[0],
+                         "sig_txt": oof_teile.get("sig", ("", ""))[1],
+                         "banner_html": oof_teile.get("banner", ("", ""))[0],
+                         "disclaimer_html": oof_teile.get("disclaimer", ("", ""))[0],
+                         **faelle})
 
 
 # ── Speichern ──────────────────────────────────────────────────────────────────

@@ -509,8 +509,12 @@ async def verfassen_signatur(request: Request):
             log.info("Verfassen-Add-in: Entwurf mit Von-Adresse %s, angemeldet ist %s (%s) — "
                      "%s ist nicht vom Gateway betreut, Signatur der angemeldeten Person",
                      "".join(z for z in von if z.isprintable()), email, plattform, von)
-    if not mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, ident):
+    _eintrag = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, ident)
+    if not _eintrag:
         log.info("Verfassen-Add-in: %s wird vom Gateway nicht betreut — nichts einzufügen", ident)
+        return JSONResponse({"html": ""}, headers=_CORS)
+    if policies.ohne_signatur(_eintrag):
+        log.info("Verfassen-Add-in: %s ist nur für S/MIME freigeschaltet — keine Signatur", ident)
         return JSONResponse({"html": ""}, headers=_CORS)
     _lokal_gesehen(email, "verfassen", _plattform(request))
     alle_intern = _intern.alle_intern(empfaenger)

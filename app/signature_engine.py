@@ -146,6 +146,16 @@ def _fuer_postfach(user, bearbeiter) -> bool:
         (getattr(user, "mail", "") or "").strip().lower()
 
 
+def text_anhaengen(sig_txt: str, teil: str) -> str:
+    """Textfassung eines Banners/Disclaimers unter die Signatur — durch eine
+    Leerzeile getrennt, wie die Blöcke im HTML untereinander stehen. EINE
+    Stelle für Mailweg (handler) und Vorschauen."""
+    teil = teil.strip("\n")
+    if not sig_txt.strip():
+        return teil + "\n"
+    return sig_txt.rstrip("\n") + "\n\n" + teil + "\n"
+
+
 def render_fehler(user: UserData, template_name: str | None = None,
                   extra: dict | None = None) -> str | None:
     """Warum die HTML-Vorlage nicht rendert — oder None, wenn sie es tut.

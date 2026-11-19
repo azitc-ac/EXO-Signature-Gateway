@@ -5,7 +5,7 @@
 ## Signaturen
 - **Live-Absenderdaten über Graph** — Anzeigename, Position, Abteilung, Telefon/Mobil, Büro, Firma, Website, Bookings-Link und eigene `extensionAttributes`, je Absender zum Sendezeitpunkt abgerufen.
 - **Volles HTML** über Jinja2-Vorlagen — ohne die Grenzen der EXO-Transportregeln.
-- **Signatur-Baukasten** — Signaturen aus Bausteinen zusammensetzen (Name, Kontaktzeilen, Logo, Trennlinie, Zwei-Spalten, Kasten mit runden Ecken, Social-Links, Anschrift, Badge, freies HTML) mit Live-Vorschau in der Weboberfläche.
+- **Signatur-Baukasten** — Signaturen aus Bausteinen zusammensetzen (Name, Kontaktzeilen, Logo, Trennlinie, Zwei-Spalten, Kasten mit runden Ecken, Social-Links, Anschrift, Badge, freies HTML) mit Vorschau (Richtlinienergebnis): was das gewählte Postfach wirklich bekommt, je Teil mit Herkunft (Standard, Gruppe, Postfach, Kampagne). Frei zusammenstellen lässt sich in der Was-wäre-wenn-Vorschau.
 - **HTML → Baukasten (Rück-Konvertierung)** — bestehendes Signatur-HTML wird in bearbeitbare Bausteine zerlegt: eine vorhandene Signatur übernehmen statt neu bauen.
 - **Eingebettete Logos** — hochgeladene Bilder werden als Base64-Data-URI eingebettet (kein externes Hotlinking; rendert in Outlook und offline). Optional mit Link: Ein Klick aufs Logo öffnet z. B. die Firmenwebseite.
 - **Banner & Disclaimer** — eigene Banner- und Disclaimer-Vorlagen, unabhängig von der Signatur zuweisbar. Sie kommen immer vom Gateway beim Versand, auch wenn die Signatur schon beim Verfassen eingefügt wurde.

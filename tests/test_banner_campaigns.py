@@ -288,7 +288,10 @@ def test_jede_bannerauflosung_geht_ueber_banner_fuer():
         text = p.read_text(encoding="utf-8")
         if "aufloesen(" not in text or p.name in _BANNER_OHNE_KAMPAGNE:
             continue
-        if re.search(r'\[\s*"banner"\s*\]', text) and "banner_fuer(" not in text:
+        # kampagne_fuer: dieselbe Auswahl mit Kampagnenname; entscheiden():
+        # policies.entscheiden geht selbst über kampagne_fuer (Mailweg, Vorschau).
+        if (re.search(r'\[\s*"banner"\s*\]', text)
+                and not any(w in text for w in ("banner_fuer(", "kampagne_fuer(", "entscheiden("))):
             funde.append(str(p.relative_to(app)))
     assert not funde, ("Banner aus policies.aufloesen() ohne banner_campaigns.banner_fuer — "
                        "eine laufende Kampagne fehlt dort:\n" + "\n".join(funde))

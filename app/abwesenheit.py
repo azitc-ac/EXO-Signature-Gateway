@@ -415,30 +415,38 @@ def _oof_anhang(user_data, sender: str, mailbox_cfg: dict, sender_cfg: dict) -> 
     blendet `data:`-Bilder aus. Bis v1.9.117 stand hier „Bilder per CID rendern
     meist nicht" — eine ungeprüfte Annahme, im Betrieb widerlegt.
     """
-    append_sig = settings_store.get("OOO_APPEND_SIGNATURE")
-    append_banner = settings_store.get("OOO_APPEND_BANNER")
-    append_disclaimer = settings_store.get("OOO_APPEND_DISCLAIMER")
-    if not append_sig and not append_banner and not append_disclaimer:
+    schalter = {"sig": settings_store.get("OOO_APPEND_SIGNATURE"),
+                "banner": settings_store.get("OOO_APPEND_BANNER"),
+                "disclaimer": settings_store.get("OOO_APPEND_DISCLAIMER")}
+    if not any(schalter.values()):
         return "", ""       # nichts anzuhängen — Richtlinien-Auflösung gar nicht nötig
-    parts_html: list[str] = []
-    parts_txt: list[str] = []
-    vorlagen = _policies.aufloesen(sender, mailbox_cfg, sender_cfg)
-    if append_sig:
-        sig_tpl = vorlagen["sig"]
-        h, t = signature_engine.render(user_data, template_name=sig_tpl)
-        if h.strip():
-            parts_html.append(h)
-        if t.strip():
-            parts_txt.append(t)
-    for schalter, slot in ((append_banner, "banner"), (append_disclaimer, "disclaimer")):
-        tpl = vorlagen[slot] if schalter else ""
-        if tpl:
-            h, t = signature_engine.render(user_data, template_name=tpl)
-            if h.strip():
-                parts_html.append(h)
-            if t.strip():
-                parts_txt.append(t)
+    teile = oof_anhang_teile(user_data, sender, mailbox_cfg, sender_cfg,
+                             [slot for slot, an in schalter.items() if an])
+    parts_html = [h for h, _t in teile.values() if h.strip()]
+    parts_txt = [t for _h, t in teile.values() if t.strip()]
     return "".join(parts_html), "\n".join(parts_txt)
+
+
+def oof_anhang_teile(user_data, sender: str, mailbox_cfg: dict | None, sender_cfg: dict | None,
+                     slots=("sig", "banner", "disclaimer")) -> dict[str, tuple[str, str]]:
+    """{slot: (html, txt)} der Teile, die unter eine Abwesenheitsnotiz gehören
+    können — in der Reihenfolge Signatur, Banner, Disclaimer. EINE Quelle für
+    `_oof_anhang` und die Vorschau der Self-Service-Seite. Ohne Kampagne: Die
+    Notiz ist ein Schnappschuss (tests/test_banner_campaigns.py,
+    _BANNER_OHNE_KAMPAGNE)."""
+    teile: dict[str, tuple[str, str]] = {}
+    if sender_cfg is None:
+        import mailbox_match
+        sender_cfg = mailbox_match.match_sender(
+            mailbox_cfg if mailbox_cfg is not None else (settings_store.get("MAILBOX_CONFIG") or {}),
+            sender) or {}
+    if _policies.ohne_signatur(sender_cfg):
+        return teile        # nur S/MIME: auch unter der Notiz nichts (policies.ohne_signatur)
+    vorlagen = _policies.aufloesen(sender, mailbox_cfg, sender_cfg)
+    for slot in ("sig", "banner", "disclaimer"):
+        if slot in slots and vorlagen[slot]:
+            teile[slot] = signature_engine.render(user_data, template_name=vorlagen[slot])
+    return teile
 
 
 # ── Kein Zugriff: Ursache und Dauer ───────────────────────────────────────────

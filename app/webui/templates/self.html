@@ -573,26 +573,29 @@
     liste.forEach(function (n) { s.appendChild(opt(n, n)); });
     s.value = aktuell;
   }
-  // Die WIRKSAME Vorlage eines Slots — für die Vorschau.
-  // Festgeschrieben? (ctx.fest, /api/self/context)
+  // Festgeschrieben? (ctx.fest, /api/self/context) — nur für die Anzeige.
+  // Welche Vorlage WIRKT, entscheidet der Server (/api/self/preview, dieselbe
+  // Entscheidung wie der Mailweg). Bis v1.12.102 rechnete die Seite das hier
+  // nach und lag daneben, wenn ein Slot weder wählbar noch fest war.
   function istFest(slot) {
     return !!ctx.fest && Object.prototype.hasOwnProperty.call(ctx.fest, slot);
   }
-  function wirksam(slot, fest) {
-    if (istFest(slot)) return ctx.fest[slot] || '';
-    if (!(ctx.waehlbar || {})[slot]) return fest || '';
-    var v = el(slot + '-sel').value;
-    return v === STANDARD ? ((ctx.standard || {})[slot] || '') : v;
-  }
+  // Ergebnis der letzten Vorschau (Fall „antwort“) — für die Meldung beim Speichern.
+  var letzteAntwort = null;
   function opt(v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; return o; }
 
   function statusWert() {
     var c = document.querySelector('input[name=status]:checked');
     return c ? c.value : 'disabled';
   }
-  // Vorlage: die Auswahl zählt nur, wenn freigeschaltet — sonst die zugewiesene.
-  function oofWahl() { return wirksam('oof', ctx.oof_template); }
-  function sigWahl() { return wirksam('sig', ctx.sig_template) || 'default'; }
+  // Die (ungespeicherte) Auswahl je Slot, so wie sie gespeichert würde — nur
+  // für Slots, die der Nutzer wählen darf; die übrigen kennt der Server.
+  function wahlParams(p) {
+    ['oof', 'sig', 'min'].forEach(function (slot) {
+      if ((ctx.waehlbar || {})[slot]) p[slot] = el(slot + '-sel').value;
+    });
+    return p;
+  }
   function zeitraumSichtbarkeit() {
     el('zeitraum-felder').hidden = (statusWert() !== 'scheduled');
   }
@@ -644,15 +647,13 @@
     pruefeZeitraum();
     clearTimeout(previewTimer);
     previewTimer = setTimeout(async function () {
-      var p = new URLSearchParams(ankParams(zeitParams({
-        oof: oofWahl(), sig: sigWahl(), min: wirksam('min', ''),
+      var p = new URLSearchParams(ankParams(zeitParams(wahlParams({
         status: statusWert(), start: el('von').value, ende: el('bis').value,
-      })));
+      }))));
       try {
         var r = await api('/api/self/preview?' + p.toString());
         if (!r.ok) return;
         var d = await r.json();
-        var anhang = (d.banner_html || '') + (d.disclaimer_html || '');
         // Abwesenheitsnotiz wie in Exchange: Signatur, Banner und Disclaimer
         // nur, wenn das Gateway sie anhängt (abwesenheit._oof_anhang).
         // Bis v1.9.161 hing die Vorschau immer alles an.
@@ -661,11 +662,22 @@
           + (ctx.oof_mit_banner ? (d.banner_html || '') : '')
           + (ctx.oof_mit_disclaimer ? (d.disclaimer_html || '') : '')
           || '<p class="keine-sig">— nichts ausgewählt —</p>';
-        el('sig-vorschau').innerHTML = (d.sig_html || '') + anhang;
-        // Ohne Antwort-Signatur hängt das Gateway gar nichts an — auch Banner
-        // und Disclaimer nicht (wie im Mailweg).
-        el('min-vorschau').innerHTML = d.min_html ? d.min_html + anhang
-          : '<p class="keine-sig">Keine Antwort-Signatur – hier stünde nur dein eigener Gruß.</p>';
+        // Neue Mail und Antwort: fertig vom Server, Banner und Disclaimer
+        // schon dort angehängt, wo der Mailweg sie anhängt (bei Antworten nach
+        // der Einstellung „Antworten in derselben Kette“).
+        var neu = d.neu || {}, antwort = d.antwort || {};
+        letzteAntwort = antwort;
+        if (neu.html) el('sig-vorschau').innerHTML = neu.html;
+        else {
+          // Grund als Text, nie als HTML (eigenständige Seite ohne esc()).
+          var leer = document.createElement('p');
+          leer.className = 'keine-sig';
+          leer.textContent = neu.grund_text || 'Keine Signatur.';
+          el('sig-vorschau').replaceChildren(leer);
+        }
+        el('min-vorschau').innerHTML = (antwort.signatur_unterdrueckt
+          ? '<p class="keine-sig">Keine Antwort-Signatur – hier stünde nur dein eigener Gruß.</p>'
+          : '') + (antwort.html || '');
       } catch (e) { /* Vorschau ist unkritisch */ }
     }, 250);
   }
@@ -742,8 +754,9 @@
     gespeichert[slot] = wahl[slot];
     el(slot + '-speichern').disabled = true;
     var t = slot === 'sig' ? '✓ Gespeichert. Neue Mails tragen ab jetzt diese Signatur.'
-      : (wirksam('min', '') ? '✓ Gespeichert. Antworten im Verlauf tragen ab jetzt diese Antwort-Signatur.'
-                            : '✓ Gespeichert. Antworten im Verlauf bekommen ab jetzt keine Signatur.');
+      : (letzteAntwort && !letzteAntwort.signatur_unterdrueckt
+          ? '✓ Gespeichert. Antworten im Verlauf tragen ab jetzt diese Antwort-Signatur.'
+          : '✓ Gespeichert. Antworten im Verlauf bekommen ab jetzt keine Signatur.');
     if (slot === 'sig' && d.oof_aufgefrischt) t += ' Auch deine Abwesenheitsnotiz ist aktualisiert.';
     meldung(slot + '-hinweis', 'ok', t);
   }

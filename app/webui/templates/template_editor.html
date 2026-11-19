@@ -299,7 +299,7 @@
        rutscht unter die Bausteine; dort hat sie die volle Breite. -->
   <div class="baukasten-vorschau" style="flex:1 1 600px;min-width:0">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
-      <div style="font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Live-Vorschau</div>
+      <div style="font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Vorschau (Richtlinienergebnis)</div>
       <div style="margin-left:auto;display:flex;gap:0">
         <button type="button" class="btn-toggle active" id="vorschau-breit-btn"
                 onclick="vorschauBreiteSetzen('breit')">Desktop</button>
@@ -322,14 +322,37 @@
       </select>
       <span id="preview-loading" style="font-size:12px;color:#888;display:none">Lädt…</span>
     </div>
+    <!-- Fall: Was das Postfach bei einer neuen Mail, einer Antwort in einer schon
+         signierten Kette bzw. an rein interne Empfänger bekommt. „Intern“ nur,
+         wenn dem Postfach eine interne Signatur zugeordnet ist. -->
+    <div id="vorschau-fall" style="display:flex;gap:0;flex-wrap:wrap;margin-bottom:6px" role="group"
+         aria-label="Fall der Vorschau">
+      <button type="button" class="btn-toggle active" data-fall="neu" onclick="vorschauFall('neu')">Neue Mail</button>
+      <button type="button" class="btn-toggle" data-fall="antwort" onclick="vorschauFall('antwort')">Antwort</button>
+      <button type="button" class="btn-toggle" data-fall="intern" onclick="vorschauFall('intern')" hidden>Intern</button>
+    </div>
+    <p class="hint" id="vorschau-richtlinie-hinweis" style="margin:0 0 8px">
+      Was dieses Postfach im Betrieb bekommt — nach Standardrichtlinie, Gruppen-Regeln,
+      eigener Wahl und laufenden Kampagnen, so wie das Gateway es anhängt.
+      Frei zusammenstellen: <a href="/preview">Was-wäre-wenn-Vorschau</a>.
+    </p>
+    <div id="vorschau-override" class="vorschau-override" hidden></div>
+    <ul id="vorschau-herkunft" class="herkunft-liste" hidden></ul>
     <!-- Die Breitenbegrenzung sitzt am RAHMEN, nicht am Inhalt: So bekommt die
          Signatur denselben Platz wie in einem schmalen Mailprogramm, statt
          skaliert zu werden. Skalieren zeigte eine Darstellung, die es nirgends
          gibt. -->
     <div id="preview-box" data-vorschau-breite="breit"
          style="min-height:120px;border:1px solid #e2e8f0;border-radius:6px;padding:16px;background:#fff;overflow:auto">
-      <span style="color:#9ca3af;font-size:12px">Postfach wählen und Speichern für Live-Vorschau</span>
+      <span style="color:#9ca3af;font-size:12px">Postfach wählen und Speichern für die Vorschau</span>
     </div>
+    <!-- Die bearbeitete Vorlage, wenn das Postfach sie in diesem Fall NICHT bekommt —
+         ausdrücklich als unwirksam beschriftet, nie Teil des Ergebnisses oben. -->
+    <details id="vorschau-override-wrap" style="margin-top:8px" hidden>
+      <summary style="font-size:12px;color:#64748b;cursor:pointer">Bearbeitete Vorlage trotzdem ansehen (hier nicht wirksam)</summary>
+      <div id="preview-override-box" data-vorschau-breite="breit"
+           style="margin-top:6px;border:1px dashed #d1d5db;border-radius:6px;padding:16px;background:#fff;overflow:auto"></div>
+    </details>
     <p class="hint" id="vorschau-breite-hinweis" style="display:none">
       375&nbsp;px — die Breite, die ein Telefon im Hochformat für den Nachrichtentext lässt.
     </p>
@@ -395,7 +418,7 @@
       <button type="submit" id="raw-save-btn"
               data-wache="html_content,txt_content,text_eigen"
               class="btn secondary">Speichern</button>
-      <a href="/preview" class="btn secondary">Vorschau</a>
+      <a href="/preview" class="btn secondary">Was-wäre-wenn-Vorschau</a>
     </div>
   </form>
 
@@ -494,6 +517,25 @@
   display:flex;align-items:center;gap:4px;background:#f1f5f9;
 }
 [data-theme="dark"] .col-block-item { background:#0f172a;border-color:#334155 }
+  /* Vorschau (Richtlinienergebnis): Herkunft je Teil. Zustand als data-art bzw.
+     data-zustand aus dem JS (Dark-Mode-Regel 2). Seitenspezifisch hier, nicht in
+     style.css/dark-mode.css (mit dem Relay gespiegelt). */
+  #preview-override-box[data-vorschau-breite="schmal"] { max-width:375px }
+  .herkunft-liste { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px; padding:0; list-style:none }
+  .herkunft-chip { font-size:12px; line-height:1.4; padding:2px 8px; border-radius:10px;
+    background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; overflow-wrap:anywhere; max-width:100% }
+  .herkunft-chip[data-art="fest"]     { background:#fffbeb; color:#92400e; border-color:#fde68a }
+  .herkunft-chip[data-art="kampagne"] { background:#f5f3ff; color:#334155; border-color:#e2e8f0 }
+  .vorschau-override { font-size:12px; padding:8px 10px; border-radius:6px; margin:0 0 8px; overflow-wrap:anywhere }
+  .vorschau-override[data-zustand="wirksam"]   { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0 }
+  .vorschau-override[data-zustand="unwirksam"] { background:#fffbeb; color:#92400e; border:1px solid #fde68a }
+  .vorschau-override[data-zustand="grund"]     { background:#f8fafc; color:#334155; border:1px solid #e2e8f0 }
+  [data-theme="dark"] .herkunft-chip                     { background:#1e293b; color:#cbd5e1; border-color:#334155 }
+  [data-theme="dark"] .herkunft-chip[data-art="fest"]     { background:#241d10; color:#fcd34d; border-color:#78350f }
+  [data-theme="dark"] .herkunft-chip[data-art="kampagne"] { background:#1e1b2e; color:#c4b5fd; border-color:#4c1d95 }
+  [data-theme="dark"] .vorschau-override[data-zustand="wirksam"]   { background:#0f2018; color:#86efac; border-color:#14532d }
+  [data-theme="dark"] .vorschau-override[data-zustand="unwirksam"] { background:#241d10; color:#fcd34d; border-color:#78350f }
+  [data-theme="dark"] .vorschau-override[data-zustand="grund"]     { background:#1e293b; color:#cbd5e1; border-color:#334155 }
 </style>
 
 <script>
@@ -1813,6 +1855,9 @@ window.vorschauBreiteSetzen = function (modus) {
   if (!box) return;
   const schmal = modus === 'schmal';
   box.dataset.vorschauBreite = schmal ? 'schmal' : 'breit';
+  // Die bearbeitete, hier unwirksame Vorlage in derselben Breite.
+  const neben = document.getElementById('preview-override-box');
+  if (neben) neben.dataset.vorschauBreite = box.dataset.vorschauBreite;
   if (hinweis) hinweis.style.display = schmal ? '' : 'none';
   const b = document.getElementById('vorschau-breit-btn');
   const s = document.getElementById('vorschau-schmal-btn');
@@ -1829,24 +1874,88 @@ document.addEventListener('DOMContentLoaded', function () {
   window.vorschauBreiteSetzen(gemerkt);
 });
 
+// Fall der Vorschau (neu / antwort / intern) — die Wahl gilt für diese Seite.
+let VORSCHAU_FALL = 'neu';
+window.vorschauFall = function (fall) {
+  VORSCHAU_FALL = fall;
+  document.querySelectorAll('#vorschau-fall .btn-toggle')
+    .forEach(b => b.classList.toggle('active', b.dataset.fall === fall));
+  refreshPreview();
+};
+
+// Herkunft je Teil: „Signatur „X“ · Gruppe Vertrieb · festgeschrieben“.
+// Farbe nur über data-art (style.css + dark-mode.css).
+function vorschauHerkunft(teile) {
+  const liste = document.getElementById('vorschau-herkunft');
+  liste.innerHTML = '';
+  (teile || []).forEach(t => {
+    const li = document.createElement('li');
+    li.className = 'herkunft-chip';
+    if (t.kampagne) li.dataset.art = 'kampagne';
+    else if (t.fest) li.dataset.art = 'fest';
+    li.textContent = t.name + ' „' + t.vorlage + '“ · ' + t.quelle
+      + (t.fest && !t.kampagne ? ' · festgeschrieben' : '');
+    liste.appendChild(li);
+  });
+  liste.hidden = !liste.children.length;
+}
+
+function vorschauLeeren() {
+  document.getElementById('vorschau-override').hidden = true;
+  document.getElementById('vorschau-herkunft').hidden = true;
+  document.getElementById('vorschau-override-wrap').hidden = true;
+}
+
 window.refreshPreview = async function() {
   const email = document.getElementById('preview-email-sel').value;
   const box = document.getElementById('preview-box');
   const loading = document.getElementById('preview-loading');
+  const hinweis = document.getElementById('vorschau-override');
   // Nur Signaturen kennen einen Bearbeiter — Banner und Disclaimer rendert der
   // Mailweg mit dem Inhaber, Abwesenheit und Nachrichten an Inhaber ohne ihn.
   document.getElementById('preview-bearbeiter-sel').hidden =
     ['banner', 'disclaimer', 'oof', 'usermail'].includes(TEMPLATE_KIND);
+  // Das Richtlinienergebnis gibt es für Signaturen, Banner und Disclaimer;
+  // Abwesenheit und Nachrichten an Inhaber zeigen die Vorlage selbst.
+  const richtlinie = ['signatur', 'banner', 'disclaimer'].includes(TEMPLATE_KIND || 'signatur');
+  document.getElementById('vorschau-fall').hidden = !richtlinie;
+  document.getElementById('vorschau-richtlinie-hinweis').hidden = !richtlinie;
+  vorschauLeeren();
   if (!email) {
-    box.innerHTML = '<span style="color:#9ca3af;font-size:12px">Postfach wählen und Speichern für Live-Vorschau</span>';
+    box.innerHTML = '<span style="color:#9ca3af;font-size:12px">Postfach wählen und Speichern für die Vorschau</span>';
     return;
   }
   loading.style.display = '';
   try {
     const bearbeiter = feldWert('preview-bearbeiter-sel');
     const d = await getJSON(`/api/preview-data?email=${encodeURIComponent(email)}&template=${encodeURIComponent(TEMPLATE_NAME)}`
+      + `&fall=${encodeURIComponent(VORSCHAU_FALL)}`
       + (bearbeiter ? `&bearbeiter=${encodeURIComponent(bearbeiter)}` : ''));
     if (!d.ok) throw new Error(errText(d));
+    if (d.richtlinie) {
+      // „Intern“ nur anbieten, wenn das Postfach eine interne Signatur hat.
+      const intern = document.querySelector('#vorschau-fall [data-fall="intern"]');
+      intern.hidden = !d.hat_intern;
+      if (!d.hat_intern && VORSCHAU_FALL === 'intern') { vorschauFall('neu'); return; }
+      vorschauHerkunft(d.teile);
+      const o = d.override;
+      const text = o ? o.hinweis : (d.grund_text || '');
+      if (text) {
+        hinweis.textContent = text;
+        hinweis.dataset.zustand = o ? (o.wirksam ? 'wirksam' : 'unwirksam') : 'grund';
+        hinweis.hidden = false;
+      }
+      if (o && !o.wirksam && (o.html || '').trim()) {
+        document.getElementById('vorschau-override-wrap').hidden = false;
+        sigVorschau(document.getElementById('preview-override-box'), o.html);
+      }
+      if (d.html || d.banner_html || d.disclaimer_html) {
+        sigVorschau(box, (d.html || '') + (d.banner_html || '') + (d.disclaimer_html || ''));
+      } else {
+        box.innerHTML = '<span style="color:#9ca3af;font-size:12px">Das Gateway hängt hier nichts an.</span>';
+      }
+      return;
+    }
     // Bei einer Nachricht an Postfachinhaber gehört der Betreff dazu — er ist
     // Teil dessen, was der Empfänger sieht, und wird mit denselben Platzhaltern
     // gefüllt.

@@ -790,3 +790,19 @@ def test_wartezeit_endet_beim_ersten_erfolgreichen_zugriff(umgebung, ews):
     ews.berechtigt.clear()
     assert not ews_onprem.verbindung_testen(ERIKA, sperre_umgehen=True)["ok"]
     assert eb.wartet(ERIKA)
+
+
+def test_uebernahme_nach_einrichtung_nicht_mehr_angeboten(umgebung):
+    """Lab: „Befehle anzeigen“ bot nach der Einrichtung weiter „2 Adressen aus
+    der bisherigen festen Liste“ an, obwohl sie längst übernommen waren."""
+    alt = eb.bestand_erkennen(BESTAND, "svc-exo-gateway@firma.at")
+    eb._stand_setzen(bestand=alt)
+    vorher = [s.kennung for s in eb.plan(eb.parameter({"alt": eb.stand()["bestand"]}, basis=BASIS))]
+    assert "uebernahme" in vorher
+    assert eb.einrichten({"alt": alt}, "a@firma.at", ADMIN_KW, "admin")["ok"]
+    assert eb.stand()["bestand"].get("uebernommen")
+    nachher = [s.kennung for s in eb.plan(eb.parameter({"alt": eb.stand()["bestand"]}, basis=BASIS))]
+    assert "uebernahme" not in nachher
+    # Ein neu ausgewerteter Bestand bietet sie wieder an.
+    assert "uebernahme" in [s.kennung for s in eb.plan(eb.parameter(
+        {"alt": eb.bestand_erkennen(BESTAND, "svc-exo-gateway@firma.at")}, basis=BASIS))]
