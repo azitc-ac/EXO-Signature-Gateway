@@ -656,3 +656,16 @@ def test_classic_aufgabenbereich_gilt_als_office_auch_ohne_rahmen():
     # Der Zeitgeber-Zweig darf nur für echte Browserfenster bleiben.
     zweig = seite[seite.index("} else if (IM_RAHMEN) {"):]
     assert zweig.index("} else {") < zweig.index("setTimeout(start, 1500)")
+
+
+def test_jede_zeile_der_stillen_anmeldung_nennt_die_plattform(tausch, caplog):
+    """Lab 19.11.: Die Identitätstoken-Zeile nannte „PC“, die Zeile „Stille
+    Anmeldung per …“ (auch bei NAA) nicht — Desktop und Web waren dort nicht
+    zu unterscheiden, obwohl ?client= mitkam."""
+    daten, lauf = tausch
+    with caplog.at_level(logging.INFO):
+        assert lauf({ei.KOPF: _token(aud=AUD_KNOPF)})[0] == 200
+        daten["SELF_SERVICE_ENABLED"] = False
+        assert lauf({ei.KOPF: _token(aud=AUD_KNOPF)})[0] == 403
+    zeilen = [r.getMessage() for r in caplog.records if "Stille Anmeldung per" in r.getMessage()]
+    assert len(zeilen) == 2 and all("(PC)" in z for z in zeilen), zeilen

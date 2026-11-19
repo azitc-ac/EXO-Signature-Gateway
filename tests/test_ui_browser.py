@@ -2486,6 +2486,20 @@ def test_vorschlag_kennt_bearbeiter(seite):
     pg.context.close()
 
 
+def test_vorschlag_setzt_klammern(seite):
+    """Außerhalb eines Ausdrucks setzt der Vorschlag `{{ … }}` selbst (v1.12.106)."""
+    pg = seite("/template", breite=1280)
+    pg.evaluate("() => addBlock('text')")
+    pg.locator(".block-card").last.locator(".block-type-badge").click()
+    ta = pg.locator(".block-card").last.locator("textarea[name=text]")
+    ta.click()
+    ta.press_sequentially("Von: bearbeiter.disp")
+    pg.locator("#var-ac").wait_for(state="visible")
+    pg.keyboard.press("Enter")
+    assert ta.input_value() == "Von: {{ bearbeiter.displayName }}"
+    pg.context.close()
+
+
 def test_vorschau_schickt_wer_schreibt(seite):
     pg = seite("/template", breite=1280)
     def abfangen(route):

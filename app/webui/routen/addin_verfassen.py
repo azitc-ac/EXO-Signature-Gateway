@@ -748,9 +748,9 @@ async def tab_sitzung(request: Request):
         return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401, headers=nein)
     rolle = self_service_rolle(email) if "@" in email else None
     if rolle != sso_mod.ROLE_SELF:
-        log.info("Stille Anmeldung per %s: %s ohne Self-Service — Anmeldefenster nötig",
-                 weg, email or "?")
+        log.info("Stille Anmeldung per %s: %s (%s) ohne Self-Service — Anmeldefenster nötig",
+                 weg, email or "?", _plattform(request))
         return JSONResponse({"detail": "Kein Self-Service"}, status_code=403, headers=nein)
-    log.info("Stille Anmeldung per %s: %s", weg, email)
+    log.info("Stille Anmeldung per %s: %s (%s)", weg, email, _plattform(request))
     return JSONResponse({"token": sso_mod.create_session_cookie(email, role=sso_mod.ROLE_SELF)},
                         headers=nein)

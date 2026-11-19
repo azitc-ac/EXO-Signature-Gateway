@@ -289,7 +289,9 @@
 
 <div class="settings-card" data-adv="sig" style="display:none">
   <h3 id="overrides" style="margin-top:0;margin-bottom:8px">Benutzer-Overrides</h3>
-  <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. Eigene Variablen (custom.*) müssen vorher im Abschnitt „Eigene Variablen" definiert sein.</p>
+  <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. Eigene Variablen (custom.*) müssen vorher im Abschnitt „Eigene Variablen" definiert sein.
+    Ein Wert gilt für die Person selbst — als <code>custom_u.*</code> in ihrem Postfach und als
+    <code>custom_b.*</code>, wenn sie für ein geteiltes Postfach schreibt.</p>
 
   <div style="overflow-x:auto">
     <table class="kv-table" style="table-layout:fixed;min-width:480px">
@@ -358,9 +360,44 @@
     </table></div>
   </details>
 
+  <style>
+    /* Seitenspezifisch (style.css/dark-mode.css sind gespiegelt). Keine Farben:
+       code/hint kommen aus style.css und schalten im Dunkelmodus mit um. */
+    .var-liste { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:4px 12px;
+      margin:0 0 14px; font-size:12px }
+    .var-liste dt { font-weight:600 }
+    .var-liste dd { margin:0; overflow-wrap:anywhere }
+    .var-felder { display:flex; flex-wrap:wrap; gap:4px }
+    .var-felder:empty::before { content:"— noch keine —" }
+    .cv-namen { flex-basis:100%; font-size:11px; overflow-wrap:anywhere }
+    .cv-namen:empty { display:none }
+    @media (max-width:600px) {
+      .var-liste { grid-template-columns:minmax(0,1fr) }
+      .var-liste dd { margin-bottom:6px }
+    }
+  </style>
+  <div id="variablen-uebersicht" style="font-weight:600;font-size:13px;margin-bottom:6px">Alle Variablen</div>
+  <p class="hint" style="margin-bottom:6px">
+    In Vorlagen als <code>{{ "{{" }} user.displayName {{ "}}" }}</code>. Zwei Personen, je zwei Namensräume:
+  </p>
+  <dl class="var-liste">
+    <dt>Postfach (Inhaber)</dt>
+    <dd><code>user.FELD</code> · eigene: <code>custom_u.NAME</code> oder <code>user.custom.NAME</code>
+      <span class="hint">(alter Name <code>custom.NAME</code>, gilt weiter)</span></dd>
+    <dt>Wer schreibt</dt>
+    <dd><code>bearbeiter.FELD</code> · eigene: <code>custom_b.NAME</code> oder <code>bearbeiter.custom.NAME</code>
+      <span class="hint">— bei „im Auftrag von“ eines geteilten Postfachs die Person, sonst der Inhaber</span></dd>
+    <dt>FELD</dt>
+    <dd class="var-felder">{% for f in user_felder %}<code>{{ f }}</code>{% endfor %}</dd>
+    <dt>NAME</dt>
+    <dd class="var-felder" id="var-namen-liste">{% for cv in (s.CUSTOM_TEMPLATE_VARS or []) %}{% if cv.name %}<code>{{ cv.name }}</code>{% endif %}{% endfor %}</dd>
+  </dl>
+
   <div id="eigene-variablen" style="font-weight:600;font-size:13px;margin-bottom:6px">Eigene Variablen</div>
   <p class="hint" style="margin-bottom:10px">
-    In Vorlagen als <code>{{ "{{" }} custom.varname {{ "}}" }}</code> verwenden. Variablenname: nur Buchstaben, Ziffern, Underscore.
+    Jede eigene Variable gibt es zweimal: <code>{{ "{{" }} custom_u.varname {{ "}}" }}</code> für das Postfach und
+    <code>{{ "{{" }} custom_b.varname {{ "}}" }}</code> für die schreibende Person (gleichwertig:
+    <code>user.custom.varname</code> und <code>bearbeiter.custom.varname</code>). Variablenname: nur Buchstaben, Ziffern, Underscore.
     Ein Entra-Feld füllt die Variable automatisch aus dem Verzeichnis; bleibt es auf
     <em>„manuell"</em>, kommt der Wert aus einem Benutzer-Override oder einer
     Gruppen-Zuweisung (z.B. Vertreter je Team).
@@ -489,18 +526,27 @@ function _customVarRow(name, entraField) {
   row.className = 'custom-var-row';
   row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
   row.innerHTML = `
-    <span style="font-size:12px;color:#64748b;white-space:nowrap;min-width:70px">custom.</span>
-    <input type="text" placeholder="varname" value="${esc(name)}"
+    <input type="text" placeholder="varname" value="${escAttr(name)}" aria-label="Variablenname"
            style="width:140px;font-family:monospace;font-size:13px" class="cv-name"
-           oninput="this.value=this.value.replace(/[^a-zA-Z0-9_]/g,'')">
+           oninput="this.value=this.value.replace(/[^a-zA-Z0-9_]/g,'');_cvNamenZeigen(this.closest('.custom-var-row'))">
     <select class="cv-field" style="flex:1;min-width:220px;max-width:340px;font-size:13px;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px">
       <option value="">— manuell (Override/Gruppe) —</option>
       ${opts}
     </select>
     <button type="button" onclick="this.closest('.custom-var-row').remove()"
             style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;line-height:1;padding:2px 4px"
-            title="Entfernen">✕</button>`;
+            title="Entfernen">✕</button>
+    <span class="cv-namen hint"></span>`;
+  _cvNamenZeigen(row);
   return row;
+}
+
+// Unter jeder Zeile die Namen, unter denen die Variable in Vorlagen steht.
+function _cvNamenZeigen(row) {
+  const n = row.querySelector('.cv-name').value.trim();
+  row.querySelector('.cv-namen').innerHTML = n
+    ? `<code>custom_u.${esc(n)}</code> / <code>user.custom.${esc(n)}</code> Postfach · <code>custom_b.${esc(n)}</code> / <code>bearbeiter.custom.${esc(n)}</code> wer schreibt · alt <code>custom.${esc(n)}</code>`
+    : '';
 }
 
 function addCustomVar(name, field) {

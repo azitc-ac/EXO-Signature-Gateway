@@ -266,6 +266,8 @@ async def settings_signature_page(request: Request, user: str = Depends(_require
             "gateway_name": _gateway_name(),
             "sender_mailboxes": sender_mailboxes,
             "custom_var_entra_fields": graph_client.CUSTOM_VAR_ENTRA_FIELDS,
+            # Feldliste für „Alle Variablen“ — dieselbe, die der Baukasten prüft.
+            "user_felder": __import__("template_builder").USER_FELDER,
             "regel_stand": _regel_stand(),
             "loop_marker": __import__("loop_detector").marker_wert(),
         },

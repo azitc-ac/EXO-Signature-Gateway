@@ -124,9 +124,17 @@ def _kontext(user: UserData, extra: dict | None) -> dict:
     `bearbeiter` weg; die Postfach-Prüfung meldete jede Vorlage mit
     {{ bearbeiter.* }} als „'bearbeiter' is undefined“, obwohl sie beim Versand
     renderte."""
+    bearbeiter = (extra or {}).get("bearbeiter") or user
     return {
         "user": user,
+        # Eigene Variablen: `custom_u` gehört dem Postfachinhaber (wie `user`),
+        # `custom_b` der schreibenden Person (wie `bearbeiter`). `custom` ist
+        # der alte Name für `custom_u` und bleibt, damit bestehende Vorlagen
+        # unverändert rendern. Unterstrich statt Bindestrich: `custom-b` wäre
+        # in Jinja eine Subtraktion.
         "custom": user.custom,
+        "custom_u": user.custom,
+        "custom_b": getattr(bearbeiter, "custom", None) or {},
         # Wer die Mail schreibt — bei „im Auftrag von“ die Person, sonst der
         # Inhaber selbst (handler/Add-in reichen sie über `extra` herein).
         "bearbeiter": user,

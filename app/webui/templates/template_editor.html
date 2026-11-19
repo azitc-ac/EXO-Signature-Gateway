@@ -423,16 +423,22 @@
   </form>
 
   <div class="hint" style="margin-top:16px">
+    <strong>Vier Namensräume:</strong> <code>user</code> (Postfach) und
+    <code>bearbeiter</code> (wer schreibt — bei „im Auftrag von“ die Person, sonst der Inhaber)
+    mit denselben Feldern, eigene Variablen als <code>custom_u</code> (Postfach) und
+    <code>custom_b</code> (wer schreibt), gleichwertig <code>user.custom.…</code> und
+    <code>bearbeiter.custom.…</code>; <code>custom</code> ist der alte Name für <code>custom_u</code>.
+    Ein Vorschlag aus der Liste setzt <code>{{ "{{ }}" }}</code> selbst.
+    Alle Variablen: <a href="/settings/signature#eigene-variablen">Einstellungen → Signaturen</a>.<br>
     <strong>Verfügbare Variablen:</strong>
     <code>user.displayName</code>, <code>user.givenName</code>, <code>user.surname</code>,
     <code>user.jobTitle</code>, <code>user.department</code>,
     <code>user.companyName</code>, <code>user.mail</code>, <code>user.phone</code>,
     <code>user.mobilePhone</code>, <code>user.officeLocation</code>,
     <code>user.website</code>, <code>user.bookingsUrl</code>{% if custom_vars %},
-    {% for cv in custom_vars %}<code>custom.{{ cv }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+    {% for cv in custom_vars %}<code>custom_u.{{ cv }}</code>/<code>custom_b.{{ cv }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
     <span style="color:#888">(eigene Variablen)</span>{% endif %},
-    <code>bearbeiter.displayName</code> u. a. — <span style="color:#888">dieselben Felder wie <code>user</code>,
-    für die Person, die schreibt: bei „im Auftrag von“ eines geteilten Postfachs die Person, sonst der Inhaber</span>
+    <code>bearbeiter.displayName</code> u. a.
     {% if template_kind == 'oof' %}<br>
     <code>oof.name</code>, <code>oof.zeitraum</code>,
     <code>oof.period</code> <span style="color:#888">(Englisch: from … to …)</span>,
@@ -504,7 +510,7 @@
 [data-theme="dark"] .prop-row textarea { background:#0f172a;border-color:#334155;color:#e2e8f0 }
 [data-theme="dark"] #gross-editor .gross-karte { background:#1e293b;border-color:#334155 }
 [data-theme="dark"] #gross-editor textarea { background:#0f172a;border-color:#334155;color:#e2e8f0 }
-/* Variablen-Autocomplete (custom./user. in Textfeldern) */
+/* Variablen-Autocomplete (user./bearbeiter./custom_u./custom_b. in Textfeldern) */
 #var-ac { position:absolute;z-index:3000;display:none;min-width:180px;max-height:220px;
   overflow-y:auto;background:#fff;border:1px solid #d1d5db;border-radius:6px;
   box-shadow:0 6px 20px rgba(0,0,0,0.15);font-size:12px;font-family:monospace }
@@ -645,11 +651,13 @@ const TYPE_LABELS = {
   badge:'Etikett + Text',
 };
 
-// "jobTitle" → "user.jobTitle", "custom.abteilung" bleibt unverändert.
-// Ohne das stünde bei einer eigenen Variablen "user.custom.abteilung" im Kopf.
+// "jobTitle" → "user.jobTitle", "custom_u.abteilung" bleibt unverändert.
+// Ohne das stünde bei einer eigenen Variablen "user.custom_u.abteilung" im Kopf.
+// Präfixe wie template_builder._resolve_var (custom. = alter Name für custom_u.).
+const FELD_PRAEFIXE = ['custom_u.', 'custom_b.', 'custom.', 'bearbeiter.'];
 function varLabel(f, fallback) {
   const v = f || fallback;
-  return (v.startsWith('custom.') || v.startsWith('bearbeiter.')) ? v : `user.${v}`;
+  return FELD_PRAEFIXE.some(p => v.startsWith(p)) ? v : `user.${v}`;
 }
 
 // Wann der Baustein erscheint — Werte wie template_builder.BEDINGUNGEN.
@@ -761,16 +769,21 @@ const COLOR_OPTIONS = [
 function fieldSelect(val, name, bid) {
   const opts = USER_FIELDS.map(f =>
     `<option value="${f}"${f===val?' selected':''}>${f}</option>`).join('');
-  // Eigene Variablen als "custom.NAME" — dieselbe Schreibweise erwartet
-  // template_builder._resolve_var(). Ist die gewählte Variable nachträglich
-  // gelöscht worden, bleibt sie als Auswahl erhalten (sonst würde das Feld
-  // stillschweigend auf displayName springen und den Block verändern).
-  let custom = CUSTOM_VARS.map(cv => `custom.${cv}`);
-  if (val && val.startsWith('custom.') && !custom.includes(val)) custom.push(val);
-  const cOpts = custom.length
-    ? `<optgroup label="Eigene Variablen">` + custom.map(f =>
+  // Eigene Variablen als "custom_u.NAME" (Postfach) und "custom_b.NAME" (wer
+  // schreibt) — dieselbe Schreibweise erwartet template_builder._resolve_var().
+  // Ist die gewählte Variable nachträglich gelöscht worden oder steht sie noch
+  // unter dem alten Namen "custom.NAME", bleibt sie als Auswahl erhalten (sonst
+  // würde das Feld stillschweigend auf displayName springen und den Block verändern).
+  const gruppe = (titel, liste) => liste.length
+    ? `<optgroup label="${escAttr(titel)}">` + liste.map(f =>
         `<option value="${escAttr(f)}"${f===val?' selected':''}>${esc(f)}</option>`).join('') + `</optgroup>`
     : '';
+  const customU = CUSTOM_VARS.map(cv => `custom_u.${cv}`);
+  const customB = CUSTOM_VARS.map(cv => `custom_b.${cv}`);
+  if (val && /^custom(_u)?\./.test(val) && !customU.includes(val)) customU.push(val);
+  if (val && val.startsWith('custom_b.') && !customB.includes(val)) customB.push(val);
+  const cOpts = gruppe('Eigene Variablen (Postfach)', customU)
+    + gruppe('Eigene Variablen (wer schreibt)', customB);
   // Schreibende Person — bei „im Auftrag von“ eines geteilten Postfachs die
   // Person, sonst der Postfachinhaber (template_builder._BEARBEITER_PREFIX).
   const bOpts = `<optgroup label="Schreibende Person (geteiltes Postfach)">` +
@@ -843,7 +856,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Variablen-Autocomplete ──────────────────────────────────────────────────
-// Tippt man in einem Textfeld „custom.“, „user.“ oder „bearbeiter.“, erscheint eine Vorschlagsliste
+// Tippt man in einem Textfeld „user.“, „bearbeiter.“, „custom_u.“, „custom_b.“ (oder alt „custom.“), erscheint eine Vorschlagsliste
 // der bekannten Variablen (wie IntelliSense). Verhindert Tippfehler/Namens-
 // Mismatches. Wirkt in allen <textarea> des Editors (Bausteine + Roh-HTML/-Text)
 // und in den einzeiligen Textfeldern der Bausteine (Link des Logos, Präfix,
@@ -858,14 +871,36 @@ document.addEventListener('DOMContentLoaded', () => {
        'oof.ankuendigung', 'oof.announcement'] : [];
   // bearbeiter.* wie in der Feldauswahl (fieldSelect) — bis v1.12.51 fehlte es
   // hier, obwohl Hinweistext und Auswahl es anboten.
+  // <praefix> (tests/test_variablen_klammern_js.py führt diesen Abschnitt in node aus.)
   const FELDER = USER_FIELDS.map(f => 'user.' + f)
-    .concat(CUSTOM_VARS.map(c => 'custom.' + c))
+    .concat(CUSTOM_VARS.map(c => 'custom_u.' + c))
+    .concat(CUSTOM_VARS.map(c => 'custom_b.' + c))
     .concat(USER_FIELDS.map(f => 'bearbeiter.' + f))
+    // Lange Schreibweise, gleichwertig zu custom_u./custom_b. (beide angeboten).
+    .concat(CUSTOM_VARS.map(c => 'user.custom.' + c))
+    .concat(CUSTOM_VARS.map(c => 'bearbeiter.custom.' + c))
     .concat(OOF_FIELDS);
   // Die erkannten Präfixe kommen aus FELDER selbst: Eine neue Gruppe dort ist
   // damit auch beim Tippen da und kann nicht wieder an der Erkennung scheitern.
-  const PRAEFIX_RE = new RegExp('(' + Array.from(new Set(FELDER.map(f => f.split('.')[0]))).join('|')
-    + ')\\.(\\w*)$');
+  // Dazu der alte Name `custom` — wer ihn tippt, bekommt custom_u./custom_b.
+  // angeboten. Längere Namen zuerst, sonst endet `custom` vor `custom_u`.
+  // Präfix = alles vor dem letzten Punkt, damit „user.custom.“ als eigener
+  // Präfix gilt — sonst fände die Suche nur „custom.“ und machte daraus
+  // „user.custom_u.x“.
+  const PRAEFIX_RE = new RegExp('(' + Array.from(new Set(FELDER.map(f => f.slice(0, f.lastIndexOf('.')))
+    .concat(['custom'])))
+    .sort((a, b) => b.length - a.length).map(p => p.replace(/\./g, '\\.')).join('|') + ')\\.(\\w*)$');
+  // </praefix>
+  // <klammern> — Ein gewählter Vorschlag bekommt seine Klammern selbst, außer
+  // der Cursor steht schon in einem offenen Ausdruck oder Befehl (dann zählt,
+  // was zuletzt davor steht: öffnend oder schließend). Die Klammern sind hier
+  // zusammengesetzt, weil die Seite selbst durch Jinja läuft.
+  // (tests/test_variablen_klammern_js.py führt diesen Abschnitt in node aus.)
+  const K_AUF = '{' + '{', K_ZU = '}' + '}', A_AUF = '{' + '%', A_ZU = '%' + '}';
+  const imAusdruck = vor => Math.max(vor.lastIndexOf(K_AUF), vor.lastIndexOf(A_AUF))
+    > Math.max(vor.lastIndexOf(K_ZU), vor.lastIndexOf(A_ZU));
+  const einsatzText = (vor, f) => imAusdruck(vor) ? f : K_AUF + ' ' + f + ' ' + K_ZU;
+  // </klammern>
   let box = null, ziel = null, start = -1, treffer = [], sel = 0;
   function kasten() {
     if (!box) { box = document.createElement('div'); box.id = 'var-ac'; document.body.appendChild(box); }
@@ -881,7 +916,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const m = ta.value.slice(0, pos).match(PRAEFIX_RE);
     if (!m) { zu(); return; }
     const praefix = (m[1] + '.' + m[2]).toLowerCase();
-    treffer = FELDER.filter(f => f.toLowerCase().startsWith(praefix));
+    // Alter Name `custom.` → beide heutigen Namensräume anbieten.
+    const gesucht = m[1] === 'custom'
+      ? ['custom_u.' + m[2].toLowerCase(), 'custom_b.' + m[2].toLowerCase()] : [praefix];
+    treffer = FELDER.filter(f => gesucht.some(g => f.toLowerCase().startsWith(g)));
     if (!treffer.length) { zu(); return; }
     start = pos - (m[1].length + 1 + m[2].length);
     sel = 0; ziel = ta;
@@ -898,7 +936,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function einfuegen(i) {
     if (!ziel || !treffer[i]) return;
-    const f = treffer[i], pos = ziel.selectionStart;
+    const pos = ziel.selectionStart;
+    const f = einsatzText(ziel.value.slice(0, start), treffer[i]);
     ziel.value = ziel.value.slice(0, start) + f + ziel.value.slice(pos);
     const np = start + f.length;
     ziel.selectionStart = ziel.selectionEnd = np;

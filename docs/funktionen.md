@@ -174,10 +174,25 @@ Postfach oder per **Richtlinie/Gruppe** (interne Postfach-Gruppen,
 | `user.website` | `USER_WEBSITES`-Override → `businessHomePage` → `extensionAttribute1` |
 | `user.bookingsUrl` | `USER_BOOKINGS`-Override → `extensionAttribute2` |
 
+**Wer schreibt:** Dieselben Felder gibt es als `{{ bearbeiter.* }}` für die
+Person, die die Mail schreibt — bei „im Auftrag von“ eines geteilten Postfachs
+die Person, sonst der Postfachinhaber selbst.
+
 **Eigene Variablen:** Zusätzlich lassen sich in der Oberfläche eigene Felder
-definieren, die aus einem beliebigen Entra-Attribut gefüllt werden — im Template
-als `{{ custom.<name> }}` verfügbar. Einzelne Werte können pro Postfach
-überschrieben werden.
+definieren, die aus einem beliebigen Entra-Attribut, einer Gruppen-Zuweisung
+oder einem Benutzer-Override gefüllt werden. Jede gibt es zweimal:
+
+| Variable | Wert von |
+|---|---|
+| `custom_u.<name>` | Postfachinhaber (wie `user.*`) |
+| `custom_b.<name>` | schreibende Person (wie `bearbeiter.*`) |
+| `custom.<name>` | alter Name für `custom_u.<name>`, gilt weiter |
+
+Einzelne Werte können pro Postfach überschrieben werden; ein Override gilt für
+die Person selbst, also auch als `custom_b.*`, wenn sie für ein geteiltes
+Postfach schreibt. Die vollständige Liste steht unter *Einstellungen →
+Signaturen → Alle Variablen*. Im Vorlagen-Editor setzt ein gewählter Vorschlag
+die Klammern `{{ … }}` selbst, außer der Cursor steht schon in einem Ausdruck.
 
 ---
 

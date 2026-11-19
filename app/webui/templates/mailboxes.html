@@ -703,7 +703,8 @@ async function ankerAnwenden() {
     <h2 id="vars-modal-title" style="margin-top:0;font-size:15px;margin-bottom:4px"></h2>
     <p style="font-size:11px;color:#64748b;margin-top:0;margin-bottom:12px">
       Wert je Variable für alle Postfächer dieser Gruppe. In Vorlagen als
-      <code>{{ '{{' }} custom.NAME {{ '}}' }}</code> nutzbar. Rang: ein Postfach-eigener Wert
+      <code>{{ '{{' }} custom_u.NAME {{ '}}' }}</code> (Postfach) bzw. <code>{{ '{{' }} custom_b.NAME {{ '}}' }}</code>
+      (wer schreibt) nutzbar. Rang: ein Postfach-eigener Wert
       schlägt den Gruppenwert, dieser schlägt den Vorgabewert aus dem Verzeichnis.
     </p>
     <div id="vars-modal-list" style="display:flex;flex-direction:column;gap:6px"></div>

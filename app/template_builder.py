@@ -40,12 +40,14 @@ import html as _htmllib
 from typing import Any
 
 _ALWAYS_PRESENT = {"user.displayName", "user.mail"}
-_USER_FIELDS = {
+# Reihenfolge = Anzeige (Variablenliste unter Einstellungen → Signaturen).
+USER_FELDER = (
     "displayName", "givenName", "surname", "jobTitle", "department", "companyName",
     "mail", "phone", "mobilePhone", "officeLocation",
     "streetAddress", "postalCode", "city", "state", "country",
     "website", "bookingsUrl",
-}
+)
+_USER_FIELDS = set(USER_FELDER)
 
 # Bestandteile des Anschrift-Bausteins, in der Reihenfolge der Darstellung.
 _ANSCHRIFT_ZEILEN = [
@@ -59,7 +61,11 @@ _ANSCHRIFT_ZEILEN = [
 # unverändert in einer Jinja2-Vorlage, und Vorlagen-Metadaten darf auch die
 # Editor-Rolle speichern. Diese Zeichenklasse ist die einzige Schranke gegen
 # eingeschleuste Vorlagen-Ausdrücke.
-_CUSTOM_PREFIX = "custom."
+#
+# `custom_u.NAME` (Inhaber) und `custom_b.NAME` (schreibende Person) sind die
+# heutigen Namen; `custom.NAME` ist der alte für `custom_u` und bleibt gültig —
+# bestehende Bausteine tragen ihn (signature_engine._kontext setzt alle drei).
+_CUSTOM_PREFIXE = ("custom_u.", "custom_b.", "custom.")
 # Wer die Mail schreibt — bei „im Auftrag von“ eines geteilten Postfachs die
 # Person (handler._bearbeiter), sonst der Inhaber. Dieselben Felder wie user.
 _BEARBEITER_PREFIX = "bearbeiter."
@@ -75,9 +81,10 @@ def _resolve_var(fname: str) -> str | None:
     """
     if not fname:
         return None
-    if fname.startswith(_CUSTOM_PREFIX):
-        name = fname[len(_CUSTOM_PREFIX):]
-        return f"custom.{name}" if _CUSTOM_NAME_RE.match(name) else None
+    for praefix in _CUSTOM_PREFIXE:
+        if fname.startswith(praefix):
+            name = fname[len(praefix):]
+            return f"{praefix}{name}" if _CUSTOM_NAME_RE.match(name) else None
     if fname.startswith(_BEARBEITER_PREFIX):
         name = fname[len(_BEARBEITER_PREFIX):]
         return f"bearbeiter.{name}" if name in _USER_FIELDS else None
