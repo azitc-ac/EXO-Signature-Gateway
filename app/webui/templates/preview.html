@@ -45,8 +45,8 @@
   erscheint über der Signatur, der Zeitraum darin ist ein Beispielwert. Was ein
   Postfach <em>tatsächlich</em> bekommt — nach Standardrichtlinie, Gruppen-Regeln,
   eigener Wahl und laufenden Kampagnen —, zeigt die
-  <strong>Vorschau (Richtlinienergebnis)</strong> im Vorlagen-Editor unter
-  <a href="/template">Vorlagen</a>; die Zuordnung selbst steht unter
+  Seite <a href="/richtlinienergebnis">Richtlinienergebnis</a>; die Zuordnung
+  selbst steht unter
   <a href="/mailboxes">Postfächer</a>.
 </p>
 
@@ -104,22 +104,10 @@
     getJSON('/api/mailboxes/namen'),
     getJSON('/api/templates'),
   ]).then(([mbData, tData]) => {
-    // Populate email select
-    const mbs = mbData.mailboxes || [];
-    mbs.forEach(m => {
-      const o = document.createElement('option');
-      o.value = m.email;
-      o.textContent = m.name !== m.email ? `${m.name} <${m.email}>` : m.email;
-      emailSel.appendChild(o);
-    });
-    // „Schreibt“ bietet dieselben Postfächer an (ohne die Leerzeile).
-    const schreibt = document.getElementById('bearbeiter-sel');
-    Array.from(emailSel.options).slice(1).forEach(o => schreibt.appendChild(o.cloneNode(true)));
     // Eine Adresse aus der Aufrufadresse hat Vorrang — sie ist die Absicht des
     // Augenblicks. Sonst: zuletzt gewähltes Postfach, sonst das erste.
-    const adressen = mbs.map(m => m.email);
-    if (presetEmail && adressen.includes(presetEmail)) emailSel.value = presetEmail;
-    else vorschauPostfachWaehlen(emailSel, adressen);
+    const mbs = mbData.mailboxes || [];
+    vorschauPostfaecherFuellen(emailSel, document.getElementById('bearbeiter-sel'), mbs, presetEmail);
 
     // Jedes Feld aus SEINER Art füllen (by_kind) — sonst zeigten Banner und
     // Disclaimer die Signaturliste. „— keine —" trägt den leeren Wert und steht

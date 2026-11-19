@@ -6,10 +6,10 @@ Mailweg (handler.py). Hier wird nur gerendert und beschriftet: je Teil
 „Gruppe X“, „Postfach“, „Kampagne Y“) und ob sie festgeschrieben ist — wie
 das Richtlinienergebnis (RSoP) bei Gruppenrichtlinien.
 
-Leser: Live-Vorschau im Vorlagen-Editor (`/api/preview-data` ohne
-`explizit`) und die Self-Service-Seite (`/api/self/preview`). Die
-Was-wäre-wenn-Vorschau (`/preview`, `explizit=1`) stellt dagegen frei zusammen
-und geht NICHT hierüber.
+Leser: die Seite Richtlinienergebnis (`/api/richtlinienergebnis`, seit
+v1.12.110 — vorher die Vorschau im Vorlagen-Editor) und die Self-Service-Seite
+(`/api/self/preview`). Die Vorschau im Editor (nur die bearbeitete Vorlage) und
+die Was-wäre-wenn-Vorschau (`/preview`, `explizit=1`) gehen NICHT hierüber.
 
 Was nur der Mailweg weiss (Signatur des Add-ins im Entwurf, Korrekturen bei
 geteilten Postfächern, die beantwortete Mail), kennt die Vorschau nicht; sie
@@ -83,7 +83,7 @@ async def zusammenstellen(email: str, fall: str = "neu", vorlage_override: str |
     — für die Self-Service-Seite, deren Auswahl erst beim Speichern gilt.
 
     Liefert {fall, teile:[{slot, name, vorlage, quelle, ebene, gruppe, fest,
-    kampagne, html, txt}], html, txt, signatur_unterdrueckt, grund, grund_text,
+    kampagne, html, txt}], zusatz_text, html, txt, signatur_unterdrueckt, grund, grund_text,
     zusatz, override_wirksam, override, hat_intern, error}.
     """
     entscheid = policies.entscheiden_fall(email, fall, per_nosig=per_nosig,
@@ -126,8 +126,19 @@ async def zusammenstellen(email: str, fall: str = "neu", vorlage_override: str |
         else:
             gesamt_txt = t["txt"]
 
+    # Banner/Disclaimer, die in diesem Fall laut Einstellung entfallen — nur,
+    # wenn das Gateway überhaupt etwas anhängt (sonst sagt `grund` alles).
+    zusatz_text = ""
+    if entscheid["grund"] not in (policies.GRUND_NICHT_AKTIV, policies.GRUND_INTERN_UNVERAENDERT,
+                                  policies.GRUND_POSTFACH_OHNE_SIGNATUR):
+        weg = [SLOT_NAME[x] for x in ("banner", "disclaimer") if x not in entscheid["zusatz"]]
+        if weg:
+            einstellung = "Der Trigger entfernt" if per_nosig else "Antworten in derselben Kette"
+            zusatz_text = (f"{' und '.join(weg)} hängt das Gateway in diesem Fall nicht an "
+                           f"(Einstellungen → Signatur: „{einstellung}“).")
+
     ergebnis = {
-        "fall": fall, "teile": teile, "html": gesamt_html, "txt": gesamt_txt,
+        "fall": fall, "teile": teile, "zusatz_text": zusatz_text, "html": gesamt_html, "txt": gesamt_txt,
         "signatur_unterdrueckt": entscheid["signatur_unterdrueckt"],
         "grund": entscheid["grund"], "grund_text": GRUND_TEXT.get(entscheid["grund"], ""),
         "zusatz": sorted(entscheid["zusatz"]),

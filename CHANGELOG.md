@@ -5,6 +5,70 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.110 — 2026-11-19 — Postfächer: kompakte Werkzeugleiste, Festlegung als farbiger Gruppen-Chip; Signaturen: Richtlinienergebnis als eigene Seite
+
+### Postfächer
+
+* **Werkzeugleiste über der Liste:** Über der Postfachliste standen bisher der
+  Erklärtext, sechs Filter und sechs Sammelaktionen offen. Auf dem Telefon
+  (393 px) lag die erste Postfachzeile dadurch rund 850 px tief, also unter dem
+  Bildschirmrand. Jetzt steht dort eine Leiste: Suchfeld, **Filter** und
+  **Aktionen**. *Filter* klappt Typ, Signatur, S/MIME, „nur Ausnahmen“ und
+  „nur ruhende Wahl“ auf; der Knopf zeigt, wie viele davon greifen
+  („Filter (2)“). *Aktionen* enthält alle Sammelaktionen für die sichtbaren
+  Zeilen: Signatur/S/MIME für alle an oder aus, Vorlage setzen, Ausnahmen auf
+  Standard, ruhende Wahl verwerfen und die Transportregel prüfen. Es ist immer
+  nur ein Bereich offen. Der Erklärtext steht eingeklappt unter „Was bewirkt
+  die Markierung?“. Bei 393 px beginnt die Liste jetzt bei rund 330 px. Der
+  Sprung aus der Aufgabe „Ruhende Postfach-Wahlen“ (`/mailboxes#ruhend`) öffnet
+  den Filterbereich mit gesetztem Filter.
+* **Festgelegte Auswahl:** Im gesperrten Auswahlfeld steht nur noch der
+  wirksame Wert, also der Vorlagenname, ohne „Festgelegt (…)“. Darunter steht
+  nur die Quelle: der Name der Gruppe oder „Standardrichtlinie“. Den ganzen
+  Satz („Festgelegt durch Gruppe „…““) zeigt der Tooltip. Eine ruhende eigene
+  Wahl samt „verwerfen“ steht weiterhin darunter.
+* **Gruppenfarben:** Jede interne Gruppe bekommt eine feste Farbe aus acht.
+  Sie ergibt sich aus dem Namen, ist also auf jedem Rechner gleich. Die Quelle
+  unter einer festgelegten Auswahl erscheint als Chip in dieser Farbe; die
+  Standardrichtlinie bekommt einen neutralen Chip. Dieselbe Farbe steht als
+  Punkt vor der Gruppe in der Gruppenliste und in den Gruppen-Regeln. Wird
+  eine Gruppe umbenannt, kann sich ihre Farbe ändern. Die Add-in-Auswahl
+  vereinigt mehrere Gruppen; dort erscheint je Gruppe ein Chip.
+
+### Signaturen
+
+* **Signaturen → Richtlinienergebnis** (neu, `/richtlinienergebnis`, neben der
+  *Was-wäre-wenn-Vorschau*): Für ein gewähltes Postfach, auf Wunsch mit der
+  Person, die „im Auftrag von“ schreibt, steht je Fall — *Neue Mail*,
+  *Antwort in einer Kette, in der das Postfach schon signiert hat*, *Rein
+  interne Mail* und *Neue Mail mit #nosig* — das vollständige Ergebnis, das
+  das Gateway anhängt: Signatur, Banner (auch aus einer laufenden Kampagne) und
+  Disclaimer, gerendert. Jeder Teil trägt seine Herkunft (Standard, Gruppe X,
+  Postfach, Kampagne Y; festgeschrieben hervorgehoben). Entfällt etwas, steht
+  der Grund dabei: nur für S/MIME freigeschaltet, rein interne Post
+  unverändert, #nosig, Banner/Disclaimer laut Einstellung „Antworten in
+  derselben Kette“ bzw. „Der Trigger entfernt“. Die Seite trifft dieselbe
+  Entscheidung wie der Mailweg; sie ist auch für die Rolle Signatur-Editor
+  zugänglich.
+* **Vorlagen-Editor:** Die Vorschau heißt wieder „Vorschau“ und zeigt nur die
+  bearbeitete Vorlage für das gewählte Postfach und die gewählte schreibende
+  Person — ohne Banner und Disclaimer des Postfachs, ohne Fall-Umschalter und
+  ohne Herkunftsangaben. Seit v1.12.104 zeigte sie stattdessen das
+  Richtlinienergebnis; eine Vorlage, die das gewählte Postfach nicht bekam,
+  war dort nur in einem zugeklappten Bereich zu sehen. Der Link
+  „Richtlinienergebnis für dieses Postfach ansehen“ öffnet die neue Seite für
+  dasselbe Postfach und nennt dort je Fall, ob die bearbeitete Vorlage wirksam
+  ist und wenn nicht, warum.
+
+**Zu tun:** nichts.
+
+---
+
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.109 — 2026-11-19 — Self-Service: Erklärtext der Antwort-Signatur in der reinen Ansicht
 
 In der reinen Ansicht des Reiters *Antwort-Signatur* (seit v1.12.108) verwies

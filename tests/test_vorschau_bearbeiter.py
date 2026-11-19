@@ -63,14 +63,24 @@ def _hole(client, **params):
 def test_ohne_bearbeiter_schreibt_der_inhaber(client):
     d = _hole(client, email="info@example.org", template="default")
     assert "Info-Postfach|Info-Postfach</p>" in d["html"]
-    assert "B:Info-Postfach" in d["banner_html"]
+    # Editor-Vorschau: nur die Vorlage, kein Banner des Postfachs (v1.12.110)
+    assert d["banner_html"] == ""
 
 
-def test_bearbeiter_fuellt_die_signatur_banner_bleibt_beim_inhaber(client):
+def test_bearbeiter_fuellt_die_signatur(client):
     d = _hole(client, email="info@example.org", template="default", bearbeiter="max@example.org")
     assert "Info-Postfach|Max Mustermann|AUFTRAG" in d["html"]
-    # Banner rendert der handler ohne `extra` — im Betrieb steht dort der Inhaber
-    assert "B:Info-Postfach" in d["banner_html"]
+
+
+def test_richtlinienergebnis_bearbeiter_banner_bleibt_beim_inhaber(client):
+    """Seite Richtlinienergebnis: Signatur mit Bearbeiter, Banner rendert der
+    handler ohne `extra` — im Betrieb steht dort der Inhaber."""
+    r = client.get("/api/richtlinienergebnis",
+                   params={"email": "info@example.org", "bearbeiter": "max@example.org"})
+    assert r.status_code == 200, r.text
+    neu = next(f for f in r.json()["faelle"] if f["schluessel"] == "neu")
+    assert "Info-Postfach|Max Mustermann|AUFTRAG" in neu["html"]
+    assert "B:Info-Postfach" in neu["html"]
 
 
 def test_bearbeiter_auch_auf_der_vorschauseite(client):

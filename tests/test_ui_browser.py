@@ -1463,9 +1463,12 @@ def test_postfachfilter_signatur_und_smime(seite):
             .filter(tr => tr.style.display !== 'none').map(tr => tr.dataset.search.split(' ')[0])""")
 
     assert sichtbar() == ["a@contoso.example", "b@contoso.example", "c@contoso.example"]
+    # Seit v1.12.110 stehen die Filter im aufklappbaren Bereich „Filter“.
+    pg.click("#mb-filter-knopf")
     pg.select_option("#mb-sig-filter", "an")
     assert sichtbar() == ["a@contoso.example", "b@contoso.example"]
     assert pg.inner_text("#mb-filter-count") == "2 von 3 Postfächern"
+    assert pg.inner_text("#mb-filter-knopf").startswith("Filter (1)")
     pg.select_option("#mb-smime-filter", "an")
     assert sichtbar() == ["a@contoso.example"]
     pg.select_option("#mb-sig-filter", "aus")
@@ -1477,6 +1480,85 @@ def test_postfachfilter_signatur_und_smime(seite):
                 ".querySelector('.mb-sig').checked = true; filterMailboxes(); }")
     assert sichtbar() == []
 
+
+
+
+# Postfachliste mit einer festgelegten Zeile (Gruppe, Standardrichtlinie, Add-in
+# aus zwei Gruppen) — für Höhe und Chips.
+_MB_FEST = """[
+  {email: 'a@contoso.example', name: 'A', type: 'user', sig: true, smime: false, template: 'x',
+   standard: {sig: 'default', min: 'kurz', addin: ['A', 'B']},
+   fest: {sig: 'Vertrieb', min: '', addin: 'Vertrieb, Technik'}},
+  {email: 'b@contoso.example', name: 'B', type: 'user', sig: true, smime: false}]"""
+
+
+def _postfaecher_zeichnen(pg):
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      // Schlechtester Fall: Lizenzzähler sichtbar.
+      document.getElementById('fairuse-counter').style.display = '';
+      document.getElementById('mb-table-wrap').style.display = '';
+      renderMailboxTable(%s); }""" % _MB_FEST)
+
+
+@pytest.mark.parametrize("breite,hoehe", [(393, 800), (320, 700)])
+def test_erste_postfachzeile_ohne_rollen_sichtbar(seite, breite, hoehe):
+    """v1.12.110: Über der Liste standen Erklärtext, sechs Filter und sechs
+    Sammelaktionen offen — bei 393 px lag die erste Postfachzeile unter dem
+    Bildschirmrand. Jetzt eine Leiste (Suche, „Filter“, „Aktionen“)."""
+    pg = seite("/mailboxes", breite=breite, hoehe=hoehe)
+    _postfaecher_zeichnen(pg)
+    r = pg.evaluate("""() => {
+      const tr = document.querySelector('#mb-tbody tr');
+      const leiste = document.querySelector('.mb-werkzeug');
+      const kinder = Array.from(leiste.children).filter(e => e.offsetParent !== null);
+      return {oben: tr.getBoundingClientRect().top + scrollY,
+              breit: document.documentElement.scrollWidth,
+              zeilen: new Set(kinder.map(e => Math.round(e.getBoundingClientRect().top))).size}; }""")
+    assert r["oben"] < hoehe - 100, f"erste Postfachzeile erst bei {r['oben']:.0f} px"
+    assert r["breit"] <= breite, f"waagerechte Rollleiste: {r['breit']} px"
+    assert r["zeilen"] == 1, "Suche, Filter und Aktionen brechen um"
+    # Aufgeklappt sind alle Funktionen erreichbar; immer nur ein Bereich offen.
+    pg.click("#mb-aktionen-knopf")
+    assert pg.is_visible("#regel-probe-alle-btn") and pg.is_visible("#mb-massen-vorlage")
+    pg.click("#mb-filter-knopf")
+    assert pg.is_visible("#mb-ruhend-filter") and not pg.is_visible("#regel-probe-alle-btn")
+    assert pg.get_attribute("#mb-filter-knopf", "aria-expanded") == "true"
+    assert pg.evaluate("() => document.documentElement.scrollWidth") <= breite
+
+
+@pytest.mark.parametrize("thema", ["light", "dark"])
+def test_festgelegte_auswahl_zeigt_nur_die_quelle_als_farbchip(seite, thema):
+    pg = seite("/mailboxes", breite=1280, thema=thema)
+    _postfaecher_zeichnen(pg)
+    r = pg.evaluate("""() => {
+      const tr = document.querySelector('#mb-tbody tr');
+      const zelle = sel => tr.querySelector(sel).closest('td');
+      const hell = el => { const m = getComputedStyle(el).backgroundColor.match(/\\d+/g).slice(0, 3).map(Number);
+                           return m.reduce((a, b) => a + b, 0) / 3; };
+      const chips = sel => Array.from(zelle(sel).querySelectorAll('.wahl-fest .gruppen-chip'))
+        .map(c => ({text: c.textContent, farbe: c.dataset.gruppenfarbe, hell: hell(c),
+                    bg: getComputedStyle(c).backgroundColor}));
+      const s = tr.querySelector('select.mb-template');
+      return {option: s.options[s.selectedIndex].text, gesperrt: s.disabled, titel: s.title,
+              sig: chips('select.mb-template'), min: chips('select.mb-min-sig'),
+              addin: chips('select.mb-addin-modus'), soll: gruppenFarbe('Vertrieb'),
+              ruht: zelle('select.mb-template').querySelector('.wahl-ruht').textContent}; }""")
+    assert r["option"] == "default" and r["gesperrt"] is True
+    assert r["titel"] == "Festgelegt durch Gruppe „Vertrieb“"
+    assert [c["text"] for c in r["sig"]] == ["Vertrieb"]
+    assert r["sig"][0]["farbe"] == str(r["soll"])
+    assert [(c["text"], c["farbe"]) for c in r["min"]] == [("Standardrichtlinie", "standard")]
+    assert [c["text"] for c in r["addin"]] == ["Vertrieb", "Technik"]
+    assert r["addin"][0]["farbe"] == r["sig"][0]["farbe"], "gleiche Gruppe, gleiche Farbe"
+    assert r["ruht"].startswith("eigene Wahl „x“ ruht")
+    for c in r["sig"] + r["min"] + r["addin"]:
+        if thema == "dark":
+            assert c["hell"] < 90, f"Chip leuchtet im Dunkelmodus: {c}"
+        else:
+            assert c["hell"] > 200, f"Chip ohne helle Farbe: {c}"
+    # Gruppe und Standardrichtlinie sind unterscheidbar.
+    assert r["sig"][0]["bg"] != r["min"][0]["bg"]
 
 
 def test_sammellauf_anzeige_mit_echten_zustaenden(seite):
@@ -1952,6 +2034,59 @@ def test_vorschau_schickt_wer_schreibt(seite):
         pg.locator("#preview-bearbeiter-sel").select_option("")
     assert "email=info%40example.org" in anfrage.value.url
     assert "bearbeiter=" not in anfrage.value.url
+    # Seit v1.12.110 nur die bearbeitete Vorlage: kein Fall, keine Herkunft.
+    assert "fall=" not in anfrage.value.url
+    assert pg.locator("#vorschau-fall, #vorschau-herkunft, #preview-override-box").count() == 0
+    link = pg.locator("#richtlinie-link").get_attribute("href")
+    assert link.startswith("/richtlinienergebnis?email=info%40example.org")
+    pg.context.close()
+
+
+# ── Richtlinienergebnis: eigene Seite (v1.12.110) ────────────────────────────
+
+@pytest.mark.parametrize("breite,thema", [(1280, "light"), (393, "light"), (393, "dark")])
+def test_richtlinienergebnis_zeigt_teile_mit_herkunft(seite, breite, thema):
+    """Je Fall die Teile mit Herkunft (festgeschrieben / Kampagne über
+    data-art), Gründe als Hinweis, gerenderte Vorschau; bei 393 px ohne
+    Querrollen, im Dunkelmodus ohne leuchtende Chips."""
+    pg = seite("/richtlinienergebnis", breite=breite, thema=thema)
+    teil = lambda slot, name, vorlage, quelle, fest=False, kampagne="": {
+        "slot": slot, "name": name, "vorlage": vorlage, "quelle": quelle,
+        "fest": fest, "kampagne": kampagne}
+    antwort = {"faelle": [
+        {"schluessel": "neu", "titel": "Neue Mail", "html": "<p>SIG</p><p>BAN</p>",
+         "teile": [teil("sig", "Signatur", "GrpSig", "Gruppe Vertrieb", fest=True),
+                   teil("banner", "Banner", "KmpBan", "Kampagne Sommer", kampagne="Sommer")],
+         "grund_text": "", "zusatz_text": "", "override": None},
+        {"schluessel": "intern", "titel": "Rein interne Mail", "html": "", "teile": [],
+         "grund_text": "Rein interne Post leitet das Gateway unverändert weiter.",
+         "zusatz_text": "", "override": None}],
+        "error": None, "vorlage": ""}
+    pg.route("**/api/richtlinienergebnis*", lambda r: r.fulfill(json=antwort))
+    pg.evaluate("""() => {
+        const s = document.getElementById('rl-email-sel');
+        const o = document.createElement('option'); o.value = o.textContent = 'info@example.org';
+        s.appendChild(o);
+    }""")
+    with pg.expect_request("**/api/richtlinienergebnis*") as anfrage:
+        pg.locator("#rl-email-sel").select_option("info@example.org")
+    assert "email=info%40example.org" in anfrage.value.url
+    pg.locator('.rl-fall[data-fall="intern"]').wait_for()
+    chips = pg.locator('.rl-fall[data-fall="neu"] .herkunft-chip')
+    assert chips.count() == 2
+    assert chips.nth(0).inner_text() == "Signatur „GrpSig“ · Gruppe Vertrieb · festgeschrieben"
+    assert chips.nth(0).get_attribute("data-art") == "fest"
+    assert chips.nth(1).get_attribute("data-art") == "kampagne"
+    assert "unverändert" in pg.locator('.rl-fall[data-fall="intern"] .rl-hinweis').inner_text()
+    assert "nichts an" in pg.locator('.rl-fall[data-fall="intern"] .rl-leer').inner_text()
+    assert pg.locator('.rl-fall[data-fall="neu"] iframe').count() == 1
+    assert pg.evaluate("() => document.documentElement.scrollWidth <= window.innerWidth")
+    hell = pg.evaluate("""() => {
+        const m = getComputedStyle(document.querySelector('.herkunft-chip[data-art=fest]'))
+          .backgroundColor.match(/\\d+/g).map(Number);
+        return 0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2];
+    }""")
+    assert (hell < 90) if thema == "dark" else (hell > 200), hell
     pg.context.close()
 
 

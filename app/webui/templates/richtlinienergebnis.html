@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{#
+   Richtlinienergebnis (seit v1.12.110) — was das Gateway einem Postfach je
+   Fall anhängt: Signatur, Banner (auch aus einer laufenden Kampagne) und
+   Disclaimer, gerendert, je Teil mit Herkunft (Standard / Gruppe X / Postfach
+   / Kampagne Y, festgeschrieben) und dem Grund, wenn etwas entfällt.
+
+   Keine eigene Auflösung: /api/richtlinienergebnis ruft je Fall
+   vorschau.zusammenstellen → policies.entscheiden, dieselbe Entscheidung wie
+   der Mailweg (handler). Bis v1.12.109 stand das als „Vorschau
+   (Richtlinienergebnis)“ im Vorlagen-Editor; der zeigt seitdem wieder nur die
+   bearbeitete Vorlage.
+
+   Farben nur über data-art / data-zustand (Dark-Mode-Regel 2) und
+   seitenspezifisch hier, nicht in style.css/dark-mode.css (mit dem Relay
+   gespiegelt).
+#}
+{% block content %}
+<script src="/static/sig_preview.js?v={{ version }}"></script>
+<h1>Signaturen</h1>
+
+{% set nav_aktiv = 'richtlinie' %}{% include "_nav_signaturen.html" %}
+
+<div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+  <div class="rl-feld">
+    <label for="rl-email-sel" style="display:block;font-size:13px;color:#555;margin-bottom:4px">Postfach</label>
+    <select id="rl-email-sel" onchange="vorschauPostfachMerken(this.value); rlLaden()">
+      <option value="">— Postfach wählen —</option>
+    </select>
+  </div>
+  <div class="rl-feld">
+    <!-- Wer schreibt: bei „im Auftrag von“ eines geteilten Postfachs eine
+         andere Person als der Inhaber — füllt bearbeiter.* der Signatur. -->
+    <label for="rl-bearbeiter-sel" style="display:block;font-size:13px;color:#555;margin-bottom:4px">Schreibt</label>
+    <select id="rl-bearbeiter-sel" onchange="rlLaden()">
+      <option value="">— Inhaber selbst —</option>
+    </select>
+  </div>
+  <span id="rl-laedt" class="hint" hidden>Lädt…</span>
+</div>
+
+<h2 style="font-size:16px;margin:0 0 6px">Richtlinienergebnis</h2>
+<p style="font-size:12px;color:#6b7280;margin:0 0 14px">
+  Was das Gateway an die Post dieses Postfachs hängt — nach Standardrichtlinie,
+  Gruppen-Regeln, eigener Wahl und laufenden Kampagnen, mit derselben
+  Entscheidung wie im Mailweg. Je Teil steht, woher er kommt. Nicht enthalten
+  ist, was nur der Mailweg weiß (eine Signatur des Add-ins im Entwurf, die
+  beantwortete Mail). Frei zusammenstellen:
+  <a href="/preview">Was-wäre-wenn-Vorschau</a>; die Zuordnung selbst steht
+  unter <a href="/mailboxes">Postfächer</a>.
+</p>
+
+<p id="rl-vorlage" class="hint" style="margin:0 0 12px;overflow-wrap:anywhere" hidden></p>
+<div id="rl-fehler" class="alert error" hidden></div>
+<div id="rl-faelle"></div>
+
+<style>
+  .rl-feld select { width:280px; max-width:100% }
+  .rl-fall { margin:0 0 22px }
+  .rl-fall h3 { font-size:14px; margin:0 0 6px; overflow-wrap:anywhere }
+  .rl-fall .preview-frame { overflow:auto; padding:16px; margin-bottom:0 }
+  .herkunft-liste { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 8px; padding:0; list-style:none }
+  .herkunft-chip { font-size:12px; line-height:1.4; padding:2px 8px; border-radius:10px;
+    background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; overflow-wrap:anywhere; max-width:100% }
+  .herkunft-chip[data-art="fest"]     { background:#fffbeb; color:#92400e; border-color:#fde68a }
+  .herkunft-chip[data-art="kampagne"] { background:#f5f3ff; color:#334155; border-color:#e2e8f0 }
+  .rl-hinweis { font-size:12px; padding:8px 10px; border-radius:6px; margin:0 0 8px; overflow-wrap:anywhere }
+  .rl-hinweis[data-zustand="wirksam"]   { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0 }
+  .rl-hinweis[data-zustand="unwirksam"] { background:#fffbeb; color:#92400e; border:1px solid #fde68a }
+  .rl-hinweis[data-zustand="grund"]     { background:#f8fafc; color:#334155; border:1px solid #e2e8f0 }
+  .rl-leer { color:#9ca3af; font-size:12px }
+  [data-theme="dark"] .herkunft-chip                     { background:#1e293b; color:#cbd5e1; border-color:#334155 }
+  [data-theme="dark"] .herkunft-chip[data-art="fest"]     { background:#241d10; color:#fcd34d; border-color:#78350f }
+  [data-theme="dark"] .herkunft-chip[data-art="kampagne"] { background:#1e1b2e; color:#c4b5fd; border-color:#4c1d95 }
+  [data-theme="dark"] .rl-hinweis[data-zustand="wirksam"]   { background:#0f2018; color:#86efac; border-color:#14532d }
+  [data-theme="dark"] .rl-hinweis[data-zustand="unwirksam"] { background:#241d10; color:#fcd34d; border-color:#78350f }
+  [data-theme="dark"] .rl-hinweis[data-zustand="grund"]     { background:#1e293b; color:#cbd5e1; border-color:#334155 }
+  [data-theme="dark"] .rl-leer { color:#64748b }
+</style>
+
+<script>
+(function () {
+  const emailSel = document.getElementById('rl-email-sel');
+  const vorgabe = {{ email | tojson }};
+  // Aus dem Vorlagen-Editor: diese Vorlage wird je Fall auf Wirksamkeit geprüft.
+  const VORLAGE = {{ vorlage | tojson }};
+
+  getJSON('/api/mailboxes/namen').then(d => {
+    if (!d.ok) throw new Error(errText(d));
+    // Eine Adresse aus der Aufrufadresse geht vor, sonst die zuletzt gewählte.
+    vorschauPostfaecherFuellen(emailSel, document.getElementById('rl-bearbeiter-sel'),
+                               d.mailboxes, vorgabe);
+    if (emailSel.value) rlLaden();
+  }).catch(e => fehler('Ladefehler: ' + e.message));
+
+  function fehler(text) {
+    const box = document.getElementById('rl-fehler');
+    box.textContent = text;
+    box.hidden = !text;
+  }
+
+  // Herkunft je Teil: „Signatur „X“ · Gruppe Vertrieb · festgeschrieben“.
+  function chips(teile) {
+    const liste = document.createElement('ul');
+    liste.className = 'herkunft-liste';
+    (teile || []).forEach(t => {
+      const li = document.createElement('li');
+      li.className = 'herkunft-chip';
+      if (t.kampagne) li.dataset.art = 'kampagne';
+      else if (t.fest) li.dataset.art = 'fest';
+      li.textContent = t.name + ' „' + t.vorlage + '“ · ' + t.quelle
+        + (t.fest && !t.kampagne ? ' · festgeschrieben' : '');
+      liste.appendChild(li);
+    });
+    return liste;
+  }
+
+  function hinweis(text, zustand) {
+    const p = document.createElement('p');
+    p.className = 'rl-hinweis';
+    p.dataset.zustand = zustand;
+    p.textContent = text;
+    return p;
+  }
+
+  window.rlLaden = async function () {
+    const email = emailSel.value;
+    const ziel = document.getElementById('rl-faelle');
+    fehler('');
+    if (!email) { ziel.innerHTML = ''; return; }
+    const laedt = document.getElementById('rl-laedt');
+    laedt.hidden = false;
+    try {
+      // Leere Werte sind „Inhaber selbst“ bzw. „ohne Vorlage“ — der Server
+      // behandelt sie wie fehlend.
+      const d = await getJSON('/api/richtlinienergebnis?' + new URLSearchParams(
+        {email, bearbeiter: feldWert('rl-bearbeiter-sel'), vorlage: VORLAGE || ''}));
+      if (!d.ok) throw new Error(errText(d));
+      fehler(d.error ? 'Graph-Fehler: ' + d.error : '');
+      const vh = document.getElementById('rl-vorlage');
+      vh.textContent = d.vorlage
+        ? 'Aus dem Vorlagen-Editor: je Fall steht, ob „' + d.vorlage + '“ hier wirksam ist.'
+        : '';
+      vh.hidden = !d.vorlage;
+      ziel.innerHTML = '';
+      (d.faelle || []).forEach(f => {
+        const sek = document.createElement('section');
+        sek.className = 'rl-fall';
+        sek.dataset.fall = f.schluessel;
+        const h = document.createElement('h3');
+        h.textContent = f.titel;
+        sek.appendChild(h);
+        if (f.override) sek.appendChild(hinweis(f.override.hinweis, f.override.wirksam ? 'wirksam' : 'unwirksam'));
+        if (f.teile && f.teile.length) sek.appendChild(chips(f.teile));
+        if (f.grund_text) sek.appendChild(hinweis(f.grund_text, 'grund'));
+        if (f.zusatz_text) sek.appendChild(hinweis(f.zusatz_text, 'grund'));
+        const box = document.createElement('div');
+        box.className = 'preview-frame';
+        sek.appendChild(box);
+        ziel.appendChild(sek);
+        if ((f.html || '').trim()) {
+          sigVorschau(box, f.html);
+        } else {
+          const leer = document.createElement('span');
+          leer.className = 'rl-leer';
+          leer.textContent = 'Das Gateway hängt hier nichts an.';
+          box.appendChild(leer);
+        }
+      });
+    } catch (e) {
+      fehler('Fehler: ' + e.message);
+    } finally {
+      laedt.hidden = true;
+    }
+  };
+}());
+</script>
+{% endblock %}

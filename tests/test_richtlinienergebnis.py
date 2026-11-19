@@ -8,7 +8,10 @@ rechnete die wirksame Vorlage im Browser nach (`wirksam()`) und meldete „Keine
 Antwort-Signatur“, wenn ein Slot weder wählbar noch fest war.
 
 Seitdem entscheidet `policies.entscheiden` für den Mailweg (handler.py) UND
-`vorschau.zusammenstellen` (Editor, Self-Service). Diese Datei prüft:
+`vorschau.zusammenstellen` (Seite Richtlinienergebnis, Self-Service). Bis
+v1.12.109 zeigte die Editor-Vorschau das Richtlinienergebnis; seit v1.12.110
+hat es eine eigene Seite (/richtlinienergebnis), und der Editor zeigt nur die
+bearbeitete Vorlage. Diese Datei prüft:
 
 * Gleichheit am ECHTEN `handle_DATA` gegen die Vorschau, über viele
   Konfigurationen — und gegen festgeschriebene Erwartungen, damit nicht beide
@@ -17,7 +20,9 @@ Seitdem entscheidet `policies.entscheiden` für den Mailweg (handler.py) UND
   rot): Ein Postfach nur mit S/MIME bekam die volle Signatur samt Banner und
   Disclaimer; eine Kampagne prüfte bei „im Auftrag von“ die Art des Banners der
   schreibenden PERSON statt des geteilten Postfachs.
-* Editor: wirksam / nicht wirksam, mit Grund; Kampagne als Herkunft.
+* Seite Richtlinienergebnis: alle Fälle mit Herkunft je Teil, Gründe; mit
+  `vorlage` (Sprung aus dem Editor) wirksam / nicht wirksam.
+* Editor: nur die bearbeitete Vorlage, nichts vom Postfach.
 * Self-Service: Antwortfall nach KETTE_BEHAELT, nicht wählbare Slots aus der
   Richtlinie.
 """
@@ -291,7 +296,7 @@ def test_kampagne_fuer_eine_gruppe_trifft_das_geteilte_postfach(anlage):
     assert _versand(anlage, "neu") == ["StdSig", "StdBan", "StdDis"]
 
 
-# ── Editor: /api/preview-data ohne `explizit` ────────────────────────────────
+# ── Seite Richtlinienergebnis: /api/richtlinienergebnis ──────────────────────
 
 @pytest.fixture
 def client(anlage, monkeypatch, tmp_path):
@@ -313,70 +318,151 @@ def client(anlage, monkeypatch, tmp_path):
     app.dependency_overrides.clear()
 
 
-def _editor(client, template, fall="neu"):
-    r = client.get("/api/preview-data", params={"email": ABS, "template": template, "fall": fall})
+def _seite(client, vorlage=""):
+    """Die Fälle der Seite, nach Schlüssel (neu / antwort / intern / nosig)."""
+    params = {"email": ABS}
+    if vorlage:
+        params["vorlage"] = vorlage
+    r = client.get("/api/richtlinienergebnis", params=params)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert [f["schluessel"] for f in d["faelle"]] == ["neu", "antwort", "intern", "nosig"]
+    return {f["schluessel"]: f for f in d["faelle"]}
+
+
+@pytest.mark.parametrize("name,konf,fall,nosig,erwartet", FAELLE, ids=[f[0] for f in FAELLE])
+def test_seite_zeigt_das_richtlinienergebnis(anlage, client, name, konf, fall, nosig, erwartet):
+    """Jeder Fall der Seite = Mailweg, alle Teile gerendert und mit Herkunft.
+    Mit einer Vorlage, die das Postfach NICHT hat, bleibt das Ergebnis das des
+    Mailwegs („Fremd“ steht nirgends im Ergebnis)."""
+    konf(anlage)
+    mail = _versand(anlage, fall, betreff="Hallo #nosig" if nosig else "Hallo")
+    f = _seite(client, "Fremd")["nosig" if nosig else fall]
+    assert [t["vorlage"] for t in f["teile"]] == mail
+    assert _namen(f["html"]) == mail
+    assert all(t["quelle"] for t in f["teile"])
+    assert f["override_wirksam"] is False
+    assert "html" not in f["override"]
+
+
+def test_seite_ohne_vorlage_ohne_hinweis(client):
+    for f in _seite(client).values():
+        assert f["override"] is None
+
+
+def test_seite_nennt_herkunft_und_festschreibung(anlage, client):
+    _k_gruppe_fest(anlage)
+    neu = _seite(client)["neu"]
+    assert [(t["name"], t["vorlage"], t["quelle"], t["fest"]) for t in neu["teile"]] == [
+        ("Signatur", "GrpSig", "Gruppe Vertrieb", True),
+        ("Banner", "GrpBan", "Gruppe Vertrieb", True),
+        ("Disclaimer", "StdDis", "Standard", False)]
+
+
+def test_seite_kampagne_als_herkunft(anlage, client):
+    _k_kampagne(anlage)
+    ban = next(t for t in _seite(client)["neu"]["teile"] if t["slot"] == "banner")
+    assert (ban["vorlage"], ban["quelle"], ban["kampagne"]) == ("KmpBan", "Kampagne Sommer", "Sommer")
+
+
+def test_seite_nennt_die_gruende(anlage, client):
+    """Unterdrückungsgründe: rein intern unverändert, #nosig, Banner/Disclaimer
+    in der Kette weg; nur S/MIME → nichts in keinem Fall."""
+    f = _seite(client)
+    assert f["intern"]["grund"] == "intern_unveraendert" and f["intern"]["html"] == ""
+    assert "unverändert" in f["intern"]["grund_text"]
+    assert f["nosig"]["grund"] == "nosig"
+    assert "Banner und Disclaimer hängt das Gateway in diesem Fall nicht an" in f["antwort"]["zusatz_text"]
+    assert "Antworten in derselben Kette" in f["antwort"]["zusatz_text"]
+    assert "Der Trigger entfernt" in f["nosig"]["zusatz_text"]
+    assert f["neu"]["zusatz_text"] == "" and f["neu"]["grund_text"] == ""
+    _k_nur_smime(anlage)
+    for schluessel, fall in _seite(client).items():
+        assert fall["teile"] == [] and fall["zusatz_text"] == ""
+        # Rein intern greift „unverändert“ zuerst (wie im Mailweg).
+        assert fall["grund"] == ("intern_unveraendert" if schluessel == "intern"
+                                 else "postfach_ohne_signatur")
+
+
+def test_seite_wirksame_vorlage(client):
+    f = _seite(client, "StdSig")
+    assert f["neu"]["override_wirksam"] is True
+    assert f["neu"]["override"]["hinweis"].startswith("Wirksam als Signatur")
+
+
+def test_seite_nicht_wirksam_nennt_quelle_und_festschreibung(anlage, client):
+    _k_gruppe_fest(anlage)
+    neu = _seite(client, "Eigen")["neu"]
+    assert neu["override_wirksam"] is False
+    assert neu["override"]["hinweis"] == (f"{ABS} bekommt diese Vorlage hier nicht — wirksam ist "
+                                          "„GrpSig“ (Gruppe Vertrieb, festgeschrieben).")
+
+
+def test_seite_antwort_nennt_die_antwort_signatur(client):
+    antwort = _seite(client, "StdSig")["antwort"]
+    assert antwort["override_wirksam"] is False
+    assert "wirksam ist „StdMin“ (Standard)" in antwort["override"]["hinweis"]
+    assert _namen(antwort["html"]) == ["StdMin"]                      # KETTE_BEHAELT ""
+
+
+def test_seite_banner_von_kampagne_ersetzt(anlage, client):
+    _k_kampagne(anlage)
+    neu = _seite(client, "StdBan")["neu"]
+    assert neu["override_wirksam"] is False
+    assert "Kampagne „Sommer“ ersetzt den Banner: wirksam ist „KmpBan“" in neu["override"]["hinweis"]
+
+
+def test_seite_banner_entfaellt_in_der_antwort(client):
+    antwort = _seite(client, "StdBan")["antwort"]
+    assert antwort["override_wirksam"] is False
+    assert "Antworten in derselben Kette" in antwort["override"]["hinweis"]
+
+
+def test_seite_ohne_postfach(client):
+    r = client.get("/api/richtlinienergebnis")
+    assert r.status_code == 400
+
+
+def test_seite_rendert(client):
+    r = client.get("/richtlinienergebnis", params={"email": ABS, "vorlage": "Eigen"})
+    assert r.status_code == 200, r.text
+    assert 'id="rl-faelle"' in r.text and "/api/richtlinienergebnis" in r.text
+    assert 'href="/richtlinienergebnis" class="nav-sub-tab active"' in r.text
+
+
+# ── Editor: nur die bearbeitete Vorlage ──────────────────────────────────────
+
+def _editor(client, template, **kw):
+    r = client.get("/api/preview-data", params={"email": ABS, "template": template, **kw})
     assert r.status_code == 200, r.text
     return r.json()
 
 
-@pytest.mark.parametrize("name,konf,fall,nosig,erwartet",
-                         [f for f in FAELLE if not f[3]], ids=[f[0] for f in FAELLE if not f[3]])
-def test_editor_zeigt_das_richtlinienergebnis(anlage, client, name, konf, fall, nosig, erwartet):
-    """Mit einer Vorlage, die das Postfach NICHT hat: Das Ergebnis bleibt das
-    des Mailwegs. Gegen v1.12.102 rot: dort stand „Fremd“ als Signatur."""
+@pytest.mark.parametrize("konf", [_k_standard, _k_gruppe_fest, _k_kampagne, _k_nur_smime])
+def test_editor_zeigt_nur_die_bearbeitete_vorlage(anlage, client, konf):
+    """Die Vorlage für das gewählte Postfach — ohne Banner/Disclaimer des
+    Postfachs und ohne Richtlinienentscheidung (auch wenn das Postfach eine
+    andere Signatur oder gar keine bekäme). Gegen v1.12.104–109 rot."""
     konf(anlage)
-    mail = _versand(anlage, fall)
-    d = _editor(client, "Fremd", fall)
-    assert [t["vorlage"] for t in d["teile"]] == mail
-    assert _namen(d["html"] + d["banner_html"] + d["disclaimer_html"]) == mail
-    assert d["override_wirksam"] is False
-    assert "Fremd" in d["override"]["html"]
+    d = _editor(client, "Fremd")
+    assert _namen(d["html"]) == ["Fremd"]
+    assert d["banner_html"] == "" and d["disclaimer_html"] == ""
+    assert "teile" not in d and "override" not in d
 
 
-def test_editor_wirksame_vorlage(client):
-    d = _editor(client, "StdSig")
-    assert d["override_wirksam"] is True
-    assert d["override"]["hinweis"].startswith("Wirksam als Signatur")
-    assert [(t["slot"], t["quelle"]) for t in d["teile"]] == [
-        ("sig", "Standard"), ("banner", "Standard"), ("disclaimer", "Standard")]
+def test_editor_banner_fuer_sich(client):
+    d = _editor(client, "Ban2")
+    assert _namen(d["html"] + d["banner_html"] + d["disclaimer_html"]) == ["Ban2"]
 
 
-def test_editor_nicht_wirksam_nennt_quelle_und_festschreibung(anlage, client):
-    _k_gruppe_fest(anlage)
-    d = _editor(client, "Eigen")
-    assert d["override_wirksam"] is False
-    assert d["override"]["hinweis"] == (f"{ABS} bekommt diese Vorlage hier nicht — wirksam ist "
-                                        "„GrpSig“ (Gruppe Vertrieb, festgeschrieben).")
-    sig = d["teile"][0]
-    assert (sig["quelle"], sig["fest"]) == ("Gruppe Vertrieb", True)
-
-
-def test_editor_antwort_nennt_die_antwort_signatur(client):
-    d = _editor(client, "StdSig", "antwort")
-    assert d["override_wirksam"] is False
-    assert "wirksam ist „StdMin“ (Standard)" in d["override"]["hinweis"]
-    assert d["banner_html"] == "" and d["disclaimer_html"] == ""      # KETTE_BEHAELT ""
-
-
-def test_editor_banner_von_kampagne_ersetzt(anlage, client):
-    _k_kampagne(anlage)
-    d = _editor(client, "StdBan")
-    assert d["override_wirksam"] is False
-    assert "Kampagne „Sommer“ ersetzt den Banner: wirksam ist „KmpBan“" in d["override"]["hinweis"]
-    ban = next(t for t in d["teile"] if t["slot"] == "banner")
-    assert ban["quelle"] == "Kampagne Sommer"
-
-
-def test_editor_banner_entfaellt_in_der_antwort(client):
-    d = _editor(client, "StdBan", "antwort")
-    assert d["override_wirksam"] is False
-    assert "Antworten in derselben Kette" in d["override"]["hinweis"]
-
-
-def test_editor_hat_intern_nur_mit_interner_signatur(anlage, client):
-    assert _editor(client, "StdSig")["hat_intern"] is False
-    _k_intern(anlage)
-    assert _editor(client, "StdSig")["hat_intern"] is True
+def test_editor_vorlage_ohne_richtlinie_im_quelltext():
+    """Kein Fall-Umschalter, keine Herkunft, kein Hinweis mehr im Editor —
+    die gehören zur Seite Richtlinienergebnis."""
+    quelle = (WURZEL / "app/webui/templates/template_editor.html").read_text(encoding="utf-8")
+    for weg in ("vorschau-fall", "vorschau-herkunft", "vorschau-override",
+                "preview-override-box", "herkunft-chip", "&fall=", "Vorschau (Richtlinienergebnis)"):
+        assert weg not in quelle, weg
+    assert 'href="/richtlinienergebnis"' in quelle
 
 
 # ── Self-Service: /api/self/preview ──────────────────────────────────────────

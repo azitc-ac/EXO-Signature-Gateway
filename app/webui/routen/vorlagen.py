@@ -695,6 +695,54 @@ async def preview(request: Request, email: str = "", user: str = Depends(_check_
         context={"email": email, "active": "preview", "gateway_name": _gateway_name()},
     )
 
+@router.get("/richtlinienergebnis", response_class=HTMLResponse)
+async def richtlinienergebnis(request: Request, email: str = "", vorlage: str = "",
+                              user: str = Depends(_check_auth)):
+    """Was das Gateway einem Postfach je Fall anhängt — mit Herkunft je Teil."""
+    return templates.TemplateResponse(
+        request=request, name="richtlinienergebnis.html",
+        context={"email": email, "vorlage": vorlage, "active": "preview",
+                 "gateway_name": _gateway_name()},
+    )
+
+
+@router.get("/api/richtlinienergebnis")
+async def api_richtlinienergebnis(email: str = "", bearbeiter: str = "", vorlage: str = "",
+                                  user: str = Depends(_check_auth)):
+    """Richtlinienergebnis für `email` in ALLEN Fällen (neu / antwort / intern).
+
+    Keine eigene Auflösung: je Fall `vorschau.zusammenstellen` →
+    `policies.entscheiden`, dieselbe Entscheidung wie der Mailweg (handler).
+    `vorlage` (optional, Sprung aus dem Editor): Ist diese Vorlage im Fall
+    wirksam, und wenn nicht, warum nicht (`override`)."""
+    import policies as _pol
+    import vorschau
+    if not email:
+        return JSONResponse({"error": "Kein Postfach gewählt", "faelle": []}, status_code=400)
+    art = signature_engine.vorlagen_art(vorlage) if vorlage else ""
+    slot = {"signatur": "signatur", "banner": "banner", "disclaimer": "disclaimer"}.get(art)
+    trigger = (settings_store.get("NOSIG_TRIGGER") or "#nosig").strip() or "#nosig"
+    faelle = []
+    # Die drei Fälle der Vorschau und dazu „Neue Mail mit #nosig“ — was der
+    # Trigger übrig lässt (NOSIG_BEHAELT).
+    for schluessel, fall, per_nosig, titel in (
+            ("neu", "neu", False, "Neue Mail"),
+            ("antwort", "antwort", False, "Antwort in einer Kette, in der das Postfach schon signiert hat"),
+            ("intern", "intern", False, "Rein interne Mail"),
+            ("nosig", "neu", True, f"Neue Mail mit {trigger} im Betreff")):
+        assert fall in _pol.FAELLE
+        erg = await vorschau.zusammenstellen(
+            email, fall, vorlage_override=vorlage if slot else None,
+            slot_override=slot, bearbeiter=bearbeiter or None, per_nosig=per_nosig)
+        # Die Vorlage selbst nicht mitschicken — die Seite zeigt nur den Hinweis.
+        if erg.get("override"):
+            erg["override"] = {k: v for k, v in erg["override"].items() if k not in ("html", "txt")}
+        faelle.append({**erg, "schluessel": schluessel, "titel": titel})
+    fehler = next((f["error"] for f in faelle if f["error"]), None)
+    return JSONResponse({"email": email, "faelle": faelle, "error": fehler,
+                         "vorlage": vorlage if slot else ""})
+
+
 # Beispielzeitraum der Abwesenheit für die Vorschau — im Betrieb füllt ihn der
 # Kalender bzw. Zeitplan.
 _OOF_BEISPIEL = ("vom 24.12.2026 bis 02.01.2027", "24.12.2026", "02.01.2027")
@@ -709,30 +757,21 @@ async def api_preview_data(
     oof: str = "",
     explizit: bool = False,
     bearbeiter: str = "",
-    fall: str = "neu",
     user: str = Depends(_check_auth),
 ):
-    """Zwei Vorschauen über einen Endpunkt.
+    """Zwei Vorschauen über einen Endpunkt — beide rendern, was übergeben wird.
 
-    **Vorschau (Richtlinienergebnis)** — ohne `explizit`, aus dem
-    Vorlagen-Editor: was das Postfach `email` im Fall `fall` (neu / antwort /
-    intern) TATSÄCHLICH bekommt, nach derselben Entscheidung wie der Mailweg
-    (vorschau.zusammenstellen → policies.entscheiden). `template` ist die
-    bearbeitete Vorlage; ob sie dort wirksam ist, sagt `override`.
+    **Editor-Vorschau** — ohne `explizit`, aus dem Vorlagen-Editor: allein die
+    bearbeitete Vorlage `template` für das Postfach `email` (Signatur mit dem
+    Bearbeiter `bearbeiter`; Banner, Disclaimer, Abwesenheit und Nachrichten an
+    Inhaber nach ihrer Art für sich). KEIN Banner/Disclaimer des Postfachs und
+    keine Richtlinienentscheidung — die zeigt /richtlinienergebnis.
 
     **Was-wäre-wenn-Vorschau** — `explizit=1`, Seite /preview: Signatur,
     Banner, Disclaimer und Abwesenheit frei zusammengestellt, unabhängig von
-    der Zuordnung.
-
-    `explizit=1` bedeutet: Die drei Vorlagennamen sind VERBINDLICH, ein leerer
-    Wert heisst „keine" und nicht „nimm die aus der Postfach-Konfiguration".
-
-    Ohne dieses Kennzeichen liesse sich „ausdruecklich keiner" gar nicht
-    ausdruecken — ein leerer Banner faellt sonst auf die Konfiguration zurueck.
-    Genau das braucht aber die Was-wäre-wenn-Vorschau, auf der Signatur, Banner
-    und Disclaimer frei zusammengestellt werden. Die Live-Vorschau im Baukasten
-    schickt das Kennzeichen NICHT: dort soll stehen, was das Postfach
-    tatsaechlich bekaeme."""
+    der Zuordnung. `explizit=1` bedeutet: Die Vorlagennamen gelten wie
+    übergeben, ohne Erkennung der Art; eine leere Signatur heisst „keine“.
+    """
     import graph_client as _gc
 
     # ⚠️ Nachrichten an Postfachinhaber gehen einen ANDEREN Weg als Signaturen:
@@ -762,35 +801,10 @@ async def api_preview_data(
         return JSONResponse({"html": rumpf, "txt": "", "betreff": betreff,
                              "banner_html": "", "disclaimer_html": "", "error": None})
 
-    art_vorab = "" if explizit else signature_engine.vorlagen_art(template or "")
-    # Vorschau (Richtlinienergebnis): Entscheidung wie im Mailweg, je Teil mit
-    # Herkunft. Bis v1.12.102 renderte sie IMMER die bearbeitete Vorlage als
-    # Signatur, ob das Postfach sie bekam oder nicht, und hängte Banner und
-    # Disclaimer auch dort an, wo der Mailweg sie weglässt (Antwort in einer
-    # Kette, KETTE_BEHAELT).
-    if not explizit and email and art_vorab in ("signatur", "banner", "disclaimer"):
-        import policies as _pol
-        import vorschau
-        if fall not in _pol.FAELLE:
-            fall = "neu"
-        erg = await vorschau.zusammenstellen(
-            email, fall, vorlage_override=template or None,
-            slot_override=art_vorab if art_vorab in ("banner", "disclaimer") else "signatur",
-            bearbeiter=bearbeiter or None)
-        teil = {t["slot"]: t for t in erg["teile"]}
-        sig_teil = next((t for t in erg["teile"] if t["slot"] in ("sig", "min", "intern")), None)
-        return JSONResponse({
-            **erg, "richtlinie": True, "error": erg["error"],
-            # Einzelteile wie bisher (Signatur in html/txt, Banner und Disclaimer
-            # getrennt); `teile` trägt dieselben mit Herkunft.
-            "html": sig_teil["html"] if sig_teil else "",
-            "txt": erg["txt"],
-            "banner_html": teil.get("banner", {}).get("html", ""),
-            "banner_template": teil.get("banner", {}).get("vorlage", ""),
-            "disclaimer_html": teil.get("disclaimer", {}).get("html", ""),
-            "disclaimer_template": teil.get("disclaimer", {}).get("vorlage", ""),
-            "oof_html": "", "oof_txt": "", "oof_template": ""})
-
+    # ⚠️ Kein Richtlinienergebnis hier (v1.12.104 bis v1.12.109 lief der Editor
+    # darüber). Die Editor-Vorschau zeigt seit v1.12.110 wieder NUR die
+    # bearbeitete Vorlage für das gewählte Postfach; was das Postfach im
+    # Betrieb bekommt, zeigt die eigene Seite /richtlinienergebnis.
     user_data = _gc.UserData()
     error = None
     if email:
@@ -817,11 +831,9 @@ async def api_preview_data(
     # Eine Abwesenheitsvorlage mit `{{ oof.zeitraum }}` brach dabei ab (`oof`
     # gibt es nur im Abwesenheitsweg), der Text blieb leer, und in der Vorschau
     # stand nur der Banner des Postfachs. Ein Banner erschien doppelt.
-    # Deshalb hier nach der Art: Abwesenheit wie im Betrieb über render_oof;
-    # Banner und Disclaimer mit Postfach gehen oben ins Richtlinienergebnis
-    # (dort steht der bearbeitete Banner AN SEINER Stelle, nie doppelt), ohne
-    # Postfach für sich allein.
-    art = art_vorab
+    # Deshalb hier nach der Art: Abwesenheit wie im Betrieb über render_oof,
+    # Banner und Disclaimer für sich allein.
+    art = "" if explizit else signature_engine.vorlagen_art(template or "")
     if art == "oof":
         import abwesenheit
         html, txt = abwesenheit.render_oof(user_data, template, *_OOF_BEISPIEL)
@@ -832,7 +844,10 @@ async def api_preview_data(
         return JSONResponse({"html": html, "txt": txt, "error": error,
                              "banner_html": "", "disclaimer_html": ""})
 
-    # Was-wäre-wenn-Vorschau (oder ohne Postfach): die Namen gelten wie übergeben.
+    # Die Namen gelten wie übergeben. Banner und Disclaimer kommen NUR als
+    # Parameter (Was-wäre-wenn-Vorschau) — die Editor-Vorschau schickt keine und
+    # zeigt damit allein die bearbeitete Signatur, ohne Banner/Disclaimer des
+    # Postfachs.
     if explizit and not template:
         sig_html, sig_txt = "", ""
     else:

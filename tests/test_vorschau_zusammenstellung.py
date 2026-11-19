@@ -2,14 +2,15 @@
 
 ANLASS (07.08.2026)
 `/api/preview-data` liess einen leeren Banner auf die Postfach-Konfiguration
-zurueckfallen. Das ist für die Live-Vorschau im Baukasten richtig — dort soll
-stehen, was das Postfach TATSÄCHLICH bekäme. Für die Vorschau-Seite, auf der
-man Zusammenstellungen durchspielt, ist es falsch: „ausdrücklich keiner" liess
-sich gar nicht ausdrücken, weil leer schon „nimm den konfigurierten" bedeutete.
+zurueckfallen. Für die Vorschau-Seite, auf der man Zusammenstellungen
+durchspielt, war das falsch: „ausdrücklich keiner" liess sich gar nicht
+ausdrücken, weil leer schon „nimm den konfigurierten" bedeutete. Das
+Kennzeichen `explizit=1` trennt das.
 
-Das Kennzeichen `explizit=1` trennt die beiden Bedeutungen. Beide Richtungen
-gehören geprüft — ein Test nur auf die neue hätte nicht gemerkt, wenn dabei
-die Live-Vorschau ihren Rückfall verliert.
+Seit v1.12.110 hängt auch die Editor-Vorschau (ohne `explizit`) nichts vom
+Postfach an — sie zeigt NUR die bearbeitete Vorlage. Was das Postfach
+tatsächlich bekommt, liefert /api/richtlinienergebnis (Seite
+Richtlinienergebnis). Beide Richtungen gehören geprüft.
 """
 import pytest
 
@@ -79,22 +80,39 @@ def _hole(client, **params):
     return r.json()
 
 
-def test_ohne_kennzeichen_gilt_die_postfach_konfiguration(client, mit_konfiguriertem_banner):
-    """Die Live-Vorschau im Baukasten schickt kein `explizit` — sie soll
-    zeigen, was das Postfach wirklich bekommt."""
+def test_editor_zeigt_nur_die_vorlage(client, mit_konfiguriertem_banner):
+    """Die Editor-Vorschau schickt kein `explizit` und zeigt trotzdem NUR die
+    bearbeitete Vorlage — ohne Banner und Disclaimer des Postfachs (erika hat
+    beide). Gegen v1.12.104–109 rot: dort lief sie übers Richtlinienergebnis."""
     d = _hole(client, email="erika@example.org", template="default")
-    assert d["banner_template"] == "Werbung"
-    assert d["disclaimer_template"] == "Recht"
-    assert "BANNER" in d["banner_html"]
+    assert "SIG" in d["html"]
+    assert d["banner_html"] == "" and d["disclaimer_html"] == ""
+    assert "teile" not in d and "override" not in d
 
 
-def test_ohne_kennzeichen_gilt_bei_richtlinie_der_richtlinien_banner(client, mit_konfiguriertem_banner):
-    """Folgt das Postfach der Richtlinie, zeigt die Live-Vorschau DEREN Banner —
+def _richtlinie(client, **params):
+    from urllib.parse import urlencode
+    r = client.get("/api/richtlinienergebnis?" + urlencode(params))
+    assert r.status_code == 200, r.text
+    return {f["schluessel"]: f for f in r.json()["faelle"]}
+
+
+def test_richtlinienergebnis_zeigt_die_postfach_konfiguration(client, mit_konfiguriertem_banner):
+    """Was erika wirklich bekommt: eigener Banner und Disclaimer."""
+    neu = _richtlinie(client, email="erika@example.org")["neu"]
+    assert [(t["slot"], t["vorlage"], t["quelle"]) for t in neu["teile"]] == [
+        ("sig", "default", "Standard"), ("banner", "Werbung", "Postfach"),
+        ("disclaimer", "Recht", "Postfach")]
+    assert "BANNER" in neu["html"] and "DISCLAIMER" in neu["html"]
+
+
+def test_richtlinienergebnis_bei_richtlinie_der_richtlinien_banner(client, mit_konfiguriertem_banner):
+    """Folgt das Postfach der Richtlinie, steht DEREN Banner im Ergebnis —
     nicht ein (wirkungsloses) Feld im Postfach-Eintrag. Bis v1.9.112 las die
-    Vorschau das rohe Feld und zeigte hier „Recht" statt „Werbung"."""
-    d = _hole(client, email="max@example.org", template="default")
-    assert d["banner_template"] == "Werbung"
-    assert d["disclaimer_template"] == ""
+    Vorschau das rohe Feld."""
+    neu = _richtlinie(client, email="max@example.org")["neu"]
+    assert [(t["slot"], t["vorlage"]) for t in neu["teile"]] == [
+        ("sig", "default"), ("banner", "Werbung")]
 
 
 def test_mit_kennzeichen_bedeutet_leer_wirklich_keiner(client, mit_konfiguriertem_banner):
@@ -152,25 +170,29 @@ def test_banner_und_disclaimer_nie_doppelt(client, mit_konfiguriertem_banner,
                                            tmp_path, art):
     """Bis v1.9.132 erschien beim Bearbeiten eines Banners zusätzlich der Banner
     des Postfachs — zwei Banner, von denen einer nicht der bearbeitete war.
-
-    Seit v1.12.103 zeigt die Vorschau das Richtlinienergebnis: Bekommt das
-    Postfach den bearbeiteten Banner nicht (erika wählt „Werbung“ bzw.
-    „Recht“), steht im Ergebnis der wirksame — einmal — und der bearbeitete nur
-    gesondert, als unwirksam beschriftet."""
+    Die Editor-Vorschau zeigt den bearbeiteten für sich allein, einmal."""
     _art(tmp_path, "Neu", art, "<p>NEU</p>")
     import signature_engine
     signature_engine._reload_env()
     d = _hole(client, email="erika@example.org", template="Neu")
     ergebnis = d["html"] + d["banner_html"] + d["disclaimer_html"]
-    assert "NEU" not in ergebnis, "unwirksame Vorlage steht im Ergebnis"
-    assert ergebnis.count("BANNER") == 1 and ergebnis.count("DISCLAIMER") == 1
-    assert d["override_wirksam"] is False
-    assert "NEU" in d["override"]["html"]
-    assert "bekommt diese Vorlage hier nicht" in d["override"]["hinweis"]
+    assert ergebnis.count("NEU") == 1
+    assert "BANNER" not in ergebnis and "DISCLAIMER" not in ergebnis
+
+
+@pytest.mark.parametrize("art", ["banner", "disclaimer"])
+def test_richtlinienergebnis_nennt_den_wirksamen_statt_des_bearbeiteten(
+        client, mit_konfiguriertem_banner, tmp_path, art):
+    """Sprung aus dem Editor (`vorlage`): Bekommt erika den bearbeiteten Banner
+    nicht, steht im Ergebnis der wirksame — einmal — und ein Hinweis, warum."""
+    _art(tmp_path, "Neu", art, "<p>NEU</p>")
+    import signature_engine
+    signature_engine._reload_env()
+    neu = _richtlinie(client, email="erika@example.org", vorlage="Neu")["neu"]
+    assert "NEU" not in neu["html"], "unwirksame Vorlage steht im Ergebnis"
+    assert neu["html"].count("BANNER") == 1 and neu["html"].count("DISCLAIMER") == 1
+    assert neu["override_wirksam"] is False
+    assert "html" not in neu["override"]
+    assert "bekommt diese Vorlage hier nicht" in neu["override"]["hinweis"]
     assert ("„Werbung“ (Postfach)" if art == "banner" else "„Recht“ (Postfach)") \
-        in d["override"]["hinweis"]
-
-
-def test_signatur_bekommt_weiter_den_postfach_banner(client, mit_konfiguriertem_banner):
-    d = _hole(client, email="erika@example.org", template="signature")
-    assert "BANNER" in d["banner_html"] and "DISCLAIMER" in d["disclaimer_html"]
+        in neu["override"]["hinweis"]

@@ -91,7 +91,8 @@ def _var(t: str, name: str) -> str:
     return m.group(0)
 
 
-FUNKTIONEN = ["_fuelleVorlagenSelect", "_istFest", "_festQuelle", "_wertText", "_festSperren",
+FUNKTIONEN = ["_fuelleVorlagenSelect", "_istFest", "_festQuelle", "_festGruppen", "gruppenFarbe",
+              "_gruppenChip", "_wertText", "_festSperren",
               "_buildWahlSelect", "_festHinweis", "massenRuhendVerwerfen",
               "_wahlInZelle", "_istAusnahme", "_ausnahmeStand", "filterMailboxes",
               "massenAufStandard", "_angehakt", "_selfTplStandText", "selfTplStandZeigen"]
@@ -119,6 +120,7 @@ def _lauf(js: str):
         pytest.skip("node fehlt")
     t = SEITE.read_text(encoding="utf-8")
     vorspann = (_DOM + _var(t, "STANDARD_WAHL") + "\n" + _var(t, "WAHL_SELEKTOR") + "\n"
+                + _var(t, "GRUPPEN_FARBEN") + "\n"
                 + "var _templatesByKind = {signatur: ['default', 'kurz', 'lang'], oof: ['urlaub']};\n"
                 + "\n".join(_funktion(t, n) for n in FUNKTIONEN) + "\n" + _ZEILE)
     out = subprocess.run(["node", "-e", vorspann + "\n" + js],
@@ -198,7 +200,7 @@ def test_filter_zeigt_nur_ausnahmen():
 
 def test_filterkaestchen_steht_in_der_filterzeile():
     t = SEITE.read_text(encoding="utf-8")
-    zeile = t[t.index('filterfeld("mb-filter"'):t.index('id="mb-filter-count"')]
+    zeile = t[t.index('id="mb-filter-feld"'):t.index('id="mb-aktionen-feld"')]
     assert 'id="mb-ausnahme-filter" onchange="filterMailboxes()"' in zeile
 
 
@@ -270,10 +272,13 @@ def test_ruhende_wahl_zeigt_verwerfen_und_filter():
       const b = zeile(mb({email: 'b', template: 'lang', fest: {sig: 'G'}}));      // ruht
       const c = zeile(mb({email: 'c', fest: {sig: ''}}));                         // fest, keine Wahl
       const v = {weg: [a, b, c].map(tr => tr.querySelectorAll('.mb-ruht-weg').length)};
-      const hinweis = b.querySelector('span.wahl-fest');
-      v.text = hinweis ? hinweis.textContent : null;
-      const hc = c.querySelector('span.wahl-fest');
-      v.textC = hc ? hc.textContent : null;
+      // Unter der Auswahl nur die Quelle als Chip; der Satz steht im title.
+      const quelle = h => h ? {titel: h.title,
+        chips: h.querySelectorAll('span.gruppen-chip').map(c => [c.textContent, c.dataset.gruppenfarbe]),
+        ruht: (h.querySelector('span.wahl-ruht') || {}).textContent || null} : null;
+      v.b = quelle(b.querySelector('span.wahl-fest'));
+      v.c = quelle(c.querySelector('span.wahl-fest'));
+      v.farbeG = String(gruppenFarbe('G'));
       cb.checked = true; filterMailboxes(); v.mit = [a, b, c].map(tr => tr.style.display);
       massenRuhendVerwerfen();
       v.angehakt = b.querySelectorAll('.mb-ruht-weg:checked').map(x => x.dataset.feld);
@@ -281,8 +286,10 @@ def test_ruhende_wahl_zeigt_verwerfen_und_filter():
       console.log(JSON.stringify(v));
     """)
     assert r["weg"] == [0, 1, 0]
-    assert r["text"] == "festgelegt durch Gruppe „G“ · eigene Wahl „lang“ ruht"
-    assert r["textC"] == "festgelegt durch Standardrichtlinie"
+    assert r["b"] == {"titel": "Festgelegt durch Gruppe „G“", "chips": [["G", r["farbeG"]]],
+                      "ruht": "eigene Wahl „lang“ ruht"}
+    assert r["c"] == {"titel": "Festgelegt durch Standardrichtlinie",
+                      "chips": [["Standardrichtlinie", "standard"]], "ruht": None}
     assert r["mit"] == ["none", "", "none"]
     assert r["angehakt"] == ["template"]
     assert r["meldung"]["ok"] is True and r["meldung"]["text"].startswith("1 ruhende Wahl(en)")
@@ -290,7 +297,7 @@ def test_ruhende_wahl_zeigt_verwerfen_und_filter():
 
 def test_ruhend_filter_und_knopf_stehen_auf_der_seite():
     t = SEITE.read_text(encoding="utf-8")
-    zeile = t[t.index('filterfeld("mb-filter"'):t.index('id="mb-filter-count"')]
+    zeile = t[t.index('id="mb-filter-feld"'):t.index('id="mb-aktionen-feld"')]
     assert 'id="mb-ruhend-filter" onchange="filterMailboxes()"' in zeile
     assert 'id="ruhend"' in zeile, "Sprungziel der Aufgabe richtlinien-ruhend"
     assert re.search(r'onclick="massenRuhendVerwerfen\(\)"', t)
