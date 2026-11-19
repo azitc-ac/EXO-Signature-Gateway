@@ -178,6 +178,12 @@
        Kasten mit Kindern liest sich mit etwas Luft deutlich besser. -->
   <div class="baukasten-liste" id="baukasten-felder" style="flex:1 1 360px;max-width:420px;min-width:0">
 
+    <!-- Kurzhilfe Variablen — auch im Baukasten, nicht nur unter „Quelltext“ -->
+    <p class="hint" id="baukasten-variablen-hilfe" style="margin:0 0 10px;font-size:12px">
+      Variablen: <code>user.…</code> (Postfach), <code>bearbeiter.…</code> (wer schreibt),
+      eigene: <code>custom_u.…</code> / <code>custom_b.…</code> — Tippen zeigt Vorschläge, die
+      <code>{{ "{{ }}" }}</code> setzt der Editor. <a href="/settings/signature#eigene-variablen">Alle Variablen</a></p>
+
     <!-- Global Settings -->
     <details id="global-settings" style="margin-bottom:12px">
       <summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;list-style:none;display:flex;align-items:center;gap:6px">
@@ -1071,9 +1077,15 @@ function buildBlockForm(b) {
   // Farbe: Waehler und Textfeld nebeneinander, beide schreiben denselben Wert.
   // Der Waehler allein taugt nicht — er kann kein "leer" und keine Palette aus
   // der Zwischenablage; das Textfeld allein ist unbequem.
+  // Der Wähler kennt nur #rrggbb — „base“ (= Grundfarbe der Vorlage) und leer
+  // zeigt er als Grundfarbe an; das Textfeld behält den eigentlichen Wert.
+  // Bis v1.12.111 bekam er „base“ und meldete eine Konsolenwarnung.
+  const alsHex = v => /^#[0-9a-fA-F]{6}$/.test(v || '') ? v
+    : /^#[0-9a-fA-F]{3}$/.test(v || '') ? '#' + v.slice(1).split('').map(z => z + z).join('')
+    : (/^#[0-9a-fA-F]{6}$/.test(feldWert('g-base-color')) ? feldWert('g-base-color') : '#1f2937');
   const farbFeld = (name, val, bid) =>
     `<span style="display:flex;gap:4px;align-items:center">
-       <input type="color" value="${escAttr(val)}" data-bid="${escAttr(bid)}"
+       <input type="color" value="${escAttr(alsHex(val))}" data-bid="${escAttr(bid)}"
          onchange="blockFarbSync(this,'${escJsAttr(name)}')"
          style="width:28px;height:26px;padding:0;border:1px solid #d1d5db;border-radius:3px;cursor:pointer">
        <input type="text" name="${esc(name)}" value="${escAttr(val)}" data-bid="${escAttr(bid)}"

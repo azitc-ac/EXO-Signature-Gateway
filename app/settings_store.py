@@ -187,6 +187,7 @@ DEFAULTS: dict = {
     "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
     "NOSIG_BEHAELT": "",              # was bei #nosig bleibt: "" | banner | disclaimer | beide
     "KETTE_BEHAELT": "",              # dasselbe für Antworten in einer schon signierten Kette
+    "INTERN_BEHAELT": "",             # dasselbe für rein interne Post, die das Gateway signiert
     # Antworten: Weicht die Wahl des Verfassen-Add-ins (geschätzt, Outlook nennt
     # dem Add-in die beantwortete Mail nicht immer) von der Entscheidung des
     # Gateways an der echten Mail ab — wer gilt? "gateway" ersetzt die Signatur

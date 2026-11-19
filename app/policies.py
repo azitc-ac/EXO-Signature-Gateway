@@ -543,19 +543,27 @@ GRUND_KEINE_ANTWORT_SIGNATUR = "keine_antwort_signatur"   # Kette, Antwort-Signa
 _ART_SLOT = {"standard": "sig", "antwort": "min", "intern": "intern"}
 
 
-def zusatz_umfang(per_nosig: bool, in_kette: bool) -> frozenset:
+def zusatz_umfang(per_nosig: bool, in_kette: bool, alle_intern: bool = False) -> frozenset:
     """Welche von Banner/Disclaimer an diese Mail gehören.
 
     #nosig im Betreff → NOSIG_BEHAELT; sonst Antwort in einer Kette, in der der
-    Absender schon signiert hat → KETTE_BEHAELT; sonst beide. Die Signatur
-    selbst entscheidet `entscheiden` — eine schon vorhandene Add-in-Signatur
-    ändert hieran nichts (Banner und Disclaimer liefert kein Add-in mit).
-    Unbekannte Werte gelten wie "" (nichts anhängen) — so wie die Vorgabe."""
+    Absender schon signiert hat → KETTE_BEHAELT; sonst beide. Sind ALLE
+    Empfänger intern, gilt zusätzlich INTERN_BEHAELT (Schnittmenge: es bleibt
+    nur, was beide Regeln erlauben). Vorgabe "" = interne Post ohne Banner und
+    Disclaimer (Entscheidung 19.11.2026; bis v1.12.112 bekam sie beides, sobald
+    das Gateway sie signierte). Die Signatur selbst entscheidet `entscheiden` —
+    eine schon vorhandene Add-in-Signatur ändert hieran nichts (Banner und
+    Disclaimer liefert kein Add-in mit). Unbekannte Werte gelten wie "" (nichts
+    anhängen) — so wie die Vorgabe."""
     if per_nosig:
-        return ZUSATZ_WAHL.get(settings_store.get("NOSIG_BEHAELT") or "", frozenset())
-    if in_kette:
-        return ZUSATZ_WAHL.get(settings_store.get("KETTE_BEHAELT") or "", frozenset())
-    return ZUSATZ_WAHL["beide"]
+        umfang = ZUSATZ_WAHL.get(settings_store.get("NOSIG_BEHAELT") or "", frozenset())
+    elif in_kette:
+        umfang = ZUSATZ_WAHL.get(settings_store.get("KETTE_BEHAELT") or "", frozenset())
+    else:
+        umfang = ZUSATZ_WAHL["beide"]
+    if alle_intern:
+        umfang = umfang & ZUSATZ_WAHL.get(settings_store.get("INTERN_BEHAELT") or "", frozenset())
+    return umfang
 
 
 def gateway_signiert_intern(vorlagen: dict) -> bool:
@@ -632,7 +640,7 @@ def entscheiden(sender: str, *, in_kette: bool, alle_intern: bool, per_nosig: bo
     else:
         erg["signatur_unterdrueckt"] = False
 
-    zusatz = zusatz_umfang(per_nosig, in_kette)
+    zusatz = zusatz_umfang(per_nosig, in_kette, alle_intern)
     erg["zusatz"] = zusatz
     if "banner" in zusatz:
         import banner_campaigns

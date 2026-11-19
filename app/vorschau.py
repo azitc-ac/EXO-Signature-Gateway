@@ -133,7 +133,9 @@ async def zusammenstellen(email: str, fall: str = "neu", vorlage_override: str |
                                   policies.GRUND_POSTFACH_OHNE_SIGNATUR):
         weg = [SLOT_NAME[x] for x in ("banner", "disclaimer") if x not in entscheid["zusatz"]]
         if weg:
-            einstellung = "Der Trigger entfernt" if per_nosig else "Antworten in derselben Kette"
+            einstellung = ("Der Trigger entfernt" if per_nosig
+                           else "Interne Mails" if fall == "intern"
+                           else "Antworten in derselben Kette")
             zusatz_text = (f"{' und '.join(weg)} hängt das Gateway in diesem Fall nicht an "
                            f"(Einstellungen → Signatur: „{einstellung}“).")
 
