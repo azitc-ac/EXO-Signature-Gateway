@@ -120,7 +120,12 @@ var ExoAnmeldung = (function () {
       sitzungVersucht = true;
       return anmeldung()
         .then(function (a) {
-          return fetch(konf.sitzung, { method: 'POST', credentials: 'omit', headers: kopf(a) });
+          // ?client= nur fürs Protokoll (Desktop/Web/Handy unterscheidbar).
+          var plattform = '';
+          try { plattform = String(Office.context.diagnostics.platform || ''); } catch (e) { /* leer */ }
+          var ziel = konf.sitzung + (konf.sitzung.indexOf('?') === -1 ? '?' : '&')
+                     + 'client=' + encodeURIComponent(plattform);
+          return fetch(ziel, { method: 'POST', credentials: 'omit', headers: kopf(a) });
         })
         .then(function (r) {
           if (!r.ok) throw new Error('Gateway antwortet ' + r.status);

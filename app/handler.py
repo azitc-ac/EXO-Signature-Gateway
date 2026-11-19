@@ -192,38 +192,10 @@ def _rebuild_acme_reply(msg: email.message.Message) -> email.message.EmailMessag
     return out
 
 
-# Was zusätzlich zur (ggf. entfallenden) Signatur angehängt wird — Werte der
-# Einstellungen NOSIG_BEHAELT und KETTE_BEHAELT.
-ZUSATZ_WAHL = {
-    "": frozenset(),
-    "banner": frozenset({"banner"}),
-    "disclaimer": frozenset({"disclaimer"}),
-    "beide": frozenset({"banner", "disclaimer"}),
-}
-
-
-def zusatz_umfang(per_nosig: bool, in_kette: bool) -> frozenset:
-    """Welche von Banner/Disclaimer an diese Mail gehören.
-
-    #nosig im Betreff → NOSIG_BEHAELT; sonst Antwort in einer Kette, in der der
-    Absender schon signiert hat → KETTE_BEHAELT; sonst beide. Die Signatur
-    selbst entscheidet der Aufrufer — eine schon vorhandene Add-in-Signatur
-    ändert hieran nichts (Banner und Disclaimer liefert kein Add-in mit).
-    Unbekannte Werte gelten wie "" (nichts anhängen) — so wie die Vorgabe."""
-    if per_nosig:
-        return ZUSATZ_WAHL.get(settings_store.get("NOSIG_BEHAELT") or "", frozenset())
-    if in_kette:
-        return ZUSATZ_WAHL.get(settings_store.get("KETTE_BEHAELT") or "", frozenset())
-    return ZUSATZ_WAHL["beide"]
-
-
-def _txt_anhaengen(sig_txt: str, teil: str) -> str:
-    """Textfassung eines Banners/Disclaimers unter die Signatur — durch eine
-    Leerzeile getrennt, wie die Blöcke im HTML untereinander stehen."""
-    teil = teil.strip("\n")
-    if not sig_txt.strip():
-        return teil + "\n"
-    return sig_txt.rstrip("\n") + "\n\n" + teil + "\n"
+# Banner/Disclaimer-Umfang (NOSIG_BEHAELT/KETTE_BEHAELT) entscheidet
+# policies.zusatz_umfang — EINE Regel für Mailweg und Vorschau (vorschau.py).
+# Die Textfassung hängt signature_engine.text_anhaengen an.
+_txt_anhaengen = signature_engine.text_anhaengen
 
 
 def _decode_subject(raw: str) -> str:
@@ -1186,10 +1158,13 @@ class SignatureHandler:
             import intern as _intern
             import policies as _pol_frueh
             _alle_intern = _intern.alle_intern(recipients)
-            _intern_vorlage = _pol_frueh.aufloesen(_sig_absender, _mailbox_cfg, _sender_cfg).get("intern", "")
-            _gw_signiert_intern = (settings_store.get("SIGN_INTERNAL_ONLY_MAIL") is True
-                                   or (settings_store.get("INTERN_OHNE_ADDIN") is True
-                                       and bool(_intern_vorlage)))
+            # Vorlagen-Auflösung (sig/min/intern/banner/disclaimer/oof) — EINE
+            # Quelle für Hot-Path, Abwesenheit, Self-Service, Add-in und Vorschau
+            # (policies.aufloesen: je Slot Postfach-Wahl, außer die greifende
+            # Ebene — Gruppen-Regel oder Standardrichtlinie — schreibt fest).
+            # Bis v1.12.102 hier und unten je einmal berechnet.
+            _vorlagen = _pol_frueh.aufloesen(_sig_absender, _mailbox_cfg, _sender_cfg)
+            _gw_signiert_intern = _pol_frueh.gateway_signiert_intern(_vorlagen)
             if not _gw_signiert_intern:
                 import exo_mailboxes
                 _known = exo_mailboxes.known_addresses()
@@ -1326,12 +1301,7 @@ class SignatureHandler:
             # bei „im Auftrag von“ die Person, sonst der Postfachinhaber selbst.
             _bearbeiter_daten = (await graph_client.get_user(_bearbeiter)) if _bearbeiter else user_data
             _vorlage_extra = {"bearbeiter": _bearbeiter_daten}
-            # Vorlagen-Auflösung (sig/min/banner/disclaimer/oof) — EINE Quelle für
-            # Hot-Path, Abwesenheit, Self-Service, Add-in und Vorschau (siehe
-            # policies.aufloesen: je Slot Postfach-Wahl, außer die greifende Ebene —
-            # Gruppen-Regel oder Standardrichtlinie — schreibt fest).
             import policies as _policies_mod
-            _vorlagen = _policies_mod.aufloesen(_sig_absender, _mailbox_cfg, _sender_cfg)
             _force_sig = False
 
             # Minimalsignatur bei Antworten: Hat der Absender in DIESEM Thread
@@ -1437,6 +1407,13 @@ class SignatureHandler:
                         log.warning("GETEILT-KORREKTUR: Signatur im Entwurf gehört nicht zu %s "
                                     "(geschrieben von %s) — ersetzt", _sig_absender,
                                     _bearbeiter or sender)
+            # Was das Gateway anhängt — DIESELBE Entscheidung wie jede Vorschau
+            # des Richtlinienergebnisses (policies.entscheiden, vorschau.py;
+            # tests/test_richtlinienergebnis.py hält beide gleich). Hier bleibt,
+            # was nur der Mailweg weiss: Signatur des Add-ins im Entwurf (oben).
+            _entscheid = _policies_mod.entscheiden(
+                _sig_absender, in_kette=_in_kette, alle_intern=_empf_alle_intern,
+                per_nosig=_per_nosig, mailbox_cfg=_mailbox_cfg, sender_cfg=_sender_cfg)
             if _im_entwurf:
                 suppress_html_sig = True
                 log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)
@@ -1452,15 +1429,22 @@ class SignatureHandler:
                     stats.increment("stapel_verhindert")
                     log.info("SIG-KETTE: bereits in dieser Kette signiert — Signatur des "
                              "Add-ins im Verfassenbereich bleibt für %s", sender)
-            elif (not suppress_html_sig and _empf_alle_intern and _vorlagen.get("intern")
-                    and _policies_mod.vorlage_waehlen(_vorlagen, _in_kette, True)[1] == "intern"):
+            elif (not suppress_html_sig
+                    and _entscheid["grund"] == _policies_mod.GRUND_POSTFACH_OHNE_SIGNATUR):
+                # Postfach nur für S/MIME freigeschaltet (Haken „Signatur“ aus):
+                # keine Signatur, auch kein Banner/Disclaimer (_entscheid["zusatz"]
+                # ist leer). Bis v1.12.102 bekam es die volle Signatur.
+                suppress_html_sig = True
+                log.info("SIGNATUR: %s hat keine Signatur (nur S/MIME) — nichts angehängt",
+                         _sig_absender)
+            elif not suppress_html_sig and _entscheid["art"] == "intern":
                 # Alle Empfänger intern: interne Signatur — in einer Kette nur,
                 # wenn INTERN_VOR_ANTWORT gesetzt ist (policies.vorlage_waehlen).
-                template_name = _vorlagen["intern"]
+                template_name = _entscheid["signatur"]["vorlage"]
                 _force_sig = True
                 log.info("INTERN: alle Empfänger intern — Vorlage %r für %s",
                          template_name, _sig_absender)
-            elif not suppress_html_sig and _in_kette:
+            elif not suppress_html_sig and _entscheid["art"] == "antwort":
                 # Ab der 2. eigenen Mail im Thread: Antwort-Signatur statt vollem Block.
                 #
                 # ⚠️ HIER wird gezählt, nicht oben bei der Erkennung: Gemessen
@@ -1474,7 +1458,7 @@ class SignatureHandler:
                 # in beiden Fällen bleibt der volle Block ein zweites Mal aus,
                 # und genau das ist gemeint.
                 stats.increment("stapel_verhindert")
-                _min_tpl = _policies_mod.antwort_vorlage(_vorlagen, True)
+                _min_tpl = "" if _entscheid["signatur_unterdrueckt"] else _entscheid["signatur"]["vorlage"]
                 # ⚠️ BEIDE Zeilen tragen dasselbe Merkmal `SIG-KETTE:`. Sonst
                 # haengt die Nachprüfbarkeit an der Konfiguration: Wer eine
                 # Antwort-Signatur hinterlegt hat, sieht die eine Zeile nie,
@@ -1505,22 +1489,23 @@ class SignatureHandler:
             # das Verfassen-Add-in die Signatur schon gesetzt hatte: Jede so
             # verfasste Mail ging ohne Pflicht-Disclaimer hinaus.
             # Was bleibt, entscheiden zwei Einstellungen: #nosig (NOSIG_BEHAELT)
-            # und Antworten in einer Kette (KETTE_BEHAELT); sonst beide.
-            _zusatz = zusatz_umfang(_per_nosig, _in_kette)
+            # und Antworten in einer Kette (KETTE_BEHAELT); sonst beide
+            # (policies.zusatz_umfang, in policies.entscheiden).
+            _zusatz = _entscheid["zusatz"]
             _zusatz_html, _zusatz_txt = "", ""
             # Was WIRKLICH angehängt wurde (Vorlagenname je Teil) — für die
             # Protokollzeile. `_zusatz` sagt nur, was angehängt werden DARF.
             _angehaengt: list[str] = []
-            _banner_tpl = _vorlagen["banner"] if "banner" in _zusatz else ""
             # Banner-Kampagne (Zeitfenster + optionale Zielgruppe) hat Vorrang:
             # ist zum Sendezeitpunkt eine passende Kampagne aktiv, gewinnt ihr
             # Banner über das der Richtlinie/des Postfachs. Unabhängig von der
             # Festschreibung — eine Kampagne ist ein Marketing-Vorgang, kein
             # Postfach-Attribut. Rein additiv, kein Mailfluss-Eingriff.
-            # Auswahl in banner_campaigns.banner_fuer — dieselbe wie in den Vorschauen.
-            if "banner" in _zusatz:
-                import banner_campaigns
-                _banner_tpl = banner_campaigns.banner_fuer(sender, _banner_tpl)
+            # Auswahl in banner_campaigns.kampagne_fuer (über policies.entscheiden)
+            # — dieselbe wie in den Vorschauen, und für DAS Postfach, dessen
+            # Banner es ist: Bis v1.12.102 prüfte sie bei „im Auftrag von“ die
+            # Art (eigener Banner/Richtlinie) der schreibenden Person.
+            _banner_tpl = (_entscheid["banner"] or {}).get("vorlage", "")
             # Banner und Disclaimer in BEIDE Teile — HTML und Text. Bis
             # v1.9.141 nur ins HTML: Bei S/MIME-signierter Post, deren
             # Textteil Exchange nicht mehr anfassen kann, fehlten sie Lesern
@@ -1535,7 +1520,7 @@ class SignatureHandler:
                     _zusatz_txt = _txt_anhaengen(_zusatz_txt, _banner_txt)
                 if _banner_html or _banner_txt.strip():
                     _angehaengt.append(f"Banner {_banner_tpl}")
-            _disclaimer_tpl = _vorlagen["disclaimer"] if "disclaimer" in _zusatz else ""
+            _disclaimer_tpl = (_entscheid["disclaimer"] or {}).get("vorlage", "")
             if _disclaimer_tpl:
                 _disclaimer_html, _disclaimer_txt = signature_engine.render(
                     user_data, template_name=_disclaimer_tpl)

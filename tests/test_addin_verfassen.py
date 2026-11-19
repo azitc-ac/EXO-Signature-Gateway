@@ -56,7 +56,7 @@ def _token(priv=_PRIV, **over):
 def umgebung(monkeypatch):
     daten = {"BOOTSTRAP_CLIENT_ID": "CID", "TENANT_ID": "TID",
              "ADDIN_BASE_URL": "https://sig.example",
-             "MAILBOX_CONFIG": {"erika@zarenko.net": {"template": "default"}}}
+             "MAILBOX_CONFIG": {"erika@zarenko.net": {"sig": True, "template": "default"}}}
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: daten.get(k, d))
     monkeypatch.setattr(settings_store, "force_update", lambda patch: daten.update(patch))
     monkeypatch.setattr(sso, "_jwks_client", lambda uri: _JWKS(_PUB))
@@ -509,3 +509,11 @@ def test_taskpane_knopf_prueft_nur_text_vor_dem_schreiben():
     schreiben = [seite.index(s, start) for s in ("setSignatureAsync(", "body.setAsync(")]
     assert pruefung < min(schreiben)
     assert "Office.CoercionType.Text" in seite[pruefung:min(schreiben)]
+
+
+def test_postfach_nur_mit_smime_bekommt_keine_signatur(umgebung, rendern):
+    """Haken „Signatur“ aus, nur S/MIME: auch das Verfassen-Add-in setzt nichts
+    (policies.ohne_signatur, Entscheidung 19.11.2026)."""
+    umgebung["MAILBOX_CONFIG"] = {"erika@zarenko.net": {"smime": True, "template": "default"}}
+    code, body, _k = _abruf("Bearer " + _token())
+    assert code == 200 and body == {"html": ""} and rendern == []

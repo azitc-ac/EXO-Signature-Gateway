@@ -96,6 +96,14 @@ def aktive_kampagne(campaigns, now: datetime, sender_key: str | None,
     None = ohne diese Einschränkung. Reihenfolge = Listenreihenfolge (erste
     gewinnt). Rein; kein Seiteneffekt.
     """
+    camp = _erste_aktive(campaigns, now, sender_key, internal_groups, postfach_art)
+    return (camp.get("banner") or "").strip() if camp else None
+
+
+def _erste_aktive(campaigns, now: datetime, sender_key: str | None,
+                  internal_groups: dict, postfach_art: str | None) -> dict | None:
+    """Die Kampagne selbst (siehe `aktive_kampagne`) — für Leser, die ihren
+    Namen brauchen (Vorschau: „Kampagne <Name>“)."""
     for camp in campaigns or []:
         if not isinstance(camp, dict):
             continue
@@ -105,7 +113,7 @@ def aktive_kampagne(campaigns, now: datetime, sender_key: str | None,
         if postfach_art is not None and postfach_art not in fuer(camp):
             continue
         if _aktiv(camp, now) and _passt_gruppe(camp, sender_key, internal_groups):
-            return banner
+            return camp
     return None
 
 
@@ -118,26 +126,40 @@ def banner_fuer(sender: str, regulaer: str, now: datetime | None = None) -> str:
     die Vorschauen zeigten während einer Kampagne den regulären Banner, also
     nicht das, was die Mail tatsächlich trug. tests/test_banner_campaigns.py
     verlangt, dass jede Stelle, die den Banner eines Postfachs auflöst, hier
-    durchgeht.
+    (oder über `kampagne_fuer`) durchgeht.
 
     Lesend wie aktive_kampagne: kein Schreiben, auch im Mailpfad sicher.
     """
+    return kampagne_fuer(sender, regulaer, now)[0]
+
+
+def kampagne_fuer(sender: str, regulaer: str, now: datetime | None = None,
+                  uebernimmt: bool | None = None,
+                  mailbox_cfg: dict | None = None) -> tuple[str, dict | None]:
+    """(Banner, greifende Kampagne oder None) — siehe `banner_fuer`.
+
+    `uebernimmt`: Kommt der reguläre Banner aus einer Richtlinie (nicht aus
+    der eigenen Wahl des Postfachs)? Die Auflösung weiss das bereits
+    (`policies.aufloesen_mit_quelle`, Ebene ≠ Postfach) und reicht es durch;
+    None = hier nachschlagen, mit derselben Lesart."""
     kampagnen = settings_store.get(KEY) or []
     if not kampagnen:
-        return regulaer
+        return regulaer, None
     import gruppen
     import mailbox_match
-    mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    if mailbox_cfg is None:
+        mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
     schluessel = mailbox_match.match_sender_key(mailbox_cfg, sender)
-    # Dieselbe Lesart wie policies.aufloesen: Der reguläre Banner kommt aus der
-    # Richtlinie, wenn der Slot fest ist oder das Postfach keinen eigenen gewählt hat.
-    import policies
-    uebernimmt = ("banner" in policies.festgeschrieben(sender, mailbox_cfg)
-                  or not policies.hat_eigene_wahl(
-                      mailbox_match.match_sender(mailbox_cfg, sender), "banner"))
-    return aktive_kampagne(kampagnen, now or datetime.now(timezone.utc),
-                           schluessel, gruppen.interne_gruppen(),
-                           art(regulaer, uebernimmt)) or regulaer
+    if uebernimmt is None:
+        import policies
+        uebernimmt = (policies.aufloesen_mit_quelle(sender, mailbox_cfg)["banner"]["ebene"]
+                      != policies.EBENE_POSTFACH)
+    camp = _erste_aktive(kampagnen, now or datetime.now(timezone.utc),
+                         schluessel, gruppen.interne_gruppen(),
+                         art(regulaer, uebernimmt))
+    if camp is None:
+        return regulaer, None
+    return (camp.get("banner") or "").strip(), camp
 
 
 # ── Verwaltung (nur Web-Prozess) ──────────────────────────────────────────────

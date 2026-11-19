@@ -978,13 +978,20 @@ def _self_seite(browser, server, kontext, breite, gesendet):
         status=200, content_type="application/json", body=json.dumps(kontext)))
 
     def vorschau(r):
+        # Seit v1.12.103 entscheidet der Server, was wirkt: Die Seite schickt
+        # die rohe Auswahl (STANDARD/""/Name) und zeigt `neu`/`antwort` fertig an.
         q = parse_qs(urlparse(r.request.url).query)
-        mn = (q.get("min") or [""])[0]
+        mn = (q.get("min") or ["__standard__"])[0]
+        mn = "Kurz" if mn == "__standard__" else mn
+        sig = (q.get("sig") or [""])[0]
         r.fulfill(status=200, content_type="application/json", body=json.dumps({
             "oof_html": "<p>OOF</p>",
-            "sig_html": f'<p class="sig-test">SIG {(q.get("sig") or [""])[0]}</p>',
-            "min_html": f'<p class="min-test">MIN {mn}</p>' if mn else "",
-            "banner_html": "<p>BAN</p>", "disclaimer_html": "<p>DISC</p>"}))
+            "sig_html": f'<p class="sig-test">SIG {sig}</p>',
+            "banner_html": "<p>BAN</p>", "disclaimer_html": "<p>DISC</p>",
+            "neu": {"html": f'<p class="sig-test">SIG {sig}</p><p>BAN</p><p>DISC</p>',
+                    "signatur_unterdrueckt": False},
+            "antwort": {"html": f'<p class="min-test">MIN {mn}</p>' if mn else "",
+                        "signatur_unterdrueckt": not mn}}))
     ctx.route("**/api/self/preview*", vorschau)
 
     def save(r):

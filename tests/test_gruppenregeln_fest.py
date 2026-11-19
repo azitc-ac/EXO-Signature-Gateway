@@ -486,7 +486,11 @@ def test_editor_und_zeilen_nutzen_das_regelformat():
                 "internSigSel.disabled = !sig;", "oofSel.disabled = oofAus;"):
         assert alt not in html, alt
     self_html = (Path(__file__).resolve().parent.parent / "app/webui/templates/self.html").read_text()
-    assert "if (istFest(slot)) return ctx.fest[slot] || '';" in self_html
+    # Die Self-Service-Seite rechnet die wirksame Vorlage nicht mehr selbst
+    # nach (v1.12.103): Der Server wendet die Wahl nur für wählbare Slots an.
+    assert "function wirksam(" not in self_html
+    self_py = (Path(__file__).resolve().parent.parent / "app/webui/routen/selfservice.py").read_text()
+    assert "_wahl_ins_eintrag(cfg, wahl, _waehlbar(email)," in self_py
 
 
 # ── Migration v8 → v9: use_policy und `fest` je Regel entfallen ──────────────

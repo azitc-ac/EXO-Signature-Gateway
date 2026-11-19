@@ -56,9 +56,11 @@ def mit_konfiguriertem_banner(monkeypatch, tmp_path):
         if schluessel == "MAILBOX_CONFIG":
             # erika wählt Banner/Disclaimer selbst; max folgt der Richtlinie
             # (seit v1.12.99 ohne use_policy: kein Feld = Standard).
-            return {"erika@example.org": {"banner_template": "Werbung",
+            # Haken „Signatur“ gesetzt: Ohne ihn bekommt ein Postfach seit
+            # v1.12.103 auch in der Vorschau nichts (wie im Mailweg).
+            return {"erika@example.org": {"sig": True, "banner_template": "Werbung",
                                           "disclaimer_template": "Recht"},
-                    "max@example.org": {}}
+                    "max@example.org": {"sig": True}}
         if schluessel == "TEMPLATE_POLICIES":
             return {"sig": "default", "banner": "Werbung"}
         if schluessel in ("CUSTOM_POLICIES", "INTERNAL_GROUPS"):
@@ -146,16 +148,27 @@ def test_abwesenheit_rendert_wie_im_betrieb_ohne_postfach_banner(
 
 
 @pytest.mark.parametrize("art", ["banner", "disclaimer"])
-def test_banner_und_disclaimer_stehen_allein(client, mit_konfiguriertem_banner,
-                                              tmp_path, art):
-    """Sonst erschiene beim Bearbeiten eines Banners zusätzlich der Banner des
-    Postfachs — zwei Banner, von denen einer nicht der bearbeitete ist."""
+def test_banner_und_disclaimer_nie_doppelt(client, mit_konfiguriertem_banner,
+                                           tmp_path, art):
+    """Bis v1.9.132 erschien beim Bearbeiten eines Banners zusätzlich der Banner
+    des Postfachs — zwei Banner, von denen einer nicht der bearbeitete war.
+
+    Seit v1.12.103 zeigt die Vorschau das Richtlinienergebnis: Bekommt das
+    Postfach den bearbeiteten Banner nicht (erika wählt „Werbung“ bzw.
+    „Recht“), steht im Ergebnis der wirksame — einmal — und der bearbeitete nur
+    gesondert, als unwirksam beschriftet."""
     _art(tmp_path, "Neu", art, "<p>NEU</p>")
     import signature_engine
     signature_engine._reload_env()
     d = _hole(client, email="erika@example.org", template="Neu")
-    assert "NEU" in d["html"]
-    assert d["banner_html"] == "" and d["disclaimer_html"] == ""
+    ergebnis = d["html"] + d["banner_html"] + d["disclaimer_html"]
+    assert "NEU" not in ergebnis, "unwirksame Vorlage steht im Ergebnis"
+    assert ergebnis.count("BANNER") == 1 and ergebnis.count("DISCLAIMER") == 1
+    assert d["override_wirksam"] is False
+    assert "NEU" in d["override"]["html"]
+    assert "bekommt diese Vorlage hier nicht" in d["override"]["hinweis"]
+    assert ("„Werbung“ (Postfach)" if art == "banner" else "„Recht“ (Postfach)") \
+        in d["override"]["hinweis"]
 
 
 def test_signatur_bekommt_weiter_den_postfach_banner(client, mit_konfiguriertem_banner):

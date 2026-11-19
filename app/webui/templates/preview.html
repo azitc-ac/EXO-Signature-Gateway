@@ -38,11 +38,16 @@
   </div>
 </div>
 
-<p style="font-size:12px;color:#6b7280;margin:-10px 0 18px">
-  Die Felder gelten hier unabhängig von der Postfach-Konfiguration —
+<h2 style="font-size:16px;margin:0 0 6px">Was-wäre-wenn-Vorschau</h2>
+<p style="font-size:12px;color:#6b7280;margin:0 0 18px">
+  Die Felder gelten hier unabhängig von der Zuordnung des Postfachs —
   so lässt sich jede Zusammenstellung durchspielen. Die Abwesenheitsnotiz
   erscheint über der Signatur, der Zeitraum darin ist ein Beispielwert. Was ein
-  Postfach <em>tatsächlich</em> bekommt, steht unter <a href="/mailboxes">Postfächer</a>.
+  Postfach <em>tatsächlich</em> bekommt — nach Standardrichtlinie, Gruppen-Regeln,
+  eigener Wahl und laufenden Kampagnen —, zeigt die
+  <strong>Vorschau (Richtlinienergebnis)</strong> im Vorlagen-Editor unter
+  <a href="/template">Vorlagen</a>; die Zuordnung selbst steht unter
+  <a href="/mailboxes">Postfächer</a>.
 </p>
 
 <div id="error-box" class="alert error" style="display:none"></div>
@@ -171,10 +176,13 @@
       // OOF-Antwort aus (Nachricht zuerst, Signatur darunter).
       sigVorschau(document.getElementById('pv-html'),
                   (d.oof_html || '') + (d.html || '') + (d.banner_html || '') + (d.disclaimer_html || ''));
+      // Textfassung und Quelltext wie die Mail: Banner und Disclaimer stehen
+      // auch dort (txt_gesamt, seit v1.12.103 — vorher nur die Signatur).
       document.getElementById('pv-txt').textContent  =
-                  (d.oof_txt ? d.oof_txt + '\n\n' : '') + (d.txt || '');
+                  (d.oof_txt ? d.oof_txt + '\n\n' : '') + (d.txt_gesamt ?? d.txt ?? '');
       document.getElementById('pv-src').textContent  =
-                  (d.oof_html ? d.oof_html + '\n' : '') + (d.html || '');
+                  (d.oof_html ? d.oof_html + '\n' : '') + (d.html || '')
+                  + (d.banner_html || '') + (d.disclaimer_html || '');
 
       document.getElementById('preview-area').style.display = '';
     } catch(e) {

@@ -147,7 +147,7 @@ def test_beide_ausgaenge_tragen_dasselbe_log_merkmal():
     Ein gemeinsames Merkmal macht `grep "SIG-KETTE"` zur vollständigen Probe.
     """
     quelle = (Path(__file__).resolve().parent.parent / "app" / "handler.py").read_text()
-    zweig = quelle.index("elif not suppress_html_sig and _in_kette:")
+    zweig = quelle.index('elif not suppress_html_sig and _entscheid["art"] == "antwort":')
     # Bis zum Ende des Zweigs, nicht auf gut Glück ein paar Zeichen weit: Die
     # zweite Logzeile liegt 1.861 Zeichen hinter dem `elif`, ein Fenster von
     # 1.800 schnitt sie ab — der Test war dadurch rot, ohne dass etwas kaputt
@@ -181,7 +181,7 @@ def test_zaehler_haengt_an_der_wirkung_nicht_am_befund():
     """
     quelle = (Path(__file__).resolve().parent.parent / "app" / "handler.py").read_text()
     erkennung = quelle.index("_in_kette = bool(_kette_grund)")
-    zweig = quelle.index("elif not suppress_html_sig and _in_kette:")
+    zweig = quelle.index('elif not suppress_html_sig and _entscheid["art"] == "antwort":')
     stellen = [i for i in range(len(quelle))
                if quelle.startswith('stats.increment("stapel_verhindert")', i)]
     assert len(stellen) == 2, stellen

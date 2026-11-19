@@ -356,14 +356,22 @@ def _wirksam(slot: str, std: dict, fest: dict, sender_cfg) -> object:
     return std[slot]
 
 
-def aufloesen(sender: str, mailbox_cfg: dict | None = None,
-              sender_cfg: dict | None = None) -> dict[str, str]:
-    """{slot: vorlagenname} für sig/min/oof/intern/banner/disclaimer.
+# Ebene, aus der die wirksame Vorlage eines Slots stammt (`aufloesen_mit_quelle`).
+EBENE_STANDARD = "standard"      # Standardrichtlinie (TEMPLATE_POLICIES)
+EBENE_GRUPPE = "gruppe"          # Gruppen-Regel (CUSTOM_POLICIES) — Name in "gruppe"
+EBENE_POSTFACH = "postfach"      # eigene Wahl im Postfach-Eintrag
 
-    `sig` ist nie leer (Rückfall "default"); die übrigen Slots sind `""`, wenn
-    keine Vorlage gilt. `mailbox_cfg`/`sender_cfg` können vorberechnet übergeben
-    werden (Hot-Path in handler.py hat sie bereits). Die Add-in-Auswahl
-    liefert `addin_auswahl`.
+
+def aufloesen_mit_quelle(sender: str, mailbox_cfg: dict | None = None,
+                         sender_cfg: dict | None = None) -> dict[str, dict]:
+    """Wie `aufloesen`, je Slot mit Herkunft:
+    {slot: {"vorlage", "ebene", "gruppe", "fest"}}.
+
+    `ebene` ist `EBENE_STANDARD`, `EBENE_GRUPPE` (dann nennt `gruppe` die
+    Regel) oder `EBENE_POSTFACH`; `fest` sagt, ob die greifende Ebene den Slot
+    festschreibt (dann ist die Ebene nie `EBENE_POSTFACH`). Die EINE Stelle,
+    an der die Herkunft entsteht — Vorschau und Kampagnenauswahl lesen sie
+    hier, statt sie aus `festgeschrieben`/`hat_eigene_wahl` nachzurechnen.
     """
     if mailbox_cfg is None:
         mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
@@ -372,8 +380,31 @@ def aufloesen(sender: str, mailbox_cfg: dict | None = None,
     over, quelle = _gruppen_auswertung(sender, mailbox_cfg)
     std = _std_aus(over)
     fest = _fest_aus(quelle, _schalter())
-    # Fest: die eigene Wahl ruht (bleibt gespeichert, zählt nicht).
-    return {slot: _wirksam(slot, std, fest, sender_cfg) for slot in WAHL_SLOTS}
+    ergebnis: dict[str, dict] = {}
+    for slot in WAHL_SLOTS:
+        # Fest: die eigene Wahl ruht (bleibt gespeichert, zählt nicht).
+        if slot not in fest and hat_eigene_wahl(sender_cfg, slot):
+            ebene, gruppe = EBENE_POSTFACH, ""
+        elif slot in quelle:
+            ebene, gruppe = EBENE_GRUPPE, quelle[slot]
+        else:
+            ebene, gruppe = EBENE_STANDARD, ""
+        ergebnis[slot] = {"vorlage": _wirksam(slot, std, fest, sender_cfg),
+                          "ebene": ebene, "gruppe": gruppe, "fest": slot in fest}
+    return ergebnis
+
+
+def aufloesen(sender: str, mailbox_cfg: dict | None = None,
+              sender_cfg: dict | None = None) -> dict[str, str]:
+    """{slot: vorlagenname} für sig/min/oof/intern/banner/disclaimer.
+
+    `sig` ist nie leer (Rückfall "default"); die übrigen Slots sind `""`, wenn
+    keine Vorlage gilt. `mailbox_cfg`/`sender_cfg` können vorberechnet übergeben
+    werden (Hot-Path in handler.py hat sie bereits). Die Add-in-Auswahl
+    liefert `addin_auswahl`, die Herkunft je Slot `aufloesen_mit_quelle`.
+    """
+    return {slot: h["vorlage"]
+            for slot, h in aufloesen_mit_quelle(sender, mailbox_cfg, sender_cfg).items()}
 
 
 def addin_auswahl(sender: str, mailbox_cfg: dict | None = None,
@@ -468,6 +499,164 @@ def vorlage_waehlen(vorlagen: dict, in_kette: bool | None, alle_intern: bool,
     if in_kette:
         return antwort_vorlage(vorlagen, True), "antwort"
     return vorlagen["sig"], "standard"
+
+
+# ── Entscheidung je Mail: was hängt das Gateway an? ──────────────────────────
+#
+# EINE Funktion für den Mailweg (handler.py) und jede Vorschau des
+# Richtlinienergebnisses (vorschau.py). Sie rendert nichts und schickt nichts;
+# sie sagt je Teil (Signatur, Banner, Disclaimer), welche Vorlage aus welcher
+# Ebene gilt, und warum eine Signatur entfällt. Was nur der Mailweg weiß — eine
+# Signatur des Add-ins im Entwurf, die Korrekturen für geteilte Postfächer —
+# bleibt im handler.
+
+# Was zusätzlich zur (ggf. entfallenden) Signatur angehängt wird — Werte der
+# Einstellungen NOSIG_BEHAELT und KETTE_BEHAELT.
+ZUSATZ_WAHL = {
+    "": frozenset(),
+    "banner": frozenset({"banner"}),
+    "disclaimer": frozenset({"disclaimer"}),
+    "beide": frozenset({"banner", "disclaimer"}),
+}
+
+# Die Fälle der Vorschau → (in_kette, alle_intern) wie im Mailweg.
+FAELLE = {"neu": (False, False), "antwort": (True, False), "intern": (False, True)}
+
+# Gründe, aus denen keine Signatur angehängt wird.
+GRUND_NICHT_AKTIV = "nicht_aktiv"                  # weder Signatur noch S/MIME
+GRUND_INTERN_UNVERAENDERT = "intern_unveraendert"  # rein intern, Gateway signiert nicht
+GRUND_POSTFACH_OHNE_SIGNATUR = "postfach_ohne_signatur"   # nur S/MIME
+
+
+def ohne_signatur(eintrag: dict | None) -> bool:
+    """Postfach ist eingetragen, aber nur für S/MIME (Haken „Signatur“ aus):
+    Es bekommt NIRGENDS eine Signatur, Banner oder Disclaimer — weder im
+    Mailweg noch im Verfassen-/Knopf-Add-in noch unter der Abwesenheitsnotiz.
+    EINE Regel für alle Wege (Entscheidung 19.11.2026; bis v1.12.103 bekam
+    ein solches Postfach überall die volle Signatur). Nicht eingetragen
+    (leer/None) ist kein Fall dieser Regel — dafür gilt „nicht betreut“."""
+    return bool(eintrag) and not eintrag.get("sig")
+GRUND_NOSIG = "nosig"                              # #nosig im Betreff
+GRUND_KEINE_ANTWORT_SIGNATUR = "keine_antwort_signatur"   # Kette, Antwort-Signatur „keine“
+
+# Signatur-Art (vorlage_waehlen) → Slot.
+_ART_SLOT = {"standard": "sig", "antwort": "min", "intern": "intern"}
+
+
+def zusatz_umfang(per_nosig: bool, in_kette: bool) -> frozenset:
+    """Welche von Banner/Disclaimer an diese Mail gehören.
+
+    #nosig im Betreff → NOSIG_BEHAELT; sonst Antwort in einer Kette, in der der
+    Absender schon signiert hat → KETTE_BEHAELT; sonst beide. Die Signatur
+    selbst entscheidet `entscheiden` — eine schon vorhandene Add-in-Signatur
+    ändert hieran nichts (Banner und Disclaimer liefert kein Add-in mit).
+    Unbekannte Werte gelten wie "" (nichts anhängen) — so wie die Vorgabe."""
+    if per_nosig:
+        return ZUSATZ_WAHL.get(settings_store.get("NOSIG_BEHAELT") or "", frozenset())
+    if in_kette:
+        return ZUSATZ_WAHL.get(settings_store.get("KETTE_BEHAELT") or "", frozenset())
+    return ZUSATZ_WAHL["beide"]
+
+
+def gateway_signiert_intern(vorlagen: dict) -> bool:
+    """Signiert das Gateway rein interne Post? SIGN_INTERNAL_ONLY_MAIL, oder
+    INTERN_OHNE_ADDIN mit zugeordneter interner Signatur. Sonst leitet der
+    handler sie unverändert weiter (internal_only_skip)."""
+    return (settings_store.get("SIGN_INTERNAL_ONLY_MAIL") is True
+            or (settings_store.get("INTERN_OHNE_ADDIN") is True and bool(vorlagen.get("intern"))))
+
+
+def entscheiden(sender: str, *, in_kette: bool, alle_intern: bool, per_nosig: bool = False,
+                mailbox_cfg: dict | None = None, sender_cfg: dict | None = None,
+                jetzt=None) -> dict:
+    """Was das Gateway an eine Mail von `sender` hängt — ohne zu rendern.
+
+    Liefert::
+
+        {"art": "standard" | "antwort" | "intern" | "",
+         "signatur": {"slot", "vorlage", "ebene", "gruppe", "fest"} | None,
+         "signatur_unterdrueckt": bool, "grund": GRUND_… | "",
+         "zusatz": frozenset({"banner", "disclaimer"} ⊇ …),
+         "banner": {… wie signatur, "kampagne": Name | ""} | None,
+         "disclaimer": {… wie signatur} | None,
+         "vorlagen": {slot: vorlage}, "herkunft": aufloesen_mit_quelle(…)}
+
+    `signatur` steht auch, wenn sie unterdrückt ist und eine Vorlage hätte
+    (dann sagt `grund` warum) — bei #nosig nennt sie die Vorlage, die ohne den
+    Trigger gälte. Eine Kampagne ersetzt den Banner nach `banner_campaigns`;
+    ihre Art (eigener Banner / Richtlinie / ohne) gilt für DIESES Postfach,
+    nicht für eine Person, die im Auftrag schreibt.
+
+    Ein Postfach mit S/MIME, aber ohne Haken „Signatur“ bekommt weder Signatur
+    noch Banner noch Disclaimer: In der Postfachliste hängen Antwort-, interne
+    Signatur, Banner und Disclaimer am Signatur-Haken (ohne ihn ausgegraut).
+    Bis v1.12.102 hängte der handler sie trotzdem an.
+    """
+    if mailbox_cfg is None:
+        mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    if sender_cfg is None:
+        sender_cfg = mailbox_match.match_sender(mailbox_cfg, sender)
+    sender_cfg = sender_cfg if isinstance(sender_cfg, dict) else {}
+    herkunft = aufloesen_mit_quelle(sender, mailbox_cfg, sender_cfg)
+    vorlagen = {slot: h["vorlage"] for slot, h in herkunft.items()}
+    erg = {"art": "", "signatur": None, "signatur_unterdrueckt": True, "grund": "",
+           "zusatz": frozenset(), "banner": None, "disclaimer": None,
+           "vorlagen": vorlagen, "herkunft": herkunft}
+
+    def _teil(slot: str, vorlage: str) -> dict:
+        h = herkunft[slot]
+        return {"slot": slot, "vorlage": vorlage, "ebene": h["ebene"],
+                "gruppe": h["gruppe"], "fest": h["fest"]}
+
+    if not mailbox_cfg or not (sender_cfg.get("sig") or sender_cfg.get("smime")):
+        erg["grund"] = GRUND_NICHT_AKTIV
+        return erg
+    if alle_intern and not gateway_signiert_intern(vorlagen):
+        erg["grund"] = GRUND_INTERN_UNVERAENDERT
+        if vorlagen.get("intern"):
+            # Nur zur Anzeige: Diese setzt allein das Verfassen-Add-in.
+            erg["signatur"] = _teil("intern", vorlagen["intern"])
+        return erg
+    if ohne_signatur(sender_cfg):
+        erg["grund"] = GRUND_POSTFACH_OHNE_SIGNATUR
+        return erg
+
+    vorlage, art = vorlage_waehlen(vorlagen, in_kette, alle_intern)
+    erg["art"] = art
+    if vorlage:
+        erg["signatur"] = _teil(_ART_SLOT[art], vorlage)
+    if per_nosig:
+        erg["grund"] = GRUND_NOSIG
+    elif not vorlage:
+        erg["grund"] = GRUND_KEINE_ANTWORT_SIGNATUR
+    else:
+        erg["signatur_unterdrueckt"] = False
+
+    zusatz = zusatz_umfang(per_nosig, in_kette)
+    erg["zusatz"] = zusatz
+    if "banner" in zusatz:
+        import banner_campaigns
+        regulaer = vorlagen["banner"]
+        banner, kampagne = banner_campaigns.kampagne_fuer(
+            sender, regulaer, jetzt,
+            uebernimmt=herkunft["banner"]["ebene"] != EBENE_POSTFACH,
+            mailbox_cfg=mailbox_cfg)
+        if banner:
+            erg["banner"] = dict(_teil("banner", banner), kampagne="")
+            if kampagne:
+                erg["banner"]["kampagne"] = (kampagne.get("name") or "").strip() or banner
+    if "disclaimer" in zusatz and vorlagen["disclaimer"]:
+        erg["disclaimer"] = _teil("disclaimer", vorlagen["disclaimer"])
+    return erg
+
+
+def entscheiden_fall(sender: str, fall: str, per_nosig: bool = False,
+                     mailbox_cfg: dict | None = None, sender_cfg: dict | None = None,
+                     jetzt=None) -> dict:
+    """`entscheiden` für einen Fall der Vorschau (`FAELLE`: neu/antwort/intern)."""
+    in_kette, alle_intern = FAELLE[fall]
+    return entscheiden(sender, in_kette=in_kette, alle_intern=alle_intern, per_nosig=per_nosig,
+                       mailbox_cfg=mailbox_cfg, sender_cfg=sender_cfg, jetzt=jetzt)
 
 
 def vorlage_fuer(sender: str, slot: str, mailbox_cfg: dict | None = None,

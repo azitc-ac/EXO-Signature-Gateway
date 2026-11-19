@@ -1010,7 +1010,10 @@ def plan(p: Parameter) -> list[Schritt]:
         {"gruppe_dn": p.gruppe_dn, "konto": p.konto_exchange}))
     alte = sorted({a for z in (p.alt.get("zuweisungen") or [])
                    if z.get("art") == "liste" for a in z.get("adressen") or []})
-    if alte:
+    # Schon übernommen (einrichten hat die Adressen eingetragen)? Dann nicht
+    # erneut anbieten — sonst stand der Schritt in „Befehle anzeigen“, obwohl
+    # die alte Zuweisung längst entfernt war (Lab 19.11.).
+    if alte and not p.alt.get("uebernommen"):
         schritte.append(Schritt(
             "uebernahme", "ad", f"{kommentar(len(alte))} Adressen aus der bisherigen festen Liste in die Gruppe",
             "\n".join(f"Add-ADGroupMember -Identity {ps_text.quoted(p.gruppe_dn)} -Members "
@@ -1276,6 +1279,10 @@ def einrichten(daten: dict, admin_konto: str, admin_kennwort: str, wer: str) -> 
             settings_store.update(felder)
         _stand_setzen(konto_dn=konto_dn, eingerichtet=_iso(), eingerichtet_von=wer,
                       scope=scope_name(p.gruppe), zuweisung=zuweisung_name(p.gruppe))
+        if any(e.get("kennung") == "uebernahme" for e in erledigt):
+            b = stand().get("bestand")
+            if isinstance(b, dict):
+                _stand_setzen(bestand={**b, "uebernommen": _iso()})
         # Sofort messen (nur lesen, mit derselben Verbindung): sonst zeigte die
         # Karte bis zum ersten Abgleich „0 Mitglieder“, obwohl die Übernahme
         # eben Adressen eingetragen hat.

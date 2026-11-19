@@ -5,6 +5,76 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.104 — 2026-11-19 — Vorschau (Richtlinienergebnis) und Was-wäre-wenn-Vorschau; Postfächer nur mit S/MIME ohne Signatur
+
+Es gibt jetzt zwei Vorschauen mit klar getrennter Aufgabe:
+
+* **Vorschau (Richtlinienergebnis)** — rechts im Vorlagen-Editor. Sie zeigt,
+  was das gewählte Postfach im Betrieb tatsächlich bekommt, nach
+  Standardrichtlinie, Gruppen-Regeln, eigener Wahl und laufenden Kampagnen —
+  wie das Richtlinienergebnis bei Gruppenrichtlinien. Über der Vorschau steht
+  je Teil die Herkunft („Standard“, „Gruppe Vertrieb“, „Postfach“,
+  „Kampagne Sommer“) und ob sie festgeschrieben ist. Umschaltbar sind die Fälle
+  *Neue Mail*, *Antwort* (in einer Kette, in der das Postfach schon signiert
+  hat) und *Intern* (nur, wenn dem Postfach eine interne Signatur zugeordnet
+  ist). Bekommt das Postfach die bearbeitete Vorlage in diesem Fall nicht,
+  steht das ausdrücklich da („… bekommt diese Vorlage hier nicht — wirksam ist
+  „X“ (Gruppe Vertrieb, festgeschrieben)“), ebenso, wenn eine laufende
+  Kampagne einen bearbeiteten Banner ersetzt. Die bearbeitete Vorlage lässt
+  sich dann darunter aufklappen, als unwirksam beschriftet.
+* **Was-wäre-wenn-Vorschau** — der Reiter unter *Signaturen* (bisher
+  „Vorschau“). Dort stellst du Signatur, Banner, Disclaimer und Abwesenheit
+  frei zusammen, unabhängig von der Zuordnung. Die Textfassung und der
+  HTML-Quelltext zeigen jetzt auch Banner und Disclaimer; die Mail trägt sie
+  seit v1.9.142 in beiden Teilen.
+
+Bisher renderte die Editor-Vorschau immer die bearbeitete Vorlage als
+Signatur, ob das Postfach sie bekam oder nicht, und hängte Banner und
+Disclaimer auch dort an, wo die Mail sie nicht trägt (Antworten nach der
+Einstellung *Antworten in derselben Kette*). Die Self-Service-Seite rechnete
+die wirksame Vorlage im Browser nach: War die Antwort-Signatur weder wählbar
+noch festgeschrieben, hieß es „Keine Antwort-Signatur“, obwohl die Richtlinie
+eine lieferte, und Banner und Disclaimer standen unter der Antwort unabhängig
+von dieser Einstellung. Mailweg, Editor-Vorschau und Self-Service entscheiden
+jetzt mit derselben Funktion; ein Test vergleicht das Ergebnis der echten
+Mailverarbeitung mit der Vorschau über 16 Konfigurationen.
+
+Zwei Fehler im Mailweg, die dabei auftauchten:
+
+* **Postfach nur mit S/MIME.** Ein Postfach mit Haken *S/MIME*, aber ohne
+  Haken *Signatur*, bekam trotzdem die volle Signatur samt Banner und
+  Disclaimer. In der Postfachliste hängen Antwort-, interne Signatur, Banner
+  und Disclaimer am Signatur-Haken (ohne ihn ausgegraut). Jetzt hängt das
+  Gateway an solche Post nichts an; signiert bzw. verschlüsselt wird sie wie
+  bisher. Dieselbe Regel gilt für das Verfassen- und das Knopf-Add-in (sie
+  fügen nichts ein) und für den Anhang unter der Abwesenheitsnotiz.
+* **Kampagne bei „im Auftrag von“.** Schreibt eine Person für ein geteiltes
+  Postfach, entschied eine Kampagne mit Einschränkung auf „Postfächer mit
+  Banner aus der Richtlinie“ bzw. „mit eigenem Banner“ nach dem Banner der
+  Person, nicht nach dem des geteilten Postfachs. Ein geteiltes Postfach mit
+  eigenem Banner bekam so den Kampagnenbanner. Maßgeblich ist jetzt das
+  Postfach, dessen Banner es ist.
+
+Unter der Abwesenheitsnotiz zeigt die Self-Service-Vorschau den regulären
+Banner, nicht den einer Kampagne — wie die Notiz selbst, die beim Setzen
+festgehalten wird.
+
+Daneben:
+
+* **EWS-Zugriffsbereich:** „Befehle anzeigen“ bot nach der Einrichtung weiter
+  die Übernahme der Adressen aus der bisherigen festen Liste an, obwohl sie
+  längst übernommen waren. Der Schritt entfällt jetzt, bis ein neuer Bestand
+  ausgewertet wird.
+* **Stille Anmeldung der Add-ins:** Das Protokoll nennt jetzt die Plattform
+  (etwa „PC“, „OfficeOnline“, „iOS“) statt „unbekannt“.
+
+Soll ein Postfach, das bisher nur S/MIME hatte, weiter Signatur, Banner oder
+Disclaimer tragen, setze unter *Postfächer* den Haken „Signatur“.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.103 — 2026-11-19 — EWS-Kontowechsel füllt die Gruppe, „wartet“ endet beim ersten Zugriff; Classic-Aufgabenbereich startet nicht mehr zur Anmeldeseite
 
 **Kontowechsel.** Ein neues Dienstkonto wird erst wirksam, wenn „Prüfen“ alle

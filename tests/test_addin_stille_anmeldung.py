@@ -206,9 +206,10 @@ function antwort(s, body) {
 globalThis.fetch = function (url, opt) {
   opt = opt || {};
   var kopf = opt.headers || {};
-  log.abrufe.push({ url: url, methode: opt.method || 'GET', kopf: kopf });
-  if (url === '/api/self/context') return antwort(kopf['X-Addin-Session'] === 'SITZUNG' ? 403 : 401, {});
-  if (url === fall.sitzungApi) return antwort(fall.sitzung, fall.sitzung === 200 ? { token: 'SITZUNG' } : {});
+  var pfad = String(url).split('?')[0];
+  log.abrufe.push({ url: pfad, voll: String(url), methode: opt.method || 'GET', kopf: kopf });
+  if (pfad === '/api/self/context') return antwort(kopf['X-Addin-Session'] === 'SITZUNG' ? 403 : 401, {});
+  if (pfad === fall.sitzungApi) return antwort(fall.sitzung, fall.sitzung === 200 ? { token: 'SITZUNG' } : {});
   return antwort(404, {});
 };
 globalThis.msal = { createNestablePublicClientApplication: function () {
@@ -225,6 +226,7 @@ if (fall.office) {
     onReady: function (cb) { setTimeout(function () { cb({ host: 'Outlook' }); }, 0); },
     context: {
       officeTheme: {},
+      diagnostics: { platform: 'PC' },
       requirements: { isSetSupported: function (n) { return n === 'NestedAppAuth' ? fall.naaSet : true; } },
       // 12009 = „Ignorieren“: die Seite zeigt dann den Anmelden-Knopf.
       ui: { displayDialogAsync: function (url, o, cb) { log.dialoge.push(url);
@@ -298,6 +300,8 @@ def test_aufgabenbereich_cloud_konto_still_per_naa(seite_lauf, rahmen):
     p = seite_lauf(rahmen=rahmen)
     (t,) = _tausche(p)
     assert t["methode"] == "POST" and t["kopf"] == {"Authorization": "Bearer NAA.TOKEN"}
+    # Plattform fürs Protokoll (sonst „unbekannt“ im Log, Desktop ≠ Handy nicht erkennbar)
+    assert t["voll"].endswith("?client=PC"), t["voll"]
     assert p["naa"] == 1 and p["identitaet"] == 0 and p["dialoge"] == []
     assert p["speicher"] == "SITZUNG"
     # erst ohne, dann mit Sitzungsmerkmal (403 = Seite hat neu geladen)
