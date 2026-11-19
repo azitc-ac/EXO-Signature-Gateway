@@ -279,8 +279,12 @@
      Ende des Körpers — im Kopf hielte es die ganze Seite leer, solange das CDN
      nicht antwortet. -->
 <script src="{{ teamsjs_url }}" integrity="{{ teamsjs_sri }}" crossorigin="anonymous"></script>
-<script src="{{ msal_url }}"></script>
 {% endif %}
+<!-- Stille Anmeldung in Tab UND Aufgabenbereich (NAA, für Konten auf Exchange
+     lokal das Exchange-Identitätstoken) — derselbe Baustein wie im
+     Verfassen-Add-in. Vom Gateway selbst, daher kein CDN-Risiko für das Zeichnen. -->
+<script src="{{ msal_url }}"></script>
+<script src="/static/addin_anmeldung.js?v={{ version }}"></script>
 <script>
 (function () {
   "use strict";
@@ -290,7 +294,7 @@
   try { TOKEN = localStorage.getItem('exo_addin_session') || null; } catch (e) { /* egal */ }
   var ctx = null, previewTimer = null, loginLaeuft = false;
   var IM_TEAMS = {{ 'true' if im_teams else 'false' }};
-  var NAA = {{ (naa if im_teams else {})|tojson }};
+  var NAA = {{ naa|tojson }};
   var TAB_WARTEZEIT_MS = 10000;
   var TAB_KEINE_ANTWORT = 'Outlook/Teams hat die Verbindung zum Tab nicht bestätigt (nach 10 s ohne Antwort).';
   // Eingebettet (Aufgabenbereich des Add-ins, fremder Rahmen): Eine Weiterleitung
@@ -311,13 +315,15 @@
     // Im Tab NIE zur Anmeldeseite navigieren: Microsofts Anmeldung lässt sich
     // nicht einbetten. Stattdessen Knopf zeigen (Klick → TeamsJS-Fenster).
     if (IM_TEAMS) {
-      if (!naaVersucht) { naaAnmelden(); return; }
+      if (!stillVersucht) { stillAnmelden(); return; }
       el('lade').hidden = true; el('tab-anmelden').hidden = false; return;
     }
     if (!imOffice()) {
       if (IM_RAHMEN) { zeigeFehler(ADDIN_OHNE_DIALOG); el('im-browser').hidden = false; return; }
       window.location = '/auth/login?next=/self'; return;
     }
+    // Aufgabenbereich: erst still, das Anmeldefenster erst danach.
+    if (!stillVersucht) { stillAnmelden(); return; }
     if (loginLaeuft) return;
     loginLaeuft = true;
     var url = window.location.origin + '/auth/login/microsoft?next='
@@ -353,38 +359,22 @@
       });
   }
 
-  // Tab, erster Versuch: still per NAA. Teams/Outlook reichen das angemeldete
-  // Konto durch (auf dem Handy über den Authenticator) — kein Fenster, keine
-  // Eingabe des Benutzernamens. Das Gateway tauscht das Zugriffstoken gegen
-  // das Sitzungsmerkmal. Scheitert irgendein Schritt, kommt der Knopf mit dem
-  // Anmeldefenster; der Versuch läuft je Seitenaufruf nur einmal.
-  var naaVersucht = false;
-  function naaAnmelden() {
-    naaVersucht = true;
-    var umfang = [NAA.scope];
-    var weiter = (window.msal && NAA.clientId && NAA.scope)
-      ? msal.createNestablePublicClientApplication({
-          auth: { clientId: NAA.clientId, authority: NAA.authority } })
-      : Promise.reject(new Error('NAA nicht eingerichtet'));
-    weiter
-      .then(function (app) { return app.acquireTokenSilent({ scopes: umfang }); })
-      .then(function (r) {
-        return fetch(NAA.sitzung, { method: 'POST', credentials: 'omit',
-                                    headers: { Authorization: 'Bearer ' + r.accessToken } });
-      })
-      .then(function (r) {
-        if (!r.ok) throw new Error('Gateway antwortet ' + r.status);
-        return r.json();
-      })
-      .then(function (d) {
-        if (!d.token) throw new Error('kein Sitzungsmerkmal');
-        TOKEN = d.token;
-        try { localStorage.setItem('exo_addin_session', d.token); } catch (e) { /* egal */ }
-        laden();
-      })
+  // Erster Versuch in Tab und Aufgabenbereich: still. Outlook/Teams reichen
+  // das angemeldete Konto durch (auf dem Handy über den Authenticator) — kein
+  // Fenster, keine Eingabe des Benutzernamens. Ablauf in addin_anmeldung.js
+  // (NAA; im Aufgabenbereich für Konten auf Exchange lokal das
+  // Exchange-Identitätstoken), das Gateway tauscht das Token gegen das
+  // Sitzungsmerkmal. Scheitert es, kommt der bisherige Weg mit Fenster; der
+  // Versuch läuft je Seitenaufruf nur einmal (hier und im Baustein).
+  var stillVersucht = false;
+  var stillWeg = window.ExoAnmeldung ? ExoAnmeldung.erstelle(NAA) : null;
+  function stillAnmelden() {
+    stillVersucht = true;
+    (stillWeg ? stillWeg.sitzung() : Promise.reject(new Error('Anmelde-Baustein nicht geladen')))
+      .then(function (token) { angemeldet(token); })
       .catch(function (e) {
-        if (window.console) console.info('NAA-Anmeldung nicht möglich:', (e && e.message) || e);
-        anmelden();                               // jetzt mit Knopf
+        if (window.console) console.info('Stille Anmeldung nicht möglich:', (e && e.message) || e);
+        anmelden();                               // jetzt mit Knopf bzw. Fenster
       });
   }
 

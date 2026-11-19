@@ -334,6 +334,25 @@ function bausteinNamen(html) {
   return namen;
 }
 
+// Eigenständige Seite, die ein eigenes Skript aus static/ einbindet (etwa
+// self.html → addin_anmeldung.js, seit 2026-11-19): Dessen Namen gelten auf
+// der Seite als gebunden — wie bei bausteinNamen(), nur über <script src>.
+// Nur Dateien, die es unter static/ wirklich gibt; ein Tippfehler im src
+// bindet also nichts und der Aufruf fällt weiter auf.
+function skriptNamen(html) {
+  const namen = new Set();
+  const statisch = path.join(dir, '..', 'static');
+  for (const m of html.matchAll(/<script[^>]*\bsrc\s*=\s*["']\/static\/([\w.\/-]+\.js)(?:\?[^"']*)?["']/g)) {
+    const datei = path.join(statisch, m[1]);
+    if (!fs.existsSync(datei)) continue;
+    try {
+      const a = acorn.parse(fs.readFileSync(datei, 'utf8'), { ecmaVersion: 'latest', sourceType: 'script' });
+      deklarationen(a).forEach(n => namen.add(n));
+    } catch (e) { /* Syntax meldet jscheck.py */ }
+  }
+  return namen;
+}
+
 let treffer = 0, geprueft = 0, eigenstaendig = 0, unlesbar = 0;
 for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.html')).sort()) {
   const html = fs.readFileSync(path.join(dir, f), 'utf8');
@@ -345,6 +364,7 @@ for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.html')).sort()) {
   if (nutztGemeinsames(html, f)) gemeinsameNamen.forEach(n => bekannt.add(n));
   else eigenstaendig++;
   bausteinNamen(html).forEach(n => bekannt.add(n));
+  skriptNamen(html).forEach(n => bekannt.add(n));
 
   let funde;
   try {

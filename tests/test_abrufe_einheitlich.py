@@ -30,6 +30,7 @@ OHNE_COMMON_JS = {
     "addin_compose.html": "Outlook-Add-in, eigenständig (office.js)",
     "smime_selfservice.html": "eigenständige Seite",
     "verfassen_ereignis.js": "läuft in der Ereignis-Laufzeit von Outlook, ohne DOM und common.js",
+    "addin_anmeldung.js": "stille Anmeldung, läuft auch in der Ereignis-Laufzeit (ohne DOM und common.js)",
     "common.js": "die Helfer selbst",
 }
 

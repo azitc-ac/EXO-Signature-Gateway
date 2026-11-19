@@ -295,7 +295,7 @@ globalThis.msal = {createNestablePublicClientApplication: function () {
 globalThis.EXO_VERFASSEN = {clientId: 'C', authority: 'A', scope: 'S', api: 'https://x/api', app: 'Signatur & Abwesenheit'KONF};
 globalThis.fetch = function (url) { protokoll.abrufe++; protokoll.url = url;
   return Promise.resolve({ok: true, json: function () { return Promise.resolve(ANTWORT); }}); };
-""".replace("PLATTFORM", json.dumps(plattform)).replace("ANTWORT", antwort).replace("KONF", konf) % item_js + av.HANDLER_DATEI.read_text(encoding="utf-8") + """
+""".replace("PLATTFORM", json.dumps(plattform)).replace("ANTWORT", antwort).replace("KONF", konf) % item_js + av.handler_quelltext() + """
 handler({completed: function () { protokoll.fertig++; }});
 setTimeout(function () { process.stdout.write(JSON.stringify(protokoll)); }, 50);
 """

@@ -5,6 +5,46 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.95 — 2026-11-19 — Add-in-Aufgabenbereich meldet sich still an
+
+Der Knopf *Signatur & Abwesenheit* (ohne Abwesenheiten: *Signatur*) öffnet in
+Outlook den Aufgabenbereich mit deinen Self-Service-Einstellungen. Bisher verlangte er dort eine Anmeldung über
+das Office-Anmeldefenster; still ging es nur im Teams-/Outlook-Tab. Die Seite
+ist für Aufgabenbereich und Tab dieselbe, bekam die Angaben für die stille
+Anmeldung aber nur im Tab.
+
+Jetzt meldet sich auch der Aufgabenbereich zuerst still an, auf demselben Weg
+wie das Verfassen-Add-in:
+
+1. **NAA** (Nested App Authentication): Outlook reicht das angemeldete Konto
+   durch, kein Fenster.
+2. Für Konten auf **Exchange lokal** (Hybrid-Nutzer), für die es kein NAA gibt:
+   das **Exchange-Identitätstoken** von Outlook. Das Gateway prüft es wie beim
+   Verfassen-Add-in (Signatur gegen die eingetragene lokale Exchange, Zeiten,
+   Zielgruppe) und stellt eine Self-Service-Sitzung nur für genau das Postfach
+   aus, das das Token nennt — und nur für Hybrid-Nutzer, die das Gateway
+   betreut. Ein Token des Verfassen-Add-ins gilt hier nicht; die Zielgruppe ist
+   die Adresse aus dem Manifest des Knopf-Add-ins. Konten in Exchange Online
+   nehmen diesen Weg nie (Microsoft hat die Exchange-Online-Tokens abgeschaltet).
+3. Erst wenn beides scheitert, kommt wie bisher das Anmeldefenster. Der stille
+   Versuch läuft je Öffnen des Aufgabenbereichs genau einmal.
+
+Der Ablauf steht in **einem** Baustein, den Aufgabenbereich, Tab und
+Verfassen-Add-in gemeinsam nutzen. Für das Verfassen-Add-in ändert sich dabei
+eine Kleinigkeit: Meldet Outlook ein Konto ausdrücklich als Exchange lokal
+(Kontoart `enterprise`), führt jetzt jeder NAA-Fehler zum Identitätstoken, nicht
+nur `crypto_nonexistent` — NAA gibt es für solche Konten laut Microsoft
+grundsätzlich nicht. Meldet Outlook NAA als nicht verfügbar, entfällt der
+vergebliche NAA-Versuch.
+
+Manifest und Entra-Registrierung bleiben unverändert: Der Aufgabenbereich liegt
+unter derselben Adresse wie das Verfassen-Add-in, und dafür ist die
+NAA-Umleitung bereits eingetragen (Prüfung unter *Anmeldeprüfung* bzw. Abnahme).
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.94 — 2026-11-19 — EWS-Karte: technische Felder ohne Autokorrektur
 
 Die neuen Felder der Karte *Exchange lokal (EWS) → Zugriffsbereich* (Domänencontroller,

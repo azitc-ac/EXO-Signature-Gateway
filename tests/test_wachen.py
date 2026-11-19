@@ -97,7 +97,8 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     "/.well-known/microsoft-officeaddins-allowed.json": "Freigabeliste für SSO in Classic Outlook",
     "/api/addin/verfassen/signatur":  "Prüft ein Entra-Zugriffstoken statt einer Sitzung",
     "/api/addin/meldung":             "Fehlerbericht aus Outlook ins Protokoll — auch ohne Anmeldung (gescheiterter Token-Abruf ist selbst eine Ursache); gekürzt, begrenzt je Absender und Stunde",
-    "/addin/tab/sitzung":             "Ist die Anmeldung des Tabs: prüft ein Entra-Zugriffstoken (NAA), vergibt nur ROLE_SELF",
+    "/addin/tab/sitzung":             "Ist die stille Anmeldung von Tab und Aufgabenbereich: prüft ein Entra-Zugriffstoken (NAA) "
+                                        "oder ein Exchange-Identitätstoken (nur Hybrid-Nutzer), vergibt nur ROLE_SELF",
     # Self-Service-SEITE: öffentliches HTML wie /addin/compose — die Navigation
     # kann keinen Auth-Header mitgeben, die Identität klärt das JS über die
     # /api/self/*-Endpunkte (die hängen an _require_self).
