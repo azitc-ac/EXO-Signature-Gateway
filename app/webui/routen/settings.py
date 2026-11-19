@@ -497,8 +497,15 @@ async def api_ews_bereich_stand(_=Depends(_require_admin)):
 async def api_ews_bereich_befehle(request: Request, _=Depends(_require_admin)):
     """Vorschau: dieselbe Schrittliste, die „Einrichten“ ausführt (ews_bereich.plan)."""
     import ews_bereich
+    import asyncio
+    daten = _bereich_daten(await _json(request))
     try:
-        p = ews_bereich.parameter(_bereich_daten(await _json(request)))
+        basis = ""
+        if not (daten.get("basis") or ews_bereich._wert(ews_bereich.KEY_BASIS)):
+            # Feld optional („leer = aus dem Verzeichnis“) — auch die Vorschau
+            # muss es dann aus dem Verzeichnis holen, nicht „fehlt“ melden.
+            basis = await asyncio.to_thread(ews_bereich.basis_aus_verzeichnis)
+        p = ews_bereich.parameter(daten, basis=basis)
     except ews_bereich.BereichFehler as exc:
         return JSONResponse({"ok": False, "error": exc.detail})
     schritte = ews_bereich.plan(p)

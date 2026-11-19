@@ -431,6 +431,9 @@ def test_entfernen_nur_nach_bestaetigung(umgebung):
     assert erg["ok"], erg
     mitglieder = [m.decode() for m in v.objekte[GRUPPE_DN]["member"]]
     assert sorted(mitglieder) == sorted([_dn(v, MAX), _dn(v, PAUL)])
+    # Die Karte zählt die Übernahme sofort, nicht erst nach dem ersten Abgleich
+    # (vorher „0 Mitglieder“ direkt nach der Einrichtung).
+    assert eb.uebersicht()["mitglieder"] == 2
 
 
 def test_bestand_kein_json(umgebung):
@@ -736,3 +739,20 @@ def test_nicht_aufloesbarer_dc_name_meldet_dns(monkeypatch):
     monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: aufgerufen.append(a))
     eb._namen_aufloesen("10.99.0.5", 636)
     assert aufgerufen == []
+
+
+def test_befehle_vorschau_ohne_basis_liest_rootdse(umgebung, monkeypatch):
+    """Basis-DN ist optional („leer = aus dem Verzeichnis“); die Vorschau vor
+    der Einrichtung meldete trotzdem „Basis-DN fehlt“."""
+    from fastapi.testclient import TestClient
+    from webui import deps
+    from webui.app import app
+    settings_store.update({"EWS_LDAP_BASIS": "", "EWS_BEREICH_OU": ""})
+    monkeypatch.setattr(eb, "basis_aus_verzeichnis", lambda: BASIS)
+    app.dependency_overrides[deps._require_admin] = lambda: "admin"
+    try:
+        r = TestClient(app).post("/api/ews-bereich/befehle", json={}).json()
+    finally:
+        app.dependency_overrides.pop(deps._require_admin, None)
+    assert r["ok"], r
+    assert f"CN=Users,{BASIS}" in r["text"]

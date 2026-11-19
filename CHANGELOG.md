@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.101 — 2026-11-19 — EWS-Zugriffsbereich: Befehlsvorschau ohne Basis-DN, Mitgliederzahl nach der Einrichtung
+
+Zwei Fehler in der Karte *Einstellungen → Exchange lokal (EWS) →
+Zugriffsbereich*:
+
+* **„Befehle anzeigen“ vor der Einrichtung** meldete „Basis-DN fehlt“, obwohl
+  das Feld optional ist (leer = aus dem Verzeichnis). Erst „AD-Teil
+  einrichten“ las den Wert aus dem RootDSE des Domänencontrollers. Die
+  Vorschau liest ihn jetzt ebenso, und zwar anonym. Active Directory gibt den
+  RootDSE ohne Anmeldung heraus, Admin-Daten sind dafür nicht nötig.
+* **Direkt nach „AD-Teil einrichten“** zeigte die Karte „0 Mitglieder“, obwohl
+  die Übernahme aus der bisherigen Liste eben Adressen in die Gruppe
+  eingetragen hatte. Die Zahl stammte aus dem letzten Abgleich, und den gab es
+  noch nicht. Die Einrichtung misst die Gruppe jetzt gleich mit derselben
+  Verbindung, nur lesend, ohne etwas zu ändern.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.100 — 2026-11-19 — Spitzenstunde in Ortszeit; DNS-Meldung beim EWS-Zugriffsbereich; Plural „Postfächer“
 
 **Spitzenstunde in Ortszeit.** Die Kachel *Mail-Peak heute* und der

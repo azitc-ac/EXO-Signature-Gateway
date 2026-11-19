@@ -910,6 +910,35 @@ class Parameter:
         return self.konto_upn or self.konto_sam
 
 
+def basis_aus_verzeichnis() -> str:
+    """defaultNamingContext aus dem RootDSE — anonym, ohne Anmeldung (AD gibt
+    den RootDSE ohne Bind heraus). Für die Befehlsvorschau vor der Einrichtung,
+    wenn das Feld „Basis-DN“ leer ist. BereichFehler, wenn nicht ermittelbar."""
+    import ldap3
+    from ldap3.core.exceptions import LDAPException
+    host, port = ldap_ziel()
+    _namen_aufloesen(host, port)
+    server = ldap3.Server(host, port=port, use_ssl=True, get_info=ldap3.DSA,
+                          connect_timeout=ZEITLIMIT_S)
+    server.tls = _TlsKontext(host)
+    c = ldap3.Connection(server, auto_bind=False, receive_timeout=ZEITLIMIT_S,
+                         raise_exceptions=False)
+    try:
+        c.bind()
+        werte = (server.info.other or {}).get("defaultNamingContext") if server.info else None
+        basis = str(werte[0]) if werte else ""
+    except LDAPException as exc:
+        raise BereichFehler("verbindung", f"Basis-DN nicht aus dem Verzeichnis lesbar ({exc})") from None
+    finally:
+        try:
+            c.unbind()
+        except Exception:                                    # noqa: BLE001
+            pass
+    if not basis:
+        raise BereichFehler("konfiguration", "Basis-DN nicht aus dem Verzeichnis lesbar — bitte eintragen")
+    return basis
+
+
 def parameter(daten: dict, basis: str = "") -> Parameter:
     """Aus Formular + Einstellungen. BereichFehler bei ungültigen Werten."""
     import ews_onprem
@@ -1227,6 +1256,10 @@ def einrichten(daten: dict, admin_konto: str, admin_kennwort: str, wer: str) -> 
             settings_store.update(felder)
         _stand_setzen(konto_dn=konto_dn, eingerichtet=_iso(), eingerichtet_von=wer,
                       scope=scope_name(p.gruppe), zuweisung=zuweisung_name(p.gruppe))
+        # Sofort messen (nur lesen, mit derselben Verbindung): sonst zeigte die
+        # Karte bis zum ersten Abgleich „0 Mitglieder“, obwohl die Übernahme
+        # eben Adressen eingetragen hat.
+        abgleichen("einrichtung", aendern=False, verzeichnis=v)
         offen = [s for s in schritte if s.art == "exchange"]
         return {"ok": True, "schritte": erledigt, "konto_neu": bool(neues_kennwort),
                 "konto_ausstehend": ausstehend(), "zugang_gewechselt": wirksam_neu,
