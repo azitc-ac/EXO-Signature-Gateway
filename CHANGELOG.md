@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.105 — 2026-11-19 — Browser-Tests an v1.12.104 angepasst
+
+Nur Testgerüst, keine Änderung am Gateway: Die Attrappe der Self-Service-Vorschau
+las „keine Antwort-Signatur“ (`min=`) als „nicht angegeben“, und die Attrappe der
+stillen Tab-Anmeldung erwartete die Adresse ohne den Zusatz `?client=`.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.104 — 2026-11-19 — Vorschau (Richtlinienergebnis) und Was-wäre-wenn-Vorschau; Postfächer nur mit S/MIME ohne Signatur
 
 Es gibt jetzt zwei Vorschauen mit klar getrennter Aufgabe:

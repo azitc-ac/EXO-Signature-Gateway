@@ -978,9 +978,10 @@ def _self_seite(browser, server, kontext, breite, gesendet):
         status=200, content_type="application/json", body=json.dumps(kontext)))
 
     def vorschau(r):
-        # Seit v1.12.103 entscheidet der Server, was wirkt: Die Seite schickt
+        # Seit v1.12.104 entscheidet der Server, was wirkt: Die Seite schickt
         # die rohe Auswahl (STANDARD/""/Name) und zeigt `neu`/`antwort` fertig an.
-        q = parse_qs(urlparse(r.request.url).query)
+        # keep_blank_values: „min=“ heißt „keine Antwort-Signatur“, nicht „fehlt“.
+        q = parse_qs(urlparse(r.request.url).query, keep_blank_values=True)
         mn = (q.get("min") or ["__standard__"])[0]
         mn = "Kurz" if mn == "__standard__" else mn
         sig = (q.get("sig") or [""])[0]
@@ -1269,7 +1270,7 @@ def _tab(browser, server, monkeypatch, still=True, sitzung=200, system="light",
         tausch.append(r.request.headers.get("authorization"))
         r.fulfill(status=sitzung, content_type="application/json",
                   body=json.dumps({"token": "SITZUNG"} if sitzung == 200 else {"detail": "x"}))
-    ctx.route("**/addin/tab/sitzung", tauschen)
+    ctx.route("**/addin/tab/sitzung*", tauschen)
 
     def ctx_abruf(r):
         kopf = r.request.headers.get("x-addin-session")
