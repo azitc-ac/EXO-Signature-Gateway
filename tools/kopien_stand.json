@@ -4,7 +4,7 @@
   "app/webui/templates/_testmail.html": 60,
   "app/webui/templates/abwesenheit.html": 275,
   "app/webui/templates/base.html": 152,
-  "app/webui/templates/notfall.html": 79,
+  "app/webui/templates/notfall.html": 75,
   "app/webui/templates/preview.html": 63,
   "app/webui/templates/relay.html": 186,
   "app/webui/templates/self.html": 275,
@@ -15,7 +15,7 @@
   "app/webui/templates/settings_smime.html": 61,
   "app/webui/templates/setup.html": 385,
   "app/webui/templates/smime.html": 138,
-  "app/webui/templates/template_editor.html": 146
+  "app/webui/templates/template_editor.html": 142
  },
  "begruendungen": [
   {
