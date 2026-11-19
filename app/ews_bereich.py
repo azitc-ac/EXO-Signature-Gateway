@@ -435,6 +435,25 @@ class _TlsKontext:
         raise BereichFehler("tls", "StartTLS wird nicht verwendet")
 
 
+def _namen_aufloesen(host: str, port: int) -> None:
+    """Vorab-DNS-Prüfung: ldap3 meldet einen nicht auflösbaren Namen nur als
+    „invalid server address“, ohne DNS zu nennen."""
+    import ipaddress
+    import socket
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+        return
+    except ValueError:
+        pass
+    try:
+        socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise BereichFehler(
+            "dns", f"Name „{host}“ ist im Gateway nicht auflösbar (DNS). Trage die IP-Adresse "
+            "des Domänencontrollers ein (sie muss im Zertifikat des Domänencontrollers stehen) "
+            "oder sorge dafür, dass der DNS-Server des Gateways den Namen kennt.") from None
+
+
 class Verzeichnis:
     """Schlanke Hülle um ldap3. Tests ersetzen sie über `_verbinden`."""
 
@@ -442,6 +461,7 @@ class Verzeichnis:
         import ldap3
         from ldap3.core.exceptions import LDAPException
         host, port = ldap_ziel()
+        _namen_aufloesen(host, port)
         self._geheim = kennwort
         self._ldap3 = ldap3
         server = ldap3.Server(host, port=port, use_ssl=True, get_info=ldap3.DSA,

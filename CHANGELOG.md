@@ -5,6 +5,41 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.100 — 2026-11-19 — Spitzenstunde in Ortszeit; DNS-Meldung beim EWS-Zugriffsbereich; Plural „Postfächer“
+
+**Spitzenstunde in Ortszeit.** Die Kachel *Mail-Peak heute* und der
+Stundenverlauf der Übersicht rechneten mit der UTC-Stunde des Protokolls
+(`mail_log.ts` ist UTC) und mit dem UTC-Kalendertag. In Berlin erschien Post
+von 10 Uhr deshalb als „9–10 Uhr“ (im Sommer um zwei Stunden versetzt), und die
+Hervorhebung der laufenden Stunde im Verlauf lag neben der Stunde, zu der die
+Balken gehörten. Beide gruppieren jetzt nach Stunde und Tag in der
+Anzeige-Zeitzone (*Einstellungen → Erweitert → Logging → Log-Zeitzone*, `LOG_TIMEZONE`).
+Dasselbe gilt für die Graph-Aufrufzählung je App (Stunde und Tag): Sie nahm die
+Uhr des Containers, und die läuft in UTC. Bereits gespeicherte Stundenwerte der
+Graph-Aufrufe bleiben in UTC; die neue Zählung beginnt mit dem Update.
+
+Weiterhin in UTC abgegrenzt sind die Tagesfilter des Mail-Protokolls
+(Datum, Monat, Jahr). Kurz nach Mitternacht Ortszeit zählt die Übersicht dort
+noch zum Vortag.
+
+**EWS-Zugriffsbereich: nicht auflösbarer Domänencontroller.** Ist unter
+*Einstellungen → Exchange lokal (EWS) → Zugriffsbereich* ein DC-Name
+eingetragen, den das Gateway nicht auflösen kann, meldete die Prüfung nur
+„Domänencontroller nicht erreichbar (invalid server address)“ — der Text der
+LDAP-Bibliothek nennt DNS nicht. Das Gateway löst den Namen jetzt vorab auf und
+sagt, was zu tun ist: die IP-Adresse eintragen (sie muss im Zertifikat des
+Domänencontrollers stehen) oder dem DNS-Server des Gateways den Namen bekannt
+machen.
+
+**Plural.** An sechs Stellen wurde die Mehrzahl als Endung an „Postfach“
+gehängt, sichtbar etwa als „dynamisch: 8 Postfachfächer“ in der Gruppenkarte und
+in den Abwesenheits-Hinweisen der Übersicht und des Betriebsbands. Ein Test
+verbietet die Endung „fächer“ als eigenen Textbaustein.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.99 — 2026-11-19 — Vorlagenrichtlinien in zwei Ebenen: Gruppen-Regeln schreiben fest
 
 Die Zuweisung der Vorlagen folgt jetzt für **jede** Vorlage derselben Regel —

@@ -719,3 +719,20 @@ def test_karte_nennt_ca_schritt_und_ausstehendes_konto():
     assert "„Eigene CA“" in vor_einrichten and "Domänencontrollers" in vor_einrichten
     assert 'id="ews-bereich-verwerfen-btn"' in seite and "/api/ews-bereich/verwerfen" in seite
     assert "wartet auf die Exchange-Befehle und „Prüfen“" in seite
+
+
+def test_nicht_aufloesbarer_dc_name_meldet_dns(monkeypatch):
+    """ldap3 sagt nur „invalid server address“; die Meldung muss DNS und den
+    Ausweg (IP eintragen) nennen. Eine IP überspringt die Prüfung."""
+    import socket
+    import settings_store
+    monkeypatch.setattr(eb, "_verbinden", lambda b, kw: eb.Verzeichnis(b, kw))
+    settings_store.update({"EWS_LDAP_SERVER": "dc.gibt-es-nicht.invalid"})
+    with pytest.raises(eb.BereichFehler) as fehler:
+        eb._verbinden("a@firma.at", "x-kennwort")
+    assert fehler.value.code == "dns"
+    assert "dc.gibt-es-nicht.invalid" in fehler.value.detail and "IP-Adresse" in fehler.value.detail
+    aufgerufen = []
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: aufgerufen.append(a))
+    eb._namen_aufloesen("10.99.0.5", 636)
+    assert aufgerufen == []
