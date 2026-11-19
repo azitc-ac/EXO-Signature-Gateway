@@ -117,6 +117,10 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     # (seit v1.12.96) — bis dahin ein offener Wechsel.
     Aufgabe("ews-kontowechsel", "Neues EWS-Dienstkonto prüfen oder verwerfen",
             abnahme._ews_kontowechsel, "/settings#ews-bereich"),
+    # Dynamische Gruppen (seit v1.12.98): Schnappschuss älter als 24 h oder nie
+    # eingelesen — Mitglieder folgen Entra dann nicht mehr (Gruppen bleiben bestehen).
+    Aufgabe("dynamische-gruppen", "Entra für dynamische Gruppen neu einlesen",
+            abnahme._dynamische_gruppen_stand, "/mailboxes#interne-gruppen"),
     # Function-Code der Azure-Wächter kam bis v1.11.63 nur beim Anlegen hinauf.
     Aufgabe("waechter-code", "Bypass-Wächter aktualisieren",
             abnahme._waechter_code, "/advanced#watchdog", seit="1.11.64"),

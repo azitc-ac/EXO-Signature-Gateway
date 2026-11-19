@@ -24,6 +24,7 @@ DEFAULTS: dict = {
     "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true, "use_policy": true}} — empty = NOTHING processed (handler.py pass-through)
     "TEMPLATE_POLICIES": {"sig": "default", "min": "Minimal", "addin": "*"},  # {sig, min, oof: DEFAULT der Nutzerwahl; banner, disclaimer, addin: Richtlinie} — policies.py
     "INTERNAL_GROUPS": {},      # {"Vertrieb": ["<guid>", ...], ...} — interne Postfach-Gruppen
+    "DYNAMIC_GROUPS": {},       # {"Vertrieb": {"regel": {...}, "immer": [...], "nie": [...]}} — dynamische interne Gruppen (dynamische_gruppen.py); Name steht zusätzlich in INTERNAL_GROUPS (Reihenfolge)
     "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "vorlagen": {slot: wert}, "fest": [wahl-slots]}] — first-match je Slot; Lesen NUR über policies.regeln (Altformat applies_to/template wird mitgelesen)
     "GROUP_VARS": {},           # {"Vertrieb": {"vertreter_name": "...", ...}} — Custom-Var-Werte je Gruppe (first-match); Rang: Entra < Gruppe < Postfach-Override
     # Banner-Kampagnen: ein Banner zeitfenster-/gruppengesteuert (banner_campaigns.py).
@@ -840,6 +841,14 @@ def _run_migrations(data: dict) -> tuple[dict, bool]:
 
 _lock = RLock()
 _data: dict = {}
+# Zählt jede Änderung (init/update/force_update). Für Leser im heißen Pfad, die
+# ein abgeleitetes Ergebnis merken (dynamische_gruppen.mitglieder): Steht der
+# Zähler, hat sich nichts geändert — ohne die Werte selbst zu vergleichen.
+_revision = 0
+
+
+def revision() -> int:
+    return _revision
 
 
 def init(env_seed: dict | None = None) -> None:
@@ -862,6 +871,7 @@ def init(env_seed: dict | None = None) -> None:
                         log.error("Backup also unreadable: %s — using defaults", bak_exc)
         merged, migrated = _run_migrations(merged)
         _data = merged
+        _hochzaehlen()
         log.info("Settings loaded (persisted file: %s, schema v%d)",
                   SETTINGS_FILE.exists(), merged.get("_SCHEMA_VERSION", 0))
         if migrated:
@@ -994,6 +1004,7 @@ def update(patch: dict) -> None:
         if not _data:
             init()
         _data.update({k: _coerce(k, v) for k, v in patch.items() if k in DEFAULTS})
+        _hochzaehlen()
         _save()
 
 
@@ -1001,7 +1012,13 @@ def force_update(patch: dict) -> None:
     """Update and persist settings without DEFAULTS key guard (internal use)."""
     with _lock:
         _data.update(patch)
+        _hochzaehlen()
         _save()
+
+
+def _hochzaehlen() -> None:
+    global _revision
+    _revision += 1
 
 
 def _save() -> None:

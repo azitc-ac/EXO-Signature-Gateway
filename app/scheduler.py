@@ -42,6 +42,9 @@ _OWA_INTERVAL = 60 * 60                # OWA-Signatur lokal (owa_signatur.py): s
 _last_ews_bereich_run: float = _NIE     # monotonic; _NIE = nie gelaufen
 _EWS_BEREICH_INTERVAL = 60 * 60        # Gruppe des EWS-Dienstkontos (ews_bereich.py): stündlich
                                        # abgleichen — mit Schalter aus nur messen (Aufgabe)
+_last_dyn_gruppen_run: float = _NIE     # monotonic; _NIE = nie gelaufen (triggers run on first tick)
+_DYN_GRUPPEN_INTERVAL = 60 * 60        # Entra-Schnappschuss der dynamischen Gruppen
+                                       # (dynamische_gruppen.py): stündlich, nur wenn es welche gibt
 _last_ooo_run: float = _NIE             # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisieren; dank
                                        # Idempotenz (nur PATCH bei echter Abweichung) ist
@@ -654,6 +657,23 @@ def _ews_bereich() -> None:
         _last_ews_bereich_run = time.monotonic()
 
 
+def _dynamische_gruppen() -> None:
+    """Entra-Schnappschuss für dynamische Gruppen neu einlesen — nur, wenn es
+    welche gibt (sonst kein Graph-Aufruf). Scheitert der Abruf, bleibt der alte
+    Stand; die Aufgabe meldet sich nach 24 h (abnahme._dynamische_gruppen_stand)."""
+    global _last_dyn_gruppen_run
+    try:
+        import dynamische_gruppen
+        if dynamische_gruppen.hat_dynamische():
+            r = dynamische_gruppen.einlesen_sync("Zeitplan")
+            if not r.get("ok"):
+                log.warning("scheduler: dynamische Gruppen — %s", r.get("error"))
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("scheduler: Einlesen für dynamische Gruppen fehlgeschlagen: %s", exc)
+    finally:
+        _last_dyn_gruppen_run = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -690,6 +710,8 @@ def _loop() -> None:
                 _owa_signatur()
             if time.monotonic() - _last_ews_bereich_run > _EWS_BEREICH_INTERVAL:
                 _ews_bereich()
+            if time.monotonic() - _last_dyn_gruppen_run > _DYN_GRUPPEN_INTERVAL:
+                _dynamische_gruppen()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

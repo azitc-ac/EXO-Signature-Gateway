@@ -9,6 +9,12 @@ Gruppe pflegt.
 ⚠️ Wer Gruppen liest, ruft `interne_gruppen()` — nie `settings_store.get(
 "INTERNAL_GROUPS")` direkt (sonst fehlt „Alle Postfächer"; geprüft von
 tests/test_gruppen.py).
+
+Dynamische Gruppen (seit v1.12.98): Steht der Name zusätzlich in
+`DYNAMIC_GROUPS`, berechnet `dynamische_gruppen.mitglieder()` die Mitglieder aus
+Regel, Entra-Schnappschuss und „immer“/„nie“; der gespeicherte Eintrag in
+`INTERNAL_GROUPS` hält dann nur die Reihenfolge. Leser merken davon nichts —
+sie bekommen hier wie bisher {name: [config_key, …]}.
 """
 from __future__ import annotations
 
@@ -32,10 +38,27 @@ def interne_gruppen() -> dict[str, list[str]]:
     """
     gespeichert = settings_store.get("INTERNAL_GROUPS") or {}
     mc = settings_store.get("MAILBOX_CONFIG") or {}
-    ergebnis = {name: list(mitglieder or []) for name, mitglieder in gespeichert.items()
+    dyn = settings_store.get("DYNAMIC_GROUPS") or {}
+    berechnet: dict = {}
+    if dyn and isinstance(dyn, dict) and isinstance(mc, dict):
+        import dynamische_gruppen
+        berechnet = dynamische_gruppen.mitglieder(
+            {n: m for n, m in gespeichert.items() if not ist_berechnet(n)}, dyn, mc)
+    ergebnis = {name: list(berechnet[name] if name in berechnet else (mitglieder or []))
+                for name, mitglieder in gespeichert.items()
                 if not ist_berechnet(name)}
     ergebnis[ALLE] = list(mc.keys()) if isinstance(mc, dict) else []
     return ergebnis
+
+
+def dynamische_namen() -> list[str]:
+    """Namen der dynamischen Gruppen, in Gruppenreihenfolge. Eine Definition
+    ohne Gruppe (verwaist) zählt nicht."""
+    dyn = settings_store.get("DYNAMIC_GROUPS") or {}
+    if not isinstance(dyn, dict) or not dyn:
+        return []
+    gespeichert = settings_store.get("INTERNAL_GROUPS") or {}
+    return [n for n in gespeichert if n in dyn and not ist_berechnet(n)]
 
 
 def nur_gespeicherte(gruppen: dict) -> dict:

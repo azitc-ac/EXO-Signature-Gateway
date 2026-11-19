@@ -986,6 +986,30 @@ def _ews_kontowechsel() -> dict:
                   "oder „Ausstehendes Konto verwerfen“.")
 
 
+def _dynamische_gruppen_stand() -> dict:
+    """Ist der Entra-Schnappschuss der dynamischen Gruppen frisch (≤ 24 h)? Nur
+    lokal: liest Datei und Stand, fragt Graph nicht. Ein alter Stand leert keine
+    Gruppe — aber Mitglieder folgen dann nicht mehr den Attributen in Entra."""
+    import dynamische_gruppen as dg
+    name = "Entra-Schnappschuss der dynamischen Gruppen aktuell"
+    if not dg.hat_dynamische():
+        return _punkt(name, ENTFAELLT, "Keine dynamische Gruppe angelegt.")
+    st = dg.status()
+    weg = ("Postfächer → Interne Gruppen → Regel einer dynamischen Gruppe → „Entra neu einlesen“. "
+           "Scheitert es, steht der Grund dort; nötig ist das Recht User.Read.All der App.")
+    fehler = (st.get("letzter_fehler") or {}).get("text", "")
+    alter = dg.alter_s()
+    if alter is None:
+        return _punkt(name, OFFEN, "Noch kein Entra-Schnappschuss eingelesen — Entra-Bedingungen "
+                                   "gelten als leer." + (f" Letzter Versuch: {fehler}" if fehler else ""), weg)
+    if alter > dg.ALTER_WARNUNG_S:
+        return _punkt(name, OFFEN, f"Schnappschuss vom {st['stand']} ist älter als 24 Stunden — "
+                                   "Mitglieder folgen Änderungen in Entra nicht mehr."
+                      + (f" Letzter Versuch: {fehler}" if fehler else ""), weg)
+    return _punkt(name, OK, f"Schnappschuss vom {st['stand']}: {st['zugeordnet']} Postfächer "
+                            f"zugeordnet, {st['ohne_treffer']} ohne Entra-Eintrag.")
+
+
 def _waechter_code() -> dict:
     """Läuft auf jedem Azure-Wächter der Function-Code, den dieses Gateway
     mitbringt? Bis v1.11.63 wurde er nur beim Anlegen hochgeladen; ein Fix am
@@ -1049,7 +1073,7 @@ def _key_vault_zugriff() -> dict:
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _regel_auto_ausnahme, _implicit_anmeldung,
-              _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _ews_kontowechsel, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
+              _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _ews_kontowechsel, _dynamische_gruppen_stand, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
               _smime_regeln_stand,

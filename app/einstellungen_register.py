@@ -126,6 +126,7 @@ REGISTER: dict[str, E] = {
     "HUB_CUSTOMER_COMPANY": E(art=OPTION, ort="/api/hub/config"),
     "IMAP_ACCESS_CONFIGURED": E(art=ZUSTAND),
     "INTERNAL_GROUPS": E(art=STRUKTUR, ort="/api/settings/internal-groups"),
+    "DYNAMIC_GROUPS": E(art=STRUKTUR, ort="/api/settings/internal-groups"),
     "KEYVAULT_RESOURCE_ID": E(art=OPTION, ort="/api/setup/keyvault/assign-role"),
     "KEYVAULT_URL": E(art=OPTION, ort="/api/setup/keyvault/save"),
     "KV_KEY_MODE": E(art=OPTION, ort="settings_smime.html"),

@@ -556,6 +556,9 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     # gleich im Hintergrund abgleichen, sonst zeigt die Aufgabe die Abweichung.
     import ews_bereich
     ews_bereich.nach_postfach_aenderung()
+    # Dynamische Gruppen: neuen Postfächern fehlen Entra-Daten → im Hintergrund nachlesen.
+    import dynamische_gruppen
+    dynamische_gruppen.nach_postfach_aenderung()
 
     neu_aktiviert = sorted(_adressen_mit_smime(config_map) - smime_vorher)
     auto = await _auto_enrollment_anstossen(neu_aktiviert)
@@ -656,6 +659,17 @@ async def api_regel_probe_status(_=Depends(_require_admin)):
     return regel_probe.stand()
 
 
+def _dyn_felder() -> list[dict]:
+    import dynamische_gruppen
+    return dynamische_gruppen.felder()
+
+
+def _dyn_vergleiche() -> list[dict]:
+    import dynamische_gruppen
+    return [{"value": k, "label": v, "ohne_wert": k in dynamische_gruppen.OHNE_WERT}
+            for k, v in dynamische_gruppen.VERGLEICHE.items()]
+
+
 @router.get("/mailboxes", response_class=HTMLResponse)
 async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
     import signature_engine as _sig_engine
@@ -693,6 +707,10 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                      if isinstance(e, dict) and e.get("self_templates") is True),
                  "internal_group_names": sorted(gruppen.interne_gruppen().keys()),
                  "gruppe_alle": gruppen.ALLE,
+                 # Regel-Editor der dynamischen Gruppen: Felder aus der EINEN
+                 # Liste (graph_client.CUSTOM_VAR_ENTRA_FIELDS) + Gateway-Felder.
+                 "dyn_felder": _dyn_felder(),
+                 "dyn_vergleiche": _dyn_vergleiche(),
                  "group_vars": settings_store.get("GROUP_VARS") or {},
                  # Namen der definierten eigenen Variablen — im Gruppen-Dialog nur
                  # noch auswählbar (keine frei getippten Namen → keine Kollisionen).

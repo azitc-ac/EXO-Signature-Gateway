@@ -5,6 +5,65 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.98 — 2026-11-19 — Dynamische interne Gruppen
+
+Interne Gruppen (*Postfächer → Interne Gruppen*) können jetzt **dynamisch** sein:
+Die Mitglieder ergeben sich aus einer Regel statt aus einer Auswahl von Hand. Bei
+hunderten Postfächern war das Anhaken mühsam und veraltete mit jedem Abteilungswechsel.
+
+**Die Regel.** Bedingungen auf Entra-Attribute — dieselben Felder wie bei den eigenen
+Signaturvariablen (Abteilung, Stadt, Erweiterungsattribute 1–15, Telefon …) — und auf
+Gateway-Felder (Postfachtyp, Hybrid-Nutzer, Domäne der Adresse, Signatur aktiv, S/MIME
+aktiv). Vergleiche: *ist*, *ist nicht*, *enthält*, *beginnt mit*, *endet mit*, *ist leer*,
+*ist nicht leer*, *ist eine von*; Groß-/Kleinschreibung zählt nicht, Werte werden
+getrimmt. Verknüpft wird mit *alle*/*mindestens eine*, in höchstens zwei Ebenen
+(Wurzel und Untergruppen). Eine Regel ohne Bedingung trifft niemanden — eine frisch
+angelegte dynamische Gruppe nimmt also nicht versehentlich alle Postfächer auf. Je
+Gruppe gibt es dazu *immer dabei* und *nie dabei*; *nie* schlägt Regel und *immer*.
+Gruppen in Gruppen gibt es nicht.
+
+**Woher die Werte kommen.** Nicht je Mail aus Entra, sondern aus einem Schnappschuss:
+Das Gateway liest stündlich alle Nutzer des Tenants in Seiten zu 999 (`GET /users`,
+dasselbe Recht `User.Read.All` wie für die Signaturvariablen) und behält nur die, die
+zu einem aktivierten Postfach gehören. Die Zahl der Abrufe hängt damit an der
+Nutzerzahl, nicht an der Zahl der Postfächer (2 000 Nutzer: 3 Abrufe statt 700
+Einzelabfragen). Der Profilspeicher der Signaturen wird dabei mit denselben Daten
+gefüllt, sodass Gruppe und Signatur dieselben Werte sehen. Der letzte gute Stand liegt
+in `data/entra_schnappschuss.json` (Rechte 600, enthält Profildaten) und übersteht
+Neustarts. Scheitert ein Abruf — auch nur eine Seite —, bleibt der alte Stand; keine
+Gruppe wird geleert. Postfächer ohne Entra-Eintrag (etwa Hybrid-Nutzer ohne Objekt)
+behalten ihre Gateway-Felder, ihre Entra-Felder gelten als leer. Neue Postfächer ohne
+Eintrag lösen nach dem Speichern der Postfachliste ein Einlesen im Hintergrund aus.
+Ist der Stand älter als 24 Stunden, erscheint die Aufgabe *Entra für dynamische
+Gruppen neu einlesen*.
+
+**Nichts unter dem Radar.** Jede Änderung der Mitglieder — durch eine geänderte Regel,
+geänderte Attribute oder die Postfachliste — steht mit Grund im Audit (Aktion
+`dyn_gruppe_mitglieder`, etwa „Regel gespeichert von …: +3 (…); −1 (…)“). Die
+Gruppenkarte zeigt Stand des Schnappschusses, „zuletzt neu berechnet“ und die letzten
+Änderungen.
+
+**Regel-Editor** mit Live-Vorschau: Während der Eingabe wertet das Gateway die noch
+nicht gespeicherte Regel gegen den Schnappschuss aus — Zahl der Mitglieder, die ersten
+200 (filterbar), „+N neu, −M fallen raus“ gegenüber dem gespeicherten Stand und je
+Mitglied *Warum?* (welche Bedingungen griffen, oder *immer dabei*). Knopf *Entra neu
+einlesen* im Editor. Statische Gruppen bleiben; *In dynamische umwandeln* übernimmt die
+bisherigen Mitglieder als *immer dabei*, *In statische umwandeln* schreibt die
+aktuellen Mitglieder fest.
+
+Alle Leser der Gruppen (Gruppen-Regeln samt *fest*, Gruppen-Variablen, Banner-Kampagnen,
+Self-Service-Freigaben) bekommen die berechneten Mitglieder über denselben Weg wie
+bisher und gelten für dynamische Gruppen unverändert. Das Ergebnis wird gemerkt und nur
+neu berechnet, wenn sich Schnappschuss, Regeln oder die Postfachliste geändert haben
+(gemessen 700 Postfächer: 0,08 ms je Abfrage statt 0,05 ms ohne dynamische Gruppe).
+
+**Zu tun:** nichts. Das Recht `User.Read.All` hat die App bereits für die
+Signaturvariablen.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.97 — 2026-11-19 — Verfassen-Aufgabenbereich meldet sich still an
 
 Beim Verfassen öffnet der Knopf des Add-ins einen eigenen Aufgabenbereich

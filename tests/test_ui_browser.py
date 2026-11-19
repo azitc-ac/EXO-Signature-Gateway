@@ -1907,3 +1907,48 @@ def test_vorschau_schickt_wer_schreibt(seite):
     assert "email=info%40example.org" in anfrage.value.url
     assert "bearbeiter=" not in anfrage.value.url
     pg.context.close()
+
+
+# ── Dynamische Gruppen: Regel-Editor auf dem Telefon (v1.12.96) ──────────────
+
+def test_regel_editor_vorschau_und_keine_querrolle(seite, monkeypatch, tmp_path):
+    """Regel-Editor bei 393 px: Bedingung anlegen → die Vorschau zählt und nennt
+    je Mitglied den Grund; die Seite rollt dabei nicht quer."""
+    import dynamische_gruppen as dg
+    import settings_store
+    mc = {"g-1": {"sig": True, "primary": "anna@firma.at", "known_addresses": ["anna@firma.at"]},
+          "g-2": {"sig": True, "primary": "bert@firma.at", "known_addresses": ["bert@firma.at"]}}
+    werte = {"MAILBOX_CONFIG": mc, "INTERNAL_GROUPS": {"Vertrieb": []},
+             "DYNAMIC_GROUPS": {"Vertrieb": {"regel": {"verknuepfung": "alle", "bedingungen": []},
+                                             "immer": [], "nie": []}}}
+    echt = settings_store.get
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a, **kw: werte[k] if k in werte else echt(k, *a, **kw))
+    monkeypatch.setattr(dg, "SCHNAPPSCHUSS", tmp_path / "snap.json")
+    monkeypatch.setattr(dg, "STAND", tmp_path / "stand.json")
+    nutzer = [{"id": "1", "mail": "anna@firma.at", "department": "Vertrieb"},
+              {"id": "2", "mail": "bert@firma.at", "department": "Technik"}]
+    dg.secure_io.write_secret_json(dg.SCHNAPPSCHUSS,
+                                   {"stand": dg._jetzt_iso(), **dg.zuordnen(nutzer, mc, [])})
+    dg.zuruecksetzen()
+    try:
+        pg = seite("/mailboxes", breite=393)
+        knopf = pg.locator('button[data-group="Vertrieb"]', has_text="Regel")
+        knopf.wait_for(state="attached", timeout=10000)
+        knopf.click()
+        pg.locator("#regel-modal-overlay").wait_for(state="visible")
+        pg.locator("#regel-modal-overlay button", has_text="+ Bedingung").first.click()
+        zeile = pg.locator("#regel-baum .regel-zeile").first
+        zeile.locator("select.regel-feld").select_option("department")
+        zeile.locator("input.regel-wert").fill("vertrieb")
+        pg.wait_for_function(
+            "() => /^1 Mitglied /.test(document.getElementById('regel-vorschau-zahl').textContent)",
+            timeout=10000)
+        assert "anna@firma.at" in pg.locator("#regel-vorschau-liste").inner_text()
+        pg.locator("#regel-vorschau-liste summary").first.click()
+        assert "Vertrieb" in pg.locator("#regel-vorschau-liste li").first.inner_text()
+        breite = pg.evaluate("() => document.documentElement.scrollWidth")
+        assert breite <= 393, f"Seite rollt quer: {breite} px"
+        pg.context.close()
+    finally:
+        dg.zuruecksetzen()

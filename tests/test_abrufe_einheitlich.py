@@ -45,7 +45,7 @@ AUSNAHMEN: dict[tuple[str, str], str] = {
         "Online-Punkt: nur r.ok von /health, mit cache:'no-store' (die Helfer setzen keine Optionen)",
     ("debug.html", "loadHealthInline"):
         "zeigt den Rumpf roh als JSON an; getJSON schriebe ok:true hinein",
-    ("mailboxes.html", "loadGroups"):
+    ("mailboxes.html", "_gruppenHolen"):
         "Rumpf ist ein Wörterbuch Gruppenname → Mitglieder; getJSON schriebe eine Scheingruppe 'ok' "
         "hinein, die saveGroups zurückschriebe",
     ("setup.html", "validateAddinManifest"): "liest XML per .text()",

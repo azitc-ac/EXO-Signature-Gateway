@@ -567,6 +567,27 @@
     "name": "api_ews_onprem_test"
   },
   {
+    "pfad": "/api/gruppen/dynamisch",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_dynamische_gruppen"
+  },
+  {
+    "pfad": "/api/gruppen/dynamisch/einlesen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_dynamische_einlesen"
+  },
+  {
+    "pfad": "/api/gruppen/dynamisch/vorschau",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_dynamische_vorschau"
+  },
+  {
     "pfad": "/api/health/audit-log",
     "methoden": [
       "GET"

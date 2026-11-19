@@ -242,7 +242,7 @@ def test_links_zeigen_auf_vorhandene_anker(link):
         assert f'a[href="#{anker}"]' in (vorlagen / "base.html").read_text("utf-8")
         return
     datei = {"/setup": "setup.html", "/settings": "settings.html", "/smime": "smime.html", "/relay": "relay.html",
-             "/advanced": "advanced.html",
+             "/advanced": "advanced.html", "/mailboxes": "mailboxes.html",
              "/settings/smime": "settings_smime.html",
              "/settings/connect": "settings_connect.html",
              "/settings/routing": "settings_routing.html"}[pfad]
