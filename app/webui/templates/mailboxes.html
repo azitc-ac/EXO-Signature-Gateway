@@ -73,11 +73,15 @@
   .gruppen-chip { display:inline-block; max-width:100%; font-size:10px; font-weight:600; line-height:1.4;
                   padding:0 6px; border:1px solid transparent; border-radius:8px; overflow-wrap:anywhere;
                   vertical-align:middle; cursor:help }
-  .gruppen-punkt { width:10px; height:10px; padding:0; border-radius:50%; margin-right:4px; cursor:default }
+  /* Punkt in der Textfarbe des Chips gefüllt (currentColor) — mit der blassen
+     Hintergrundfarbe war er hell kaum, dunkel fast gar nicht zu sehen. */
+  .gruppen-punkt { width:10px; height:10px; padding:0; border-radius:50%; margin-right:4px; cursor:default;
+                   flex:none; background:currentColor !important; border-color:transparent !important }
+  .gruppen-name-zeile { display:flex; align-items:center; gap:2px; min-width:0 }
   .gruppen-chip[data-gruppenfarbe="0"] { background:#dbeafe; color:#1e40af; border-color:#bfdbfe }
   .gruppen-chip[data-gruppenfarbe="1"] { background:#dcfce7; color:#166534; border-color:#bbf7d0 }
   .gruppen-chip[data-gruppenfarbe="2"] { background:#fef3c7; color:#92400e; border-color:#fcd34d }
-  .gruppen-chip[data-gruppenfarbe="3"] { background:#ede9fe; color:#334155; border-color:#e2e8f0 }
+  .gruppen-chip[data-gruppenfarbe="3"] { background:#ede9fe; color:#7c3aed; border-color:#ede9fe }
   .gruppen-chip[data-gruppenfarbe="4"] { background:#fef2f2; color:#991b1b; border-color:#fca5a5 }
   .gruppen-chip[data-gruppenfarbe="5"] { background:#e0f2fe; color:#0369a1; border-color:#bae6fd }
   .gruppen-chip[data-gruppenfarbe="6"] { background:#fff7ed; color:#c2410c; border-color:#fed7aa }
@@ -2093,11 +2097,12 @@ function _renderGroupsTable() {
           'style="margin-left:2px" title="Bisherige Mitglieder werden „immer dabei“">In dynamische umwandeln</button>';
     tr.innerHTML =
       '<td style="padding:6px 8px">' +
-        '<input type="hidden" value="' + escAttr(_grpState) + '">' + _gruppenPunktHtml(name) +
+        '<input type="hidden" value="' + escAttr(_grpState) + '">' +
+        '<span class="gruppen-name-zeile">' + _gruppenPunktHtml(name) +
         '<input type="text" value="' + esc(name) + '" ' +
         'data-orig="' + esc(name) + '" autocapitalize="off" autocorrect="off" spellcheck="false" ' +
         'style="font-size:12px;width:150px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" ' +
-        'onchange="renameGroup(this)"></td>' +
+        'onchange="renameGroup(this)"></span></td>' +
       '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
         mitgliederZelle +
         '<button class="btn secondary btn-sm" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +

@@ -30,10 +30,11 @@ PALETTE_HG = {"#eff6ff", "#f0f9ff", "#e0f2fe", "#dbeafe", "#ecfdf5", "#dcfce7", 
 PALETTE_TEXT = {"#0f172a", "#1e293b", "#1f2937", "#334155", "#374151", "#555", "#64748b",
                 "#6b7280", "#94a3b8", "#9ca3af", "#888", "#065f46", "#166534", "#15803d",
                 "#991b1b", "#dc2626", "#1e40af", "#0369a1", "#0284c7", "#0078d4", "#92400e",
-                "#b45309", "#c2410c", "#d97706"}
+                "#b45309", "#c2410c", "#d97706",
+                "#7c3aed"}   # Text lila — in CLAUDE.md aufgenommen 19.11.2026 (Farbplatz 3)
 PALETTE_RAHMEN = {"#e2e8f0", "#e5e7eb", "#d1d5db", "#eee", "#f0f0f0", "#bae6fd", "#bfdbfe",
                   "#a7f3d0", "#bbf7d0", "#d1fae5", "#fca5a5", "#fecaca", "#fcd34d", "#fde68a",
-                  "#fed7aa"}
+                  "#fed7aa", "#ede9fe"}   # Rahmen lila — wie oben
 
 
 def _text() -> str:

@@ -1922,6 +1922,55 @@ def test_kampagne_speichert_die_gewaehlten_postfacharten(seite):
         settings_store.update({"BANNER_CAMPAIGNS": vorher or []})
 
 
+@pytest.mark.parametrize("thema", ["light", "dark"])
+def test_gruppen_punkt_in_der_textfarbe_des_chips(seite, thema):
+    """Lab 19.11. (Klickliste E, Befund 1): Der Farbpunkt vor Gruppennamen war
+    mit dem blassen Chip-Hintergrund gefüllt — hell kaum, dunkel fast nicht zu
+    sehen. Er trägt jetzt die Textfarbe des Chips."""
+    pg = seite("/mailboxes", breite=1280, thema=thema)
+    pg.wait_for_load_state("networkidle")
+    r = pg.evaluate("""() => {
+      const d = document.createElement('div');
+      d.innerHTML = _gruppenPunktHtml('Vertrieb') + _gruppenPunktHtml('Technik');
+      document.body.appendChild(d);
+      return Array.from(d.children).map(p => {
+        const cs = getComputedStyle(p);
+        return {bg: cs.backgroundColor, fg: cs.color}; }); }""")
+    for p in r:
+        assert p["bg"] == p["fg"], f"Punkt nicht in der Textfarbe gefüllt: {p}"
+
+
+def test_farbfeld_bekommt_nie_base(seite, monkeypatch, tmp_path):
+    """Klickliste E, Hinweis 4: Ein Textbaustein mit Farbe „base“ gab den Wert
+    an <input type=color> weiter — Konsolenwarnung „does not conform“."""
+    import json
+    import config
+    import signature_engine
+    (tmp_path / "farbe.html").write_text("<p>x</p>", encoding="utf-8")
+    (tmp_path / "farbe.meta.json").write_text(json.dumps({
+        "version": 1, "kind": "signatur", "global": {},
+        "blocks": [{"id": "1", "type": "text", "text": "eins", "color": "base"}]}), encoding="utf-8")
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    signature_engine._reload_env()
+    pg = seite("/template?name=farbe", breite=1280)
+    warnungen = []
+    pg.on("console", lambda m: warnungen.append(m.text) if "does not conform" in m.text else None)
+    pg.wait_for_selector(".block-card")
+    pg.locator(".block-card").first.locator(".block-type-badge").click()
+    pg.wait_for_selector(".block-card input[type=color]")
+    pg.wait_for_timeout(200)
+    # Rohes Attribut, nicht .value: Der Browser bereinigt .value still zu
+    # #000000 — gerade daran sah man den Fehler nicht.
+    werte = pg.evaluate("() => Array.from(document.querySelectorAll('.block-card input[type=color]'))"
+                        ".map(i => i.getAttribute('value'))")
+    import re as _re
+    assert werte and all(_re.fullmatch(r"#[0-9a-fA-F]{6}", v or "") for v in werte), werte
+    assert not warnungen, warnungen
+    # Kurzhilfe zu den Variablen steht auch im Baukasten
+    assert pg.is_visible("#baukasten-variablen-hilfe")
+    assert "custom_b" in pg.text_content("#baukasten-variablen-hilfe")
+
+
 # ── Baukasten: Schriftart-Auswahl, bearbeiter.-Vorschläge, Vorschau „Schreibt“ ──
 
 def test_schriftart_auswahl_mit_freitext(seite, monkeypatch, tmp_path):

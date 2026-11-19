@@ -5,6 +5,37 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.112 — 2026-11-19 — Interne Mails ohne Banner und Disclaimer (einstellbar); Gruppenfarben, Variablen-Hilfe, Farbfeld
+
+**Interne Mails.** Signiert das Gateway rein interne Post (interne Signatur oder
+„Rein interne Mails auch signieren“), hängte es bisher immer auch Banner und
+Disclaimer an. Neu unter *Einstellungen → Signaturen → Interne Mails*: ohne Banner
+und Disclaimer (Vorgabe), nur mit Disclaimer, nur mit Banner, oder mit beiden.
+Bei internen Antworten in einer Kette bleibt nur, was diese Einstellung UND
+„Antworten in derselben Kette“ erlauben. Die Vorschau unter
+*Signaturen → Richtlinienergebnis* (Fall *Intern*) zeigt das Ergebnis.
+Sollen interne Mails weiter Banner und Disclaimer tragen, stelle dort „Mit
+Banner und Disclaimer“ ein.
+
+**Oberfläche:**
+
+* **Postfächer:** Der Farbpunkt vor Gruppennamen (Gruppenliste, Gruppen-Regeln)
+  war mit der blassen Hintergrundfarbe des Chips gefüllt — hell kaum, dunkel
+  fast gar nicht zu sehen. Er trägt jetzt die Textfarbe der Gruppe. In der
+  Gruppenliste steht er wieder neben dem Namensfeld statt in einer eigenen Zeile.
+  Farbplatz 3 (Violett) hatte grauen Text und Rahmen und passte nicht zu den
+  übrigen; er ist jetzt durchgehend violett, ebenso der Kampagnen-Chip unter
+  *Signaturen → Richtlinienergebnis*.
+* **Vorlagen-Editor:** Die Kurzhilfe zu den Variablen (`user`, `bearbeiter`,
+  `custom_u`, `custom_b`) steht jetzt auch im Baukasten, nicht nur unter
+  *Quelltext*. Das Farbfeld eines Textbausteins mit der Farbe „Standard“ bekam
+  den Wert „base“ und meldete in der Browser-Konsole eine Warnung; es zeigt jetzt
+  die Grundfarbe der Vorlage. Kurze Farbwerte wie `#fff` erscheinen richtig.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.111 — 2026-11-19 — Browser-Test der Postfach-Werkzeugleiste misst Zeilen richtig
 
 Nur Testgerüst, keine Änderung am Gateway: Der Test zur Werkzeugleiste der

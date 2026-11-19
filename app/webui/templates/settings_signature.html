@@ -178,6 +178,23 @@
     </div>
   </div>
 
+  <div class="settings-row">
+    <label for="intern-behaelt">Interne Mails</label>
+    <div class="settings-control">
+      <select id="intern-behaelt">
+        {% for wert, text in [("", "Ohne Banner und Disclaimer"),
+                              ("disclaimer", "Nur mit Disclaimer"),
+                              ("banner", "Nur mit Banner"),
+                              ("beide", "Mit Banner und Disclaimer")] %}
+        <option value="{{ wert }}"{% if (s.INTERN_BEHAELT or "") == wert %} selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Gilt, wenn alle Empfänger intern sind und das Gateway die Mail signiert
+        (interne Signatur oder „Rein interne Mails auch signieren“). Sonst geht interne Post
+        ohnehin unverändert durch.</span>
+    </div>
+  </div>
+
   <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
 
   <div class="settings-row">
@@ -243,7 +260,7 @@
   </div>
   </div>
   <div class="actions" style="margin-top:14px">
-    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs-mobile,strip-client-sigs-desktop,sig-strip-pct,sig-image-mode,nosig-trigger,nosig-behaelt,kette-behaelt,antwort-letztes-wort,sign-internal-only,intern-ohne-addin,intern-vor-antwort"
+    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs-mobile,strip-client-sigs-desktop,sig-strip-pct,sig-image-mode,nosig-trigger,nosig-behaelt,kette-behaelt,antwort-letztes-wort,sign-internal-only,intern-ohne-addin,intern-vor-antwort,intern-behaelt"
             data-wache-hinweis="signatur-btn-result"
             onclick="saveSignatur()">Speichern</button>
     <span id="signatur-btn-result" style="font-size:12px;margin-left:8px"></span>
@@ -431,6 +448,7 @@ async function saveSignatur() {
     NOSIG_TRIGGER: feldWert('nosig-trigger') || '#nosig',
     NOSIG_BEHAELT: document.getElementById('nosig-behaelt').value,
     KETTE_BEHAELT: document.getElementById('kette-behaelt').value,
+    INTERN_BEHAELT: document.getElementById('intern-behaelt').value,
     ANTWORT_LETZTES_WORT: document.getElementById('antwort-letztes-wort').value,
     SIGN_INTERNAL_ONLY_MAIL: document.getElementById('sign-internal-only').checked,
     INTERN_OHNE_ADDIN: document.getElementById('intern-ohne-addin').checked,

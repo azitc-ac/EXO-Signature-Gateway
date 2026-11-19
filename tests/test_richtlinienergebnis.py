@@ -221,7 +221,12 @@ FAELLE = [
     ("ohne-min-kette-disc", _k_ohne_min_kette_disc, "antwort", False, ["StdDis"]),
     ("nosig", _k_nosig_banner, "neu", True, ["StdBan"]),
     ("nosig-vorgabe", _k_standard, "neu", True, []),
-    ("intern", _k_intern, "intern", False, ["InternSig", "StdBan", "StdDis"]),
+    # Interne Post: Vorgabe INTERN_BEHAELT="" → ohne Banner und Disclaimer (19.11.2026).
+    ("intern", _k_intern, "intern", False, ["InternSig"]),
+    ("intern-beide", lambda w: (_k_intern(w), w.update(INTERN_BEHAELT="beide")),
+     "intern", False, ["InternSig", "StdBan", "StdDis"]),
+    ("intern-nur-disclaimer", lambda w: (_k_intern(w), w.update(INTERN_BEHAELT="disclaimer")),
+     "intern", False, ["InternSig", "StdDis"]),
     ("intern-unveraendert", _k_standard, "intern", False, []),
     ("nur-smime", _k_nur_smime, "neu", False, []),
     ("nur-smime-antwort", _k_nur_smime, "antwort", False, []),
@@ -518,3 +523,19 @@ def test_was_waere_wenn_textfassung_traegt_banner_und_disclaimer(client):
     d = r.json()
     assert d["txt"] == "[Eigen]"
     assert d["txt_gesamt"] == "[Eigen]\n\n[B1]\n\n[D1]\n"
+
+
+
+def test_intern_und_kette_schnittmenge(anlage):
+    """Interne Antwort in einer Kette: Es bleibt nur, was KETTE_BEHAELT UND
+    INTERN_BEHAELT erlauben."""
+    import policies
+    _k_intern_vor_antwort(anlage)
+    _k_kette_beide(anlage)
+    anlage["INTERN_BEHAELT"] = "disclaimer"
+    e = policies.entscheiden(ABS, in_kette=True, alle_intern=True)
+    assert e["zusatz"] == frozenset({"disclaimer"})
+    anlage["INTERN_BEHAELT"] = ""
+    assert policies.entscheiden(ABS, in_kette=True, alle_intern=True)["zusatz"] == frozenset()
+    # Nicht intern: INTERN_BEHAELT spielt keine Rolle.
+    assert policies.entscheiden(ABS, in_kette=True, alle_intern=False)["zusatz"] == frozenset({"banner", "disclaimer"})
