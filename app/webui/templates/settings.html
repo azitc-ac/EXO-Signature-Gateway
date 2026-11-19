@@ -406,23 +406,23 @@
   <div class="settings-row">
     <label for="ews-ldap">Domänencontroller (LDAPS)</label>
     <div class="settings-control"><input type="text" id="ews-ldap" style="width:260px;max-width:100%"
-         value="{{ s.EWS_LDAP_SERVER or '' }}" placeholder="dc01.firma.at" autocomplete="off">
+         value="{{ s.EWS_LDAP_SERVER or '' }}" placeholder="dc01.firma.at" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       <small class="hint" style="display:block;margin-top:2px">Port 636, Zertifikat geprüft wie bei EWS (öffentliche CAs plus „Eigene CA“ oben).</small></div>
   </div>
   <div class="settings-row">
     <label for="ews-ldap-basis">Basis-DN (optional)</label>
     <div class="settings-control"><input type="text" id="ews-ldap-basis" style="width:300px;max-width:100%"
-         value="{{ s.EWS_LDAP_BASIS or '' }}" placeholder="leer = aus dem Verzeichnis, z. B. DC=firma,DC=at" autocomplete="off"></div>
+         value="{{ s.EWS_LDAP_BASIS or '' }}" placeholder="leer = aus dem Verzeichnis, z. B. DC=firma,DC=at" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
   </div>
   <div class="settings-row">
     <label for="ews-bereich-ou">Ablage für Konto und Gruppe</label>
     <div class="settings-control"><input type="text" id="ews-bereich-ou" style="width:300px;max-width:100%"
-         value="{{ s.EWS_BEREICH_OU or '' }}" placeholder="leer = CN=Users,&lt;Basis-DN&gt;" autocomplete="off"></div>
+         value="{{ s.EWS_BEREICH_OU or '' }}" placeholder="leer = CN=Users,&lt;Basis-DN&gt;" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
   </div>
   <div class="settings-row">
     <label for="ews-bereich-gruppe">Gruppe</label>
     <div class="settings-control"><input type="text" id="ews-bereich-gruppe" style="width:220px;max-width:100%"
-         value="{{ s.EWS_BEREICH_GRUPPE or '' }}" placeholder="EXO-Gateway-EWS" autocomplete="off">
+         value="{{ s.EWS_BEREICH_GRUPPE or '' }}" placeholder="EXO-Gateway-EWS" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       <small class="hint" style="display:block;margin-top:2px">Universelle Sicherheitsgruppe ohne Mailadresse. Scope und Rollenzuweisung heißen danach „… Scope“ und „… Impersonation“.</small></div>
   </div>
   <div class="actions" style="margin-top:8px;flex-wrap:wrap;gap:8px">
@@ -463,7 +463,7 @@
   <div class="settings-row">
     <label for="ews-bereich-konto">Name des Dienstkontos</label>
     <div class="settings-control"><input type="text" id="ews-bereich-konto" style="width:220px;max-width:100%"
-         placeholder="{{ s.EWS_ONPREM_KONTO or 'svc-exo-gateway' }}" autocomplete="off">
+         placeholder="{{ s.EWS_ONPREM_KONTO or 'svc-exo-gateway' }}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       <small class="hint" style="display:block;margin-top:2px">Neu angelegt: zufälliges, langes Kennwort, das nicht abläuft; das Gateway trägt Konto und Kennwort oben ein.</small></div>
   </div>
   <div class="settings-row">
@@ -503,7 +503,7 @@
   <div class="settings-row" style="margin-top:10px">
     <label for="ews-bereich-admin">Admin-Konto (einmalig)</label>
     <div class="settings-control"><input type="text" id="ews-bereich-admin" style="width:260px;max-width:100%"
-         placeholder="admin@firma.at" autocomplete="off"></div>
+         placeholder="admin@firma.at" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
   </div>
   <div class="settings-row">
     <label for="ews-bereich-admin-kw">Admin-Kennwort</label>
