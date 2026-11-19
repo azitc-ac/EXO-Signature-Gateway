@@ -97,7 +97,8 @@ async def api_system_info(user: str = Depends(_require_admin)):
     avg_ms = _audit_mod.avg_processing_ms(since_24h)
 
     # Peak hour today
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # Lokaler Tag und lokale Stunde (LOG_TIMEZONE), nicht UTC
+    today_str = datetime.now(settings_store.anzeige_zone()).strftime("%Y-%m-%d")
     peak = _audit_mod.peak_hour(today_str)
 
     return {
@@ -122,7 +123,7 @@ async def api_system_info(user: str = Depends(_require_admin)):
 async def api_mail_hourly(user: str = Depends(_require_admin)):
     """Stündliche Mail-Statistik für heute aus mail_audit.db."""
     import mail_audit as _audit_mod
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(settings_store.anzeige_zone()).strftime("%Y-%m-%d")
     return _audit_mod.get_mail_hourly(today)
 
 @router.get("/api/system/log-tail")

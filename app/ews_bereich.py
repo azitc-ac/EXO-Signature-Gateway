@@ -435,6 +435,25 @@ class _TlsKontext:
         raise BereichFehler("tls", "StartTLS wird nicht verwendet")
 
 
+def _namen_aufloesen(host: str, port: int) -> None:
+    """Vorab-DNS-Prüfung: ldap3 meldet einen nicht auflösbaren Namen nur als
+    „invalid server address“, ohne DNS zu nennen."""
+    import ipaddress
+    import socket
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+        return
+    except ValueError:
+        pass
+    try:
+        socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise BereichFehler(
+            "dns", f"Name „{host}“ ist im Gateway nicht auflösbar (DNS). Trage die IP-Adresse "
+            "des Domänencontrollers ein (sie muss im Zertifikat des Domänencontrollers stehen) "
+            "oder sorge dafür, dass der DNS-Server des Gateways den Namen kennt.") from None
+
+
 class Verzeichnis:
     """Schlanke Hülle um ldap3. Tests ersetzen sie über `_verbinden`."""
 
@@ -442,6 +461,7 @@ class Verzeichnis:
         import ldap3
         from ldap3.core.exceptions import LDAPException
         host, port = ldap_ziel()
+        _namen_aufloesen(host, port)
         self._geheim = kennwort
         self._ldap3 = ldap3
         server = ldap3.Server(host, port=port, use_ssl=True, get_info=ldap3.DSA,
@@ -699,15 +719,35 @@ def _mail_von(v: Verzeichnis, dn: str) -> str:
 
 # ── Abgleich ──────────────────────────────────────────────────────────────────
 
+def zugriff_bestaetigt(adresse: str) -> None:
+    """Erster erfolgreicher EWS-Zugriff auf ein frisches Mitglied: Die
+    Wartezeit ist vorbei. Gemessen im Lab ~50 s statt der pauschalen 2 h —
+    „wartet“ verdeckte so lange auch echte Fehler. Aufgerufen von
+    ews_onprem._aufruf nach NoError; billig, wenn nichts wartet."""
+    a = (adresse or "").strip().lower()
+    if not a or a not in (stand().get("wartet") or {}):
+        return
+    with settings_store._lock:
+        w = dict(stand().get("wartet") or {})
+        seit = w.pop(a, None)
+        if seit is None:
+            return
+        _stand_setzen(wartet=w)
+    log.info("EWS-Bereich: %s per EWS erreichbar — Wartezeit beendet (aufgenommen %s)", a, seit)
+
+
 def wartet(adresse: str, jetzt: datetime | None = None) -> bool:
     """Frisch in die Gruppe aufgenommen — Exchange übernimmt das verzögert."""
     seit = _aus_iso((stand().get("wartet") or {}).get((adresse or "").lower(), ""))
     return bool(seit and ((jetzt or _jetzt()) - seit).total_seconds() < WARTEZEIT_S)
 
 
-def abgleichen(ausloeser: str, aendern: bool = True, verzeichnis: Verzeichnis | None = None) -> dict:
+def abgleichen(ausloeser: str, aendern: bool = True, verzeichnis: Verzeichnis | None = None,
+               nur_hinzu: bool = False) -> dict:
     """Soll ↔ Ist der Gruppe. `aendern=False` misst nur (Schalter aus):
     keine Änderung, aber die Abweichung steht danach im Stand (Aufgabe).
+    `nur_hinzu=True` nimmt fehlende Mitglieder auf, entfernt aber keines
+    (Kontowechsel: erweitert nur, was das neue Konto erreicht).
 
     → {ok, hinzu, weg, fehlt, fehler, soll, ist, geaendert}"""
     if not _lauf.acquire(blocking=False):
@@ -752,7 +792,7 @@ def abgleichen(ausloeser: str, aendern: bool = True, verzeichnis: Verzeichnis | 
                 wartend[adresse] = _iso()
                 _audit("ews_bereich_mitglied_hinzu", adresse,
                        f"in Gruppe {gruppe_name()} aufgenommen ({ausloeser})")
-            for dn in weg:
+            for dn in ([] if nur_hinzu else weg):
                 adresse = weg_adr[dn]
                 try:
                     v.mitglied(gdn, dn, False)
@@ -888,6 +928,35 @@ class Parameter:
     @property
     def konto_exchange(self) -> str:
         return self.konto_upn or self.konto_sam
+
+
+def basis_aus_verzeichnis() -> str:
+    """defaultNamingContext aus dem RootDSE — anonym, ohne Anmeldung (AD gibt
+    den RootDSE ohne Bind heraus). Für die Befehlsvorschau vor der Einrichtung,
+    wenn das Feld „Basis-DN“ leer ist. BereichFehler, wenn nicht ermittelbar."""
+    import ldap3
+    from ldap3.core.exceptions import LDAPException
+    host, port = ldap_ziel()
+    _namen_aufloesen(host, port)
+    server = ldap3.Server(host, port=port, use_ssl=True, get_info=ldap3.DSA,
+                          connect_timeout=ZEITLIMIT_S)
+    server.tls = _TlsKontext(host)
+    c = ldap3.Connection(server, auto_bind=False, receive_timeout=ZEITLIMIT_S,
+                         raise_exceptions=False)
+    try:
+        c.bind()
+        werte = (server.info.other or {}).get("defaultNamingContext") if server.info else None
+        basis = str(werte[0]) if werte else ""
+    except LDAPException as exc:
+        raise BereichFehler("verbindung", f"Basis-DN nicht aus dem Verzeichnis lesbar ({exc})") from None
+    finally:
+        try:
+            c.unbind()
+        except Exception:                                    # noqa: BLE001
+            pass
+    if not basis:
+        raise BereichFehler("konfiguration", "Basis-DN nicht aus dem Verzeichnis lesbar — bitte eintragen")
+    return basis
 
 
 def parameter(daten: dict, basis: str = "") -> Parameter:
@@ -1207,6 +1276,10 @@ def einrichten(daten: dict, admin_konto: str, admin_kennwort: str, wer: str) -> 
             settings_store.update(felder)
         _stand_setzen(konto_dn=konto_dn, eingerichtet=_iso(), eingerichtet_von=wer,
                       scope=scope_name(p.gruppe), zuweisung=zuweisung_name(p.gruppe))
+        # Sofort messen (nur lesen, mit derselben Verbindung): sonst zeigte die
+        # Karte bis zum ersten Abgleich „0 Mitglieder“, obwohl die Übernahme
+        # eben Adressen eingetragen hat.
+        abgleichen("einrichtung", aendern=False, verzeichnis=v)
         offen = [s for s in schritte if s.art == "exchange"]
         return {"ok": True, "schritte": erledigt, "konto_neu": bool(neues_kennwort),
                 "konto_ausstehend": ausstehend(), "zugang_gewechselt": wirksam_neu,
@@ -1296,6 +1369,17 @@ def _pruefpunkte(wer: str, konto: str, kw: str, neu: bool) -> list[dict]:
                            "detail": "Dienstkonto darf die Mitglieder ändern" if ok else
                            "Dienstkonto darf die Mitglieder NICHT ändern — Einrichtung oder "
                            "Add-ADPermission ausführen"})
+            # Kontowechsel: Das neue Konto füllt die Gruppe selbst auf (nur
+            # hinzufügen, mit SEINER Delegation — belegt sie zugleich). Sonst
+            # scheiterte „Prüfen“ nach den Exchange-Befehlen an „es fehlen N“,
+            # obwohl EWS schon ging, solange der Schalter „automatisch pflegen“
+            # aus war (Lab: 9 von 11 fehlten).
+            if ok and neu:
+                erg_neu = abgleichen(f"Kontowechsel, Prüfung durch {wer}", aendern=True,
+                                     verzeichnis=v, nur_hinzu=True)
+                if erg_neu.get("hinzu"):
+                    punkte.append({"name": "Gruppe aufgefüllt", "ok": True,
+                                   "detail": f"{len(erg_neu['hinzu'])} Mitglieder mit {konto} aufgenommen"})
     except BereichFehler as exc:
         punkte.append({"name": "Verzeichnis", "ok": False, "detail": _schwaerzen(exc.detail, kw)})
         return punkte

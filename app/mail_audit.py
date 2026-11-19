@@ -261,21 +261,50 @@ def avg_processing_ms(since_iso: str) -> float | None:
         return None
 
 
-def peak_hour(date: str) -> tuple[str, int] | None:
-    """Return (hour_str, count) for the busiest hour on *date* (YYYY-MM-DD), or None."""
+def _lokaler_tag(date: str, zone=None) -> tuple[str, str, object]:
+    """UTC-Grenzen [start, ende) des Kalendertags *date* (YYYY-MM-DD) in der
+    Anzeige-Zeitzone. mail_log.ts ist UTC; ohne diese Umrechnung erschien die
+    Stunde 9 UTC als „9–10 Uhr“, obwohl es in Berlin 10–11 Uhr war."""
+    if zone is None:
+        import settings_store
+        zone = settings_store.anzeige_zone()
+    beginn = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=zone)
+    ende = (beginn + timedelta(days=1)).replace(tzinfo=zone)
+    f = "%Y-%m-%dT%H:%M:%SZ"
+    return (beginn.astimezone(timezone.utc).strftime(f),
+            ende.astimezone(timezone.utc).strftime(f), zone)
+
+
+def _stunden_lokal(date: str, zone=None) -> dict[int, list]:
+    """Mails des lokalen Tags *date*, nach LOKALER Stunde gruppiert:
+    {stunde: [processing_ms, …]}."""
+    start, ende, zone = _lokaler_tag(date, zone)
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ts, processing_ms FROM mail_log WHERE ts >= ? AND ts < ?",
+            (start, ende),
+        ).fetchall()
+    stunden: dict[int, list] = {}
+    for ts, ms in rows:
+        try:
+            t = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            continue
+        stunden.setdefault(t.astimezone(zone).hour, []).append(ms)
+    return stunden
+
+
+def peak_hour(date: str, zone=None) -> tuple[str, int] | None:
+    """(Stunde "HH", Anzahl) der geschäftigsten LOKALEN Stunde am lokalen Tag
+    *date* (YYYY-MM-DD, Anzeige-Zeitzone), oder None."""
     if not _initialised:
         return None
     try:
-        with _conn() as conn:
-            row = conn.execute(
-                "SELECT substr(ts,12,2) AS h, COUNT(*) AS c "
-                "FROM mail_log WHERE ts >= ? AND ts <= ? "
-                "GROUP BY h ORDER BY c DESC LIMIT 1",
-                (f"{date}T00:00:00Z", f"{date}T23:59:59Z"),
-            ).fetchone()
-        if row and row[0]:
-            return (row[0], row[1])
-        return None
+        stunden = _stunden_lokal(date, zone)
+        if not stunden:
+            return None
+        h = max(sorted(stunden), key=lambda k: len(stunden[k]))
+        return (f"{h:02d}", len(stunden[h]))
     except Exception as exc:
         log.warning("mail_audit: peak_hour failed: %s", exc)
         return None
@@ -333,21 +362,21 @@ def get_graph_calls_range(app_id: str, days: int) -> list[dict]:
         return []
 
 
-def get_mail_hourly(date: str) -> list[dict]:
-    """Per-hour stats from mail_log for date (YYYY-MM-DD)."""
+def get_mail_hourly(date: str, zone=None) -> list[dict]:
+    """Stundenwerte aus mail_log für den lokalen Tag *date* (Anzeige-Zeitzone),
+    Stunden in Ortszeit."""
     if not _initialised:
         return []
     try:
-        with _conn() as conn:
-            rows = conn.execute(
-                "SELECT substr(ts,12,2) AS hour, COUNT(*) AS count, "
-                "CAST(AVG(CASE WHEN processing_ms > 0 THEN processing_ms END) AS INTEGER) AS avg_ms, "
-                "MAX(processing_ms) AS peak_ms "
-                "FROM mail_log WHERE ts >= ? AND ts <= ? "
-                "GROUP BY hour ORDER BY hour",
-                (f"{date}T00:00:00Z", f"{date}T23:59:59Z"),
-            ).fetchall()
-        return [dict(r) for r in rows]
+        stunden = _stunden_lokal(date, zone)
+        aus = []
+        for h in sorted(stunden):
+            ms = [m for m in stunden[h] if m is not None]
+            pos = [m for m in ms if m > 0]
+            aus.append({"hour": f"{h:02d}", "count": len(stunden[h]),
+                        "avg_ms": int(sum(pos) / len(pos)) if pos else None,
+                        "peak_ms": max(ms) if ms else None})
+        return aus
     except Exception as exc:
         log.warning("mail_audit: get_mail_hourly failed: %s", exc)
         return []

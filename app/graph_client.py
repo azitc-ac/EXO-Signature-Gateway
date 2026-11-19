@@ -87,6 +87,13 @@ _USER_DATA_TTL = 3600.0                   # s — Profil ändert sich selten
 _user_data_cache: dict[str, tuple[dict, float]] = {}   # email → (data, ablauf_monotonic)
 
 
+def _jetzt_lokal() -> "datetime.datetime":
+    """Jetzt in der Anzeige-Zeitzone (LOG_TIMEZONE). Der Container läuft in UTC;
+    datetime.now() ohne Zone zählte die Aufrufstunden deshalb in UTC."""
+    import settings_store
+    return datetime.datetime.now(settings_store.anzeige_zone())
+
+
 def _flush_to_db() -> None:
     """Schreibt akkumulierte Stundenzähler in die SQLite-DB. Läuft im Hintergrund-Thread."""
     try:
@@ -108,7 +115,7 @@ def _restore_from_db(entries: list[dict]) -> None:
     """Stellt Tages-Statistik aus DB wieder her (nach Container-Neustart)."""
     try:
         import mail_audit as _ma
-        today = datetime.date.today().isoformat()
+        today = _jetzt_lokal().date().isoformat()
         with _pool_lock:
             for e in entries:
                 cid = e["client_id"]
@@ -263,7 +270,7 @@ def reset_msal_app() -> None:
 
 def _record_call(client_id: str) -> None:
     """Stündliche Aufrufstatistik — muss unter _pool_lock aufgerufen werden."""
-    now_dt = datetime.datetime.now()
+    now_dt = _jetzt_lokal()
     date_str = now_dt.strftime("%Y-%m-%d")
     hour = now_dt.hour
     s = _call_stats.get(client_id)
@@ -287,8 +294,9 @@ def get_pool_status() -> list[dict]:
     """Pool-Einträge ohne Secrets, inkl. Throttle-Status und Aufrufstatistik für Dashboard."""
     _rebuild_pool_if_needed()
     now = time.monotonic()
-    now_hour = datetime.datetime.now().hour
-    today = datetime.date.today().isoformat()
+    _jetzt = _jetzt_lokal()
+    now_hour = _jetzt.hour
+    today = _jetzt.date().isoformat()
     with _pool_lock:
         result = []
         for e in _pool_entries:

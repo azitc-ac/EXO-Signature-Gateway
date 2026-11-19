@@ -5,6 +5,103 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.103 — 2026-11-19 — EWS-Kontowechsel füllt die Gruppe, „wartet“ endet beim ersten Zugriff; Classic-Aufgabenbereich startet nicht mehr zur Anmeldeseite
+
+**Kontowechsel.** Ein neues Dienstkonto wird erst wirksam, wenn „Prüfen“ alle
+Punkte besteht, darunter die vollständige Gruppe. Gefüllt wurde die Gruppe aber
+nur vom Abgleich. Stand der Schalter „automatisch pflegen“ noch aus, scheiterte
+die Prüfung nach den Exchange-Befehlen an „es fehlen N“, obwohl EWS schon ging.
+Jetzt nimmt das ausstehende Konto bei „Prüfen“ die fehlenden Mitglieder selbst
+auf, mit seiner eigenen Delegation. Es fügt nur hinzu und entfernt nichts. Das
+Audit nennt jede Aufnahme.
+
+**„wartet“.** Ein frisch aufgenommenes Mitglied galt pauschal zwei Stunden lang
+als „wartet“, weil Exchange die Gruppe verzögert übernimmt. In der Messung
+waren es rund 50 Sekunden. Solange „wartet“ galt, verdeckte es auch echte
+Fehler. Die Wartezeit endet jetzt beim ersten erfolgreichen EWS-Zugriff auf das
+Postfach. Zwei Stunden bleiben die Obergrenze.
+
+**Knopf-Add-in in Classic Outlook.** Classic Outlook (Windows) zeigt den
+Aufgabenbereich in einem eigenen Fenster statt in einem Rahmen. `/self` hielt
+sich dort für ein normales Browserfenster und startete nach 1,5 Sekunden
+unabhängig von Office. Lud office.js länger, sprang der Aufgabenbereich zur
+Anmeldeseite. Erkannt wird der Office-Aufgabenbereich jetzt zusätzlich an dem
+Adressparameter `_host_Info`, den Office anhängt. Dann wartet `/self` auf
+Office.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.102 — 2026-11-19 — Gruppen-Regeln: Vorlagen auf breiten Bildschirmen nebeneinander
+
+Unter *Postfächer → Vorlagenrichtlinien* stand in jeder Gruppen-Regel eine Zeile
+je Vorlage (Signatur, Antwort, Intern, Banner, Disclaimer, Abwesenheit, Add-in).
+Auf breiten Bildschirmen blieb rechts der größte Teil leer. Ist die Karte breit
+genug (ab 760 px), stehen die Auswahlfelder jetzt nebeneinander wie die Spalten
+der Postfachliste, die Beschriftung jeweils darüber. Die Add-in-Auswahl mit
+ihrer Liste nimmt eine eigene Zeile ein. Schmal bleibt es bei einer Zeile je
+Vorlage. Maßgeblich ist die Breite der Karte, nicht die des Fensters.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.101 — 2026-11-19 — EWS-Zugriffsbereich: Befehlsvorschau ohne Basis-DN, Mitgliederzahl nach der Einrichtung
+
+Zwei Fehler in der Karte *Einstellungen → Exchange lokal (EWS) →
+Zugriffsbereich*:
+
+* **„Befehle anzeigen“ vor der Einrichtung** meldete „Basis-DN fehlt“, obwohl
+  das Feld optional ist (leer = aus dem Verzeichnis). Erst „AD-Teil
+  einrichten“ las den Wert aus dem RootDSE des Domänencontrollers. Die
+  Vorschau liest ihn jetzt ebenso, und zwar anonym. Active Directory gibt den
+  RootDSE ohne Anmeldung heraus, Admin-Daten sind dafür nicht nötig.
+* **Direkt nach „AD-Teil einrichten“** zeigte die Karte „0 Mitglieder“, obwohl
+  die Übernahme aus der bisherigen Liste eben Adressen in die Gruppe
+  eingetragen hatte. Die Zahl stammte aus dem letzten Abgleich, und den gab es
+  noch nicht. Die Einrichtung misst die Gruppe jetzt gleich mit derselben
+  Verbindung, nur lesend, ohne etwas zu ändern.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.100 — 2026-11-19 — Spitzenstunde in Ortszeit; DNS-Meldung beim EWS-Zugriffsbereich; Plural „Postfächer“
+
+**Spitzenstunde in Ortszeit.** Die Kachel *Mail-Peak heute* und der
+Stundenverlauf der Übersicht rechneten mit der UTC-Stunde des Protokolls
+(`mail_log.ts` ist UTC) und mit dem UTC-Kalendertag. In Berlin erschien Post
+von 10 Uhr deshalb als „9–10 Uhr“ (im Sommer um zwei Stunden versetzt), und die
+Hervorhebung der laufenden Stunde im Verlauf lag neben der Stunde, zu der die
+Balken gehörten. Beide gruppieren jetzt nach Stunde und Tag in der
+Anzeige-Zeitzone (*Einstellungen → Erweitert → Logging → Log-Zeitzone*, `LOG_TIMEZONE`).
+Dasselbe gilt für die Graph-Aufrufzählung je App (Stunde und Tag): Sie nahm die
+Uhr des Containers, und die läuft in UTC. Bereits gespeicherte Stundenwerte der
+Graph-Aufrufe bleiben in UTC; die neue Zählung beginnt mit dem Update.
+
+Weiterhin in UTC abgegrenzt sind die Tagesfilter des Mail-Protokolls
+(Datum, Monat, Jahr). Kurz nach Mitternacht Ortszeit zählt die Übersicht dort
+noch zum Vortag.
+
+**EWS-Zugriffsbereich: nicht auflösbarer Domänencontroller.** Ist unter
+*Einstellungen → Exchange lokal (EWS) → Zugriffsbereich* ein DC-Name
+eingetragen, den das Gateway nicht auflösen kann, meldete die Prüfung nur
+„Domänencontroller nicht erreichbar (invalid server address)“ — der Text der
+LDAP-Bibliothek nennt DNS nicht. Das Gateway löst den Namen jetzt vorab auf und
+sagt, was zu tun ist: die IP-Adresse eintragen (sie muss im Zertifikat des
+Domänencontrollers stehen) oder dem DNS-Server des Gateways den Namen bekannt
+machen.
+
+**Plural.** An sechs Stellen wurde die Mehrzahl als Endung an „Postfach“
+gehängt, sichtbar etwa als „dynamisch: 8 Postfachfächer“ in der Gruppenkarte und
+in den Abwesenheits-Hinweisen der Übersicht und des Betriebsbands. Ein Test
+verbietet die Endung „fächer“ als eigenen Textbaustein.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.99 — 2026-11-19 — Vorlagenrichtlinien in zwei Ebenen: Gruppen-Regeln schreiben fest
 
 Die Zuweisung der Vorlagen folgt jetzt für **jede** Vorlage derselben Regel —

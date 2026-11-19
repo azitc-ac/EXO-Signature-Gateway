@@ -1013,6 +1013,16 @@ def init(env_seed: dict | None = None) -> None:
             _save()
 
 
+def anzeige_zone():
+    """Zeitzone für Stunden- und Tagesangaben in der Oberfläche (`LOG_TIMEZONE`).
+    Ungültiger oder leerer Wert → UTC, nie eine Ausnahme."""
+    from zoneinfo import ZoneInfo
+    try:
+        return ZoneInfo(get("LOG_TIMEZONE") or "UTC")
+    except Exception:
+        return ZoneInfo("UTC")
+
+
 def get(key: str):
     # Selbst initialisierend: ohne vorheriges init() lieferten Lesezugriffe
     # STILL die Vorgabewerte statt der gespeicherten. In der Anwendung fiel das

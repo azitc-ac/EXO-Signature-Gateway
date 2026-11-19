@@ -935,6 +935,11 @@ def _aufruf(ziel: str, was: str, umschlag: bytes, teilweise: bool = False,
         raise
     _ausfall_vorbei()
     log.info("EWS %s für %s: NoError (%.2f s)", was, ziel, time.monotonic() - t0)
+    try:
+        import ews_bereich
+        ews_bereich.zugriff_bestaetigt(ziel)
+    except Exception:                                        # noqa: BLE001
+        pass                     # Wartemarke ist Anzeige, nie ein Grund zu scheitern
     return root
 
 

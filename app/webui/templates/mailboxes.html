@@ -32,6 +32,21 @@
   .cpol-steuer select { min-width:0; max-width:100%; font-size:12px }
   /* Add-in-Auswahl: lange Vorlagennamen rollen in der Liste, nicht die Seite. */
   .cpol-steuer > details { flex:1 1 100%; min-width:0; overflow-x:auto }
+  /* Breite Karte: Vorlagen nebeneinander wie die Spalten der Postfachliste,
+     Beschriftung über der Auswahl. Schmal bleibt es eine Zeile je Vorlage.
+     Containerabfrage statt Medienabfrage: maßgeblich ist die Breite der Karte,
+     nicht die des Fensters (Seitenleiste, Zoom). */
+  .cpol-karte { container-type:inline-size }
+  @container (min-width: 760px) {
+    .cpol-slots { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:6px 14px }
+    .cpol-slots > .cpol-zeile { flex-direction:column; align-items:stretch; gap:2px }
+    .cpol-slots > .cpol-zeile > label:first-child { flex:none; color:#64748b; font-size:11px }
+    [data-theme="dark"] .cpol-slots > .cpol-zeile > label:first-child { color:#94a3b8 }
+    .cpol-slots > .cpol-zeile > .cpol-steuer { flex:none }
+    .cpol-slots > .cpol-zeile > .cpol-steuer > select { width:100% }
+    .cpol-slots > .cpol-zeile[data-slot="addin"] { grid-column:1 / -1 }
+    .cpol-slots > .cpol-zeile[data-slot="addin"] > .cpol-steuer > select { width:auto }
+  }
   /* Hinweis unter einer festgelegten Auswahl (Farbe: .muted). */
   .wahl-fest { display:block; font-size:10px; line-height:1.3; margin-top:2px;
                max-width:130px; margin-left:auto; margin-right:auto; white-space:normal }
@@ -1931,7 +1946,7 @@ function _renderGroupsTable() {
           '<input type="hidden" value="' + escAttr(_grpState) + '">' + esc(name) +
           '<span style="display:block;font-size:10px;font-weight:400;color:#94a3b8">vordefiniert</span></td>' +
         '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
-          '<span>automatisch: ' + members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '') + '</span> ' +
+          '<span>automatisch: ' + members.length + (members.length === 1 ? ' Postfach' : ' Postfächer') + '</span> ' +
           '<button class="btn secondary btn-sm" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +
             'style="margin-left:4px" ' +
             'title="Custom-Variablen für alle Postfächer">Variablen (' +
@@ -1941,7 +1956,7 @@ function _renderGroupsTable() {
       return;
     }
     var dyn = !!_dynGroups[name];
-    var anzahl = members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '');
+    var anzahl = members.length + (members.length === 1 ? ' Postfach' : ' Postfächer');
     var mitgliederZelle = dyn
       ? '<span>dynamisch: ' + anzahl + '</span> ' +
         '<button class="btn secondary btn-sm" onclick="openRegelModal(this.dataset.group)" data-group="' + escAttr(name) + '" ' +
@@ -2627,15 +2642,19 @@ function _cpolKarte(pol, i) {
 
   // „Abwesenheit" nur bei eingeschalteter Funktion — eine festgelegte bleibt
   // aber sichtbar (sonst verschwände sie beim Speichern unbemerkt aus der Sicht).
+  var slots = document.createElement('div');
+  slots.className = 'cpol-slots';
   _CPOL_SLOTS.filter(function(slot) {
     return slot !== 'oof' || _abwesenheitAktiv || _cpolHat(pol, 'oof');
-  }).forEach(function(slot) { karte.appendChild(_cpolSlotZeile(pol, i, slot)); });
+  }).forEach(function(slot) { slots.appendChild(_cpolSlotZeile(pol, i, slot)); });
+  karte.appendChild(slots);
   return karte;
 }
 
 function _cpolSlotZeile(pol, i, slot) {
   var zeile = document.createElement('div');
   zeile.className = 'cpol-zeile';
+  zeile.dataset.slot = slot;
   var id = 'cpol-' + i + '-' + slot;
   var lbl = document.createElement('label');
   lbl.htmlFor = id;

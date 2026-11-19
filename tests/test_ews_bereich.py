@@ -431,6 +431,9 @@ def test_entfernen_nur_nach_bestaetigung(umgebung):
     assert erg["ok"], erg
     mitglieder = [m.decode() for m in v.objekte[GRUPPE_DN]["member"]]
     assert sorted(mitglieder) == sorted([_dn(v, MAX), _dn(v, PAUL)])
+    # Die Karte zählt die Übernahme sofort, nicht erst nach dem ersten Abgleich
+    # (vorher „0 Mitglieder“ direkt nach der Einrichtung).
+    assert eb.uebersicht()["mitglieder"] == 2
 
 
 def test_bestand_kein_json(umgebung):
@@ -719,3 +722,71 @@ def test_karte_nennt_ca_schritt_und_ausstehendes_konto():
     assert "„Eigene CA“" in vor_einrichten and "Domänencontrollers" in vor_einrichten
     assert 'id="ews-bereich-verwerfen-btn"' in seite and "/api/ews-bereich/verwerfen" in seite
     assert "wartet auf die Exchange-Befehle und „Prüfen“" in seite
+
+
+def test_nicht_aufloesbarer_dc_name_meldet_dns(monkeypatch):
+    """ldap3 sagt nur „invalid server address“; die Meldung muss DNS und den
+    Ausweg (IP eintragen) nennen. Eine IP überspringt die Prüfung."""
+    import socket
+    import settings_store
+    monkeypatch.setattr(eb, "_verbinden", lambda b, kw: eb.Verzeichnis(b, kw))
+    settings_store.update({"EWS_LDAP_SERVER": "dc.gibt-es-nicht.invalid"})
+    with pytest.raises(eb.BereichFehler) as fehler:
+        eb._verbinden("a@firma.at", "x-kennwort")
+    assert fehler.value.code == "dns"
+    assert "dc.gibt-es-nicht.invalid" in fehler.value.detail and "IP-Adresse" in fehler.value.detail
+    aufgerufen = []
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: aufgerufen.append(a))
+    eb._namen_aufloesen("10.99.0.5", 636)
+    assert aufgerufen == []
+
+
+def test_befehle_vorschau_ohne_basis_liest_rootdse(umgebung, monkeypatch):
+    """Basis-DN ist optional („leer = aus dem Verzeichnis“); die Vorschau vor
+    der Einrichtung meldete trotzdem „Basis-DN fehlt“."""
+    from fastapi.testclient import TestClient
+    from webui import deps
+    from webui.app import app
+    settings_store.update({"EWS_LDAP_BASIS": "", "EWS_BEREICH_OU": ""})
+    monkeypatch.setattr(eb, "basis_aus_verzeichnis", lambda: BASIS)
+    app.dependency_overrides[deps._require_admin] = lambda: "admin"
+    try:
+        r = TestClient(app).post("/api/ews-bereich/befehle", json={}).json()
+    finally:
+        app.dependency_overrides.pop(deps._require_admin, None)
+    assert r["ok"], r
+    assert f"CN=Users,{BASIS}" in r["text"]
+
+
+def test_kontowechsel_fuellt_die_gruppe_mit_dem_neuen_konto(umgebung, ews):
+    """Lab: Nach den Exchange-Befehlen scheiterte „Prüfen“ an „es fehlen 9“,
+    weil die Gruppe erst der Abgleich füllt — bei ausgeschaltetem Schalter nie.
+    Jetzt nimmt das ausstehende Konto die fehlenden selbst auf (nur hinzu)."""
+    v = umgebung
+    _erg, neu_kw = _neu_einrichten(v)
+    assert not eb.stand().get("mitglieder")            # Gruppe leer, kein Abgleich
+    fremd = f"CN=Fremd,{OU}"
+    v.objekte[GRUPPE_DN].setdefault("member", []).append(fremd.encode())
+    ews.berechtigt.add(NEU_KONTO)
+    erg = eb.pruefen("admin")
+    namen = {p["name"]: p for p in erg["punkte"]}
+    assert "Gruppe aufgefüllt" in namen, erg
+    mitglieder = [m.decode() for m in v.objekte[GRUPPE_DN]["member"]]
+    assert _dn(v, MAX) in mitglieder and _dn(v, ERIKA) in mitglieder
+    assert fremd in mitglieder                           # nur hinzu, nichts entfernt
+    # Mit dem NEUEN Konto geschrieben, nicht mit dem Admin
+    assert v.angemeldet[-1][0] == NEU_KONTO or any(b == NEU_KONTO for b, _k in v.angemeldet)
+
+
+def test_wartezeit_endet_beim_ersten_erfolgreichen_zugriff(umgebung, ews):
+    import ews_onprem
+    _eingerichtet(umgebung)
+    eb.abgleichen("Test")
+    assert eb.wartet(MAX)
+    assert ews_onprem.verbindung_testen(MAX)["ok"]
+    assert not eb.wartet(MAX)
+    # Ein gescheiterter Zugriff beendet sie nicht.
+    eb._stand_setzen(wartet={ERIKA: eb._iso()})
+    ews.berechtigt.clear()
+    assert not ews_onprem.verbindung_testen(ERIKA, sperre_umgehen=True)["ok"]
+    assert eb.wartet(ERIKA)
