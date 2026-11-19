@@ -109,17 +109,30 @@ async def api_save_internal_groups(request: Request, _=Depends(_require_admin)):
 
 @router.get("/api/settings/custom-policies")
 async def api_get_custom_policies(_=Depends(_require_admin)):
-    return JSONResponse(settings_store.get("CUSTOM_POLICIES") or [])
+    # Immer im aktuellen Format — auch wenn eine zurückgespielte Sicherung
+    # noch das Altformat trägt (policies.regeln).
+    import policies as _pol
+    return JSONResponse(_pol.regeln(settings_store.get("CUSTOM_POLICIES") or []))
 
 
 @router.post("/api/settings/custom-policies/save")
 async def api_save_custom_policies(request: Request, _=Depends(_require_admin)):
+    """Gruppen-Regeln speichern — normalisiert über `policies.regeln`: nur
+    bekannte Slots, Werte als Zeichenkette (`addin` Liste oder "*"), `fest` nur
+    für Wahl-Slots, die die Regel auch festlegt. Unbrauchbare Regeln entfallen.
+    Die Reihenfolge bleibt (first-match je Slot) — hier wird nichts
+    zusammengefasst."""
+    import policies as _pol
     data = await request.json()
-    policies = data.get("policies")
-    if not isinstance(policies, list):
+    roh = data.get("policies") if isinstance(data, dict) else None
+    if not isinstance(roh, list):
         raise HTTPException(400, "policies must be a list")
-    settings_store.update({"CUSTOM_POLICIES": policies})
-    return JSONResponse({"ok": True})
+    rg = _pol.regeln(roh)
+    if len(rg) != len(roh):
+        log.warning("Gruppen-Regeln: %d von %d unbrauchbar, verworfen",
+                    len(roh) - len(rg), len(roh))
+    settings_store.update({"CUSTOM_POLICIES": rg})
+    return JSONResponse({"ok": True, "regeln": rg})
 
 
 @router.post("/api/settings/sender-mailboxes/refresh")
@@ -152,6 +165,7 @@ async def api_create_notification_shared_mailbox(user: str = Depends(_require_ad
 async def settings_page(request: Request, user: str = Depends(_require_admin)):
     import asyncio
     import exo_mailboxes
+    import ews_bereich
     import owa_signatur
     try:
         await asyncio.to_thread(exo_mailboxes.list_mailboxes)
@@ -169,6 +183,8 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
             # Hybrid-Option wirkt nur im Rückweg smtp (exo_mailboxes.hybrid_aktiv)
             "reinject_mode": settings_store.reinject_mode(),
             "owa_sig": owa_signatur.uebersicht(),
+            "ews_bereich": ews_bereich.uebersicht(),
+            "ews_bereich_befehl": ews_bereich.BESTAND_BEFEHL,
         },
     )
 
@@ -312,6 +328,27 @@ def _ews_onprem_pruefen(clean: dict) -> str:
         f = ews_onprem.verbinden_pruefen(clean["EWS_ONPREM_VERBINDEN"])
         if f:
             return f
+    import ews_bereich
+    for k in ("EWS_LDAP_SERVER", "EWS_LDAP_BASIS", "EWS_BEREICH_OU", "EWS_BEREICH_GRUPPE"):
+        if k not in clean:
+            continue
+        v = clean[k].strip() if isinstance(clean[k], str) else ""
+        clean[k] = v
+        if not v:
+            continue
+        if k == "EWS_LDAP_SERVER":
+            try:
+                ews_bereich.ldap_server_pruefen(v)
+            except ews_bereich.BereichFehler as exc:
+                return exc.detail
+        elif k == "EWS_BEREICH_GRUPPE":
+            f = ews_bereich.name_pruefen(v, "Gruppenname")
+            if f:
+                return f
+        else:
+            f = ews_bereich.dn_pruefen(v, "Basis-DN" if k == "EWS_LDAP_BASIS" else "Ablage (OU)")
+            if f:
+                return f
     if "EWS_ONPREM_CA" in clean:
         # Mehrzeilig (PEM) — darum nicht in der Zeilenumbruch-Prüfung oben.
         # Gespeichert wird die geprüfte, neu kodierte Fassung.
@@ -373,6 +410,102 @@ async def api_ews_onprem_owa_signatur(request: Request, user: str = Depends(_req
     owa_signatur.im_hintergrund()
     log.info("OWA-Signatur: Abgleich aller %d Hybrid-Nutzer durch %s gestartet", gesamt, user)
     return JSONResponse({"ok": True, "gestartet": True, "gesamt": gesamt})
+
+
+# ── Zugriffsbereich des EWS-Dienstkontos (ews_bereich) ──────────────────────
+# Admin-Anmeldedaten kommen NUR bei /einrichten herein, gehen nur an
+# ews_bereich.einrichten und werden weder protokolliert noch gespeichert.
+
+async def _json(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return body if isinstance(body, dict) else {}
+
+
+def _bereich_daten(body: dict) -> dict:
+    """Formularwerte für den Plan; der erkannte Bestand kommt aus dem Stand,
+    nicht aus der Anfrage."""
+    import ews_bereich
+    return {"konto_anlegen": bool(body.get("konto_anlegen")),
+            "konto": str(body.get("konto") or "").strip(),
+            "alt": ews_bereich.stand().get("bestand") or {},
+            "alt_entfernen": bool(body.get("alt_entfernen"))}
+
+
+@router.get("/api/ews-bereich/stand")
+async def api_ews_bereich_stand(_=Depends(_require_admin)):
+    import ews_bereich
+    return JSONResponse({"ok": True, **ews_bereich.uebersicht()})
+
+
+@router.post("/api/ews-bereich/befehle")
+async def api_ews_bereich_befehle(request: Request, _=Depends(_require_admin)):
+    """Vorschau: dieselbe Schrittliste, die „Einrichten“ ausführt (ews_bereich.plan)."""
+    import ews_bereich
+    try:
+        p = ews_bereich.parameter(_bereich_daten(await _json(request)))
+    except ews_bereich.BereichFehler as exc:
+        return JSONResponse({"ok": False, "error": exc.detail})
+    schritte = ews_bereich.plan(p)
+    return JSONResponse({"ok": True, "text": ews_bereich.befehle_text(schritte),
+                         "schritte": [{"kennung": s.kennung, "art": s.art, "titel": s.titel}
+                                      for s in schritte]})
+
+
+@router.post("/api/ews-bereich/bestand")
+async def api_ews_bereich_bestand(request: Request, user: str = Depends(_require_admin)):
+    """Ausgabe des Bestandsbefehls auswerten und merken. Ändert nichts."""
+    import ews_bereich
+    import ews_onprem
+    body = await _json(request)
+    konto = str(body.get("konto") or "").strip() or ews_onprem._wert(ews_onprem.KEY_KONTO)
+    try:
+        b = ews_bereich.bestand_erkennen(str(body.get("ausgabe") or ""), konto,
+                                         ews_bereich.stand().get("gruppe_dn", ""))
+    except ews_bereich.BereichFehler as exc:
+        return JSONResponse({"ok": False, "error": exc.detail})
+    ews_bereich._stand_setzen(bestand=b)
+    log.info("EWS-Bereich: Bestand ausgewertet durch %s — %d Zuweisungen für %s",
+             user, len(b["zuweisungen"]), konto)
+    return JSONResponse({"ok": True, **b})
+
+
+@router.post("/api/ews-bereich/einrichten")
+async def api_ews_bereich_einrichten(request: Request, user: str = Depends(_require_admin)):
+    import asyncio
+    import ews_bereich
+    body = await _json(request)
+    admin_konto = str(body.pop("admin_konto", "") or "").strip()
+    admin_kennwort = str(body.pop("admin_kennwort", "") or "")
+    erg = await asyncio.to_thread(ews_bereich.einrichten, _bereich_daten(body),
+                                  admin_konto, admin_kennwort, user)
+    admin_kennwort = ""                                   # nicht länger als nötig
+    log.info("EWS-Bereich: Einrichtung durch %s — %s", user,
+             "AD-Teil erledigt" if erg.get("ok") else erg.get("code"))
+    import aufgaben
+    aufgaben.vergessen()
+    return JSONResponse(erg)
+
+
+@router.post("/api/ews-bereich/abgleichen")
+async def api_ews_bereich_abgleichen(user: str = Depends(_require_admin)):
+    """„Jetzt abgleichen“ — ändert die Mitglieder, auch mit ausgeschalteter Pflege."""
+    import asyncio
+    import ews_bereich
+    erg = await asyncio.to_thread(ews_bereich.abgleichen, f"Knopf durch {user}", True)
+    return JSONResponse(erg)
+
+
+@router.post("/api/ews-bereich/pruefen")
+async def api_ews_bereich_pruefen(user: str = Depends(_require_admin)):
+    import asyncio
+    import ews_bereich
+    erg = await asyncio.to_thread(ews_bereich.pruefen, user)
+    import aufgaben
+    aufgaben.vergessen()
+    return JSONResponse(erg)
 
 
 # ── Separates SMTP-Listener-Zertifikat (Erweitert) ───────────────────────────

@@ -504,6 +504,48 @@
     "name": "api_entra_users_search"
   },
   {
+    "pfad": "/api/ews-bereich/abgleichen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_ews_bereich_abgleichen"
+  },
+  {
+    "pfad": "/api/ews-bereich/befehle",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_ews_bereich_befehle"
+  },
+  {
+    "pfad": "/api/ews-bereich/bestand",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_ews_bereich_bestand"
+  },
+  {
+    "pfad": "/api/ews-bereich/einrichten",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_ews_bereich_einrichten"
+  },
+  {
+    "pfad": "/api/ews-bereich/pruefen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_ews_bereich_pruefen"
+  },
+  {
+    "pfad": "/api/ews-bereich/stand",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_ews_bereich_stand"
+  },
+  {
     "pfad": "/api/ews-onprem/owa-signatur",
     "methoden": [
       "POST"

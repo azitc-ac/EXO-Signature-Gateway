@@ -152,8 +152,8 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
     key_idx = mailbox_match.build_key_index(config_map)
     nachtrag = [(key, cfg, key.lower() if "@" in key else (cfg.get("primary") or "").lower())
                 for key, cfg in config_map.items() if isinstance(cfg, dict)]
-    std_alle = _pol.standards_alle([u["email"] for u in users] + [c for _k, _c, c in nachtrag],
-                                   config_map)
+    std_alle, fest_alle = _pol.standards_und_fest_alle(
+        [u["email"] for u in users] + [c for _k, _c, c in nachtrag], config_map)
     result = []
     for u in users:
         email = u["email"]
@@ -175,6 +175,9 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
             "oof_template": cfg.get("oof_template"),
             "intern_template": cfg.get("intern_template"),
             "standard": std_alle[email],
+            # Von einer Gruppen-Regel festgeschriebene Wahl-Slots {slot: gruppe}:
+            # Auswahl gesperrt, eine eigene Wahl ruht (policies.festgeschrieben).
+            "fest": fest_alle[email],
             "addin_templates": cfg.get("addin_templates", []),
             "use_policy": cfg.get("use_policy", True),
             "health_overall": h.get("overall"),
@@ -209,6 +212,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "oof_template": cfg.get("oof_template"),
                 "intern_template": cfg.get("intern_template"),
                 "standard": std_alle[cemail],
+                "fest": fest_alle[cemail],
                     "addin_templates": cfg.get("addin_templates", []),
                 "use_policy": cfg.get("use_policy", True),
                 "health_overall": h.get("overall"),
@@ -421,6 +425,12 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     config_map: dict = {}
     enabled_members: list[str] = []
     hybrid_mitglieder: set[str] = set()
+    # Festgeschriebene Wahl-Slots (Gruppen-Regel mit `fest`), gemessen am Stand
+    # VOR dem Speichern — derselbe, den die Liste angezeigt hat. Für sie zählt
+    # der geschickte Wert nicht: Die ruhende eigene Wahl bleibt, wie sie war.
+    fest_alle = _pol.festgeschrieben_alle(
+        [(m.get("email") or "").lower().strip() for m in mailboxes if isinstance(m, dict)],
+        vorher)
     for m in mailboxes:
         email = (m.get("email") or "").lower().strip()
         if not email:
@@ -449,8 +459,13 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         # global), "" → ausdrücklich keine, sonst die Vorlage. Fehlt der Schlüssel
         # in der Anfrage ganz, bleibt die bisherige Wahl (Übernahme unten).
         _ohne_angabe: list[str] = []
+        _gesperrt = fest_alle.get(email) or {}
+        _ruhend: list[str] = []
         for _slot in _pol.WAHL_SLOTS:
             _feld = _pol.SLOT_FELD[_slot]
+            if _slot in _gesperrt:
+                _ruhend.append(_feld)        # Übernahme aus dem bisherigen Eintrag
+                continue
             if _feld not in m:
                 _ohne_angabe.append(_feld)
                 continue
@@ -518,6 +533,11 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
                    "self_templates", *_ohne_angabe):
             if _f in _alt:
                 entry[_f] = _alt[_f]
+        # Ruhende Wahl gesperrter Slots — über `_vor`, das den Eintrag auch beim
+        # Umschlüsseln (E-Mail → ExchangeGuid) findet: Sie darf nicht verloren gehen.
+        for _f in _ruhend:
+            if isinstance(_vor, dict) and _f in _vor:
+                entry[_f] = _vor[_f]
         if key in config_map:    # two addresses of the same mailbox → OR the flags
             config_map[key]["sig"] = config_map[key].get("sig") or sig
             config_map[key]["smime"] = config_map[key].get("smime") or smime
@@ -532,6 +552,10 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         if member not in enabled_members:
             enabled_members.append(member)
     settings_store.update({"MAILBOX_CONFIG": config_map})
+    # Gruppe des EWS-Dienstkontos (Hybrid-Nutzer, ews_bereich): mit Schalter an
+    # gleich im Hintergrund abgleichen, sonst zeigt die Aufgabe die Abweichung.
+    import ews_bereich
+    ews_bereich.nach_postfach_aenderung()
 
     neu_aktiviert = sorted(_adressen_mit_smime(config_map) - smime_vorher)
     auto = await _auto_enrollment_anstossen(neu_aktiviert)
@@ -662,6 +686,11 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                  "self_nutzung_url": settings_store.get("SELF_NUTZUNGSBEDINGUNGEN_URL") or "",
                  "self_template_groups": settings_store.get("SELF_TEMPLATE_GROUPS") or [],
                  "self_template_kategorien": settings_store.get("SELF_TEMPLATE_KATEGORIEN") or [],
+                 # Postfächer mit `self_templates: true` (selfservice._darf_vorlagen_waehlen)
+                 # — die Zustandszeile darf sonst „niemand“ melden, obwohl jemand darf.
+                 "self_template_einzeln": sum(
+                     1 for e in (settings_store.get("MAILBOX_CONFIG") or {}).values()
+                     if isinstance(e, dict) and e.get("self_templates") is True),
                  "internal_group_names": sorted(gruppen.interne_gruppen().keys()),
                  "gruppe_alle": gruppen.ALLE,
                  "group_vars": settings_store.get("GROUP_VARS") or {},

@@ -788,7 +788,8 @@ def _tls_kontext(ca_pem: str):
     from urllib3.util.ssl_ import create_urllib3_context
     ctx = create_urllib3_context(cert_reqs=ssl.CERT_REQUIRED)
     ctx.load_verify_locations(cafile=certifi.where())
-    ctx.load_verify_locations(cadata=ca_pem)
+    if ca_pem:      # leer: nur certifi (LDAPS in ews_bereich ruft auch ohne eigene CA)
+        ctx.load_verify_locations(cadata=ca_pem)
     return ctx
 
 

@@ -684,11 +684,26 @@ async def _check_ews_zugriff(email: str) -> dict:
     erg = await asyncio.to_thread(ews_onprem.verbindung_testen, email)
     if erg["ok"]:
         return _make_result("ok", "EWS-Zugriff: Abwesenheit lesbar (Exchange lokal)")
-    stufe = ("error" if erg["code"] in ews_onprem.KEIN_ZUGRIFF_CODES
-             or erg["code"] in ("anmeldung", "tls", "konfiguration") else "warn")
-    erg_pruefung = _make_result(stufe, f"EWS-Zugriff: {erg['detail']}"[:300])
-    if erg["code"] in ews_onprem.KEIN_ZUGRIFF_CODES:
-        erg_pruefung["ews_code"] = erg["code"]      # für die Aufgabe abnahme._ews_bereich
+    return _ews_fehlschlag(email, erg["code"], f"EWS-Zugriff: {erg['detail']}")
+
+
+def _ews_fehlschlag(email: str, code: str, text: str) -> dict:
+    """Ergebnis einer gescheiterten EWS-Probe — EINE Fassung für Abwesenheit und
+    Posteingang. Eine Ablehnung (KEIN_ZUGRIFF_CODES) trägt `ews_code` für die
+    Aufgabe abnahme._ews_bereich — AUSSER das Postfach ist frisch in die Gruppe
+    des Dienstkontos aufgenommen (ews_bereich.wartet): Exchange übernimmt das
+    verzögert, das ist in dieser Zeit kein Fehler (seit v1.12.92)."""
+    import ews_bereich
+    import ews_onprem
+    if code in ews_onprem.KEIN_ZUGRIFF_CODES and ews_bereich.wartet(email):
+        return _make_result("warn", (
+            f"{text} — wartet: frisch in die Gruppe {ews_bereich.gruppe_name()} aufgenommen, "
+            f"Exchange übernimmt das verzögert (bis {ews_bereich.WARTEZEIT_S // 3600} h)")[:300])
+    stufe = ("error" if code in ews_onprem.KEIN_ZUGRIFF_CODES
+             or code in ("anmeldung", "tls", "konfiguration") else "warn")
+    erg_pruefung = _make_result(stufe, text[:300])
+    if code in ews_onprem.KEIN_ZUGRIFF_CODES:
+        erg_pruefung["ews_code"] = code             # für die Aufgabe abnahme._ews_bereich
     return erg_pruefung
 
 
@@ -709,12 +724,7 @@ async def _check_postfach_lesen(email: str, smime_active) -> dict:
     try:
         await asyncio.to_thread(ews_onprem.posteingang_suchen, email, 1)
     except ews_onprem.EwsFehler as exc:
-        stufe = ("error" if exc.code in ews_onprem.KEIN_ZUGRIFF_CODES
-                 or exc.code in ("anmeldung", "tls", "konfiguration") else "warn")
-        erg_pruefung = _make_result(stufe, f"Posteingang über EWS nicht lesbar: {exc.detail}"[:300])
-        if exc.code in ews_onprem.KEIN_ZUGRIFF_CODES:
-            erg_pruefung["ews_code"] = exc.code     # für die Aufgabe abnahme._ews_bereich
-        return erg_pruefung
+        return _ews_fehlschlag(email, exc.code, f"Posteingang über EWS nicht lesbar: {exc.detail}")
     except Exception as exc:                                       # noqa: BLE001
         return _make_result("warn", f"Posteingang über EWS nicht lesbar: {exc}"[:300])
     return _make_result("ok", "Posteingang über EWS lesbar (Zertifikatsbezug möglich)")

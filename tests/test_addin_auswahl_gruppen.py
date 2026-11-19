@@ -115,4 +115,5 @@ def test_umbenennen_erreicht_die_liste(stand, monkeypatch):
     import settings_store
     monkeypatch.setattr(settings_store, "update", lambda d: gespeichert.update(d))
     vorlagen._vorlagenverweise_umbenennen("FirmaA", "FirmaA-neu")
-    assert gespeichert["CUSTOM_POLICIES"][0]["template"] == ["FirmaA-neu", "FirmaA-kurz"]
+    # Gespeichert wird das Regelformat seit v1.12.90 ({vorlagen: {slot: wert}}).
+    assert gespeichert["CUSTOM_POLICIES"][0]["vorlagen"]["addin"] == ["FirmaA-neu", "FirmaA-kurz"]

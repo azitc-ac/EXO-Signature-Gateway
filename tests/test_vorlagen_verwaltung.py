@@ -119,7 +119,8 @@ def test_umbenennen_zieht_jeden_verweis_mit(klient, einstellungen):
     assert tp["sig"] == "Neu"
     assert tp["banner"] == "Neu" and tp["disclaimer"] == "Neu" and tp["oof"] == "Neu"
     assert tp["min"] == "Andere", "fremder Verweis angefasst"
-    assert einstellungen["CUSTOM_POLICIES"][0]["template"] == "Neu"
+    # Gespeichert wird das Regelformat seit v1.12.90 ({vorlagen: {slot: wert}}).
+    assert einstellungen["CUSTOM_POLICIES"][0]["vorlagen"]["sig"] == "Neu"
     # Und die Meldung sagt, was nachgezogen wurde.
     assert r.json()["verweise"], r.json()
 

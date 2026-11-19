@@ -5,6 +5,175 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.93 — 2026-11-19 — EWS-Karte auf dem Telefon
+
+In der Karte *Exchange lokal (EWS)* ragte auf schmalen Bildschirmen (bis 600 px)
+das Feld *Bisherige Zuweisung* über den Rand: Der Befehl darin ist lang, und die
+Spalte nahm seine volle Breite an, statt ihn in sich rollen zu lassen. Die Spalte
+ist jetzt auf die Zeilenbreite begrenzt.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.92 — 2026-11-19 — Exchange lokal: Zugriffsbereich des EWS-Dienstkontos als Gruppe
+
+Für Hybrid-Nutzer spricht das Gateway per EWS mit einem Dienstkonto, das über
+*ApplicationImpersonation* die Postfächer übernimmt. Welche, legt in der lokalen
+Exchange ein Management Scope fest. Bisher legtest du Konto, Scope und
+Rollenzuweisung von Hand an; ein neuer Hybrid-Nutzer außerhalb des Scopes
+scheiterte mit `ErrorImpersonateUserDenied`, bis du den Scope erweitert hattest.
+
+Neu unter **Einstellungen → Exchange lokal (EWS) → Zugriffsbereich (Gruppe)**:
+
+* **Einrichtung:** Das Gateway legt per LDAPS (Port 636) im AD an, was es kann —
+  auf Wunsch das Dienstkonto (zufälliges Kennwort mit 32 Zeichen, läuft nicht ab;
+  Konto und Kennwort trägt es selbst in die Anbindung ein), eine universelle
+  Sicherheitsgruppe ohne Mailadresse und für das Dienstkonto das Recht, **nur das
+  Attribut `member` genau dieser Gruppe** zu schreiben. Die Admin-Anmeldung dafür
+  gibst du einmal ein; sie wird weder gespeichert noch protokolliert, auch nicht in
+  Fehlermeldungen. Ein vorhandenes Konto gleichen Namens bricht die Einrichtung ab,
+  statt sein Kennwort zu ersetzen; eine vorhandene Gruppe wird nur übernommen,
+  wenn sie eine universelle Sicherheitsgruppe ohne Mailadresse ist.
+* **Exchange-Teil als Befehle:** Scope (`-RecipientRestrictionFilter "MemberOfGroup
+  -eq '<DN der Gruppe>'"`) und Rollenzuweisung (`-CustomRecipientWriteScope`)
+  brauchen die Exchange-Verwaltungsshell der lokalen Organisation. Sie läuft über
+  WinRM/WSMan, und das gibt es für PowerShell unter Linux nicht (Microsoft:
+  „WSMan remoting isn't supported on non-Windows platforms“). Die Karte zeigt die
+  Befehle zum Kopieren; danach prüft **„Prüfen“** Gruppe, Delegation, Mitglieder
+  und per EWS den Zugriff auf ein Mitglied. Wer alles selbst ausführen will,
+  bekommt mit „Befehle anzeigen“ die vollständige Liste — dieselbe, die die
+  Einrichtung ausführt.
+* **Bestand:** Hat das Dienstkonto schon eine Zuweisung, etwa mit einer festen
+  Adressliste als Scope, wertet die Karte die Ausgabe eines Lesebefehls aus. Die
+  Adressen der Liste kommen in die Gruppe; die alte Zuweisung samt Scope steht nur
+  dann in den Befehlen, wenn du das Entfernen ausdrücklich ankreuzt — auszuführen
+  erst nach erfolgreicher Prüfung.
+* **Pflege:** Soll sind die Hybrid-Nutzer mit Signatur oder S/MIME. Mit dem neuen
+  Schalter **„Mitglieder automatisch pflegen“** (Vorgabe aus) gleicht das Gateway
+  beim Speichern der Postfachliste und stündlich ab: aufnehmen beim Aktivieren,
+  entfernen, wenn beides abgeschaltet ist. Ausgeschaltet misst es nur. Eine
+  Abweichung erscheint als Aufgabe „Gruppe des EWS-Dienstkontos abgleichen“;
+  „Jetzt abgleichen“ ändert die Mitglieder auch bei ausgeschaltetem Schalter.
+  Jede Änderung (Konto, Gruppe, Delegation, Mitglied hinzu/weg) steht im
+  Protokoll und unter Betrieb → Audit; die Karte zeigt Gruppe, Mitgliederzahl,
+  letzten Abgleich und die letzten Änderungen.
+* **Ausbreitung:** Exchange übernimmt Gruppenänderungen für Impersonation
+  verzögert. Ein frisch aufgenommenes Mitglied gilt zwei Stunden lang als
+  „wartet“; eine Ablehnung in dieser Zeit ist in der Postfachprüfung eine Warnung
+  und löst die Aufgabe „EWS-Zugriff auf Hybrid-Postfächer erweitern“ nicht aus.
+
+Zu bedenken: Das Recht, die Gruppe zu pflegen, heißt auch, dass das Gateway
+jedes Postfach der lokalen Organisation in den Bereich legen kann. Der Scope
+begrenzt, was es tut, nicht, was es könnte — deshalb ist jede Änderung im Audit.
+
+Nebenbei behoben: Der TLS-Kontext der Anbindung ließ sich ohne eigene CA nicht
+bauen (`cadata` leer). EWS war nicht betroffen, weil es ihn nur mit eigener CA
+nutzt.
+
+Neue Abhängigkeit: `ldap3` 2.9.1 (mit `pyasn1`), nur bei eingerichtetem
+Zugriffsbereich geladen.
+
+**Zu tun:** nichts zwingend. Willst du den Bereich künftig vom Gateway pflegen
+lassen: *Einstellungen → Exchange lokal (EWS) → Zugriffsbereich (Gruppe)* —
+Domänencontroller eintragen, speichern, unter *Einrichtung* „AD-Teil
+einrichten“, die angezeigten Exchange-Befehle ausführen, dann „Prüfen“.
+## v1.12.91 — 2026-11-19 — Postfachliste: Ausnahmen sichtbar, Haken „Banner/Disclaimer nach Richtlinie“
+
+**Haken umbenannt.** Die Spalte *Vorlagen-Richtlinien* der Postfach-Tabelle
+heißt jetzt **Banner/Disclaimer nach Richtlinie** (Zusatz: „auch
+Add-in-Auswahl“). Seit v1.9.113 steuert der Haken nur noch Banner, Disclaimer
+und die Add-in-Auswahl; Signatur, Antwort-, interne Signatur und Abwesenheit
+wählt jedes Postfach unabhängig davon. Der alte Name klang nach allen Vorlagen
+und legte nahe, die Auswahlfelder daneben seien bei gesetztem Haken
+wirkungslos. Kopfzeile, Tooltip und die Erläuterungen unter
+*Vorlagenrichtlinien* sind angeglichen. Gespeichert wird weiter dasselbe Feld
+(`use_policy`) — an deinen Einträgen ändert sich nichts.
+
+**Ausnahmen markiert.** „Standard (X)“ (das Postfach folgt Gruppe bzw.
+globalem Standard und wandert mit, wenn du ihn änderst) und eine bewusst
+gewählte Vorlage X sahen in der Zeile fast gleich aus. Weicht ein Postfach bei
+Signatur, Antwort-, interner Signatur oder Abwesenheit vom Standard ab — auch
+mit „— keine —“ —, trägt die Auswahl jetzt die Marke **Ausnahme**. Die Marke
+folgt jeder Änderung sofort, auch vor dem Speichern. Eine von einer
+Gruppen-Regel *fest* vorgegebene Vorlage ist keine Ausnahme; dort zeigt die
+Zeile weiter „festgelegt durch …“.
+
+**Filter „nur Ausnahmen“** in der Filterzeile: zeigt nur Postfächer mit
+mindestens einer Ausnahme.
+
+**Sammelaktion „Ausnahmen: Sichtbare auf Standard“:** setzt in allen
+sichtbaren Zeilen die vier Wahl-Vorlagen auf „Standard“ und meldet, wie viele
+Vorlagen in wie vielen Zeilen das waren. Festgelegte Vorlagen überspringt
+sie. Wie bei den übrigen Sammelaktionen gilt das erst nach **Speichern**.
+Zusammen mit dem Filter räumst du so gezielt die Ausnahmen auf, etwa vor
+einer Umstellung der Standards.
+
+**Self-Service: Gruppen als Kästchen, Stand statt Vorgabe.** Die Gruppen, die
+im Self-Service Vorlagen wählen dürfen, wählst du jetzt per Kästchen je
+interner Gruppe statt im Mehrfach-Auswahlfeld (dort ging mit einem Klick ohne
+Strg die bisherige Auswahl verloren, und gespeichert wurde sofort). Gespeichert
+wird weiter sofort. Darunter steht, was **gerade** gilt: „Derzeit dürfen
+wählen: … — Kategorien: …“ bzw. „Derzeit darf niemand Vorlagen wählen.“ —
+mitgezählt sind einzeln per `self_templates` freigeschaltete Postfächer, und
+die Zeile sagt, wenn keine Kategorie gewählt oder der Self-Service
+ausgeschaltet ist. Bisher stand dort nur die Vorgabe („Standardmäßig können
+Nutzer … nicht“), auch wenn längst Gruppen freigeschaltet waren. Neu im
+Hinweis: Eine von einer Gruppen-Regel *fest* vorgegebene Vorlage ist im
+Self-Service nie wählbar.
+
+**Zu tun:** nichts.
+
+## v1.12.90 — 2026-11-19 — Gruppen-Regeln: alle Vorlagen in einer Regel, je Vorlage „fest“
+
+Unter **Postfächer → Vorlagenrichtlinien → Benutzerdefinierte Richtlinien** legt eine Regel
+für ihre Gruppe jetzt alle Vorlagen auf einmal fest: Signatur, Antwort-,
+interne Signatur, Abwesenheit, Banner, Disclaimer und die Add-in-Auswahl. Jede
+Regel ist eine Karte; je Vorlage wählst du *— nicht festgelegt —* (die Regel
+sagt dazu nichts), *— keine —* oder eine Vorlage. Mit den Pfeilen änderst du
+die Reihenfolge — je Vorlage gilt die erste passende Regel, die sie festlegt.
+
+**Neu: „fest“** für Signatur, Antwort-, interne Signatur und Abwesenheit. Bisher
+war ein Gruppenwert nur ein Standard: Wählte ein Postfach selbst (im
+Self-Service oder in der Postfachliste), galt diese Wahl. Das passt zu
+Ausnahmen je Postfach, nicht aber zu einer Markenvorgabe, die für eine ganze
+Gruppe verbindlich sein soll. Ist eine Vorlage *fest*, gilt der Gruppenwert
+auch gegen eine eigene Wahl:
+
+* **Self-Service** zeigt statt der Auswahl „Von deiner Organisation
+  festgelegt: …“ und nimmt für diese Vorlage nichts an.
+* **Postfachliste**: Die Auswahl ist gesperrt und zeigt den Gruppenwert samt
+  Gruppe; die Sammelauswahl überspringt solche Zeilen. Speichern lässt den
+  Eintrag für diese Vorlage unverändert.
+* **Gateway und Verfassen-Add-in** fügen die festgelegte Vorlage ein.
+* Eine schon getroffene eigene Wahl **ruht**: Sie bleibt gespeichert, die
+  Postfachliste zeigt „eigene Wahl … ruht“, und sie gilt wieder, sobald *fest*
+  entfällt. Der Haken *Vorlagen-Richtlinien* eines Postfachs hebt
+  *fest* nicht auf — er steuert weiterhin nur Banner, Disclaimer und
+  Add-in-Auswahl.
+* Entscheidend ist die Regel, die für die Vorlage greift: Legt eine frühere
+  Regel dieselbe Vorlage ohne *fest* fest, ist sie nicht gesperrt.
+
+Die **Add-in-Auswahl** bleibt davon unabhängig: Sie legt fest, welche Vorlagen
+im Knopf-Add-in zur Wahl stehen, und gilt wie bisher vereinigt über alle
+Gruppen eines Postfachs. Eine festgeschriebene Signatur schränkt sie nicht ein.
+
+**Umstellung beim Start:** Die bisherigen Regeln (eine Regel je Vorlage) werden
+in das neue Format übernommen. Aufeinanderfolgende Regeln derselben Gruppe
+werden zu einer zusammengefasst; legte eine spätere davon eine Vorlage fest,
+die eine frühere schon festlegte, war sie nie wirksam und entfällt (das
+Protokoll nennt sie). *fest* ist anfangs bei keiner Regel gesetzt — die Wirkung
+ändert sich durch das Update nicht. Eine ältere Sicherung mit Regeln im alten
+Format wird beim Zurückspielen weiterhin richtig gelesen.
+
+**Übersicht → Zertifikate:** Die Ablaufzeile des TLS-Zertifikats nutzt jetzt die
+Farben der Palette. Vorher stand sie in den Farbnamen „green/orange/red“, die der
+Dunkelmodus nicht umschaltet; das Grün war dort kaum lesbar.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.89 — 2026-11-18 — Prüfskripte der CI lokal in einem Lauf
 
 `tools/ci_lokal.py` führt die Prüfungen aus `.github/workflows/ci.yml` lokal

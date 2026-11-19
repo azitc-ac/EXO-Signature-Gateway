@@ -41,6 +41,9 @@ _last_probe_run: float = _NIE           # monotonic; _NIE = nie gelaufen (trigge
 _PROBE_INTERVAL = 15 * 60              # Direktversand-Probe: Ankunft prüfen (jeder Takt), Senden täglich
 _last_owa_run: float = _NIE             # monotonic; _NIE = nie gelaufen
 _OWA_INTERVAL = 60 * 60                # OWA-Signatur lokal (owa_signatur.py): stündlich, geschrieben wird nur bei Änderung
+_last_ews_bereich_run: float = _NIE     # monotonic; _NIE = nie gelaufen
+_EWS_BEREICH_INTERVAL = 60 * 60        # Gruppe des EWS-Dienstkontos (ews_bereich.py): stündlich
+                                       # abgleichen — mit Schalter aus nur messen (Aufgabe)
 _last_ooo_run: float = _NIE             # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisieren; dank
                                        # Idempotenz (nur PATCH bei echter Abweichung) ist
@@ -695,6 +698,19 @@ def _owa_signatur() -> None:
         _last_owa_run = time.monotonic()
 
 
+def _ews_bereich() -> None:
+    """Gruppe des EWS-Dienstkontos (ews_bereich.planmaessig): mit Schalter an
+    abgleichen, sonst nur messen. Ohne Einrichtung kein Aufruf ans AD."""
+    global _last_ews_bereich_run
+    try:
+        import ews_bereich
+        ews_bereich.planmaessig()
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("scheduler: Abgleich der EWS-Gruppe fehlgeschlagen: %s", exc)
+    finally:
+        _last_ews_bereich_run = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -733,6 +749,8 @@ def _loop() -> None:
                 _direktversand_probe()
             if time.monotonic() - _last_owa_run > _OWA_INTERVAL:
                 _owa_signatur()
+            if time.monotonic() - _last_ews_bereich_run > _EWS_BEREICH_INTERVAL:
+                _ews_bereich()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

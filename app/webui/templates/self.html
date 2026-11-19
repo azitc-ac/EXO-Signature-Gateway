@@ -168,6 +168,7 @@
           <label for="oof-sel">Vorlage der Abwesenheitsnotiz</label>
           <select id="oof-sel"></select>
         </div>
+        <p class="erklaer" id="oof-org" hidden></p>
       </div>
 
       <!-- Ankündigung kommender Abwesenheiten — nur sichtbar, wenn die Vorlage die
@@ -220,6 +221,7 @@
           <label for="sig-sel">Meine Signatur</label>
           <select id="sig-sel"></select>
         </div>
+        <p class="erklaer" id="sig-org" hidden></p>
       </div>
       <div class="karte">
         <h2>Vorschau</h2>
@@ -250,6 +252,7 @@
           <label for="min-sel">Antwort-Signatur</label>
           <select id="min-sel"></select>
         </div>
+        <p class="erklaer" id="min-org" hidden></p>
       </div>
       <div class="karte">
         <h2>Vorschau</h2>
@@ -466,7 +469,19 @@
     // trotzdem (über ctx.oof_template/ctx.sig_template).
     el('oof-tpl-block').hidden = !w.oof;
     el('sig-block').hidden = !w.sig;
-    el('sig-fest').hidden = !!w.sig;
+    // Von einer Gruppen-Regel festgeschrieben (policies.festgeschrieben): statt
+    // der Auswahl ein Hinweis mit der geltenden Vorlage. Der Server nimmt für
+    // diese Slots ohnehin nichts an.
+    ['oof', 'sig', 'min'].forEach(function (slot) {
+      var p = el(slot + '-org');
+      p.hidden = !istFest(slot);
+      p.textContent = istFest(slot)
+        ? 'Von deiner Organisation festgelegt: ' + (ctx.fest[slot] || 'keine') : '';
+    });
+    el('min-block').hidden = !w.min && istFest('min');
+    if (istFest('sig')) el('sig-speichern').hidden = true;
+    if (istFest('min')) el('min-speichern').hidden = true;
+    el('sig-fest').hidden = !!w.sig || istFest('sig');
     el('sig-auch-oof').hidden = !ctx.oof_mit_signatur;
     el('abw-mit-sig').hidden = !ctx.oof_mit_signatur;
     gespeichert.sig = el('sig-sel').value;
@@ -474,7 +489,9 @@
     // Reiter: Abwesenheit, solange die Funktion „Zentrale Abwesenheiten" an ist;
     // Signatur und Antwort-Signatur, wenn der Nutzer sie wählen darf. Bliebe
     // sonst nichts übrig, zeigt der Signatur-Reiter die zugewiesene zur Ansicht.
-    var sichtbar = { abw: ctx.abwesenheit_aktiv !== false, sig: !!w.sig, min: !!w.min };
+    var sichtbar = { abw: ctx.abwesenheit_aktiv !== false,
+                     sig: !!w.sig || istFest('sig'),
+                     min: !!w.min || istFest('min') };
     if (!sichtbar.abw && !sichtbar.min) sichtbar.sig = true;
     REITER.forEach(function (r) { el('r-' + r).hidden = !sichtbar[r]; });
     var anzahl = REITER.filter(function (r) { return sichtbar[r]; }).length;
@@ -559,7 +576,12 @@
     s.value = aktuell;
   }
   // Die WIRKSAME Vorlage eines Slots — für die Vorschau.
+  // Von einer Gruppen-Regel festgeschrieben? (ctx.fest, /api/self/context)
+  function istFest(slot) {
+    return !!ctx.fest && Object.prototype.hasOwnProperty.call(ctx.fest, slot);
+  }
   function wirksam(slot, fest) {
+    if (istFest(slot)) return ctx.fest[slot] || '';
     if (!(ctx.waehlbar || {})[slot]) return fest || '';
     var v = el(slot + '-sel').value;
     return v === STANDARD ? ((ctx.standard || {})[slot] || '') : v;

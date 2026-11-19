@@ -65,15 +65,25 @@ def _darf_vorlagen_waehlen(email: str) -> bool:
     return False
 
 
-def _waehlbar(email: str) -> dict[str, bool]:
-    """{slot: darf wählen} für sig/min/oof — Postfach/Gruppe freigeschaltet UND die
+def _freigegeben(email: str) -> dict[str, bool]:
+    """{slot: freigegeben} für sig/min/oof — Postfach/Gruppe freigeschaltet UND die
     Kategorie betreiberweit in `SELF_TEMPLATE_KATEGORIEN` (z.B. Signatur frei,
-    Abwesenheit fest)."""
+    Abwesenheit fest). Ohne Festschreibung — die zieht `_waehlbar` ab."""
     darf = _darf_vorlagen_waehlen(email)
     kat = list(settings_store.get("SELF_TEMPLATE_KATEGORIEN") or [])
     if not abwesenheit.fuer_postfach(email):
         kat = [k for k in kat if k != "oof"]   # Abwesenheit ausgeblendet → nicht wählbar
     return {slot: bool(darf and slot in kat) for slot in _SLOT_ART}
+
+
+def _waehlbar(email: str) -> dict[str, bool]:
+    """{slot: darf wählen} — freigegeben (`_freigegeben`) UND von keiner
+    Gruppen-Regel festgeschrieben (`policies.festgeschrieben`). Ein gesperrter
+    Slot ist damit für Anzeige UND Speichern nicht wählbar; geschickte Werte
+    verwirft `_wahl_ins_eintrag`, die ruhende Wahl im Eintrag bleibt."""
+    frei = _freigegeben(email)
+    fest = _policies.festgeschrieben(email) if any(frei.values()) else {}
+    return {slot: frei[slot] and slot not in fest for slot in frei}
 
 
 def _wahl_ins_eintrag(eintrag: dict, wahl, waehlbar: dict, by_kind: dict) -> None:
@@ -205,7 +215,12 @@ async def self_context(email: str = Depends(_require_self)):
     key, cfg = _postfach(email)
     by_kind = signature_engine.templates_nach_art()
     waehlbar = _waehlbar(email)
+    ohne_sperre = _freigegeben(email)
     oof_eff, sig_eff = _effektive_vorlagen(email)
+    # Festgeschriebene Slots, die der Nutzer sonst wählen dürfte: Die Seite zeigt
+    # dort statt der Auswahl „von deiner Organisation festgelegt: X“.
+    aufgeloest = _policies.aufloesen(email)
+    fest = {s: aufgeloest[s] for s in _SLOT_ART if ohne_sperre[s] and not waehlbar[s]}
     ank = abwesenheit._ankuendigung_einstellungen(cfg)
     std = _policies.standards(email)
     # Je Postfach: Hybrid-Nutzer ohne Anbindung an Exchange lokal haben keine
@@ -227,6 +242,7 @@ async def self_context(email: str = Depends(_require_self)):
                                    and settings_store.get("OOO_APPEND_DISCLAIMER")),
         "darf_vorlagen": any(waehlbar.values()),
         "waehlbar": waehlbar,            # {sig, min, oof: bool}
+        "fest": fest,                    # {slot: vorlage} — von einer Gruppe festgeschrieben
         "oof_template": oof_eff,         # wirksam (für Vorschau/Anzeige)
         "sig_template": sig_eff,
         # Je Wahl-Slot: der Standard, den das Postfach ohne eigene Wahl bekäme, und
@@ -352,6 +368,8 @@ async def _wahl_speichern(email: str, wahl, bereich: str) -> JSONResponse:
     if not isinstance(wahl, dict) or slot not in wahl:
         raise HTTPException(400, "Keine Auswahl übermittelt")
     if not _waehlbar(email).get(slot):
+        if _policies.festgeschrieben(email).get(slot):
+            raise HTTPException(403, "Diese Vorlage legt deine Organisation fest.")
         raise HTTPException(403, "Diese Auswahl ist für dein Postfach nicht freigegeben.")
     key, _cfg = _postfach(email)
     voll = settings_store.get("MAILBOX_CONFIG") or {}
