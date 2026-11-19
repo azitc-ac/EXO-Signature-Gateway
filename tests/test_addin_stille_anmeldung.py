@@ -385,3 +385,254 @@ def test_baustein_eine_sitzung_je_instanz_ohne_office_host():
     p = json.loads(out.stdout)
     assert p["erg"] == ["S", "stille Anmeldung schon versucht"] and p["abrufe"] == 1
     assert p["kopf"] == {"X-I": "W"}
+
+
+# ── Verfassen-Aufgabenbereich /addin/compose (seit v1.12.97) ───────────────────
+# Derselbe Knopf-Add-in, zweiter Aufgabenbereich: bis v1.12.96 nur das
+# Anmeldefenster. Jetzt dieselben Angaben, derselbe Baustein, derselbe Tausch.
+
+def test_compose_liefert_dieselben_naa_angaben_wie_self(seite):
+    naa = _naa(seite(addin.KNOPF_FORM_PFAD))
+    assert naa == _naa(seite("/self"))                     # EINE Quelle
+    assert naa["sitzung"] == av.TAB_SITZUNG_API and naa["identkopf"] == ei.KOPF
+    assert naa["clientId"] == "CID"
+
+
+def test_compose_bindet_msal_und_den_baustein_vor_dem_seitenskript_ein(seite):
+    html = seite(addin.KNOPF_FORM_PFAD)
+    msal = html.index(f'src="/static/vendor/{av.MSAL_DATEI.name}"')
+    baustein = html.index(f'src="/static/{av.ANMELDUNG_DATEI.name}?v=')
+    assert msal < baustein < html.index("var NAA =")
+
+
+COMPOSE_HARNESS = r"""
+var fall = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+var log = { abrufe: [], dialoge: [], identitaet: 0, naa: 0, konsole: [] };
+var elemente = {};
+function element(id) {
+  if (!elemente[id]) elemente[id] = { id: id, textContent: '', innerHTML: '', value: '', disabled: false,
+    style: {}, className: '', appendChild: function () {} };
+  return elemente[id];
+}
+element('login-required').style.display = 'none';
+globalThis.window = globalThis;
+globalThis.location = { origin: 'https://sig.firma.at' };
+globalThis.document = { getElementById: element, createElement: function () { return element('_neu'); } };
+var speicher = {};
+if (fall.gespeichert) speicher['exo_addin_session'] = fall.gespeichert;
+globalThis.localStorage = { getItem: function (k) { return k in speicher ? speicher[k] : null; },
+  setItem: function (k, v) { speicher[k] = String(v); }, removeItem: function (k) { delete speicher[k]; } };
+console.info = function () { log.konsole.push([].slice.call(arguments).join(' ')); };
+var widerrufen = false;
+function antwort(s, body) {
+  return Promise.resolve({ ok: s >= 200 && s < 300, status: s, json: function () { return Promise.resolve(body); } });
+}
+globalThis.fetch = function (url, opt) {
+  opt = opt || {};
+  var kopf = opt.headers || {};
+  var pfad = url.split('?')[0];
+  log.abrufe.push({ url: pfad, methode: opt.method || 'GET', kopf: kopf });
+  var gueltig = kopf['X-Addin-Session'] === 'SITZUNG' && !widerrufen;
+  if (pfad === '/api/addin/templates')
+    return antwort(gueltig ? 200 : 401, { templates: ['Standard', 'Kurz'], default: 'Standard' });
+  if (pfad === '/api/addin/signature')
+    return antwort(gueltig ? 200 : 401, { marked_html: '<p>Max</p>', preview_html: '<p>Max</p>' });
+  if (pfad === fall.sitzungApi) return antwort(fall.sitzung, fall.sitzung === 200 ? { token: 'SITZUNG' } : {});
+  return antwort(204, {});
+};
+globalThis.msal = { createNestablePublicClientApplication: function () {
+  log.naa++;
+  return Promise.resolve({ acquireTokenSilent: function () {
+    if (fall.naaFehler) { var e = new Error('MSAL'); e.errorCode = fall.naaFehler; return Promise.reject(e); }
+    return Promise.resolve({ accessToken: 'NAA.TOKEN' });
+  } });
+} };
+globalThis.Office = {
+  AsyncResultStatus: { Succeeded: 'succeeded', Failed: 'failed' },
+  HostType: { Outlook: 'Outlook' },
+  EventType: { DialogMessageReceived: 'm', DialogEventReceived: 'e' },
+  CoercionType: { Html: 'html', Text: 'text' },
+  onReady: function (cb) { setTimeout(function () { cb({ host: 'Outlook' }); }, 0); },
+  context: {
+    diagnostics: { platform: 'PC' },
+    requirements: { isSetSupported: function (n) { return n === 'NestedAppAuth' ? fall.naaSet : true; } },
+    // 12009 = „Ignorieren“ im Office-Hinweis — das Fenster bleibt zu.
+    ui: { displayDialogAsync: function (url, o, cb) { log.dialoge.push(url);
+      cb({ status: 'failed', error: { code: 12009, message: 'ignoriert' } }); } },
+    mailbox: {
+      userProfile: { emailAddress: 'max.mustermann@firma.at', accountType: fall.accountType },
+      getUserIdentityTokenAsync: function (cb) { log.identitaet++;
+        if (fall.identFehler) cb({ status: 'failed', error: { message: 'GenericTokenError' } });
+        else cb({ status: 'succeeded', value: 'EXCH.TOKEN.SIG' }); }
+    }
+  }
+};
+(0, eval)(fall.baustein);
+(0, eval)(fall.seite);
+var schritte = (fall.aktionen || []).slice();
+function weiter() {
+  setTimeout(function () {
+    if (!schritte.length) {
+      log.knopf = element('login-required').style.display === '';
+      log.speicher = speicher['exo_addin_session'] || null;
+      process.stdout.write(JSON.stringify(log));
+      process.exit(0);
+    }
+    var a = schritte.shift();
+    log.abrufe.push({ url: '#' + a });
+    if (a === 'widerrufen') widerrufen = true; else globalThis[a]();
+    weiter();
+  }, 100);
+}
+weiter();
+"""
+
+
+def _compose_skript(html: str) -> str:
+    for m in re.finditer(r"<script>(.*?)</script>", html, re.S):
+        if "var NAA =" in m.group(1):
+            return m.group(1)
+    raise AssertionError("Seitenskript von addin_compose.html nicht gefunden")
+
+
+@pytest.fixture
+def compose_lauf(seite):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node fehlt (in der CI vorhanden)")
+    skript = _compose_skript(seite(addin.KNOPF_FORM_PFAD))
+
+    def _lauf(**fall):
+        f = {"naaSet": True, "naaFehler": None, "accountType": "office365", "identFehler": False,
+             "sitzung": 200, "gespeichert": None, "aktionen": [],
+             "sitzungApi": av.TAB_SITZUNG_API,
+             "baustein": av.ANMELDUNG_DATEI.read_text("utf-8"), "seite": skript}
+        f.update(fall)
+        out = subprocess.run([node, "-e", COMPOSE_HARNESS], input=json.dumps(f), capture_output=True,
+                             text=True, timeout=30)
+        assert out.returncode == 0, out.stderr[-2000:]
+        return json.loads(out.stdout)
+    return _lauf
+
+
+def _pfade(p):
+    return [a["url"] for a in p["abrufe"]]
+
+
+def _sig_kopfe(p):
+    return [a["kopf"].get("X-Addin-Session") for a in p["abrufe"] if a["url"] == "/api/addin/signature"]
+
+
+def test_compose_ohne_merkmal_meldet_sich_vor_dem_ersten_abruf_still_an(compose_lauf):
+    p = compose_lauf()
+    (t,) = _tausche(p)
+    assert t["methode"] == "POST" and t["kopf"] == {"Authorization": "Bearer NAA.TOKEN"}
+    pf = _pfade(p)
+    assert pf.index(av.TAB_SITZUNG_API) < pf.index("/api/addin/templates")
+    assert _sig_kopfe(p) == ["SITZUNG"]                    # kein Abruf ohne Merkmal
+    assert p["dialoge"] == [] and not p["knopf"] and p["speicher"] == "SITZUNG"
+
+
+@pytest.mark.parametrize("art,fehler", [("enterprise", "no_account_error"), (None, "crypto_nonexistent")])
+def test_compose_exchange_lokal_still_per_identitaetstoken(compose_lauf, art, fehler):
+    p = compose_lauf(accountType=art, naaFehler=fehler)
+    assert p["naa"] == 1 and p["identitaet"] == 1
+    (t,) = _tausche(p)
+    assert t["kopf"] == {ei.KOPF: "EXCH.TOKEN.SIG"}
+    assert p["dialoge"] == [] and p["speicher"] == "SITZUNG"
+
+
+def test_compose_abgelaufenes_merkmal_401_dann_einmal_still(compose_lauf):
+    """Gespeichertes Merkmal gilt nicht mehr: kein Vorab-Versuch, erst der 401
+    löst den stillen Weg aus, danach lädt die Seite mit dem neuen Merkmal."""
+    p = compose_lauf(gespeichert="ALT")
+    pf = _pfade(p)
+    assert pf.index("/api/addin/signature") < pf.index(av.TAB_SITZUNG_API)
+    assert len(_tausche(p)) == 1
+    assert _sig_kopfe(p) == ["ALT", "SITZUNG"]
+    assert p["dialoge"] == [] and not p["knopf"] and p["speicher"] == "SITZUNG"
+
+
+@pytest.mark.parametrize("fall", [
+    {"sitzung": 403},                                                   # Gateway lehnt ab
+    {"accountType": "office365", "naaFehler": "crypto_nonexistent"},    # kein NAA, Cloud-Konto
+    {"accountType": "enterprise", "naaFehler": "x", "identFehler": True},  # beides scheitert
+    {"gespeichert": "ALT", "sitzung": 401},                             # nach 401 still gescheitert
+])
+def test_compose_scheitert_still_dann_knopf_kein_selbsttaetiges_fenster(compose_lauf, fall):
+    p = compose_lauf(aktionen=["loadSig", "doLogin"], **fall)
+    assert len(_tausche(p)) <= 1 and p["naa"] <= 1 and p["identitaet"] <= 1
+    # „Erneut versuchen“ (loadSig) startet KEINEN zweiten stillen Versuch;
+    # erst der Klick auf „Jetzt anmelden“ öffnet das Fenster — genau einmal.
+    vor_klick = _pfade(p)[:_pfade(p).index("#doLogin")]
+    assert vor_klick.count(av.TAB_SITZUNG_API) == len(_tausche(p))
+    assert len(p["dialoge"]) == 1 and "/auth/login/microsoft" in p["dialoge"][0]
+    assert p["knopf"]
+    assert any("Stille Anmeldung nicht m" in k for k in p["konsole"])
+
+
+def test_compose_kein_kreislauf_wenn_das_neue_merkmal_spaeter_401_bekommt(compose_lauf):
+    """Nach erfolgreichem stillem Versuch wird das Merkmal ungültig (Widerruf):
+    ein 401 führt zum Knopf — nicht erneut still und nicht in eine Schleife."""
+    p = compose_lauf(aktionen=["widerrufen", "loadSig"])
+    nach = _pfade(p)[_pfade(p).index("#widerrufen"):]
+    assert nach.count("/api/addin/signature") == 1 and av.TAB_SITZUNG_API not in nach
+    assert len(_tausche(p)) == 1 and p["knopf"] and p["dialoge"] == []
+
+
+def test_compose_nach_abmelden_kein_stiller_versuch(compose_lauf):
+    """Bewusst abgemeldet: Der nächste 401 meldet nicht still wieder an."""
+    p = compose_lauf(gespeichert="SITZUNG", aktionen=["abmelden", "loadSig"])
+    assert _tausche(p) == [] and p["knopf"] and p["speicher"] is None
+
+
+def test_compose_knopf_vor_dem_stillen_versuch_versucht_erst_still(compose_lauf):
+    """„Jetzt anmelden“, solange noch kein stiller Versuch lief (gültiges
+    Merkmal geladen): erst still, das Fenster nur, wenn das scheitert."""
+    p = compose_lauf(gespeichert="SITZUNG", aktionen=["doLogin"])
+    assert len(_tausche(p)) == 1 and p["dialoge"] == []
+    p = compose_lauf(gespeichert="SITZUNG", sitzung=403, aktionen=["doLogin"])
+    assert len(_tausche(p)) == 1 and len(p["dialoge"]) == 1
+
+
+# ── Die von /addin/compose genutzten Endpunkte nehmen die ausgestellte Sitzung ──
+
+@pytest.fixture
+def compose_api(tausch, monkeypatch):
+    """Merkmal aus dem echten Tausch (Exchange-Identitätstoken → ROLE_SELF),
+    dann die Endpunkte des Verfassen-Aufgabenbereichs über die App — nur mit
+    dem Kopf X-Addin-Session, ohne Keks (so schickt es der Aufgabenbereich)."""
+    from starlette.testclient import TestClient
+    import graph_client
+    import signature_engine
+    from webui import app as wa
+    _d, lauf = tausch
+    code, body = lauf({ei.KOPF: _token(aud=AUD_KNOPF)})
+    assert code == 200
+    monkeypatch.setattr(sso, "_noch_gueltig", lambda p: True)
+
+    async def _nutzer(email):
+        return graph_client.UserData(mail=email)
+    monkeypatch.setattr(graph_client, "get_user", _nutzer)
+    monkeypatch.setattr(signature_engine, "render", lambda u, t: ("<p>Max Mustermann</p>", "Max"))
+    with TestClient(wa.app) as c:
+        yield c, {"X-Addin-Session": body["token"]}
+
+
+@pytest.mark.parametrize("pfad", ["/api/addin/templates", "/api/addin/signature"])
+def test_ausgestellte_sitzung_traegt_die_compose_endpunkte(compose_api, pfad):
+    c, kopf = compose_api
+    r = c.get(pfad, params={"email": HYBRID}, headers=kopf)
+    assert r.status_code == 200, r.text[:200]
+    assert c.get(pfad, params={"email": HYBRID}).status_code == 401          # Gegenprobe ohne Kopf
+    # ROLE_SELF: nur das eigene Postfach, nie ein fremdes
+    assert c.get(pfad, params={"email": "erika.musterfrau@firma.at"}, headers=kopf).status_code == 403
+
+
+def test_ausgestellte_sitzung_traegt_die_meldung(compose_api, caplog):
+    c, kopf = compose_api
+    with caplog.at_level(logging.WARNING):
+        r = c.post(av.MELDUNG_API, json={"quelle": "aufgabenbereich", "text": "Test"},
+                   headers={**kopf, "Content-Type": "application/json"})
+    assert r.status_code == 204
+    assert any(HYBRID in rec.getMessage() for rec in caplog.records)

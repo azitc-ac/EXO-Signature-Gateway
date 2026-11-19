@@ -237,6 +237,18 @@ def naa_konfiguration() -> dict:
     }
 
 
+def naa_seitenangaben() -> dict:
+    """Vorlagenkontext für die stille Anmeldung einer SEITE des Knopf-Add-ins —
+    Aufgabenbereich/Tab `/self` und Verfassen-Aufgabenbereich `/addin/compose`:
+    MSAL-Datei und NAA-Angaben samt Tausch-Endpunkt (`tab_sitzung`) und Kopf
+    für das Exchange-Identitätstoken. EINE Quelle für beide Seiten; bis
+    v1.12.96 stand das nur in der Route von /self, und /addin/compose kannte
+    nur das Anmeldefenster."""
+    return {"msal_url": "/static/vendor/" + MSAL_DATEI.name,
+            "naa": {**naa_konfiguration(), "sitzung": TAB_SITZUNG_API,
+                    "identkopf": exchange_identitaet.KOPF}}
+
+
 def _konfiguration(base: str) -> dict:
     # Absolut: Relative Adressen gehen in der JS-only-Laufzeit nicht (MS Learn).
     import sig_thread

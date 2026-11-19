@@ -5,6 +5,42 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.97 — 2026-11-19 — Verfassen-Aufgabenbereich meldet sich still an
+
+Beim Verfassen öffnet der Knopf des Add-ins einen eigenen Aufgabenbereich
+(Signatur auswählen und einfügen). Der meldete sich bisher nur über das
+Office-Anmeldefenster an („Jetzt anmelden“) — als einzige Seite des Add-ins, seit
+v1.12.95 der Aufgabenbereich *Signatur & Abwesenheit* still anmeldet.
+
+Jetzt gilt dort derselbe Ablauf, mit demselben Baustein und demselben Endpunkt:
+
+1. **NAA**: Outlook reicht das angemeldete Konto durch, kein Fenster.
+2. Für Konten auf **Exchange lokal** das **Exchange-Identitätstoken** — geprüft
+   gegen dieselbe Zielgruppe (die Adresse dieses Aufgabenbereichs aus dem Manifest
+   des Knopf-Add-ins), ausgestellt wird nur eine Self-Service-Sitzung für genau
+   das Postfach aus dem Token.
+3. Erst wenn beides scheitert, erscheint wie bisher „Jetzt anmelden“.
+
+Der stille Versuch läuft je Öffnen des Aufgabenbereichs einmal: ohne gespeicherte
+Anmeldung gleich beim Start, sonst beim ersten „nicht angemeldet“ eines Abrufs
+(etwa wenn die gespeicherte Anmeldung abgelaufen ist). *Erneut versuchen* startet
+keinen zweiten stillen Versuch, und nach *Abmelden* meldet sich der
+Aufgabenbereich nicht still wieder an. Die NAA-Angaben für beide Aufgabenbereiche
+stammen jetzt aus einer gemeinsamen Quelle.
+
+Die still ausgestellte Sitzung hat die Self-Service-Rolle — für diesen
+Aufgabenbereich genügt sie: Vorlagenliste, Signatur und Fehlermeldung ans
+Gateway gelten ohnehin nur für das eigene Postfach. Wie in v1.12.95 setzt sie
+voraus, dass der Self-Service freigeschaltet und das Postfach im Gateway
+aktiviert ist; sonst bleibt es beim Anmeldefenster.
+
+Manifest und Entra-Registrierung bleiben unverändert (die NAA-Umleitung für
+diese Adresse ist seit dem Verfassen-Add-in eingetragen).
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.96 — 2026-11-19 — EWS-Dienstkonto: neues Konto erst nach bestandener Prüfung wirksam
 
 Legte *Exchange lokal (EWS) → Zugriffsbereich → AD-Teil einrichten* ein **neues**

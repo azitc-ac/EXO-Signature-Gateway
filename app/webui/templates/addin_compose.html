@@ -6,6 +6,10 @@
   <title>EXO Signatur</title>
 {% include "_favicon.html" %}
   <script src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js" type="text/javascript"></script>
+  <!-- Stille Anmeldung (NAA, für Konten auf Exchange lokal das Exchange-
+       Identitätstoken) — derselbe Baustein wie in /self und im Verfassen-Add-in. -->
+  <script src="{{ msal_url }}"></script>
+  <script src="/static/addin_anmeldung.js?v={{ version }}"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -148,6 +152,45 @@
     try { _addinSession = localStorage.getItem('exo_addin_session') || ''; } catch(_) { console.error('[addin_compose:131]', _); }
     function _authHeaders() { return _addinSession ? { 'X-Addin-Session': _addinSession } : {}; }
 
+    // Stille Anmeldung, bevor das Anmeldefenster kommt — derselbe Ablauf wie im
+    // Aufgabenbereich /self (static/addin_anmeldung.js: NAA, für Konten auf
+    // Exchange lokal das Exchange-Identitätstoken; das Gateway tauscht es in
+    // /addin/tab/sitzung gegen ein Self-Service-Sitzungsmerkmal). EIN Versuch je
+    // Seitenaufruf: ohne Sitzung beim Start, sonst beim ersten 401 — danach nur
+    // noch der Knopf „Jetzt anmelden“ (kein Kreislauf 401 → still → 401).
+    var NAA = {{ naa|tojson }};
+    var _stillWeg = window.ExoAnmeldung ? ExoAnmeldung.erstelle(NAA) : null;
+    var _stillLauf = null, _stillFertig = false;
+    // → Promise<bool>: true = neues Sitzungsmerkmal gespeichert.
+    function _stillAnmelden() {
+      if (_stillFertig) return Promise.resolve(false);
+      if (!_stillLauf) {
+        _stillLauf = (_stillWeg ? _stillWeg.sitzung() : Promise.reject(new Error('Anmelde-Baustein nicht geladen')))
+          .then(function(token) { _stillFertig = true; _sitzungMerken(token); return true; },
+                function(e) {
+                  _stillFertig = true;
+                  console.info('Stille Anmeldung nicht möglich:', (e && e.message) || e);
+                  return false;
+                });
+      }
+      return _stillLauf;
+    }
+    function _sitzungMerken(token) {
+      _addinSession = token;
+      try { localStorage.setItem('exo_addin_session', token); } catch(_) { console.error('[addin_compose:merken]', _); }
+    }
+    // Nach jeder Anmeldung (still oder Fenster): Hinweis weg, Vorlagenliste und
+    // Signatur neu — der erste Abruf lief ohne Sitzung (401).
+    function _nachAnmeldung() {
+      document.getElementById('login-required').style.display = 'none';
+      _abmeldenZeigen();
+      _loadTemplateList(_email).then(function() { loadSig(); });
+    }
+    // 401 eines Abrufs: einmal still, sonst der Knopf.
+    function _bei401() {
+      _stillAnmelden().then(function(ok) { if (ok) _nachAnmeldung(); else showLoginRequired(); });
+    }
+
     // Fehler auch ins Gateway-Protokoll (/api/addin/meldung) — die rote Zeile hier
     // sieht nur der Anwender. Ein gescheiterter Bericht bleibt folgenlos.
     function _melden(text) {
@@ -169,7 +212,10 @@
       _email = (Office.context.mailbox.userProfile || {}).emailAddress || '';
       document.getElementById('user-info').textContent = _email || '(E-Mail nicht ermittelbar)';
       _abmeldenZeigen();
-      _loadTemplateList(_email).then(function() { loadSig(); });
+      // Ohne gespeicherte Sitzung gleich still anmelden — dann trifft der erste
+      // Abruf nicht erst auf 401. Scheitert es, laden wie bisher (→ Knopf).
+      (_addinSession ? Promise.resolve(false) : _stillAnmelden())
+        .then(function() { _abmeldenZeigen(); _loadTemplateList(_email).then(function() { loadSig(); }); });
     });
 
     // Abmelden: Das Sitzungsmerkmal ist signiert und zustandslos — der Server kann
@@ -180,6 +226,9 @@
     }
     function abmelden() {
       _addinSession = '';
+      // Bewusst abgemeldet: kein stiller Versuch mehr in diesem Seitenaufruf,
+      // der die Abmeldung beim nächsten 401 gleich wieder aufhöbe.
+      _stillFertig = true;
       try { localStorage.removeItem('exo_addin_session'); } catch(_) { console.error('[addin_compose:abmelden]', _); }
       fetch('/auth/logout', { method: 'POST', credentials: 'include' })
         .catch(function(e) { console.error('[addin_compose:logout]', e); });
@@ -221,7 +270,7 @@
 
       fetch('/api/addin/signature?email=' + encodeURIComponent(email) + tpl, { headers: _authHeaders() })
         .then(function(r) {
-          if (r.status === 401) { showLoginRequired(); throw null; }
+          if (r.status === 401) { if (meineNr === _ladeNr) _bei401(); throw null; }
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();
         })
@@ -537,6 +586,11 @@
     }
 
     function doLogin() {
+      // Noch kein stiller Versuch in diesem Seitenaufruf? Dann zuerst der.
+      if (!_stillFertig) {
+        _stillAnmelden().then(function(ok) { if (ok) _nachAnmeldung(); else doLogin(); });
+        return;
+      }
       var url = window.location.origin + '/auth/login/microsoft?next=' + encodeURIComponent('/addin/auth-complete');
       // Azure AD refuses to be framed inside the taskpane (X-Frame-Options), so the
       // login MUST run in an Office dialog (a real popup window). The dialog completes
@@ -564,18 +618,14 @@
           try {
             var d = JSON.parse(arg.message || '{}');
             if (d.status === 'ok' && d.token) {
-              _addinSession = d.token;
-              try { localStorage.setItem('exo_addin_session', d.token); } catch(_) { console.error('[addin_compose:491]', _); }
+              _sitzungMerken(d.token);
               ok = true;
             }
           } catch(_) { console.error('[addin_compose:494]', _); }
           try { dlg.close(); } catch(_) { console.error('[addin_compose:495]', _); }
           if (ok) {
-            document.getElementById('login-required').style.display = 'none';
-            _abmeldenZeigen();
             showStatus('Angemeldet ✓', 'ok');
-            // Re-fetch the template list too — the first attempt ran pre-login (401).
-            _loadTemplateList(_email).then(function() { loadSig(); });
+            _nachAnmeldung();
           } else {
             showStatus('Anmeldung nicht abgeschlossen. Bitte erneut versuchen.', 'err');
           }

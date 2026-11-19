@@ -173,6 +173,9 @@ AUSNAHMEN = {
         "Zustand: Speichern erst nach bestandenem Test",
     ("addin_compose.html", "loadSig", "document.getElementById('btn-insert')"):
         "Zustand: Einfügen erst, wenn die Signatur geladen ist",
+    ("addin_compose.html", "showLoginRequired", "document.getElementById('btn-insert')"):
+        "Zustand: ohne Anmeldung nichts einzufügen (kein Ablauf; das .then( danach "
+        "gehört zu doLogin, der stillen Anmeldung vor dem Fenster)",
     ("self.html", "senden", "btn"): "eigenständige Seite (Teams/Outlook) ohne common.js",
     ("smime_selfservice.html", "doUpload", "btn"): "eigenständige Seite ohne common.js",
 }
