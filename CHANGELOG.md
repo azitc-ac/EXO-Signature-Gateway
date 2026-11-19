@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.94 — 2026-11-19 — EWS-Karte: technische Felder ohne Autokorrektur
+
+Die neuen Felder der Karte *Exchange lokal (EWS) → Zugriffsbereich* (Domänencontroller,
+Basis-DN, Ablage, Gruppe, Dienstkonto, Admin-Konto) schalten Großschreibung am
+Wortanfang, Autokorrektur und Rechtschreibprüfung aus. Auf Tablets und Telefonen
+machte die Tastatur sonst aus `dc01.firma.at` ein `Dc01.firma.at`.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.93 — 2026-11-19 — EWS-Karte auf dem Telefon
 
 In der Karte *Exchange lokal (EWS)* ragte auf schmalen Bildschirmen (bis 600 px)
