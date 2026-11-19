@@ -48,7 +48,7 @@ ldap3==2.9.1
 pyasn1==0.6.5
 
 # ── Notbetrieb: Anmeldung am lokalen AD (LDAP-Bind) ──────────────────────────
-ldap3==2.9.1
+# ldap3 steht seit main v1.12.92 oben (ews_bereich) — hier nicht doppelt.
 
 # ── Notbetrieb: QR-Code für den zweiten Faktor (TOTP) ────────────────────────
 # Reines Python, BSD-Lizenz, ab Python 3.10 ohne weitere Abhängigkeiten.
