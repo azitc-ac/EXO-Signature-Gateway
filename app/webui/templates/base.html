@@ -57,7 +57,7 @@
                 {% if smtp_relay_aktiv() %}
                 <li><a href="/relay" class="{% if active == 'relay' %}active{% endif %}">SMTP-Relay</a></li>
                 {% endif %}
-                <li><a href="/settings" class="{% if active in ('settings', 'settings-signature', 'settings-smime', 'settings-connect', 'settings-routing', 'setup', 'advanced', 'debug', 'backup') %}active{% endif %}">Einstellungen</a></li>
+                <li><a href="/settings" class="{% if active in ('settings', 'settings-signature', 'settings-smime', 'settings-connect', 'settings-routing', 'settings-dmarc', 'setup', 'advanced', 'debug', 'backup') %}active{% endif %}">Einstellungen</a></li>
                 <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Protokolle</a></li>
                 {% endif %}
             </ul>

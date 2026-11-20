@@ -45,6 +45,9 @@ _EWS_BEREICH_INTERVAL = 60 * 60        # Gruppe des EWS-Dienstkontos (ews_bereic
 _last_dyn_gruppen_run: float = _NIE     # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _DYN_GRUPPEN_INTERVAL = 60 * 60        # Entra-Schnappschuss der dynamischen Gruppen
                                        # (dynamische_gruppen.py): stündlich, nur wenn es welche gibt
+_last_dmarc_run: float = _NIE           # monotonic; _NIE = nie gelaufen
+_DMARC_INTERVAL = 15 * 60              # DMARC-Berichte (dmarc_berichte.py): alle 15 min nachsehen,
+                                       # ob ein Abruf fällig ist (TAKT_H) — abgerufen wird seltener
 _last_ooo_run: float = _NIE             # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisieren; dank
                                        # Idempotenz (nur PATCH bei echter Abweichung) ist
@@ -798,6 +801,20 @@ def _dynamische_gruppen() -> None:
         _last_dyn_gruppen_run = time.monotonic()
 
 
+def _dmarc_berichte() -> None:
+    """DMARC-Sammelberichte abrufen, wenn ein Ziel eingetragen und der Takt
+    (dmarc_berichte.TAKT_H) um ist. Nur lesend, nicht im Mailpfad."""
+    global _last_dmarc_run
+    try:
+        import dmarc_berichte
+        if dmarc_berichte.faellig():
+            dmarc_berichte.abrufen()
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("scheduler: DMARC-Berichte fehlgeschlagen: %s", exc)
+    finally:
+        _last_dmarc_run = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -836,6 +853,8 @@ def _loop() -> None:
                 _ews_bereich()
             if time.monotonic() - _last_dyn_gruppen_run > _DYN_GRUPPEN_INTERVAL:
                 _dynamische_gruppen()
+            if time.monotonic() - _last_dmarc_run > _DMARC_INTERVAL:
+                _dmarc_berichte()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

@@ -5,6 +5,51 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.138 — 2026-11-20 — DMARC-Berichte auswerten
+
+### Neu: Einstellungen → DMARC
+
+Empfänger wie Google, Microsoft oder Yahoo schicken täglich Sammelberichte
+(RFC 7489) an die `rua=`-Adresse deines DMARC-Eintrags: welche IP-Adressen in
+deinem Namen gesendet haben und ob SPF, DKIM und DMARC bestanden. Das Gateway
+liest diese Berichte jetzt selbst, alle sechs Stunden, nur lesend und außerhalb
+des Mailpfads, und zeigt Domänen, absendende Quellen (mit Rückwärtsnamen) und
+Befunde mit Empfehlung:
+
+* **hoch** — Mails haben DMARC nicht bestanden und wurden trotzdem zugestellt
+  (Fälschung oder ein eigener Versender ohne SPF/DKIM).
+* **mittel** — eine Quelle besteht nur teilweise; DMARC hängt allein an SPF
+  (bricht bei Weiterleitung); neben einer gültigen reist eine ungültige
+  DKIM-Signatur der eigenen Domäne mit; die Richtlinie steht auf `p=none`.
+* **Info** — abgewiesene Fälschungsversuche; `pct` unter 100.
+
+Neue Befunde der Stufen hoch und mittel meldet das Gateway einmal per Mail an
+die Verwaltung (abschaltbar unter Einstellungen → Allgemein →
+Benachrichtigungen). Der Tagesbericht zeigt die Zeile „DMARC-Berichte“ mit der
+Zahl der Berichte und Befunde, sobald ein Ziel eingetragen ist, die Abnahme
+einen eigenen Punkt.
+
+Als Ziel taugt ein Postfach (auch ein geteiltes) oder eine
+Microsoft-365-Gruppe; das Gateway erkennt die Art selbst. Ein Postfach liest
+es mit seinen vorhandenen Rechten. Gruppenpost ist über den Postfachweg nicht
+erreichbar; dafür braucht die Gateway-App `Group-Conversation.Read.All`
+(Anwendungsrecht, gilt für die Unterhaltungen aller Gruppen und lässt sich
+nicht über RBAC for Applications eingrenzen). Das Gateway verlangt es nur,
+wenn eine Gruppe eingetragen ist; die Seite bietet „Fehlende Berechtigungen
+erteilen“ an.
+
+Berichte sind Fremddaten: XML mit DOCTYPE oder Entitäten wird verworfen, ein
+Anhang darf höchstens 10 MB groß sein und entpackt höchstens 50 MB ergeben
+(gezählt an den tatsächlich entpackten Bytes), ein ZIP höchstens fünf
+Dateien enthalten. Einzelfallberichte (`ruf=`) werden nur gezählt. Berichte
+bleiben 90 Tage gespeichert, ausgewertet werden die letzten 30.
+
+**Zu tun:** nichts. Die Auswertung ist freiwillig. Willst du sie nutzen:
+Einstellungen → DMARC → die `rua`-Adresse eintragen und speichern; bei einer
+Microsoft-365-Gruppe danach „Fehlende Berechtigungen erteilen“.
+
+---
+
 ## v1.12.137 — 2026-11-20 — Port 587 hinterließ eine gebrochene DKIM-Signatur; Größenwarnung im Editor zählt wie das Add-in
 
 ### Port 587: alte DKIM-Signatur wird entfernt

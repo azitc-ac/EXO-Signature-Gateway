@@ -284,6 +284,8 @@ DEFAULTS: dict = {
     "DIREKT_AUSSEN_IP": "",   # öffentliche Ausgangsadresse — nur für die DNS-Prüfung (SPF/PTR)
     "DIREKTVERSAND_PROBE_POSTFACH": "",  # internes Postfach für die tägliche Probe (direktversand_probe.py)
     "DIREKTVERSAND_PROBE_EXTERN": "",    # optionale externe Probe-Empfänger (Komma), z. B. Gmail/Outlook.com
+    "DMARC_POSTFACH": "",               # Postfach oder M365-Gruppe mit den DMARC-Sammelberichten (dmarc_berichte.py)
+    "NOTIFY_DMARC": None,               # None/True = neue DMARC-Befunde (hoch/mittel) per Mail melden
     "DKIM_DOMAINS": {},       # {"example.com": "gw202610"} — Schlüssel in data/dkim/<domain>.<selektor>.pem
     "ONPREM_MAILUSERS": [],   # ["max.mustermann@zarenko.net", …] — via EXO Get-MailUser
     "ONPREM_MAILUSERS_TS": "", # ISO8601 des letzten erfolgreichen Abgleichs
@@ -520,6 +522,8 @@ INTERNAL_KEYS = frozenset({
     "_ADDIN_VERFASSEN_STAND",     # webui/routen/addin_verfassen.py — dasselbe für das Verfassen-Add-in
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
     "_DIREKTVERSAND_PROBE",       # direktversand_probe.py — Stand der letzten Probe
+    "_DMARC_ZIEL",                # dmarc_berichte.py — aufgelöstes Ziel {adresse, art, id}
+    "_DMARC_GRUPPE",              # dmarc_berichte.py — Ziel ist M365-Gruppe → Group-Conversation.Read.All nötig
     "_SMIME_REGELN_STAND",        # setup_wizard.py — angewendeter Stand des S/MIME-Regel-Solls
     "_ADDIN_VERTEILUNG",          # addin_verteilung.py — je Add-in: Soll-Fassung + erstes Sichten
     "_ADDIN_LOKAL",               # addin_verteilung.py — Hybrid-Nutzer: Tag des letzten Add-in-Abrufs

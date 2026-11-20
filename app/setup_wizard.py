@@ -48,6 +48,9 @@ _GRAPH_PERMISSION_SPECS = [
     {"name": "AppCatalog.Read.All",      "id": "e12dae10-5a57-4817-b79d-dfbec5348930",
      "zweck": "Fassung der Teams-App im Katalog", "nur_wenn": "TEAMS_APP_AKTIV",
      "vorgabe": False},
+    {"name": "Group-Conversation.Read.All", "id": "4f0a8235-6f6f-4ec7-9500-34b452a4a0c3",
+     "zweck": "DMARC-Berichte aus einer Microsoft-365-Gruppe lesen", "nur_wenn": "_DMARC_GRUPPE",
+     "vorgabe": False},
 ]
 _EXO_PERMISSION_SPECS = [
     {"name": "Exchange.ManageAsApp",     "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",

@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% from "_berechtigungen.html" import berechtigungen %}
+{% block content %}
+<h1>Einstellungen</h1>
+
+{% set nav_aktiv = "dmarc" %}
+{% include "_nav_einstellungen.html" %}
+
+<p class="hint" style="max-width:720px;margin:0 0 16px">
+  Empfänger wie Google, Microsoft oder Yahoo schicken täglich Sammelberichte darüber, ob Post
+  im Namen deiner Domänen SPF, DKIM und DMARC bestanden hat. Sie gehen an die
+  <code>rua=</code>-Adresse deines DMARC-Eintrags. Das Gateway liest sie von dort (nur lesend,
+  alle sechs Stunden), wertet sie aus und meldet neue Befunde.
+</p>
+
+<style>
+  /* Ampel und Stufen: Farben nur über data-* (Dark Mode greift sonst nicht). */
+  .dmarc-ampel { font-size: 13px; color: #64748b; }
+  .dmarc-ampel[data-ampel="ok"]      { color: #166534; }
+  .dmarc-ampel[data-ampel="warnung"] { color: #b45309; }
+  .dmarc-ampel[data-ampel="fehler"]  { color: #991b1b; font-weight: 600; }
+  .dmarc-stufe { font-weight: 600; white-space: nowrap; color: #64748b; }
+  .dmarc-stufe[data-stufe="hoch"]   { color: #991b1b; }
+  .dmarc-stufe[data-stufe="mittel"] { color: #b45309; }
+  .dmarc-stufe[data-stufe="info"]   { color: #0369a1; }
+  [data-theme="dark"] .dmarc-ampel                       { color: #94a3b8; }
+  [data-theme="dark"] .dmarc-ampel[data-ampel="ok"]      { color: #4ade80; }
+  [data-theme="dark"] .dmarc-ampel[data-ampel="warnung"] { color: #fcd34d; }
+  [data-theme="dark"] .dmarc-ampel[data-ampel="fehler"]  { color: #fca5a5; }
+  [data-theme="dark"] .dmarc-stufe                       { color: #94a3b8; }
+  [data-theme="dark"] .dmarc-stufe[data-stufe="hoch"]    { color: #fca5a5; }
+  [data-theme="dark"] .dmarc-stufe[data-stufe="mittel"]  { color: #fcd34d; }
+  [data-theme="dark"] .dmarc-stufe[data-stufe="info"]    { color: #7dd3fc; }
+</style>
+
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 id="dmarc-quelle" style="margin:0 0 12px">Woher die Berichte kommen</h2>
+  <div class="settings-row">
+    <label for="dmarc-postfach">Postfach oder Gruppe</label>
+    <div class="settings-control">
+      <input type="email" id="dmarc-postfach" value="{{ s.DMARC_POSTFACH or '' }}"
+             placeholder="dmarc@example.com" autocomplete="off" style="width:min(320px,100%)">
+      <div style="margin-top:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn secondary" id="dmarc-postfach-btn"
+                data-wache="dmarc-postfach" data-wache-hinweis="dmarc-result"
+                onclick="dmarcZielSpeichern()">Speichern</button>
+        <button type="button" class="btn secondary" id="dmarc-abruf-btn" onclick="dmarcAbrufen(this)">Jetzt abrufen</button>
+        <span id="dmarc-result" style="font-size:12px"></span>
+      </div>
+      <span class="hint">Die Adresse aus <code>rua=mailto:…</code>. Ein Postfach (auch ein geteiltes)
+        liest das Gateway mit seinen vorhandenen Rechten. Für eine Microsoft-365-Gruppe braucht es
+        zusätzlich <code>Group-Conversation.Read.All</code>. Leer = Auswertung aus.</span>
+    </div>
+  </div>
+  <div id="dmarc-ziel" class="hint" style="margin:4px 0 0"></div>
+  <div id="dmarc-gruppe-rechte" hidden>
+    {{ berechtigungen("dmarc", "Group-Conversation.Read.All") }}
+  </div>
+  <div id="dmarc-stand" class="dmarc-ampel" data-ampel="" style="margin:8px 0 0">Wird geladen …</div>
+  <div id="dmarc-abruf" class="hint" style="margin:4px 0 0"></div>
+</div>
+
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 id="dmarc-befunde" style="margin:0 0 12px">Befunde und Empfehlungen</h2>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:560px">
+      <thead><tr><th>Stufe</th><th>Befund</th><th>Empfehlung</th></tr></thead>
+      <tbody id="dmarc-befunde-body"><tr><td colspan="3" class="muted">Wird geladen …</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 id="dmarc-domaenen" style="margin:0 0 12px">Domänen</h2>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:520px">
+      <thead><tr><th>Domäne</th><th>Richtlinie</th><th style="text-align:right">Mails</th>
+        <th style="text-align:right">DMARC bestanden</th><th style="text-align:right">Melder</th></tr></thead>
+      <tbody id="dmarc-domaenen-body"><tr><td colspan="5" class="muted">Wird geladen …</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 id="dmarc-quellen" style="margin:0 0 12px">Absendende Quellen</h2>
+  <p class="hint" style="margin:0 0 10px">Je Domäne und IP-Adresse über die letzten <span id="dmarc-tage">30</span> Tage.
+    „Nur SPF“: DMARC bestanden, aber ohne passende DKIM-Signatur.</p>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:720px">
+      <thead><tr><th>IP-Adresse</th><th>Name</th><th>Domäne</th><th style="text-align:right">Mails</th>
+        <th style="text-align:right">bestanden</th><th style="text-align:right">nur SPF</th>
+        <th style="text-align:right">nicht bestanden</th><th>Melder</th></tr></thead>
+      <tbody id="dmarc-quellen-body"><tr><td colspan="8" class="muted">Wird geladen …</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const DMARC_AMPELN = ['ok', 'warnung', 'fehler'];
+const DMARC_STUFEN = { hoch: 'hoch', mittel: 'mittel', info: 'Info' };
+
+function dmarcProzent(teil, ganz) {
+  return ganz ? Math.round(100 * teil / ganz) + ' %' : '–';
+}
+
+function dmarcZeit(iso) {
+  const d = iso ? new Date(iso) : null;
+  return d && !isNaN(d) ? d.toLocaleString('de-DE') : '';
+}
+
+function dmarcZeigen(r) {
+  const stand = document.getElementById('dmarc-stand');
+  stand.dataset.ampel = DMARC_AMPELN.includes(r.ampel) ? r.ampel : '';
+  stand.textContent = r.adresse ? r.text : 'Auswertung aus — kein Postfach und keine Gruppe eingetragen.';
+
+  const z = r.ziel || {};
+  const art = { postfach: 'Postfach', gruppe: 'Microsoft-365-Gruppe' }[z.art];
+  document.getElementById('dmarc-ziel').textContent = !r.adresse ? ''
+    : art ? 'Erkannt als ' + art + '.' : (z.meldung || 'Noch nicht geprüft — wird beim nächsten Abruf bestimmt.');
+  document.getElementById('dmarc-gruppe-rechte').hidden = z.art !== 'gruppe';
+
+  const a = r.abruf || {};
+  let abruf = '';
+  if (a.ts) {
+    abruf = 'Letzter Abruf ' + dmarcZeit(a.ts) + ': ';
+    abruf += a.ok ? a.mails + ' Mails gelesen, ' + a.neu + ' neue Berichte'
+      + (a.doppelt ? ', ' + a.doppelt + ' schon bekannt' : '')
+      + (a.fehler ? ', ' + a.fehler + ' nicht lesbar' : '')
+      + (a.ruf ? ', ' + a.ruf + ' Einzelfallberichte (nur gezählt)' : '')
+      : (a.meldung || 'gescheitert');
+    if ((a.fehlertexte || []).length) abruf += ' — ' + a.fehlertexte.join(' · ');
+  }
+  document.getElementById('dmarc-abruf').textContent = abruf;
+  document.getElementById('dmarc-tage').textContent = r.tage || 30;
+
+  const bf = r.befunde || [];
+  const bBody = document.getElementById('dmarc-befunde-body');
+  if (!bf.length) tabelleHinweis(bBody, 3, r.berichte ? 'Keine Befunde.' : 'Noch keine Berichte ausgewertet.');
+  else bBody.innerHTML = bf.map(b =>
+    '<tr><td><span class="dmarc-stufe" data-stufe="' + escAttr(DMARC_STUFEN[b.stufe] ? b.stufe : '') + '">'
+    + esc(DMARC_STUFEN[b.stufe] || b.stufe) + '</span></td>'
+    + '<td>' + esc(b.text) + '</td><td class="muted">' + esc(b.empfehlung) + '</td></tr>').join('');
+
+  const dm = r.domaenen || [];
+  const dBody = document.getElementById('dmarc-domaenen-body');
+  if (!dm.length) tabelleHinweis(dBody, 5, 'Noch keine Berichte ausgewertet.');
+  else dBody.innerHTML = dm.map(d => {
+    const p = d.richtlinie || {};
+    const pol = 'p=' + (p.p || '?') + (p.sp ? ', sp=' + p.sp : '') + (p.pct != null && p.pct < 100 ? ', pct=' + p.pct : '');
+    return '<tr><td>' + esc(d.domain) + '</td><td><code>' + esc(pol) + '</code></td>'
+      + '<td style="text-align:right">' + esc(d.mails) + '</td>'
+      + '<td style="text-align:right">' + esc(dmarcProzent(d.bestanden, d.mails)) + '</td>'
+      + '<td style="text-align:right">' + esc(d.melder) + '</td></tr>';
+  }).join('');
+
+  const q = r.quellen || [];
+  const qBody = document.getElementById('dmarc-quellen-body');
+  if (!q.length) tabelleHinweis(qBody, 8, 'Noch keine Berichte ausgewertet.');
+  else qBody.innerHTML = q.map(e =>
+    '<tr><td><code>' + esc(e.ip) + '</code></td><td class="muted">' + esc(e.rdns || '–') + '</td>'
+    + '<td>' + esc(e.domain) + '</td><td style="text-align:right">' + esc(e.mails) + '</td>'
+    + '<td style="text-align:right">' + esc(dmarcProzent(e.bestanden, e.mails)) + '</td>'
+    + '<td style="text-align:right">' + esc(e.nur_spf) + '</td>'
+    + '<td style="text-align:right">' + esc(e.fail_zugestellt + e.fail_abgewiesen) + '</td>'
+    + '<td class="muted">' + esc((e.melder || []).join(', ')) + '</td></tr>').join('');
+}
+
+async function dmarcLaden(aufloesen) {
+  const r = await getJSON('/api/dmarc' + (aufloesen ? '?aufloesen=1' : ''));
+  if (!r.ok) {
+    document.getElementById('dmarc-stand').textContent = 'Stand nicht abrufbar: ' + errText(r);
+    return;
+  }
+  dmarcZeigen(r);
+}
+
+// Postfach oder Gruppe wird erst nach erfolgreichem Speichern neu bestimmt —
+// davon hängt ab, ob Group-Conversation.Read.All gebraucht wird.
+async function dmarcZielSpeichern() {
+  const gespeichert = await savePartial({ DMARC_POSTFACH: feldWert('dmarc-postfach').toLowerCase() },
+                                        'dmarc-result', 'dmarc:ziel');
+  wacheFertig('dmarc-postfach-btn', gespeichert);
+  if (gespeichert) await dmarcLaden(true);
+}
+
+async function dmarcAbrufen(btn) {
+  const r = await knopfAktion(btn, 'Wird abgerufen …', () => postJSON('/api/dmarc/abruf', {}));
+  const box = document.getElementById('dmarc-result');
+  if (r && r.ok) {
+    showMsg(box, r.abruf.neu + ' neue Berichte gelesen.', true);
+  } else {
+    showMsg(box, (r && r.error) || errText(r), false);
+  }
+  dmarcLaden(false);
+}
+
+dmarcLaden(false);
+</script>
+{% endblock %}
