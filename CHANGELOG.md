@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.122 — 2026-11-20 — Postfachliste: Unterstrich in den Auswahlen wieder sichtbar; Beschriftung der Add-in-Auswahl
+
+* **Postfachliste:** Seit v1.12.120 haben die Auswahlen eine feste Höhe, damit eine
+  Zeile auf einer Linie steht. Mit dem üblichen Innenabstand blieb darin zu wenig
+  Platz für die Schrift: Unterstrich und Unterlängen wurden abgeschnitten, aus
+  „Mit_Logo“ wurde scheinbar „Mit Logo“. Der senkrechte Innenabstand entfällt dort.
+* **Gruppen-Regeln (schmale Ansicht):** Bei festgelegter, aufgeklappter
+  Add-in-Auswahl stand die Beschriftung mittig neben der ganzen Liste statt neben
+  ihrer Auswahl. Die Beschriftungen stehen jetzt auf der Grundlinie ihrer Auswahl.
+
+**Zu tun:** nichts.
+
 ## v1.12.121 — 2026-11-20 — Doku: Neuerungen seit v1.11 in README und Funktionsübersicht
 
 Die Funktionsübersicht (`docs/funktionen.md`) und die README nennen jetzt, was

@@ -27,6 +27,10 @@
   .cpol-kopf { margin-bottom:4px }
   .cpol-kopf select { flex:1 1 160px; min-width:0; max-width:260px; font-size:12px }
   .cpol-zeile { padding:3px 0; font-size:12px }
+  /* Beschriftung auf der Grundlinie der ersten Auswahl, nicht mittig neben dem
+     ganzen Block — sonst rutscht „Add-in-Auswahl“ bei aufgeklappter Liste nach
+     unten. Die Steuerzelle reicht ihre erste Grundlinie (die der Auswahl) durch. */
+  .cpol-zeile:not(.cpol-kopf) { align-items:baseline }
   .cpol-zeile > label:first-child { flex:0 0 130px }
   .cpol-steuer { flex:1 1 180px; min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px }
   .cpol-steuer select { min-width:0; max-width:100%; font-size:12px }
@@ -109,7 +113,9 @@
      der Mitte der Auswahl: feste Auswahlhöhe, gleiche Zeilenhöhe. */
   .mb-zeile { --wahl-h: 30px }
   .mb-zeile > td { vertical-align: top }
-  .mb-zeile select { height: var(--wahl-h); box-sizing: border-box }
+  /* Senkrechten Innenabstand herausnehmen: Mit dem globalen (7 px) blieben bei
+     30 px nur 14 px für die Schrift — Unterstrich und Unterlängen fehlten. */
+  .mb-zeile select { height: var(--wahl-h); box-sizing: border-box; padding-top: 0; padding-bottom: 0 }
   .mb-zeile > td.mb-mitte { line-height: var(--wahl-h) }
   .mb-zeile > td.mb-mitte > input[type=checkbox] { vertical-align: middle; margin-top: 0; margin-bottom: 0 }
   /* Ausnahme: Ein Wahl-Slot weicht vom Standard ab (JS setzt nur data-ausnahme
