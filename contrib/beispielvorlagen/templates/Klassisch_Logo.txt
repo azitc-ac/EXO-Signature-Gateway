@@ -1,0 +1,13 @@
+Mit freundlichen Grüßen
+
+{{ user.displayName }}
+{% if user.jobTitle %}{{ user.jobTitle }}{% endif %}
+{% if user.department %}{{ user.department }}{% endif %}
+
+{% if user.phone %}Tel. {{ user.phone }}{% endif %}
+{% if user.mobilePhone %}Mobil {{ user.mobilePhone }}{% endif %}
+{% if user.mail %}{{ user.mail }}{% endif %}
+{% if user.website %}{{ user.website }}{% endif %}
+{% if user.streetAddress %}{{ user.streetAddress }}{% endif %}
+{% if user.postalCode or user.city %}{{ (user.postalCode ~ ' ' ~ user.city)|trim }}{% endif %}
+

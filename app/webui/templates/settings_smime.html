@@ -133,7 +133,8 @@
       <span class="hint">Schlüsselwort im Betreff, das ausgehende S/MIME-Verschlüsselung auslöst</span>
     </div>
   </div>
-  <div class="settings-row" style="margin-top:10px">
+  {# Vorgabe an und meist richtig — unter Erweitert (Neuordnung 20.11.2026). #}
+  <div class="settings-row" data-adv="smime" style="margin-top:10px;display:none">
     <label class="checkbox-label">
       <input type="checkbox" id="crl-check" {% if s.CRL_CHECK is not false %}checked{% endif %}>
       Empfängerzertifikate gegen Sperrlisten prüfen (CRL)
@@ -460,6 +461,9 @@
 <div class="settings-card" id="schluesselablage">
   <h3 style="margin-top:0;margin-bottom:12px">Schlüsselablage</h3>
 
+  {# Ohne eingetragenen Vault unter Erweitert — für den einfachen Fall (lokale,
+     verschlüsselte Schlüssel) ist er nicht nötig. Eingetragen bleibt er sichtbar. #}
+  <div {% if not s.KEYVAULT_URL %}data-adv="smime" style="display:none"{% endif %}>
   <h3 style="margin-top:0;margin-bottom:8px">Azure Key Vault</h3>
   <p class="hint" style="margin-bottom:10px">
     Private S/MIME-Schlüssel in Azure Key Vault speichern (optional).
@@ -484,6 +488,7 @@
     <button id="kv-url-btn" data-wache="kv-url" type="button" class="btn secondary btn-sm" onclick="saveKvUrl()">Speichern</button>
   </div>
   <div id="kv-url-result" style="margin-top:6px;margin-left:200px;display:none"></div>
+  </div>
 
   <div data-adv="smime" style="display:none">
   <div class="settings-row" style="align-items:flex-start;margin-top:14px">

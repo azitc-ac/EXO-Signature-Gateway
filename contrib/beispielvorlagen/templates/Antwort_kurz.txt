@@ -1,0 +1,3 @@
+{{ user.displayName }}
+{% if user.jobTitle %}{{ user.jobTitle }}{% endif %}
+{% if user.phone %}Tel. {{ user.phone }}{% endif %}

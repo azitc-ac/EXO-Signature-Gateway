@@ -215,11 +215,14 @@
     <h3 style="font-size:14px;margin:0 0 8px">Welche Ereignisse sollen gemeldet werden?</h3>
     <div class="settings-row">
       <div class="settings-control" style="flex-basis:100%">
+        {# Technisch — unter Erweitert (Neuordnung 20.11.2026); wirkt auch verborgen. #}
+        <div data-adv="benachrichtigungen" style="display:none">
         <label class="checkbox-label">
           <input type="checkbox" id="notify-startup"
                  {% if s.NOTIFY_STARTUP is not false %}checked{% endif %}>
           Container-Neustart
         </label>
+        </div>
         <label class="checkbox-label">
           <input type="checkbox" id="notify-smime-expiry"
                  {% if s.NOTIFY_SMIME_EXPIRY is not false %}checked{% endif %}>
@@ -396,7 +399,13 @@
     </div>
   </div>
 
-  <h3 style="margin:18px 0 6px" id="ews-bereich">Zugriffsbereich (Gruppe)</h3>
+  {# Zugeklappt, solange nicht eingerichtet: für den einfachen Fall (Scope von Hand)
+     elf Zeilen weniger. Offen, sobald ein Domänencontroller eingetragen ist; ein
+     Sprung auf #ews-bereich (Aufgabe) öffnet ihn (base.html ankerZeigen). #}
+  <details id="ews-bereich" class="feld-gruppe" style="margin-top:18px"
+           {% if s.EWS_LDAP_SERVER or s.EWS_BEREICH_AUTO %}open{% endif %}>
+  <summary><h3 style="display:inline;margin:0">Zugriffsbereich (Gruppe)</h3>
+    <span class="hint" style="margin-left:6px">optional — Exchange-Scope über eine AD-Gruppe pflegen</span></summary>
   <p class="hint" style="margin:0 0 8px">
     Welche Postfächer das Dienstkonto übernehmen darf, legt in Exchange ein Management Scope
     fest. Mit einer Gruppe pflegt das Gateway diesen Bereich selbst: Hybrid-Nutzer mit Signatur
@@ -531,6 +540,8 @@
     <button class="btn secondary" id="ews-bereich-einrichten-btn" onclick="ewsBereichEinrichten()">AD-Teil einrichten</button>
     <span id="ews-bereich-einrichten-ergebnis" style="font-size:12px"></span>
   </div>
+
+  </details>
 
   <h3 style="margin:18px 0 6px">Signatur in OWA (lokal)</h3>
   <div class="settings-row">

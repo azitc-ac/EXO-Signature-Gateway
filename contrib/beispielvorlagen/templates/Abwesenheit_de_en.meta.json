@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "oof",
+  "text_eigen": false,
+  "global": {
+    "font_family": "Calibri, Arial, sans-serif",
+    "font_size": "10.5pt",
+    "base_color": "#1f2937",
+    "muted_color": "#6b7280",
+    "link_color": "#0369a1"
+  },
+  "blocks": [
+    {
+      "id": "50",
+      "type": "freetext",
+      "html": "<p style=\"margin:0 0 8px\">Vielen Dank für Ihre Nachricht. {% if oof.zeitraum %}Ich bin {{ oof.zeitraum }} nicht im Büro{% else %}Ich bin derzeit nicht im Büro{% endif %} und lese meine E-Mails in dieser Zeit nicht. In dringenden Fällen wenden Sie sich bitte an <a href=\"mailto:info@example.com\">info@example.com</a>.</p><p style=\"margin:0 0 8px\">Thank you for your message. {% if oof.period %}I am out of the office {{ oof.period }}{% else %}I am currently out of the office{% endif %} and will not be reading e-mail during this time. For urgent matters, please contact <a href=\"mailto:info@example.com\">info@example.com</a>.</p>"
+    }
+  ]
+}

@@ -507,6 +507,25 @@ def get_signing_paths(email: str, allow_backup: bool = False,
     return None
 
 
+def entschluessel_paare(email: str) -> list[tuple[Path, Path]]:
+    """ALLE (cert, key) eines Postfachs zum Entschlüsseln — der Standard-Slot zuerst.
+
+    Nach einer Erneuerung ist der Standard das neue Zertifikat; Partner
+    verschlüsseln aber noch eine Weile an das alte. Widerrufene zählen mit:
+    Widerrufen heisst nicht mehr signieren, nicht nicht mehr lesen. Je Slot
+    `key.pem`, sonst `key.pem.bak` (Key-Vault-Rückfall)."""
+    erste = get_signing_paths(email, allow_backup=True)
+    paare: list[tuple[Path, Path]] = [erste] if erste else []
+    certs_dir = SMIME_DIR / email.lower().strip() / "certs"
+    if certs_dir.exists():
+        for slot_dir in sorted(certs_dir.iterdir()):
+            c = slot_dir / "cert.pem"
+            k = slot_dir / "key.pem" if (slot_dir / "key.pem").exists() else slot_dir / "key.pem.bak"
+            if c.exists() and k.exists() and (c, k) not in paare:
+                paare.append((c, k))
+    return paare
+
+
 def default_key_location(email: str) -> str:
     """Where the DEFAULT signing slot's private key lives — the slot that
     actually signs. Returns one of:

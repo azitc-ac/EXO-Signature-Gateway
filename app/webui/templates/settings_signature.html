@@ -12,6 +12,72 @@
 <!-- Signatur -->
 <div class="settings-card">
   <h3 style="margin-top:0;margin-bottom:12px">Signatur einsetzen</h3>
+  {# Basis: was im einfachen Fall zu entscheiden ist. Technik (Rückfall, Kennung,
+     Erkennung fremder Signaturen, interne Signatur ohne Add-in …) unter Erweitert —
+     Neuordnung 20.11.2026; die Schalter wirken unabhängig von der Sichtbarkeit. #}
+  <div class="settings-row">
+    <label for="intern-behaelt">Interne Mails</label>
+    <div class="settings-control">
+      <select id="intern-behaelt">
+        {% for wert, text in [("", "Ohne Banner und Disclaimer"),
+                              ("disclaimer", "Nur mit Disclaimer"),
+                              ("banner", "Nur mit Banner"),
+                              ("beide", "Mit Banner und Disclaimer")] %}
+        <option value="{{ wert }}"{% if (s.INTERN_BEHAELT or "") == wert %} selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Gilt, wenn alle Empfänger intern sind und das Gateway die Mail signiert
+        (interne Signatur oder „Rein interne Mails auch signieren“ unter Erweitert). Sonst geht interne Post
+        ohnehin unverändert durch.</span>
+    </div>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+
+  <div class="settings-row">
+    <label for="nosig-trigger">Nicht-signieren-Trigger</label>
+    <div class="settings-control">
+      <input type="text" id="nosig-trigger" value="{{ s.NOSIG_TRIGGER or '#nosig' }}"
+        placeholder="#nosig" style="width:160px">
+      <span class="hint">Schlüsselwort im Betreff, das die automatische HTML-Signatur für diese Mail
+        unterdrückt. Das Schlüsselwort wird aus dem zugestellten Betreff entfernt.
+        Nicht verwechseln mit dem „Nicht-digital-signieren-Trigger" (S/MIME) unter Einstellungen → S/MIME.</span>
+    </div>
+  </div>
+
+  <div class="settings-row">
+    <label for="nosig-behaelt">Der Trigger entfernt</label>
+    <div class="settings-control">
+      <select id="nosig-behaelt">
+        {% for wert, text in [("", "Signatur, Banner und Disclaimer"),
+                              ("disclaimer", "Signatur und Banner – Disclaimer bleibt"),
+                              ("banner", "Signatur und Disclaimer – Banner bleibt"),
+                              ("beide", "Nur die Signatur – Banner und Disclaimer bleiben")] %}
+        <option value="{{ wert }}"{% if (s.NOSIG_BEHAELT or "") == wert %} selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="settings-row">
+    <label for="kette-behaelt">Antworten in derselben Kette</label>
+    <div class="settings-control">
+      <select id="kette-behaelt">
+        {% for wert, text in [("", "Ohne Banner und Disclaimer"),
+                              ("disclaimer", "Nur mit Disclaimer"),
+                              ("banner", "Nur mit Banner"),
+                              ("beide", "Mit Banner und Disclaimer")] %}
+        <option value="{{ wert }}"{% if (s.KETTE_BEHAELT or "") == wert %} selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Gilt ab der zweiten eigenen Mail in einer Kette, also dort, wo statt der vollen
+        Signatur die Antwort-Signatur (oder keine) steht. Neue Mails bekommen Banner und Disclaimer immer –
+        auch wenn das Outlook-Add-in die Signatur schon eingefügt hat.</span>
+    </div>
+  </div>
+
+  <div data-adv="sig" style="display:none">
+  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="fallback" {% if s.FALLBACK_ON_ERROR %}checked{% endif %}>
@@ -19,7 +85,6 @@
     </label>
   </div>
   <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
-  <div data-adv="sig" style="display:none">
   <div class="settings-row">
     <label for="loop-header">Loop-Detection-Header</label>
     <div class="settings-control">
@@ -34,7 +99,6 @@
         <span id="loop-kennung-result" class="fortschritt" hidden></span>
       </div>
     </div>
-  </div>
   </div>
   <div class="settings-row">
     <label class="checkbox-label">
@@ -64,7 +128,6 @@
     <span class="hint">Steht die eigene Gateway-Signatur des Absenders schon in einer zitierten Vorgänger-Mail, wird keine zweite eingefügt — verhindert Stacking bei Ping-Pong-Threads. Die Signatur eines Kollegen oder eines anderen Gateways im Zitat zählt nicht</span>
   </div>
 
-  <div data-adv="sig" style="display:none">
   <div class="settings-row">
     <label for="sig-image-mode">Signaturbilder einbetten</label>
     <div class="settings-control">
@@ -117,9 +180,7 @@
       </div>
     </div>
   </div>
-  </div>
 
-  <div data-adv="sig" style="display:none">
   <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
 
   <div class="settings-row">
@@ -178,70 +239,6 @@
     </div>
   </div>
 
-  <div class="settings-row">
-    <label for="intern-behaelt">Interne Mails</label>
-    <div class="settings-control">
-      <select id="intern-behaelt">
-        {% for wert, text in [("", "Ohne Banner und Disclaimer"),
-                              ("disclaimer", "Nur mit Disclaimer"),
-                              ("banner", "Nur mit Banner"),
-                              ("beide", "Mit Banner und Disclaimer")] %}
-        <option value="{{ wert }}"{% if (s.INTERN_BEHAELT or "") == wert %} selected{% endif %}>{{ text }}</option>
-        {% endfor %}
-      </select>
-      <span class="hint">Gilt, wenn alle Empfänger intern sind und das Gateway die Mail signiert
-        (interne Signatur oder „Rein interne Mails auch signieren“). Sonst geht interne Post
-        ohnehin unverändert durch.</span>
-    </div>
-  </div>
-
-  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
-
-  <div class="settings-row">
-    <label for="nosig-trigger">Nicht-signieren-Trigger</label>
-    <div class="settings-control">
-      <input type="text" id="nosig-trigger" value="{{ s.NOSIG_TRIGGER or '#nosig' }}"
-        placeholder="#nosig" style="width:160px">
-      <span class="hint">Schlüsselwort im Betreff, das die automatische HTML-Signatur für diese Mail
-        unterdrückt. Das Schlüsselwort wird aus dem zugestellten Betreff entfernt.
-        Nicht verwechseln mit dem „Nicht-digital-signieren-Trigger" (S/MIME) unter Einstellungen → S/MIME.</span>
-    </div>
-  </div>
-
-  <div class="settings-row">
-    <label for="nosig-behaelt">Der Trigger entfernt</label>
-    <div class="settings-control">
-      <select id="nosig-behaelt">
-        {% for wert, text in [("", "Signatur, Banner und Disclaimer"),
-                              ("disclaimer", "Signatur und Banner – Disclaimer bleibt"),
-                              ("banner", "Signatur und Disclaimer – Banner bleibt"),
-                              ("beide", "Nur die Signatur – Banner und Disclaimer bleiben")] %}
-        <option value="{{ wert }}"{% if (s.NOSIG_BEHAELT or "") == wert %} selected{% endif %}>{{ text }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </div>
-
-  <div class="settings-row">
-    <label for="kette-behaelt">Antworten in derselben Kette</label>
-    <div class="settings-control">
-      <select id="kette-behaelt">
-        {% for wert, text in [("", "Ohne Banner und Disclaimer"),
-                              ("disclaimer", "Nur mit Disclaimer"),
-                              ("banner", "Nur mit Banner"),
-                              ("beide", "Mit Banner und Disclaimer")] %}
-        <option value="{{ wert }}"{% if (s.KETTE_BEHAELT or "") == wert %} selected{% endif %}>{{ text }}</option>
-        {% endfor %}
-      </select>
-      <span class="hint">Gilt ab der zweiten eigenen Mail in einer Kette, also dort, wo statt der vollen
-        Signatur die Antwort-Signatur (oder keine) steht. Neue Mails bekommen Banner und Disclaimer immer –
-        auch wenn das Outlook-Add-in die Signatur schon eingefügt hat.</span>
-    </div>
-  </div>
-  </div>
-
-
-  <div data-adv="sig" style="display:none">
   <div class="settings-row">
     <label for="antwort-letztes-wort">Letztes Wort bei Antworten</label>
     <div class="settings-control">

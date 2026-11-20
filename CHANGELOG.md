@@ -5,6 +5,78 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.129 — 2026-11-20 — Einstellungen: Basis und Erweitert neu eingeteilt
+
+Ohne den Schalter *Erweiterte Einstellungen* steht jetzt, was im einfachen Fall
+zu entscheiden ist. Technische Schalter mit sinnvoller Vorgabe stehen unter
+Erweitert. Wirksam bleibt jede Einstellung wie bisher, auch wenn sie gerade
+nicht angezeigt wird.
+
+* **Signatur:** In der Basis stehen jetzt *Interne Mails* (Banner und
+  Disclaimer), der *Nicht-signieren-Trigger* samt „Der Trigger entfernt“ und
+  *Antworten in derselben Kette*. Unter Erweitert: Fallback bei Fehler,
+  Loop-Header, Gesendete Elemente, doppelte Signatur überspringen,
+  Stacking verhindern, Bildeinbettung, Erkennung fremder Signaturen, interne
+  Signatur ohne Add-in und Vorrang, letztes Wort bei Antworten.
+* **Allgemein:** Die Meldung *Container-Neustart* steht unter Erweitert. In der
+  Karte *Exchange lokal (EWS)* ist der Abschnitt *Zugriffsbereich (Gruppe)*
+  zugeklappt, solange kein Domänencontroller eingetragen ist; ein Hinweis aus
+  den offenen Aufgaben öffnet ihn.
+* **S/MIME:** Die Prüfung gegen Sperrlisten (CRL, Vorgabe an) steht unter
+  Erweitert, ebenso Azure Key Vault, solange kein Vault eingetragen ist.
+
+Außerdem: Bricht ein Scanner aus dem Internet eine Verbindung zu Port 80 ab,
+schreibt das Gateway dafür keinen vollständigen Fehlerbericht mehr ins
+Protokoll, sondern eine Zeile auf Debug-Stufe. Echte Fehler bleiben sichtbar.
+
+**Zu tun:** nichts.
+
+## v1.12.128 — 2026-11-20 — Abnahme schneller; Oberfläche bleibt während Exchange-Abfragen bedienbar
+
+* **Abnahme** (*Einrichtung → Verbindungstest & Abnahme*): Die Punkte werden
+  jetzt nebeneinander geprüft statt nacheinander. Zwei davon (Kennung und
+  Empfängerbedingung der Transportregeln) bauen je eine PowerShell-Sitzung zu
+  Exchange Online auf, rund 15 Sekunden je Sitzung. Gemessen auf einem
+  Raspberry Pi: 41 Sekunden für 39 Punkte, davon 33 Sekunden in diesen beiden.
+  Jetzt bestimmt der langsamste Punkt die Dauer, nicht die Summe.
+* **Die Oberfläche stand still**, solange die Abnahme lief, und ebenso beim
+  Einrichten des Exchange-Connectors, der S/MIME-Regeln und des IMAP-Zugriffs:
+  Diese Schritte warteten auf Exchange, ohne andere Anfragen durchzulassen,
+  auch die des Outlook-Add-ins und des Self-Service. Sie laufen jetzt im
+  Hintergrund; die übrige Oberfläche bleibt bedienbar.
+
+**Zu tun:** nichts.
+
+## v1.12.127 — 2026-11-20 — S/MIME: Post an ein früheres Zertifikat wird wieder entschlüsselt
+
+Hat ein Postfach mehrere Zertifikate, etwa nach einer Erneuerung, versuchte das
+Gateway eingehende verschlüsselte Post nur mit dem Schlüssel des
+Standard-Zertifikats zu öffnen. Nach einer Erneuerung ist das das neue. Partner
+verschlüsseln aber noch eine Weile an das alte, das sie aus früherer Post
+kennen. Solche Mails blieben verschlüsselt. Mit der automatischen Verlängerung
+ist das kein Randfall mehr.
+
+Jetzt versucht das Gateway alle Zertifikate des Postfachs mit lokalem Schlüssel,
+das Standard-Zertifikat zuerst. Widerrufene zählen mit: Mit einem widerrufenen
+Zertifikat wird nicht mehr signiert, an es verschlüsselte Post bleibt lesbar.
+Mit Azure Key Vault gilt das für den lokalen Rückfall (`key.pem.bak`).
+
+**Zu tun:** nichts.
+
+## v1.12.126 — 2026-11-20 — Beispielvorlagen zum Importieren
+
+Im Repository liegt unter `contrib/beispielvorlagen/` ein Paket mit neun
+Vorlagen, alle im Baukasten bearbeitbar: Klassisch mit Logo, Zwei Spalten,
+Kasten mit runden Ecken, Geteiltes Postfach (mit „Anzeigen wenn“), kurze interne
+Signatur, Antwort-Signatur, zweisprachige Abwesenheit mit Zeitraum, ein
+Kampagnen-Banner und ein Disclaimer. Das Logo ist ein neutraler Platzhalter.
+Importieren über *Signaturen → Vorlagen → Importieren …* mit
+`beispielvorlagen.zip`; je Vorlage liegt ein Vorschaubild bei.
+
+Am Gateway selbst ändert sich nichts.
+
+**Zu tun:** nichts.
+
 ## v1.12.125 — 2026-11-20 — S/MIME: CASTLE-Zertifikate widerrufen; widerrufene signieren nicht mehr
 
 **Widerrufen per Knopf.** Auf der Seite *S/MIME* steht bei jedem gültigen

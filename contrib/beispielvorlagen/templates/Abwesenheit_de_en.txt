@@ -1,0 +1,2 @@
+Vielen Dank für Ihre Nachricht. {% if oof.zeitraum %}Ich bin {{ oof.zeitraum }} nicht im Büro{% else %}Ich bin derzeit nicht im Büro{% endif %} und lese meine E-Mails in dieser Zeit nicht. In dringenden Fällen wenden Sie sich bitte an info@example.com.
+Thank you for your message. {% if oof.period %}I am out of the office {{ oof.period }}{% else %}I am currently out of the office{% endif %} and will not be reading e-mail during this time. For urgent matters, please contact info@example.com.

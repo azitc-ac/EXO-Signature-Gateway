@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "kind": "signatur",
+  "text_eigen": false,
+  "global": {
+    "font_family": "Calibri, Arial, sans-serif",
+    "font_size": "10.5pt",
+    "base_color": "#1f2937",
+    "muted_color": "#6b7280",
+    "link_color": "#0369a1"
+  },
+  "blocks": [
+    {
+      "id": "47",
+      "type": "name_field",
+      "bold": true
+    },
+    {
+      "id": "48",
+      "type": "field",
+      "field": "jobTitle",
+      "color": "muted",
+      "size": "9pt"
+    },
+    {
+      "id": "49",
+      "type": "phone",
+      "field": "phone",
+      "prefix": "Tel.",
+      "size": "9pt"
+    }
+  ]
+}

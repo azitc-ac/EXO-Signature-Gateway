@@ -1,0 +1,9 @@
+Mit freundlichen Grüßen
+
+{% if bearbeiter.displayName %}{{ bearbeiter.displayName }}{% endif %}
+{% if fuer_postfach %}{% if bearbeiter.jobTitle %}{{ bearbeiter.jobTitle }}{% endif %}{% endif %}
+{% if fuer_postfach %}für {{ user.displayName }}{% endif %}
+
+{% if user.phone %}Tel. {{ user.phone }}{% endif %}
+{% if user.mail %}{{ user.mail }}{% endif %}
+{% if user.website %}{{ user.website }}{% endif %}

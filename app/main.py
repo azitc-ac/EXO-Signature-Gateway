@@ -752,9 +752,25 @@ def _run_acme_http() -> None:
         # synchronen certbot-Laufs bis zu 120 s. Single-threaded würde dabei den
         # GET auf /.well-known/acme-challenge/ blockieren, den Let's Encrypt zur
         # Validierung braucht → Selbst-Deadlock, HTTP-01 läuft in Timeout.
-        ThreadingHTTPServer(("0.0.0.0", 80), _Handler).serve_forever()
+        _Port80Server(("0.0.0.0", 80), _Handler).serve_forever()
     except OSError as exc:
         log.warning("ACME HTTP server could not bind on port 80: %s", exc)
+
+
+class _Port80Server(ThreadingHTTPServer):
+    """Port 80 ist aus dem Internet erreichbar (HTTP-01). Scanner brechen
+    Verbindungen ab oder lassen sie auslaufen; socketserver schrieb dafür je
+    einen vollständigen Traceback auf stderr (Raspi 20.11.2026). Abgebrochene
+    Verbindungen sind eine Zeile auf debug, alles andere bleibt ein Fehler mit
+    Traceback — aber im Protokoll, nicht auf stderr."""
+
+    def handle_error(self, request, client_address):
+        import sys
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionError, TimeoutError)):
+            log.debug("Port 80: Verbindung von %s abgebrochen (%s)", client_address[0], type(exc).__name__)
+            return
+        log.error("Port 80: Fehler bei Anfrage von %s", client_address[0], exc_info=True)
 
 
 def _run_webui() -> None:

@@ -445,7 +445,8 @@ async def api_setup_exo_connector(request: Request, user: str = Depends(_require
 
     reinject_mode = settings_store.reinject_mode()
     skip_inbound = reinject_mode in ("graph", "graph_plus")
-    result = setup_wizard.run_exo_connector_setup(
+    result = await asyncio.to_thread(  # PowerShell-Sitzung: nicht in der Ereignisschleife
+        setup_wizard.run_exo_connector_setup,
         app_id=app_id,
         tenant_domain=tenant_domain,
         smtp_proxy_hostname=hostname,
@@ -508,7 +509,8 @@ async def api_setup_smime_rules(request: Request, user: str = Depends(_require_a
     if missing:
         raise HTTPException(400, f"Fehlende Konfiguration: {', '.join(missing)}")
 
-    result = setup_wizard.run_smime_rules_setup(
+    result = await asyncio.to_thread(  # PowerShell-Sitzung: nicht in der Ereignisschleife
+        setup_wizard.run_smime_rules_setup,
         app_id=app_id,
         tenant_domain=tenant_domain,
     )
@@ -533,7 +535,8 @@ async def api_setup_imap_access(request: Request, user: str = Depends(_require_a
     if missing:
         raise HTTPException(400, f"Fehlende Konfiguration: {', '.join(missing)}")
 
-    result = setup_wizard.run_imap_access_setup(
+    result = await asyncio.to_thread(  # PowerShell-Sitzung: nicht in der Ereignisschleife
+        setup_wizard.run_imap_access_setup,
         app_id=app_id,
         tenant_domain=tenant_domain,
     )

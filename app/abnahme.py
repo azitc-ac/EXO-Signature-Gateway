@@ -1221,18 +1221,26 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _csp_berichte, _notbetrieb_lokal, _teams_katalog_signatur, _teams_katalog_notfall)
 
 
+def _ein_punkt(pruefung) -> dict:
+    try:
+        return pruefung()
+    except Exception as exc:                          # noqa: BLE001
+        log.warning("Abnahme: %s fehlgeschlagen: %s", pruefung.__name__, exc)
+        return _punkt(
+            pruefung.__name__.lstrip("_").replace("_", " ").capitalize(),
+            UNBEKANNT, str(exc)[:150],
+            "Die Prüfung selbst ist gescheitert — das ist kein Freibrief.")
+
+
 def bericht() -> dict:
-    """Alle Punkte prüfen. Ein Fehler in einem Punkt kippt nicht den Rest."""
-    punkte = []
-    for pruefung in PRUEFUNGEN:
-        try:
-            punkte.append(pruefung())
-        except Exception as exc:                      # noqa: BLE001
-            log.warning("Abnahme: %s fehlgeschlagen: %s", pruefung.__name__, exc)
-            punkte.append(_punkt(
-                pruefung.__name__.lstrip("_").replace("_", " ").capitalize(),
-                UNBEKANNT, str(exc)[:150],
-                "Die Prüfung selbst ist gescheitert — das ist kein Freibrief."))
+    """Alle Punkte prüfen. Ein Fehler in einem Punkt kippt nicht den Rest.
+
+    Nebeneinander (höchstens 8 zugleich), Reihenfolge wie in PRUEFUNGEN: Zwei
+    Punkte bauen je eine PowerShell-Sitzung zu Exchange auf (~15 s); nacheinander
+    dauerte die Abnahme auf dem Raspi 41 s (gemessen 20.11.2026)."""
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="abnahme") as pool:
+        punkte = list(pool.map(_ein_punkt, PRUEFUNGEN))
 
     offen = [p for p in punkte if p["zustand"] == OFFEN]
     unbekannt = [p for p in punkte if p["zustand"] == UNBEKANNT]

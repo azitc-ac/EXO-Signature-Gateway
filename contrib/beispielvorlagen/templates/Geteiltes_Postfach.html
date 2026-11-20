@@ -1,0 +1,11 @@
+<table cellpadding="0" cellspacing="0" border="0" style="font-family:Calibri, Arial, sans-serif;font-size:10.5pt;color:#1f2937;border-collapse:collapse">
+  <tr><td style="padding:0">Mit freundlichen Grüßen</td></tr>
+  <tr><td style="padding:0;height:8px;font-size:8px;line-height:8px">&nbsp;</td></tr>
+  {% if bearbeiter.displayName %}<tr><td style="padding:0;font-weight:bold">{{ bearbeiter.displayName }}</td></tr>{% endif %}
+{% if fuer_postfach %}  {% if bearbeiter.jobTitle %}<tr><td style="padding:0;color:#6b7280">{{ bearbeiter.jobTitle }}</td></tr>{% endif %}{% endif %}
+{% if fuer_postfach %}  <tr><td style="padding:0;color:#6b7280">für {{ user.displayName }}</td></tr>{% endif %}
+  <tr><td style="padding:0;height:6px;font-size:6px;line-height:6px">&nbsp;</td></tr>
+  {% if user.phone %}<tr><td style="padding:0">Tel. <a href="tel:{{ user.phone }}" style="color:#0369a1;text-decoration:none">{{ user.phone }}</a></td></tr>{% endif %}
+  <tr><td style="padding:0"><a href="mailto:{{ user.mail }}" style="color:#0369a1;text-decoration:none">{{ user.mail }}</a></td></tr>
+  {% if user.website %}<tr><td style="padding:0"><a href="{{ user.website }}" style="color:#0369a1;text-decoration:none">{{ user.website }}</a></td></tr>{% endif %}
+</table>
