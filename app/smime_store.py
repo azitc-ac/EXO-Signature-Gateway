@@ -11,6 +11,7 @@ Legacy layout (auto-migrated on first access):
     /app/data/smime/{email}/key.pem
 """
 
+import json
 import logging
 import shutil
 from datetime import datetime, timezone
@@ -264,6 +265,40 @@ def _migrate_legacy(email: str) -> None:
         log.warning("Legacy S/MIME cert migration failed for %s: %s", email, exc)
 
 
+# ── Widerruf (seit v1.12.124) ─────────────────────────────────────────────────
+# Ein widerrufenes Zertifikat bleibt mit Schlüssel liegen — damit lassen sich an
+# es verschlüsselte Mails weiter öffnen. Signiert wird damit NICHT mehr
+# (Entscheidung 20.11.2026): Signierwege fragen `nur_unwiderrufen=True`.
+# Entschlüsseln fragt bewusst ohne — dort zählt der Schlüssel, nicht die
+# Gültigkeit.
+WIDERRUF_DATEI = "widerrufen.json"
+
+
+def widerruf(email: str, slot_id: str) -> dict | None:
+    """Vermerk des Widerrufs eines Slots ({grund, am, wer}) oder None."""
+    p = SMIME_DIR / email.lower().strip() / "certs" / slot_id / WIDERRUF_DATEI
+    try:
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+    except (OSError, ValueError):
+        return {"grund": "unbekannt", "am": "", "wer": ""}   # Vermerk da, aber unlesbar: gilt als widerrufen
+
+
+def widerruf_vermerken(email: str, slot_id: str, grund: str, wer: str) -> None:
+    slot_dir = SMIME_DIR / email.lower().strip() / "certs" / slot_id
+    if not (slot_dir / "cert.pem").exists():
+        raise ValueError(f"Slot {slot_id} nicht gefunden für {email}")
+    tmp = slot_dir / (WIDERRUF_DATEI + ".tmp")
+    tmp.write_text(json.dumps({"grund": grund, "am": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                               "wer": wer}, ensure_ascii=False), encoding="utf-8")
+    tmp.chmod(0o600)
+    tmp.replace(slot_dir / WIDERRUF_DATEI)
+    log.info("S/MIME-Zertifikat %s von %s als widerrufen vermerkt (%s, %s)", slot_id, email, grund, wer)
+
+
+def _widerrufen(slot_dir: Path) -> bool:
+    return (slot_dir / WIDERRUF_DATEI).exists()
+
+
 # ── Multi-cert API ────────────────────────────────────────────────────────────
 
 def list_user_certs(email: str) -> list[dict]:
@@ -293,6 +328,7 @@ def list_user_certs(email: str) -> list[dict]:
             info["is_default"] = (slot_dir.name == default)
             info["has_local_key"] = (slot_dir / "key.pem").exists()
             info["has_kv_backup"] = (slot_dir / "key.pem.bak").exists()
+            info["widerrufen"] = widerruf(email, slot_dir.name)
             result.append(info)
         except Exception as exc:
             result.append({
@@ -395,8 +431,12 @@ def delete_cert_slot(email: str, slot_id: str) -> None:
     log.info("S/MIME cert slot %s deleted for %s", slot_id, email)
 
 
-def get_signing_cert_path(email: str) -> Path | None:
-    """Return cert.pem path for the default slot (for details/export use)."""
+def get_signing_cert_path(email: str, nur_unwiderrufen: bool = False) -> Path | None:
+    """Return cert.pem path for the default slot (for details/export use).
+
+    `nur_unwiderrufen` (Key-Vault-Signatur): Der Vault-Schlüssel gehört zum
+    Standard-Slot. Ist der widerrufen, gibt es KEIN Zertifikat zum Signieren —
+    auch kein anderes, dessen Schlüssel nicht im Vault liegt."""
     email_low = email.lower().strip()
     user_dir = SMIME_DIR / email_low
     certs_dir = user_dir / "certs"
@@ -404,7 +444,11 @@ def get_signing_cert_path(email: str) -> Path | None:
         default_file = user_dir / "default"
         default = default_file.read_text().strip() if default_file.exists() else ""
         if default and (certs_dir / default / "cert.pem").exists():
+            if nur_unwiderrufen and _widerrufen(certs_dir / default):
+                return None
             return certs_dir / default / "cert.pem"
+        if nur_unwiderrufen:
+            return None
         for slot_dir in sorted(certs_dir.iterdir()):
             p = slot_dir / "cert.pem"
             if p.exists():
@@ -420,16 +464,19 @@ def get_signing_cert_path_for_slot(email: str, slot_id: str) -> Path | None:
 
 # ── Signing paths (used by handler + signer) ──────────────────────────────────
 
-def get_signing_paths(email: str, allow_backup: bool = False) -> tuple[Path, Path] | None:
+def get_signing_paths(email: str, allow_backup: bool = False,
+                      nur_unwiderrufen: bool = False) -> tuple[Path, Path] | None:
     """Return (cert_path, key_path) for the default cert slot, or None.
-    If allow_backup=True, also considers key.pem.bak when no key.pem is present."""
+    If allow_backup=True, also considers key.pem.bak when no key.pem is present.
+    `nur_unwiderrufen=True` (Signieren, Widerruf vor Neuausstellung): widerrufene
+    Slots überspringen. Entschlüsseln ruft OHNE — der Schlüssel bleibt nutzbar."""
     email_low = email.lower().strip()
     user_dir = SMIME_DIR / email_low
     certs_dir = user_dir / "certs"
     if certs_dir.exists():
         default_file = user_dir / "default"
         default = default_file.read_text().strip() if default_file.exists() else ""
-        if default:
+        if default and not (nur_unwiderrufen and _widerrufen(certs_dir / default)):
             slot_dir = certs_dir / default
             c, k = slot_dir / "cert.pem", slot_dir / "key.pem"
             if c.exists() and k.exists():
@@ -438,7 +485,7 @@ def get_signing_paths(email: str, allow_backup: bool = False) -> tuple[Path, Pat
                 return c, slot_dir / "key.pem.bak"
         first_bak: tuple[Path, Path] | None = None
         for slot_dir in sorted(certs_dir.iterdir()):
-            if not slot_dir.is_dir():
+            if not slot_dir.is_dir() or (nur_unwiderrufen and _widerrufen(slot_dir)):
                 continue
             c, k = slot_dir / "cert.pem", slot_dir / "key.pem"
             if c.exists() and k.exists():

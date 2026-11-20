@@ -1848,6 +1848,13 @@
     "name": "api_smime_wartend_freigeben"
   },
   {
+    "pfad": "/api/smime/widerrufen/{cert_email}/{slot_id}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_widerrufen"
+  },
+  {
     "pfad": "/api/smtp-acl/refresh",
     "methoden": [
       "POST"

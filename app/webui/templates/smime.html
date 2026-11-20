@@ -312,6 +312,7 @@
             </td>
             <td style="padding:8px 10px">
               {% if c.get("error") %}<span class="step-status pending">Fehler</span>
+              {% elif c.get("widerrufen") %}<span class="step-status pending" title="Widerrufen {{ (c.widerrufen.am or '')[:10] }} — signiert wird damit nicht mehr, entschlüsselt weiter">Widerrufen</span>
               {% elif c.get("expired") %}<span class="step-status pending">Abgelaufen</span>
               {% elif c.get("is_default") %}<span class="step-status done">Aktiv · Standard</span>
               {% else %}<span class="step-status done">Aktiv</span>{% endif %}
@@ -364,6 +365,14 @@
                  title="Schlüssel verschlüsselt herunterladen (key.pem.bak)">
                 ↓ Backup
               </a>
+              {% endif %}
+              {% if not c.get("error") and not c.get("widerrufen") and not c.get("expired")
+                    and "CASTLE" in (c.get("issuer") or "")|upper %}
+              <button class="btn danger btn-sm"
+                      onclick="widerrufOeffnen('{{ u.email }}','{{ c.slot_id }}','{{ c.expiry }}')"
+                      title="Bei CASTLE widerrufen — lässt sich nicht zurücknehmen">
+                Widerrufen
+              </button>
               {% endif %}
               <button class="btn secondary btn-sm"
                       onclick="deleteCertSlot('{{ u.email }}','{{ c.slot_id }}')">
@@ -702,6 +711,27 @@
     <div class="actions" style="margin-top:16px">
       <button class="btn secondary" id="import-submit-btn" onclick="doImport()">Importieren</button>
       <button class="btn secondary" onclick="closeImportModal()">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Widerrufen (CASTLE, v1.12.124) ───────────────────────────────────────── -->
+<div id="widerruf-modal"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div class="settings-card" style="max-width:480px;width:92%;background:#fff">
+    <h3 style="margin-top:0">Zertifikat widerrufen</h3>
+    <p style="margin:0 0 8px;font-size:13px">Postfach <strong id="widerruf-wer"></strong>, gültig bis <span id="widerruf-bis"></span>.</p>
+    <p class="hint" style="margin:0 0 12px">Das Gateway widerruft das Zertifikat bei CASTLE. Das lässt sich
+      <strong>nicht zurücknehmen</strong>. Danach signiert das Gateway damit nicht mehr; der Schlüssel bleibt,
+      damit verschlüsselte Mails lesbar bleiben. Ein neues Zertifikat bestellst du wie gewohnt.</p>
+    <label for="widerruf-grund" style="display:block;font-weight:600;margin-bottom:4px">Grund</label>
+    <select id="widerruf-grund" style="width:100%">
+      {% for k, text in widerruf_gruende.items() %}<option value="{{ k }}">{{ text }}</option>{% endfor %}
+    </select>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
+      <span id="widerruf-stand" class="field-msg" style="flex:1 1 180px;margin:0"></span>
+      <button class="btn secondary" type="button" onclick="document.getElementById('widerruf-modal').style.display='none'">Abbrechen</button>
+      <button class="btn danger" type="button" id="widerruf-los" onclick="widerrufAusfuehren(this)">Widerrufen</button>
     </div>
   </div>
 </div>
@@ -1579,6 +1609,26 @@ async function deleteCertSlot(email, slotId) {
   const d = await sendJSON('POST', `/api/smime/delete-slot/${encodeURIComponent(email)}/${slotId}`);
   if (d.ok) location.reload();
   else alert('Löschen fehlgeschlagen: ' + errText(d));
+}
+
+let _widerruf = null;   // {email, slot}
+function widerrufOeffnen(email, slot, bis) {
+  _widerruf = {email: email, slot: slot};
+  document.getElementById('widerruf-wer').textContent = email;
+  document.getElementById('widerruf-bis').textContent = bis;
+  showMsg('widerruf-stand', '', true);
+  document.getElementById('widerruf-los').disabled = false;
+  document.getElementById('widerruf-modal').style.display = 'flex';
+}
+async function widerrufAusfuehren(btn) {
+  if (!_widerruf) return;
+  const grund = document.getElementById('widerruf-grund').value;
+  const d = await knopfAktion(btn, 'CASTLE wird gefragt …',
+    () => postJSON('/api/smime/widerrufen/' + encodeURIComponent(_widerruf.email) + '/' + encodeURIComponent(_widerruf.slot),
+                   {grund: grund}),
+    {anzeige: 'widerruf-stand', gesperrtLassen: true});
+  if (d.ok) { showMsg('widerruf-stand', '✓ Widerrufen.', true); setTimeout(() => location.reload(), 1200); return; }
+  showMsg('widerruf-stand', '✗ ' + errText(d), false);   // knopfAktion gibt den Knopf selbst frei
 }
 
 async function setDefaultCert(email, slotId, radio) {

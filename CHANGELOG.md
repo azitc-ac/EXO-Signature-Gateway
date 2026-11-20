@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.125 — 2026-11-20 — S/MIME: CASTLE-Zertifikate widerrufen; widerrufene signieren nicht mehr
+
+**Widerrufen per Knopf.** Auf der Seite *S/MIME* steht bei jedem gültigen
+Zertifikat von CASTLE der Knopf **Widerrufen** (nur Admins). Ein Dialog fragt
+nach dem Grund (nicht mehr benötigt, durch ein neues ersetzt, Schlüssel
+kompromittiert) und weist darauf hin, dass sich ein Widerruf nicht zurücknehmen
+lässt. Das Gateway widerruft dann über das ACME-Konto des Postfachs bei CASTLE.
+Zertifikate anderer Aussteller widerrufst du weiter beim Aussteller.
+
+**Widerrufen heißt: nicht mehr signieren.** Nach dem Widerruf signiert das
+Gateway mit diesem Zertifikat nicht mehr, weder mit dem lokalen Schlüssel noch
+über Azure Key Vault. Hat das Postfach ein weiteres gültiges Zertifikat mit
+lokalem Schlüssel, signiert es damit. Der Schlüssel des widerrufenen Zertifikats
+bleibt liegen: Mails, die an dieses Zertifikat verschlüsselt wurden, lassen sich
+weiter öffnen. In der Liste steht das Zertifikat als „Widerrufen“, die
+Postfachprüfung meldet, dass kein Signierschlüssel bereitsteht.
+
+Auch der Widerruf, den das Gateway vor jeder Neuausstellung bei CASTLE vornimmt
+(dort nötig, sonst scheitert die Ausstellung), geht jetzt diesen Weg und erscheint
+in der Liste als „Widerrufen“. Ein schon widerrufenes Zertifikat wird dabei nicht
+ein zweites Mal widerrufen.
+
+**Zu tun:** nichts.
+
 ## v1.12.124 — 2026-11-20 — Vorlagen importieren/exportieren: Knöpfe in der üblichen Farbe
 
 Die Knöpfe „Importieren“ und „Herunterladen“ in den Dialogen aus v1.12.123 waren

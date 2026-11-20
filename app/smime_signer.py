@@ -25,7 +25,8 @@ def sign(message_bytes: bytes, sender: str, use_backup: bool = False) -> bytes |
     Returns signed message bytes or None if no cert is available / signing fails.
     If use_backup=True, falls back to key.pem.bak when no key.pem is present.
     """
-    paths = smime_store.get_signing_paths(sender, allow_backup=use_backup)
+    # Widerrufene Zertifikate signieren nicht mehr (v1.12.124).
+    paths = smime_store.get_signing_paths(sender, allow_backup=use_backup, nur_unwiderrufen=True)
     if not paths:
         return None
 
@@ -103,7 +104,7 @@ async def sign_async(message_bytes: bytes, sender: str) -> bytes | None:
             raise RuntimeError(f"Schlüssel im Key Vault nicht lesbar ({zustand})")
         if zustand == keyvault.KEY_VORHANDEN:
             log.debug("S/MIME sign_async: trying Key Vault for %s", sender)
-            cert_path = smime_store.get_signing_cert_path(sender)
+            cert_path = smime_store.get_signing_cert_path(sender, nur_unwiderrufen=True)
             if cert_path and cert_path.exists():
                 import cms_sign
                 result = await cms_sign.sign_smime_keyvault(

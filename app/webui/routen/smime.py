@@ -99,6 +99,27 @@ async def api_smime_delete(cert_email: str, user: str = Depends(_require_admin))
     return JSONResponse({"ok": True})
 
 
+@router.post("/api/smime/widerrufen/{cert_email}/{slot_id}")
+async def api_smime_widerrufen(cert_email: str, slot_id: str, request: Request,
+                               user: str = Depends(_require_admin)):
+    """Knopf „Widerrufen“: CASTLE-Zertifikat bei CASTLE widerrufen (v1.12.124).
+    Danach signiert das Gateway damit nicht mehr; der Schlüssel bleibt zum
+    Entschlüsseln. Nur Admins — ein Widerruf lässt sich nicht zurücknehmen."""
+    import re
+    import acme_state
+    if not re.fullmatch(r"[0-9a-f]{16}", slot_id) or "/" in cert_email or "@" not in cert_email:
+        raise HTTPException(400, "Ungültige Angabe")
+    try:
+        daten = await request.json()
+    except Exception:
+        daten = {}
+    grund = (daten or {}).get("grund", "") if isinstance(daten, dict) else ""
+    ergebnis = await acme_state.zertifikat_widerrufen(cert_email.lower().strip(), slot_id, grund, user)
+    log.info("S/MIME-Widerruf %s/%s (%s) von %s: %s", cert_email, slot_id, grund, user,
+             "ok" if ergebnis.get("ok") else ergebnis.get("error"))
+    return JSONResponse(ergebnis)
+
+
 @router.post("/api/smime/delete-slot/{cert_email}/{slot_id}")
 async def api_smime_delete_slot(cert_email: str, slot_id: str, user: str = Depends(_require_admin)):
     import smime_store
@@ -191,6 +212,7 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
         request=request, name="smime.html",
         context={
             "smime_users": smime_users,
+            "widerruf_gruende": {k: v[1] for k, v in __import__("acme_state").WIDERRUF_GRUENDE.items()},
             "ca_user_config": settings_store.get("CA_USER_CONFIG") or {},
             "einwilligungen": {em: __import__("einwilligung").zustand(em) for em in all_emails},
             # Hybrid-Nutzer ohne Anbindung an Exchange lokal: Bezugswege, die das

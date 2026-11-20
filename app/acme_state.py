@@ -503,27 +503,58 @@ async def _revoke_existing_cert_before_reissue(email: str, client: "AcmeClient",
     working. Failure here is logged but non-fatal — we still attempt finalize.
     """
     import smime_store
+    # Schon widerrufene Slots (Knopf „Widerrufen“) nicht ein zweites Mal.
+    paths = smime_store.get_signing_paths(email, nur_unwiderrufen=True)
+    if not paths:
+        return  # first issuance (or already revoked) — nothing to revoke
+    cert_path, key_path = paths
+    await _widerruf_ausfuehren(email, client, fid, cert_path, key_path, reason=4,
+                               grund="ersetzt", wer="Neuausstellung")
+
+
+# RFC 5280 CRLReason, wie sie der Knopf „Widerrufen“ anbietet. 4 (superseded)
+# nutzt die Neuausstellung; live gegen CASTLE belegt (20.11.2026, flow f8749862).
+WIDERRUF_GRUENDE: dict[str, tuple[int, str]] = {
+    "nicht_mehr_benoetigt": (5, "nicht mehr benötigt (Postfach stillgelegt o. ä.)"),
+    "ersetzt": (4, "durch ein neues Zertifikat ersetzt"),
+    "schluessel_kompromittiert": (1, "privater Schlüssel kompromittiert"),
+}
+
+
+async def _widerruf_ausfuehren(email: str, client: "AcmeClient", fid: str, cert_path, key_path,
+                               reason: int, grund: str, wer: str) -> bool:
+    """DER Widerrufsweg — für die Neuausstellung und für den Knopf „Widerrufen“.
+
+    Primär mit dem ACCOUNT-Schlüssel (von CASTLE akzeptiert, belegt), sonst mit
+    dem Schlüsselpaar des Zertifikats (Konto zurückgesetzt/verloren; nur EC).
+    Gelingt er, wird der Slot als widerrufen vermerkt: Signiert wird damit nicht
+    mehr, der Schlüssel bleibt zum Entschlüsseln. Liefert True bei Erfolg."""
+    import smime_store
     from cryptography import x509
     from cryptography.hazmat.primitives.serialization import Encoding
     from cryptography.hazmat.primitives.asymmetric import ec as _ec
 
-    paths = smime_store.get_signing_paths(email)
-    if not paths:
-        return  # first issuance — nothing to revoke
-    cert_path, key_path = paths
     try:
         cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
         cert_der = cert.public_bytes(Encoding.DER)
     except Exception as exc:
         log.warning("[acme:%s] could not load existing cert for %s (%s) — skipping revoke", fid, email, exc)
-        return
+        return False
+
+    def _vermerken() -> None:
+        if cert_path.parent.parent.name == "certs":           # Slot-Layout
+            try:
+                smime_store.widerruf_vermerken(email, cert_path.parent.name, grund, wer)
+            except Exception as exc:                            # noqa: BLE001
+                log.warning("[acme:%s] Widerruf für %s nicht vermerkt: %s", fid, email, exc)
 
     # Primary: revoke signed with the ACCOUNT key. This is the path CASTLE accepts
     # (verified) and covers the normal renewal case where the account is reused.
     try:
-        await client.revoke_certificate(cert_der, reason=4)  # superseded
-        log.info("[acme:%s] revoked existing cert for %s (account-key) before re-issue", fid, email)
-        return
+        await client.revoke_certificate(cert_der, reason=reason)
+        log.info("[acme:%s] revoked existing cert for %s (account-key, reason %s)", fid, email, reason)
+        _vermerken()
+        return True
     except Exception as exc_acct:
         log.warning("[acme:%s] account-key revoke for %s failed (%s) — trying cert keypair", fid, email, exc_acct)
 
@@ -532,13 +563,54 @@ async def _revoke_existing_cert_before_reissue(email: str, client: "AcmeClient",
     try:
         cert_key = smime_store.schluessel_laden(key_path.read_bytes())
         if isinstance(cert_key, _ec.EllipticCurvePrivateKey):
-            await client.revoke_with_cert_key(cert_der, cert_key, reason=4)
-            log.info("[acme:%s] revoked existing cert for %s (cert keypair) before re-issue", fid, email)
-        else:
-            log.warning("[acme:%s] existing cert for %s is non-EC — cannot keypair-revoke; finalize may fail", fid, email)
+            await client.revoke_with_cert_key(cert_der, cert_key, reason=reason)
+            log.info("[acme:%s] revoked existing cert for %s (cert keypair, reason %s)", fid, email, reason)
+            _vermerken()
+            return True
+        log.warning("[acme:%s] existing cert for %s is non-EC — cannot keypair-revoke", fid, email)
     except Exception as exc_key:
-        log.warning("[acme:%s] cert-keypair revoke for %s failed (%s) — continuing to finalize anyway",
-                    fid, email, exc_key)
+        log.warning("[acme:%s] cert-keypair revoke for %s failed (%s)", fid, email, exc_key)
+    return False
+
+
+def ist_castle_zertifikat(cert_path) -> bool:
+    """Von CASTLE ausgestellt? (Aussteller „… CASTLE Platform …“). Nur solche
+    lassen sich über ACME widerrufen."""
+    from cryptography import x509
+    try:
+        cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
+    except Exception:
+        return False
+    return "CASTLE" in cert.issuer.rfc4514_string().upper()
+
+
+async def zertifikat_widerrufen(email: str, slot_id: str, grund: str, wer: str) -> dict:
+    """Knopf „Widerrufen“ (S/MIME-Seite): ein CASTLE-Zertifikat dieses Postfachs
+    bei CASTLE widerrufen. Liefert {ok, error?}."""
+    import smime_store
+    if grund not in WIDERRUF_GRUENDE:
+        return {"ok": False, "error": "Unbekannter Grund"}
+    slot = smime_store.SMIME_DIR / email.lower().strip() / "certs" / slot_id
+    cert_path, key_path = slot / "cert.pem", slot / "key.pem"
+    if not cert_path.exists():
+        return {"ok": False, "error": "Zertifikat nicht gefunden"}
+    if smime_store.widerruf(email, slot_id):
+        return {"ok": False, "error": "Zertifikat ist bereits widerrufen"}
+    if not ist_castle_zertifikat(cert_path):
+        return {"ok": False, "error": "Nur Zertifikate von CASTLE lassen sich hier widerrufen — "
+                                      "andere beim Aussteller widerrufen"}
+    staging = bool((settings_store.get("CA_USER_CONFIG") or {}).get(email, {}).get("staging"))
+    if staging:
+        return {"ok": False, "error": "Testumgebung (Staging): dort wird nicht widerrufen"}
+    import uuid
+    fid = uuid.uuid4().hex[:8]
+    key = get_or_create_account_key(email)
+    client = AcmeClient(CASTLE_DIRECTORY, key, account_url=get_account_url(email, staging=False))
+    code, _text = WIDERRUF_GRUENDE[grund]
+    log.info("[acme:%s] Widerruf angefordert für %s, Slot %s (%s) von %s", fid, email, slot_id, grund, wer)
+    if await _widerruf_ausfuehren(email, client, fid, cert_path, key_path, reason=code, grund=grund, wer=wer):
+        return {"ok": True}
+    return {"ok": False, "error": f"CASTLE hat den Widerruf abgelehnt — Protokoll [acme:{fid}]"}
 
 
 # ── Entry point: handle intercepted challenge email ───────────────────────────
