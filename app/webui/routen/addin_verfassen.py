@@ -77,7 +77,7 @@ from webui.deps import log
 from webui.hilfen import _addin_base_url
 from webui.routen.addin import (
     _NO_STORE, KNOPF_FORM_PFAD, OUTLOOK_SIGNATUR_MAX, _addin_cfg, _lokal_gesehen, _manifest_texte,
-    _manifest_version, _ohne_adresse, markiert, signatur_zu_gross,
+    _manifest_version, _ohne_adresse, markiert, signatur_fuer_outlook,
 )
 
 router = APIRouter()
@@ -611,22 +611,20 @@ async def verfassen_signatur(request: Request):
     # Kann der Client Inline-Anhänge (addFileAttachmentFromBase64Async, Mailbox
     # 1.8), gehen eingebettete Bilder als Anhang mit — für Outlooks Grenze von
     # 30.000 Zeichen zählt dann nur das schlanke HTML (signatur_bilder.py).
-    bilder: list[dict] = []
     try:
         inline = request.query_params.get("inline") == "1"
     except AttributeError:
         inline = False
-    if inline and marked:
-        import signatur_bilder
-        marked, bilder = signatur_bilder.auslagern(marked)
-    zu_gross = signatur_zu_gross(marked)
+    marked, bilder, zu_gross = signatur_fuer_outlook(marked, inline)
     if zu_gross:
         # setSignatureAsync schlüge fehl (Classic: „Parameter name: data“). Nichts
         # einfügen — das Gateway fügt die Signatur beim Versand an.
         log.warning("Verfassen-Add-in: Signatur %r für %s hat %d Zeichen — Outlooks "
-                    "Signaturbereich nimmt höchstens %d (eingebettetes Bild in der Vorlage?); "
+                    "Signaturbereich nimmt höchstens %d (%s); "
                     "nicht eingefügt, das Gateway signiert beim Versand (%s)",
-                    vorlage, email, zu_gross, OUTLOOK_SIGNATUR_MAX, plattform)
+                    vorlage, email, zu_gross, OUTLOOK_SIGNATUR_MAX,
+                    "ohne die Bilder gezählt, zu lang ist der Text" if inline
+                    else "Client ohne Inline-Anhänge, eingebettete Bilder zählen mit", plattform)
         return JSONResponse({"html": "", "kette": kette, "vorlage": vorlage,
                              "zu_gross": zu_gross, "max": OUTLOOK_SIGNATUR_MAX},
                             headers=_CORS)

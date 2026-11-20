@@ -150,15 +150,23 @@ def test_editor_warnt_bei_zu_grosser_vorlage(monkeypatch):
     assert vorlagen._outlook_zu_gross("grossbild") == 0
 
 
-def test_editor_nennt_die_eingebetteten_bilder(monkeypatch):
+def test_editor_zaehlt_bilder_nicht_mit_wie_das_addin(monkeypatch):
+    """Kunden-Rückmeldung 20.11.2026: Die Warnung im Editor blieb, obwohl Outlook
+    die Signatur seit v1.12.136 einfügte — der Editor zählte die Bilder noch mit.
+    Jetzt dieselbe Rechnung wie das Add-in (addin.signatur_fuer_outlook)."""
+    import base64
     from webui.routen import vorlagen
-    bild = "data:image/png;base64," + "A" * (GRENZE + 10)
-    klein = "data:image/gif;base64,R0lGOD=="
-    monkeypatch.setattr(signature_engine, "render",
-                        lambda u, t, extra=None: (f'<img src="{bild}"><img src="{klein}">', ""))
+    gross = base64.b64encode(b"\x00" * 120_000).decode()        # 160.000 Zeichen
+    klein = "R0lGODlhAQABAAAAACw="
+    monkeypatch.setattr(signature_engine, "render", lambda u, t, extra=None: (
+        f'<img src="data:image/png;base64,{gross}"><img src="data:image/gif;base64,{klein}">', ""))
     n, bilder = vorlagen._groessenpruefung("grossbild")
-    assert n > GRENZE
-    assert bilder == [len(bild), len(klein)]
+    assert n == 0                                         # keine Warnung mehr
+    assert bilder == [120_000, len(klein) * 3 // 4]       # Bytes, absteigend
+    # Text allein zu lang → weiterhin Warnung, Bilder hin oder her
+    monkeypatch.setattr(signature_engine, "render", lambda u, t, extra=None: (
+        _gross(GRENZE + 1) + f'<img src="data:image/png;base64,{gross}">', ""))
+    assert vorlagen._groessenpruefung("grossbild")[0] > GRENZE
 
 
 def test_editor_zeigt_die_warnung():
@@ -166,8 +174,8 @@ def test_editor_zeigt_die_warnung():
     html = (pathlib.Path(addin.__file__).resolve().parents[1] / "templates"
             / "template_editor.html").read_text(encoding="utf-8")
     assert "{% if outlook_zu_gross %}" in html
-    # Erst verkleinern, dann verlinken — eingebettete Bilder sind die bessere Wahl
-    assert "Verkleinere sie deshalb zuerst" in html and "{% for n in outlook_bilder %}" in html
+    assert "Eingebettete Bilder zählen dabei nicht mit" in html
+    assert "{% if outlook_bilder and outlook_bilder|sum > 150 * 1024 %}" in html
 
 
 # ── 5. Meldungen aus Outlook ────────────────────────────────────────────────────

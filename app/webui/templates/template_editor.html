@@ -199,18 +199,18 @@
 <div class="alert warn" id="outlook-zu-gross">
   Diese Signatur ist für Outlooks Signaturbereich zu groß: rund
   {{ "{:,}".format(outlook_zu_gross).replace(",", ".") }} Zeichen, Outlook nimmt höchstens 30.000.
-  Das Verfassen-Add-in fügt sie deshalb nicht ein; das Gateway hängt sie beim Versand an.
-  {% if outlook_bilder %}
-  Davon entfallen auf {{ outlook_bilder|length }} eingebettete{{ "s" if outlook_bilder|length == 1 }}
-  Bild{{ "er" if outlook_bilder|length > 1 }}:
-  {% for n in outlook_bilder %}{{ "{:,}".format(n).replace(",", ".") }}{{ ", " if not loop.last }}{% endfor %} Zeichen.
-  {% endif %}
-  <br>Eingebettete Bilder sind meist die bessere Wahl — sie erscheinen beim Empfänger
-  ohne Nachladen. Verkleinere sie deshalb zuerst: Pixelmaße auf etwa die doppelte
-  Anzeigegröße, Fotos als JPG, Grafiken als optimiertes PNG; die Anzeigebreite im
-  Baukasten allein verkleinert die Datei nicht. Reicht das nicht, binde das Bild als
-  Bildadresse (https://…) ein.
+  Eingebettete Bilder zählen dabei nicht mit — das Verfassen-Add-in gibt sie als Anhang
+  mit —, zu lang ist also der Text bzw. der HTML-Aufbau. Das Add-in fügt die Signatur
+  nicht ein; das Gateway hängt sie beim Versand an.
 </div>
+{% endif %}
+{% if outlook_bilder and outlook_bilder|sum > 150 * 1024 %}
+<p class="hint" id="bilder-gewicht">
+  Eingebettete Bilder zusammen {{ (outlook_bilder|sum / 1024)|round|int }} KB
+  ({% for n in outlook_bilder %}{{ [1, (n / 1024)|round|int]|max }} KB{{ ", " if not loop.last }}{% endfor %}) —
+  das trägt jede Mail mit. Kleiner geht es meist ohne sichtbaren Unterschied: im Logo-Baustein
+  „Verkleinern“, oder die Pixelmaße auf etwa die doppelte Anzeigegröße bringen.
+</p>
 {% endif %}
 
 <!-- ── Tabs ─────────────────────────────────────────────────────────────────── -->

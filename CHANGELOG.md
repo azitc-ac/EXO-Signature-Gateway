@@ -5,6 +5,42 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.137 — 2026-11-20 — Port 587 hinterließ eine gebrochene DKIM-Signatur; Größenwarnung im Editor zählt wie das Add-in
+
+### Port 587: alte DKIM-Signatur wird entfernt
+
+Exchange signiert eine Mail mit DKIM, bevor sie über den Connector zum Gateway
+geht. Nach dem Einfügen der Signatur passt diese DKIM-Signatur nicht mehr; auf
+dem Rückweg signiert Exchange am Ausgang neu. Beim Rückweg über SMTP Port 25
+entfernt das Gateway die alte Signatur seit v1.8.73. Der Rückweg über Port 587
+— in Graph++ für von Exchange aufgeteilte Mails mit internen und externen
+Empfängern — reichte sie dagegen durch. Der Empfänger sah zwei
+DKIM-Signaturen, eine gültige und eine gebrochene („dkim=pass; fail“), dazu
+eine gebrochene ARC-Kette. DMARC bestand weiterhin über die gültige Signatur;
+strenge Empfänger können eine gebrochene Signatur trotzdem negativ werten.
+
+Jetzt entfernt auch der 587-Weg die alten DKIM- und ARC-Kopfzeilen, nur im
+Kopf; der Inhalt und eine S/MIME-Signatur bleiben unverändert.
+
+### Vorlagen-Editor: Größenwarnung
+
+Seit v1.12.136 gibt das Verfassen-Add-in eingebettete Bilder als Inline-Anhang
+mit; für Outlooks Grenze von 30.000 Zeichen zählt nur noch das HTML. Der
+Vorlagen-Editor rechnete noch mit Bildern und warnte „zu groß für Outlooks
+Signaturbereich“ auch bei Vorlagen, die Outlook längst einfügte.
+
+Editor und Add-in rechnen jetzt an einer Stelle. Die Warnung erscheint nur,
+wenn das HTML auch ohne Bilder über der Grenze liegt — dann ist der Text oder
+der HTML-Aufbau zu lang, nicht ein Bild. Tragen die eingebetteten Bilder
+zusammen mehr als 150 KB, nennt der Editor ihr Gewicht als Hinweis: Diese
+Größe trägt jede Mail mit, und „Verkleinern“ im Logo-Baustein spart sie
+meist ohne sichtbaren Unterschied.
+
+Die Protokollzeile bei einer zu großen Signatur unterscheidet jetzt, ob die
+Bilder mitgezählt wurden (Outlook ohne Inline-Anhänge) oder nicht.
+
+**Zu tun:** nichts.
+
 ## v1.12.136 — 2026-11-20 — Verfassen-Add-in: Bilder der Signatur als Inline-Anhang — keine 30.000-Zeichen-Falle mehr
 
 Outlook nimmt eine Signatur, die ein Add-in einsetzt (`setSignatureAsync`),
