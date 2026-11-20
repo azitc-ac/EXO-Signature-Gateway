@@ -2396,3 +2396,23 @@ def test_einstellungen_verwaltung_sucht_auch_in_entra(seite):
     assert pg.inner_text("#admin-selected-name") == "Neue Person"
     assert feld.input_value() == "neu.person@firma.at"
     pg.context.close()
+
+
+@pytest.mark.parametrize("breite", [1280, 393])
+def test_personenauswahl_huelle_so_hoch_wie_das_feld(seite, breite):
+    """Die Hülle darf nicht höher sein als ihr Feld: sonst hängt ▼ in einer Lücke
+    und die Liste (top:100%) öffnet darunter. Anlass v1.12.114: `flex:1 1 150px`
+    in der Spalte `.settings-control` wirkte als HÖHE (150 px statt 34 px)."""
+    pg = seite("/settings", breite=breite)
+    pg.wait_for_load_state("networkidle")
+    masse = pg.evaluate("""() => Array.from(document.querySelectorAll('.pa-huelle')).map(h => {
+        const sichtbar = !!(h.offsetParent);
+        if (!sichtbar) { let e = h; while (e && e !== document.body) { e.hidden = false; e.style.display = e.style.display === 'none' ? '' : e.style.display; e = e.parentElement; } }
+        const f = h.querySelector('input');
+        return {id: f && f.id, huelle: Math.round(h.getBoundingClientRect().height),
+                feld: Math.round(f.getBoundingClientRect().height)}; })""")
+    ids = {m["id"] for m in masse}
+    assert {"notif-search-input", "admin-search-input"} <= ids, masse
+    for m in masse:
+        assert m["feld"] > 0 and m["huelle"] == m["feld"], m
+    pg.context.close()

@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.117 — 2026-11-20 — Personenauswahl: Lücke unter dem Empfängerfeld
+
+Unter *Einstellungen → Benachrichtigung → Empfänger* stand seit v1.12.114 unter
+dem Suchfeld eine Lücke von rund 115 px; der Pfeil ▼ hing mitten darin, die
+Trefferliste öffnete erst darunter. Ursache: Die Hülle der Personenauswahl hat
+`flex:1 1 150px`. In einer Zeile ist das eine Breite, in der Spalte
+`.settings-control` aber eine **Höhe** — die Hülle war 150 px hoch, das Feld 34 px.
+In `.settings-control` wächst die Hülle jetzt nicht mehr mit. Die übrigen
+Einbaustellen (Verwaltung, Gruppen, Mitglieder) stehen in Zeilen und waren nicht
+betroffen.
+
+Zu tun: nichts.
+
 ## v1.12.116 — 2026-11-20 — Automatische S/MIME-Verlängerung wird angekündigt, mit Link zum Abschalten
 
 Seit v1.12.115 verlängert der tägliche Lauf Zertifikate auch über den Hub und
