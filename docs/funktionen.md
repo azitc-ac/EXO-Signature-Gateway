@@ -7,6 +7,8 @@
 - **Volles HTML** über Jinja2-Vorlagen — ohne die Grenzen der EXO-Transportregeln.
 - **Signatur-Baukasten** — Signaturen aus Bausteinen zusammensetzen (Name, Kontaktzeilen, Logo, Trennlinie, Zwei-Spalten, Kasten mit runden Ecken, Social-Links, Anschrift, Badge, freies HTML) mit Vorschau der bearbeiteten Vorlage für ein gewähltes Postfach und die schreibende Person.
 - **Richtlinienergebnis** — eigene Seite unter Signaturen: was das Gateway einem Postfach je Fall (neue Mail, Antwort in der Kette, rein intern, `#nosig`) wirklich anhängt — Signatur, Banner (auch aus Kampagnen), Disclaimer —, je Teil mit Herkunft (Standard, Gruppe, Postfach, Kampagne, festgeschrieben) und dem Grund, wenn etwas entfällt. Frei zusammenstellen lässt sich in der Was-wäre-wenn-Vorschau.
+- **Schrift und Bedingungen im Baukasten** — die Schriftart als Auswahl gängiger Schriften, jeweils mit Ersatzschriften für Empfänger, bei denen sie fehlt (oder frei eingetragen). Jeder Baustein hat **„Anzeigen wenn“**: *immer*, *Verfasser im eigenen Postfach* oder *Verfasser im fremden Postfach* — etwa für geteilte Postfächer, in denen die schreibende Person (`{{ bearbeiter.displayName }}`) neben dem Postfachnamen steht.
+- **Interne Signatur** — eigene, meist kürzere Signatur, wenn alle Empfänger intern sind; auch für geteilte Postfächer. Ob rein interne Mails Banner und Disclaimer bekommen, ist einstellbar: ohne beides (Vorgabe), nur Disclaimer, nur Banner oder beides.
 - **HTML → Baukasten (Rück-Konvertierung)** — bestehendes Signatur-HTML wird in bearbeitbare Bausteine zerlegt: eine vorhandene Signatur übernehmen statt neu bauen.
 - **Eingebettete Logos** — hochgeladene Bilder werden als Base64-Data-URI eingebettet (kein externes Hotlinking; rendert in Outlook und offline). Optional mit Link: Ein Klick aufs Logo öffnet z. B. die Firmenwebseite.
 - **Banner & Disclaimer** — eigene Banner- und Disclaimer-Vorlagen, unabhängig von der Signatur zuweisbar. Sie kommen immer vom Gateway beim Versand, auch wenn die Signatur schon beim Verfassen eingefügt wurde.
@@ -19,9 +21,10 @@
 <img src="screenshots/baukasten-kompakt.png" width="820" alt="Baukasten: Bausteine Name und Telefon aufgeklappt mit ihren Einstellungen">
 
 ## Zuweisung & Richtlinien
-- **Pro Postfach oder per Richtlinie** — Signatur, Antwort-Signatur, Banner, Disclaimer und Add-in-Vorlage global, je Postfach oder je **Gruppe** zuweisen (interne Postfach-Gruppen, „erste Regel gewinnt").
+- **Zwei Ebenen, für jede Vorlage gleich** — Signatur, Antwort-Signatur, interne Signatur, Banner, Disclaimer, Abwesenheit und Add-in-Auswahl: eine **Standardrichtlinie** für alle und **Gruppen-Regeln** mit Vorrang für die Mitglieder ihrer Gruppe („erste Regel gewinnt“). Ein Postfach kann davon abweichen; je Ebene lässt sich festschreiben, dass es das nicht darf. Die Postfachliste zeigt Abweichungen als „Ausnahme“ und festgelegte Vorlagen mit der Gruppe, die sie festlegt.
+- **Dynamische interne Gruppen** — Mitglieder per Regel statt per Hand: Bedingungen auf Entra-Attribute (Abteilung, Stadt, Erweiterungsattribute 1–15 …) und Gateway-Felder (Postfachtyp, Domäne, Signatur/S/MIME aktiv), dazu „immer dabei“ und „nie dabei“. Das Gateway liest die Entra-Werte stündlich ein; eine Vorschau zeigt vor dem Speichern, wer dazukommt und wer wegfällt.
 - **Antwort-/Minimalsignatur** — kürzere Signatur für Antworten innerhalb eines Threads.
-- **Banner-Kampagnen** — ein Banner mit Start/Ende und optionaler Zielgruppe, das für seine Laufzeit Vorrang vor dem regulären Banner hat; pflegbar von einer eigenen Rolle *Kampagnen-Manager* ohne Admin-Rechte.
+- **Banner-Kampagnen** — ein Banner mit Start/Ende und optionaler Zielgruppe, das für seine Laufzeit Vorrang vor dem regulären Banner hat; pflegbar von einer eigenen Rolle *Kampagnen-Manager* ohne Admin-Rechte. Mit **„Übernahme erzwingen für“** wählst du, ob die Kampagne auch Postfächer mit eigenem Banner oder mit bewusst abgeschaltetem Banner erreicht.
 
 ## Abwesenheit (Out of Office)
 Zuschaltbar unter *Einrichtung → Modus & Funktionen* (Vorgabe aus).
@@ -36,6 +39,16 @@ Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abw
 - **Auch für abgelegte Post** — im Modus Graph++ antwortet das Gateway selbst auf Post von außen, die per IMAP abgelegt wird (siehe [Graph++](installation.md#betrieb-auf-azure-kein-ausgehender-port-25)).
 
 <img src="screenshots/abwesenheit-uebersicht.png" width="820" alt="Abwesenheits-Übersicht: wer abwesend ist, mit Vorlage, Zeitraum, Kalender und Ankündigung">
+
+## Exchange lokal (Hybrid)
+Für Organisationen, in denen ein Teil der Postfächer noch in der lokalen Exchange-Organisation (2016, 2019, Subscription Edition) liegt. Zuschaltbar unter *Einstellungen → Hybrid-Nutzer einbeziehen* (Vorgabe aus); setzt den Rückweg *SMTP Port 25* voraus.
+
+- **Signatur, Banner, Disclaimer** beim Versand wie für Postfächer in Exchange Online.
+- **Abwesenheit** über Exchange Web Services (EWS): zentraler Text, Übersicht, Self-Service und Kalender-Automatik.
+- **Signatur in OWA** — auf Wunsch schreibt das Gateway die Signatur in die OWA-Einstellungen der lokalen Nutzer, OWA fügt sie beim Verfassen selbst ein.
+- **S/MIME** — Signieren, Verschlüsseln und Entschlüsseln am Gateway; Zertifikate per Import, mit EWS-Anbindung auch über eine Zertifizierungsstelle.
+- **Outlook-Add-in** — Knopf und Verfassen-Add-in auch für lokale Konten (Anmeldung über das Exchange-Identitätstoken); bereitgestellt in der lokalen Exchange.
+- **Zugriffsbereich als AD-Gruppe** — das EWS-Dienstkonto erreicht genau die Mitglieder einer Gruppe. Das Gateway legt Gruppe und auf Wunsch das Dienstkonto per LDAPS an und pflegt auf Wunsch die Mitglieder (Hybrid-Nutzer mit Signatur oder S/MIME); die Befehle für Scope und Rollenzuweisung zeigt es zum Kopieren, danach prüft es den Zugriff.
 
 ## Self-Service für Mitarbeitende
 - **Eigene Abwesenheit und Signatur** — drei Reiter: *Abwesenheit* (an/aus, Zeitraum, Vorlage), *Signatur* (unter jeder neuen Mail und ggf. unter der Abwesenheitsnotiz) und *Antwort-Signatur* (ab der 2. eigenen Mail im Verlauf, auch *keine*). Jeder Reiter hat eine eigene Vorschau als Beispiel-Mail und einen eigenen Speichern-Knopf. Die Wahl der eigenen Vorlagen ist standardmäßig gesperrt und je Postfach oder Gruppe freischaltbar.
@@ -61,6 +74,7 @@ Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abw
 - **Eigene Zertifikate** — bestehende PFX-Zertifikate importieren (mehrere je Adresse möglich).
 - **Azure Key Vault (HSM)** — private Schlüssel können im Key Vault liegen; signiert wird über die Key-Vault-Sign-API, der Schlüssel verlässt das HSM nie.
 - **Automatischer Zertifikats-Lebenszyklus** — vollautomatische Ausstellung und Erneuerung über CASTLE ACME (RFC 8823), ohne Nutzerinteraktion. Die CASTLE-PKI gilt bei Empfängern nicht von Haus aus als vertrauenswürdig: vorher mit ihnen abstimmen oder gleich kostenpflichtige Zertifikate nehmen. Mit eigenem DigiCert-CertCentral-Konto bestellt und erneuert das Gateway ebenfalls selbst (verfügbar, noch nicht im Betrieb erprobt). *Kostenpflichtige Zertifikate über den Signature Hub sind in Vorbereitung, Certum und SwissSign als Anbieter ebenso.*
+- **Automatische Verlängerung mit Ankündigung** — je Postfach einschaltbar (nach einer Sammelbestellung gesetzt). Bei der ersten Erneuerungsschwelle (Vorgabe 30 Tage vor Ablauf) kündigt das Gateway die Verlängerung an, bestellt wird bei der nächsten (Vorgabe 14 Tage). Die Ankündigung geht an die Verwaltung, wenn der Postfachinhaber eingewilligt hat, dass das Gateway für ihn bestellt, sonst an ihn selbst; sie enthält einen Link, der die Verlängerung abschaltet.
 - **Empfänger-Zertifikate einsammeln** — öffentliche Zertifikate externer Korrespondenten werden aus eingehender signierter Post gewonnen, sodass sich später ohne manuellen Import an sie verschlüsseln lässt.
 - **Secure Message Portal** — hat ein Empfänger kein Zertifikat, kann verschlüsselte Post über ein sicheres Web-Portal (mit E-Mail-Einmalcode) zugestellt werden, statt zu scheitern oder im Klartext zu gehen.
 
@@ -72,13 +86,17 @@ Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abw
 - **Massenoperationen** — viele Postfächer auf einmal aktivieren und Zertifikate für viele zugleich bestellen/ausrollen (mit Vorschau und Kontingentprüfung).
 - **SMTP-Relay** — Geräte im eigenen Netz (Drucker, Scanner, Fachanwendungen) senden über das Gateway wie über einen lokalen Exchange-Server. Nur im Rückweg-Modus *SMTP Port 25*, also nicht in Azure; dort liefern Geräte mit eigenem Login auf Port 587 ein (Sende-Identitäten).
 - **Direktversand** — externe Post geht über einen eigenen Postfix-Container statt über Exchange Online hinaus: Massenversand von der eigenen IP, mit eigenem Ruf und ohne Microsofts Sendegrenzen. DKIM-Signatur im Gateway je Absenderdomäne; die DNS-Prüfung wertet SPF vollständig aus und zeigt DKIM, PTR/HELO und DMARC, jeweils mit dem fehlenden Eintrag zum Kopieren. Postfix übernimmt MX-Zustellung, Warteschlange, Wiederholung bis zu fünf Tage und Unzustellbarkeitsberichte. Braucht ausgehenden Port 25 und den Rückweg-Modus *SMTP Port 25*, also nicht in Azure. Erkennt ein Inbound-Connector des eigenen Tenants die Ausgangsadresse an der IP, läuft Post an Empfänger in Microsoft 365 über das eigene Exchange Online; der zertifikatsgebundene Connector des Gateways löst das nicht aus.
-- **Outlook-Add-in** — Signatur direkt im Outlook-Verfassenfenster vorschauen und auswählen; beim Lesen öffnet es den Self-Service. Der Bereich lässt sich anheften; im klassischen Outlook steht der Knopf auch ohne ausgewählte Mail bereit.
+- **Outlook-Add-in** — Signatur direkt im Outlook-Verfassenfenster vorschauen und auswählen; beim Lesen öffnet es den Self-Service. Der Bereich lässt sich anheften; im klassischen Outlook steht der Knopf auch ohne ausgewählte Mail bereit. Beide Aufgabenbereiche melden sich still über das Outlook-Konto an (Nested App Authentication); ein Anmeldefenster erscheint nur noch als Rückfall.
 - **Signatur automatisch beim Verfassen** — ein zweites Add-in fügt die Gateway-Signatur ein, sobald eine Mail beginnt: in Outlook im Web, unter Windows (klassisch und neu) sowie in Outlook für iOS und Android (ab Version 4.2433). Bei Antworten und Weiterleitungen gilt dieselbe Regel wie im Gateway: volle Signatur beim ersten eigenen Beitrag, danach die Antwort-Signatur. Die Anmeldung läuft still, ohne Fenster.
+- **Probe des Direktversands** — einmal am Tag eine Mail über genau diesen Weg an ein internes Postfach; das Gateway prüft, ob sie ankommt, ob sie im Junk-Ordner landet und wie SPF, DKIM und DMARC ausfallen. Auf Wunsch zusätzlich an bis zu fünf externe Testpostfächer (etwa bei Gmail und Outlook.com); dort zeigt das Zustellprotokoll, ob der fremde Server die Mail annimmt.
+- **Regelprobe** — belegt mit einem echten Durchlauf, ob die Transportregel Post eines Postfachs schon zum Gateway leitet. Exchange übernimmt neue Mitglieder der Verteilerliste erst nach bis zu rund drei Stunden; die Probe zeigt, wann es so weit ist.
+- **Teams-App per Knopf aktualisieren** — steht im Teams-Katalog eine ältere Fassung, lädt das Gateway die neue nach Anmeldung eines Teams-Admins selbst hoch.
 - **Abnahme** — *Einrichtung → Verbindungstest & Abnahme* prüft die Anlage als Ganzes (Außenadresse, TLS, Anmeldung, Exchange-Rechte, Postfächer, Rückweg, Vorlagen, Benachrichtigung, Add-in-Anmeldung) und nennt bei jeder Lücke, was zu tun ist.
 - **Berechtigungen prüfen und nachtragen** — der Assistent zeigt je Berechtigung der App-Registrierung, ob sie tatsächlich erteilt ist, und trägt fehlende per Admin-Anmeldung nach, ohne Secret und Zertifikat zu ändern.
 - **Anpassbare Mails an Nutzer** — Portal-Benachrichtigung, Portal-Antwort und Erneuerungsaufforderung sind Vorlagen im selben Editor wie die Signaturen.
 - **Anmeldung und Rollen** — Anmeldung über Entra ID mit den Rollen Admin, Bearbeiter (Vorlagen), Kampagnen-Manager und Self-Service; ein lokaler Notfallzugang bleibt.
 - **Dashboard & Überwachung** — Mailstatistik, S/MIME-Zähler, Zertifikatsablauf, RAM/Platte/Log-Überwachung.
+- **Graph++: Eingang per Graph statt IMAP** *(in Erprobung)* — bearbeitete Post von außen (vor allem entschlüsselte S/MIME-Post) wird als empfangene Mail über die Graph-API angelegt statt per IMAP abgelegt, mit Absender, Message-ID, Zeiten und Unterhaltung; IMAP bleibt Rückfall.
 - **Selbst gehostet oder in Azure** — jeder x64/ARM64-Host (auch Raspberry Pi) oder vollständig in Azure ohne ausgehenden Port 25.
 - **Hell-/Dunkelmodus**, nutzbar bis 320 px Breite.
 - **Nicht in Suchmaschinen** — jede Antwort der Weboberfläche trägt `X-Robots-Tag: noindex, nofollow`.

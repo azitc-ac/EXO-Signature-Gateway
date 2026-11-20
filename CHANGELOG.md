@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.121 — 2026-11-20 — Doku: Neuerungen seit v1.11 in README und Funktionsübersicht
+
+Die Funktionsübersicht (`docs/funktionen.md`) und die README nennen jetzt, was
+seit v1.11 dazukam: den neuen Abschnitt *Exchange lokal (Hybrid)* (Signatur,
+Abwesenheit über EWS, Signatur in OWA, S/MIME, Outlook-Add-in, Zugriffsbereich
+als AD-Gruppe), Richtlinien in zwei Ebenen mit Festschreiben, dynamische interne
+Gruppen, interne Signatur und interne Mails ohne Banner/Disclaimer, Kampagnen mit
+„Übernahme erzwingen für“, Schriftauswahl und „Anzeigen wenn“ im Baukasten, die
+automatische S/MIME-Verlängerung mit Ankündigung, die Probe des Direktversands,
+die Regelprobe, das Aktualisieren der Teams-App per Knopf und die stille Anmeldung
+der Add-in-Aufgabenbereiche. Der Eingang per Graph statt IMAP (Graph++) steht dort
+als „in Erprobung“.
+
+Dazu ein Testgerüst, das die Filterfunktion der Postfachliste einzeln ausführt,
+um die in v1.12.120 neue Hilfsfunktion ergänzt.
+
+**Zu tun:** nichts.
+
 ## v1.12.120 — 2026-11-20 — Postfächer: Auswahlen auf einer Linie, Gruppenknöpfe mit Abstand, Filter bleiben erhalten
 
 * **Postfachliste:** Eine Auswahl mit der Marke „Ausnahme“ darunter machte ihre
