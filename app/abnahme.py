@@ -281,6 +281,29 @@ def _rueckweg() -> dict:
     return _punkt("Post geht an Exchange zurück", OK, "per Graph (sendMail)")
 
 
+def _vorlage_standard_doppelt() -> dict:
+    """Heißt eine eigene Vorlage „Standard“? Seit v1.12.113 zeigt die Oberfläche
+    die Standardvorlage (intern „default“) als „Standard“ — eine eigene Vorlage
+    gleichen Namens stünde dann zweimal ununterscheidbar in jeder Auswahl. Neu
+    anlegen lässt sich der Name nicht mehr (signature_engine.name_reserviert);
+    diese Prüfung findet den Bestand. Nur lokal."""
+    import os
+    import config
+    name = "Keine eigene Vorlage namens „Standard“"
+    try:
+        dateien = os.listdir(config.TEMPLATE_DIR)
+    except OSError:
+        return _punkt(name, ENTFAELLT, "Vorlagenverzeichnis nicht lesbar.")
+    treffer = sorted(d[:-5] for d in dateien
+                     if d.lower().endswith(".html") and d[:-5].lower() == "standard")
+    if not treffer:
+        return _punkt(name, OK, "Der Name „Standard“ gehört allein der Standardvorlage.")
+    return _punkt(name, OFFEN,
+                  f"Die eigene Vorlage „{treffer[0]}“ heißt so wie die Standardvorlage "
+                  "und ist in den Auswahllisten nicht von ihr zu unterscheiden.",
+                  "Signaturen → Vorlage öffnen → „Umbenennen“ (z. B. in „Standard-eigen“).")
+
+
 def _signaturvorlage() -> dict:
     """Gibt es überhaupt eine Signaturvorlage mit Inhalt?
 
@@ -466,6 +489,34 @@ def _wartende_zertifikate() -> dict:
                   "an diese Partner wird bis dahin nicht verschlüsselt.",
                   "S/MIME → „Zertifikate, die auf Freigabe warten“: je Zeile den Grund "
                   "prüfen, freigeben oder verwerfen.")
+
+
+def _erneuerung_unentschieden() -> dict:
+    """Gibt es Postfächer mit selbst bestellendem Bezugsweg, bei denen „Automatisch
+    erneuern“ nie entschieden wurde (Schlüssel fehlt)? Bis v1.12.114 setzten
+    Sammel- und Auto-Bestellung den Haken nicht — der tägliche Lauf erneuerte sie
+    nie. Seit v1.12.115 setzen sie ihn; den Bestand still umzustellen hieße,
+    ungefragt (womöglich kostenpflichtige) Verlängerungen einzuschalten. Erledigt
+    durch Speichern der Einstellung des Postfachs (an ODER aus). Nur lokal."""
+    import ca_backends
+    import settings_store
+    name = "Automatische Erneuerung für alle bestellten Postfächer entschieden"
+    offen = []
+    for adresse, cfg in sorted((settings_store.get("CA_USER_CONFIG") or {}).items()):
+        if not isinstance(cfg, dict) or "auto_renew" in cfg or not cfg.get("backend"):
+            continue
+        try:
+            if ca_backends.get_backend(cfg["backend"]).can_auto_renew():
+                offen.append(adresse)
+        except Exception:                                   # noqa: BLE001
+            continue
+    if not offen:
+        return _punkt(name, OK, "Für jedes Postfach mit bestellendem Bezugsweg ist entschieden.")
+    return _punkt(name, OFFEN,
+                  f"{len(offen)} Postfach/Postfächer ohne Entscheidung — sie werden nicht "
+                  f"automatisch erneuert: {', '.join(offen[:5])}" + (" …" if len(offen) > 5 else ""),
+                  "S/MIME → beim Postfach „Automatisch erneuern“ setzen oder bewusst leer "
+                  "lassen und speichern.")
 
 
 def _bestand_durchsicht() -> dict:
@@ -893,6 +944,17 @@ def _addin_knopf_fassung() -> dict:
     return _addin_fassung_art("knopf", "Knopf-Add-in aktuell")
 
 
+def _ohne_hybrid(name: str) -> dict | None:
+    """EWS wirkt nur für Hybrid-Nutzer. Ohne den Haken „Hybrid-Nutzer einbeziehen“
+    blendet Einstellungen die Karte „Exchange lokal (EWS)“ aus (seit v1.12.113) —
+    eine offene EWS-Aufgabe führte dann auf eine unsichtbare Karte. Deshalb
+    entfallen alle EWS-Prüfungen gemeinsam über diesen Helfer."""
+    import exo_mailboxes
+    if exo_mailboxes.hybrid_eingeschaltet():
+        return None
+    return _punkt(name, ENTFAELLT, "Hybrid-Nutzer nicht einbezogen (Einstellungen → Postfächer).")
+
+
 def _ews_bereich() -> dict:
     """Verweigert Exchange lokal dem EWS-Dienstkonto Hybrid-Postfächer
     (ErrorImpersonateUserDenied/ErrorImpersonationDenied)?
@@ -904,6 +966,8 @@ def _ews_bereich() -> dict:
     health_check._check_ews_zugriff/_check_postfach_lesen), fragt nichts live ab."""
     import settings_store
     name = "EWS-Zugriff auf alle Hybrid-Postfächer"
+    if (entfaellt := _ohne_hybrid(name)) is not None:
+        return entfaellt
     if not (settings_store.get("EWS_ONPREM_URL") or "").strip():
         return _punkt(name, ENTFAELLT, "Anbindung an Exchange lokal (EWS) nicht eingerichtet.")
     gesundheit = settings_store.get("MAILBOX_HEALTH") or {}
@@ -943,6 +1007,8 @@ def _ews_gruppe() -> dict:
     ausgeschalteter automatischer Pflege."""
     import ews_bereich
     name = "Gruppe des EWS-Dienstkontos entspricht dem Soll"
+    if (entfaellt := _ohne_hybrid(name)) is not None:
+        return entfaellt
     a = ews_bereich.abweichung()
     gruppe = ews_bereich.gruppe_name()
     weg = ("Einstellungen → Exchange lokal (EWS) → Zugriffsbereich → „Jetzt abgleichen“ "
@@ -973,6 +1039,8 @@ def _ews_kontowechsel() -> dict:
     bestandener Prüfung wirksam — bis dahin ist der Wechsel offen. Nur lokal."""
     import ews_bereich
     name = "Kein Wechsel des EWS-Dienstkontos offen"
+    if (entfaellt := _ohne_hybrid(name)) is not None:
+        return entfaellt
     neu = ews_bereich.ausstehend()
     if not neu:
         return _punkt(name, ENTFAELLT if not ews_bereich.eingerichtet() else OK,
@@ -1135,10 +1203,10 @@ def _teams_katalog_notfall() -> dict:
 
 
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
-              _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
+              _postfaecher, _signaturvorlage, _vorlage_standard_doppelt, _rueckweg, _regel_empfaenger, _regel_kennung,
               _regel_auto_ausnahme, _implicit_anmeldung,
               _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _ews_kontowechsel, _dynamische_gruppen_stand, _richtlinien_ruhend, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
-              _smime_schluessel, _vertragsbedingungen,
+              _smime_schluessel, _vertragsbedingungen, _erneuerung_unentschieden,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
               _smime_regeln_stand,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,

@@ -78,8 +78,8 @@ FAELLE = [
      "body.className = 'js-aufklappteil';",
      "body.style.cssText = 'color:#dc2626;border-top:1px solid #e2e8f0';", True),
     ("Fläche per cssText", "settings.html",
-     "hdr.className = 'vorschlag-kopf';",
-     "hdr.style.cssText = 'background:#f8fafc';", True),
+     "row.className = 'notif-recipient-row empfaenger-zeile';",
+     "row.style.cssText = 'background:#f8fafc';", True),
     # ⚠️ Der Fall, der die dateiweite Ausnahme entlarvt hat: mailboxes.html ist
     # wegen des Fair-Use-Badges ausgenommen — ein NEUER heller Rahmen darin darf
     # davon trotzdem nicht gedeckt sein.
@@ -90,8 +90,8 @@ FAELLE = [
     # wie dunkel lesbar. Schlägt sie an, meldet die Prüfung zehn Vorlagen auf
     # einmal — und wird dann pauschal weggedrückt.
     ("Textfarbe darf nicht anschlagen", "settings.html",
-     "hdr.className = 'vorschlag-kopf';",
-     "hdr.style.color = '#dc2626';", False),
+     "row.className = 'notif-recipient-row empfaenger-zeile';",
+     "row.style.color = '#dc2626';", False),
 ]
 
 

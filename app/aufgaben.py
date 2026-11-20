@@ -87,11 +87,17 @@ AUFGABEN: tuple[Aufgabe, ...] = (
             "/settings#benachrichtigungen"),
     Aufgabe("signaturvorlage", "Signaturvorlage anlegen",
             abnahme._signaturvorlage, "/template"),
+    # Seit v1.12.113 heißt die Standardvorlage in der Oberfläche „Standard“.
+    Aufgabe("vorlage-standard-doppelt", "Eigene Vorlage „Standard“ umbenennen",
+            abnahme._vorlage_standard_doppelt, "/template?name=Standard", seit="1.12.113"),
     Aufgabe("postfaecher", "Postfächer aktivieren",
             abnahme._postfaecher, "/mailboxes"),
     Aufgabe("wartende-zertifikate", "Wartende Empfängerzertifikate entscheiden",
             abnahme._wartende_zertifikate, "/smime#wartend",
             seit="1.10.110"),
+    # Sammel-/Auto-Bestellung setzte „Automatisch erneuern“ bis v1.12.114 nie.
+    Aufgabe("erneuerung-entscheiden", "Automatische Erneuerung bestellter Postfächer entscheiden",
+            abnahme._erneuerung_unentschieden, "/smime", seit="1.12.115"),
     Aufgabe("tls-rueckweg", "Zertifikatsprüfung am TLS-Rückweg einschalten",
             abnahme._tls_rueckweg, "/settings/routing#weiterleitungsziele",
             seit="1.10.112"),

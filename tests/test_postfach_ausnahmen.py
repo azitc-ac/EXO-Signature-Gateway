@@ -121,6 +121,7 @@ def _lauf(js: str):
     t = SEITE.read_text(encoding="utf-8")
     vorspann = (_DOM + _var(t, "STANDARD_WAHL") + "\n" + _var(t, "WAHL_SELEKTOR") + "\n"
                 + _var(t, "GRUPPEN_FARBEN") + "\n"
+                + (SEITE.parents[1] / "static" / "vorlagen_name.js").read_text(encoding="utf-8") + "\n"
                 + "var _templatesByKind = {signatur: ['default', 'kurz', 'lang'], oof: ['urlaub']};\n"
                 + "\n".join(_funktion(t, n) for n in FUNKTIONEN) + "\n" + _ZEILE)
     out = subprocess.run(["node", "-e", vorspann + "\n" + js],

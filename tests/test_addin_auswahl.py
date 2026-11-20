@@ -62,7 +62,8 @@ def _funktionen() -> str:
 
 
 def _lauf(js: str):
-    vorspann = _DOM + "var _templateList = ['a','b','c']; var _addinEnabled = true;\n" + _funktionen()
+    vorspann = (_DOM + (SEITE.parents[1] / "static" / "vorlagen_name.js").read_text(encoding="utf-8")
+                + "\nvar _templateList = ['a','b','c']; var _addinEnabled = true;\n" + _funktionen())
     out = subprocess.run(["node", "-e", vorspann + "\n" + js], capture_output=True, text=True, check=True).stdout
     return json.loads(out)
 

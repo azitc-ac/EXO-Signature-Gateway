@@ -16,7 +16,7 @@
 
   <!-- Benutzer-Suchfeld -->
   <div style="max-width:420px">
-    <div style="position:relative;margin-bottom:8px">
+    <div class="pa-huelle" style="margin-bottom:8px">
       <!-- ⚠️ `readonly` bis zum ersten Anfassen — gegen das Ausfüllen durch den
            Browser.
 
@@ -38,12 +38,7 @@
       <input type="text" id="admin-search-input" autocomplete="off" readonly
              placeholder="Benutzer suchen (Name oder E-Mail)…"
              style="width:100%;box-sizing:border-box;height:34px;border:1px solid #d1d5db;border-radius:6px;padding:0 10px;font-size:13px"
-             oninput="_debounceAdminSearch(this.value)"
-             onfocus="this.removeAttribute('readonly'); _showAdminDropdown()"
-             onblur="_hideAdminDropdownDelayed()"
-             onkeydown="_adminInputKeydown(event)">
-      <div id="admin-dropdown"
-           style="display:none;position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:200;max-height:260px;overflow-y:auto"></div>
+             onfocus="this.removeAttribute('readonly')">
     </div>
     <div id="admin-selected"
          style="display:none;margin-bottom:8px;padding:8px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px">
@@ -156,19 +151,14 @@
     <div class="settings-row" style="align-items:flex-start">
       <label style="padding-top:4px">Empfänger</label>
       <div class="settings-control" style="flex:1;min-width:0;max-width:420px">
-        <div style="position:relative;width:100%;max-width:360px;margin-bottom:8px">
+        <div class="pa-huelle" style="width:100%;max-width:360px;margin-bottom:8px">
           <!-- Wie beim Suchfeld darüber: `readonly` bis zum Anfassen, sonst
                füllt die Passwortverwaltung des Browsers hinein. -->
           <input type="text" id="notif-search-input" autocomplete="off" readonly
                  placeholder="Postfach suchen und hinzufügen…"
                  style="width:100%;box-sizing:border-box;height:34px;border:1px solid #d1d5db;border-radius:6px;padding:0 32px 0 10px;font-size:13px"
-                 oninput="_filterNotifDropdown(this.value)"
-                 onfocus="this.removeAttribute('readonly'); _showNotifDropdown()"
-                 onblur="_hideNotifDropdownDelayed()"
-                 onkeydown="_notifInputKeydown(event)">
+                 onfocus="this.removeAttribute('readonly')">
           <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:12px">▼</span>
-          <div id="notif-dropdown"
-               style="display:none;position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:200;max-height:220px;overflow-y:auto"></div>
         </div>
         <div id="notif-recipients-list"
              style="min-height:52px;width:100%;max-width:360px;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;background:#f8fafc;margin-bottom:8px">
@@ -241,6 +231,17 @@
           S/MIME Erneuerung – Erfolg &amp; Fehler
         </label>
         <label class="checkbox-label">
+          <input type="checkbox" id="notify-renewal-notice"
+                 {% if s.NOTIFY_RENEWAL_NOTICE is not false %}checked{% endif %}>
+          S/MIME automatische Verlängerung steht bevor (mit Link zum Abschalten)
+        </label>
+        <small class="hint" style="margin-left:22px;display:block;margin-top:2px">
+          Bei der ersten Erneuerungsschwelle kündigt das Gateway die Bestellung an und bestellt
+          erst bei der nächsten. Die Ankündigung geht an die Verwaltung, wenn der Postfachinhaber
+          eingewilligt hat, dass für ihn bestellt wird — sonst an ihn selbst (unter „Nachrichten
+          an Postfachinhaber“). Ausgeschaltet wird trotzdem verlängert, nur ohne Ankündigung.
+        </small>
+        <label class="checkbox-label">
           <input type="checkbox" id="notify-le-events"
                  {% if s.NOTIFY_LE_EVENTS is not false %}checked{% endif %}>
           TLS-Zertifikat (Let's Encrypt) erneuert / läuft ab
@@ -295,7 +296,7 @@
     </div>
 
     <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
-      <button class="btn secondary" id="benachr-btn" data-wache-hinweis="benachrichtigungen-result" data-wache="notif-enabled,notif-mailbox,daily-report-enabled,daily-report-time,notify-startup,notify-smime-expiry,notify-cert-renewal,notify-le-events,notify-local-admin-login,notify-cert-waiting,notify-user-cert,cert-warn-days" onclick="saveBenachrichtigungen()">Speichern</button>
+      <button class="btn secondary" id="benachr-btn" data-wache-hinweis="benachrichtigungen-result" data-wache="notif-enabled,notif-mailbox,daily-report-enabled,daily-report-time,notify-startup,notify-smime-expiry,notify-cert-renewal,notify-renewal-notice,notify-le-events,notify-local-admin-login,notify-cert-waiting,notify-user-cert,cert-warn-days" onclick="saveBenachrichtigungen()">Speichern</button>
       <span id="benachrichtigungen-result" style="font-size:12px;align-self:center"></span>
       <button class="btn secondary" onclick="sendTestNotification()" style="margin-left:16px">Test-Benachrichtigung senden</button>
       <span id="notif-test-result" style="font-size:13px;align-self:center"></span>
@@ -321,7 +322,7 @@
     Aktivierte Hybrid-Nutzer kommen in die Verteilerliste des Gateways; ihre Post geht
     über den Smarthost an Exchange Online zurück. Das Outlook-Add-in ist für sie nicht
     verfügbar; Abwesenheit, Zertifikatsbezug über CASTLE oder den Hub und die Signatur in
-    OWA (lokal) nur mit der Anbindung an Exchange lokal (unten).
+    OWA (lokal) nur mit der Anbindung an Exchange lokal (erscheint unten, sobald der Haken gesetzt ist).
   </p>
   {% if reinject_mode != "smtp" %}
   <p class="hint" style="margin:6px 0 0;color:#b45309">
@@ -332,8 +333,11 @@
   {% endif %}
 </div>
 
-<!-- Exchange lokal (EWS): Abwesenheit für Hybrid-Nutzer -->
-<div class="settings-card" id="exchange-lokal-ews">
+<!-- Exchange lokal (EWS): Abwesenheit für Hybrid-Nutzer. Nur mit dem Haken
+     „Hybrid-Nutzer einbeziehen“ (oben): Ohne ihn gibt es niemanden, für den die
+     Anbindung wirkt. Gespeicherte Werte bleiben erhalten; die EWS-Aufgaben im
+     Sammelpunkt entfallen dann ebenso (abnahme._ews_*). -->
+<div class="settings-card" id="exchange-lokal-ews" {% if s.HYBRID_POSTFAECHER is not true %}hidden{% endif %}>
   <h2>Exchange lokal (EWS)</h2>
   <p class="hint" style="margin:0 0 10px">
     Optional. Damit verwaltet das Gateway Abwesenheit, Kalender-Automatik, Zertifikatsbezug
@@ -574,7 +578,9 @@
 <script>
 
 async function saveHybridPostfaecher(an) {
-  await savePartial({HYBRID_POSTFAECHER: an}, 'hybrid-postfaecher-result', 'settings:hybrid');
+  const ok = await savePartial({HYBRID_POSTFAECHER: an}, 'hybrid-postfaecher-result', 'settings:hybrid');
+  // Die EWS-Karte folgt dem GESPEICHERTEN Stand: scheitert das Speichern, bleibt sie, wie sie war.
+  if (ok) document.getElementById('exchange-lokal-ews').hidden = !an;
 }
 
 // Kennwort: leer = unverändert (Geheimnis wird nie in die Seite gerendert).
@@ -825,7 +831,6 @@ var _currentUserUpn = '';
 var _adminUsersLocal = [];
 var _adminSelectedUser = null;
 var _adminSearchTimer = null;
-var _adminHideTimer = null;
 var _adminAllUsers = [];
 
 async function loadAdminUsers() {
@@ -884,67 +889,38 @@ async function _preloadAdminUsers() {
   } catch(e) { ursache(e, 'settings:389'); }
 }
 
-function _adminAvailable() {
-  var inUse = new Set(_adminUsersLocal.map(function(u) { return u.upn; }));
-  return _adminAllUsers.filter(function(u) { return !inUse.has(u.upn); });
-}
-
-function _renderAdminDropdownItems(users) {
-  var dd = document.getElementById('admin-dropdown');
-  dd.innerHTML = '';
-  if (!users.length) {
-    dd.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">Keine Ergebnisse</div>';
-    return;
-  }
-  users.forEach(function(u) {
-    var item = document.createElement('div');
-    // Styling per Klasse statt per JS: style.background aus JS wird vom Browser zu
-    // rgb() normalisiert, die Dark-Mode-Attribut-Selektoren greifen dann nicht
-    // (CLAUDE.md, Regel 2). :hover in CSS ersetzt die beiden Listener gleich mit.
-    item.className = 'admin-suggest-item';
-    item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + esc(u.upn) + '</span>' +
-      (u.name && u.name !== u.upn ? '<br><span style="font-size:11px;color:#64748b">' + esc(u.name) + '</span>' : '');
-    item.addEventListener('mousedown', function(e) { e.preventDefault(); _selectAdminUser(u); });
-    dd.appendChild(item);
-  });
-}
-
-function _debounceAdminSearch(q) {
-  clearTimeout(_adminSearchTimer);
-  document.getElementById('admin-dropdown').style.display = 'block';
-  var ql = q.trim().toLowerCase();
-  if (!ql) {
-    _renderAdminDropdownItems(_adminAvailable());
-    return;
-  }
-  _renderAdminDropdownItems(_adminAvailable().filter(function(u) {
-    return u.upn.toLowerCase().includes(ql) || (u.name || '').toLowerCase().includes(ql);
-  }));
-  _adminSearchTimer = setTimeout(function() { _fetchAdminUsers(q.trim()); }, 350);
-}
+// Benutzersuche: Baustein personenAuswahl() (static/personen_auswahl.js). Erst
+// die geladene Liste, nach kurzer Tipp-Pause zusätzlich die Suche in Entra.
+var _adminSucheFehler = '';
+var _adminAuswahl = personenAuswahl(document.getElementById('admin-search-input'), {
+  eintraege: function () {
+    var vergeben = new Set(_adminUsersLocal.map(function (u) { return u.upn; }));
+    return _adminAllUsers.map(function (u) {
+      return {wert: u.upn, name: u.name || '', adresse: u.upn, benutzer: u,
+              gesperrt: vergeben.has(u.upn) ? 'hat schon eine Rolle' : ''};
+    });
+  },
+  waehlen: function (wert, e) { _selectAdminUser(e.benutzer); },
+  beimFokus: true,
+  nachTippen: function (q) {
+    clearTimeout(_adminSearchTimer);
+    if (q) _adminSearchTimer = setTimeout(function () { _fetchAdminUsers(q); }, 350);
+  },
+  leerText: function () { return _adminSucheFehler || 'Keine Ergebnisse'; },
+});
 
 async function _fetchAdminUsers(q) {
-  try {
-    var data = await getJSON('/api/entra/users?q=' + encodeURIComponent(q));
-    if (!data.ok) return;
-    var users = data.users || [];
-    users.forEach(function(u) {
-      if (!_adminAllUsers.some(function(x) { return x.upn === u.upn; })) _adminAllUsers.push(u);
-    });
-    var ql = q.toLowerCase();
-    _renderAdminDropdownItems(_adminAvailable().filter(function(u) {
-      return u.upn.toLowerCase().includes(ql) || (u.name || '').toLowerCase().includes(ql);
-    }));
-  } catch(e) {
-    var dd = document.getElementById('admin-dropdown');
-    dd.innerHTML = '<div style="padding:10px 12px;color:#dc2626;font-size:13px">Fehler: ' + esc(e.message) + '</div>';
-  }
+  var data = await getJSON('/api/entra/users?q=' + encodeURIComponent(q));
+  _adminSucheFehler = data.ok ? '' : 'Fehler bei der Suche: ' + errText(data);
+  (data.users || []).forEach(function (u) {
+    if (!_adminAllUsers.some(function (x) { return x.upn === u.upn; })) _adminAllUsers.push(u);
+  });
+  _adminAuswahl.aktualisieren();
 }
 
 function _selectAdminUser(u) {
   _adminSelectedUser = u;
   document.getElementById('admin-search-input').value = u.upn;
-  document.getElementById('admin-dropdown').style.display = 'none';
   document.getElementById('admin-selected-name').textContent = u.name || u.upn;
   document.getElementById('admin-selected-upn-label').textContent = u.name && u.name !== u.upn ? u.upn : '';
   document.getElementById('admin-selected').style.display = '';
@@ -954,35 +930,7 @@ function _clearAdminPicker() {
   _adminSelectedUser = null;
   document.getElementById('admin-search-input').value = '';
   document.getElementById('admin-selected').style.display = 'none';
-  document.getElementById('admin-dropdown').style.display = 'none';
-}
-
-function _showAdminDropdown() {
-  if (_adminHideTimer) { clearTimeout(_adminHideTimer); _adminHideTimer = null; }
-  var q = feldWert('admin-search-input').toLowerCase();
-  var available = _adminAvailable();
-  if (q) available = available.filter(function(u) {
-    return u.upn.toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q);
-  });
-  _renderAdminDropdownItems(available);
-  document.getElementById('admin-dropdown').style.display = 'block';
-}
-
-function _hideAdminDropdownDelayed() {
-  _adminHideTimer = setTimeout(function() {
-    var dd = document.getElementById('admin-dropdown');
-    if (dd) dd.style.display = 'none';
-  }, 150);
-}
-
-function _adminInputKeydown(e) {
-  var dd = document.getElementById('admin-dropdown');
-  if (e.key === 'Escape') { dd.style.display = 'none'; e.target.blur(); return; }
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    var first = dd.querySelector('div[style*="cursor:pointer"]');
-    if (first) first.dispatchEvent(new MouseEvent('mousedown'));
-  }
+  _adminAuswahl.schliessen();
 }
 
 function addAdminUserFromPicker() {
@@ -1124,83 +1072,25 @@ async function _loadMailboxesForNotif() {
   } catch(e) { ursache(e, 'settings:655'); }
 }
 
-function _availableNotifMailboxes() {
-  const inUse = new Set(_notifRecipients);
-  return _notifAllMailboxes.filter(m => !inUse.has(m.email));
-}
-
-var _notifHideTimer = null;
-
-function _renderNotifDropdownItems(items) {
-  const dd = document.getElementById('notif-dropdown');
-  if (!dd) return;
-  dd.innerHTML = '';
-  if (!items.length) {
-    dd.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">Keine Ergebnisse</div>';
-    return;
-  }
-  [['shared','Freigegebene Postfächer'],['user','Benutzer-Postfächer'],['','Weitere']].forEach(function([type, label]) {
-    const group = type === '' ? items.filter(m => !m.type || (m.type !== 'shared' && m.type !== 'user'))
-                              : items.filter(m => m.type === type);
-    if (!group.length) return;
-    const hdr = document.createElement('div');
-    hdr.className = 'vorschlag-kopf';
-    hdr.textContent = label;
-    dd.appendChild(hdr);
-    group.forEach(function(mb) {
-      const item = document.createElement('div');
-      item.className = 'vorschlag-zeile';
-      item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + esc(mb.email) + '</span>' +
-        (mb.name && mb.name !== mb.email ? '<br><span style="font-size:11px;color:#64748b">' + esc(mb.name) + '</span>' : '');
-      item.addEventListener('mousedown', function(e) {
-        e.preventDefault();
-        addNotifRecipient(mb.email);
-        document.getElementById('notif-search-input').value = '';
-        document.getElementById('notif-dropdown').style.display = 'none';
+// Empfängersuche: Baustein personenAuswahl() (static/personen_auswahl.js),
+// gegliedert nach Art des Postfachs.
+var _NOTIF_ART = [['shared', 'Freigegebene Postfächer'], ['user', 'Benutzer-Postfächer'], ['', 'Weitere']];
+function _notifArt(m) { return m.type === 'shared' || m.type === 'user' ? m.type : ''; }
+var _notifAuswahl = personenAuswahl(document.getElementById('notif-search-input'), {
+  eintraege: function () {
+    var drin = new Set(_notifRecipients), out = [];
+    _NOTIF_ART.forEach(function (a) {
+      _notifAllMailboxes.filter(function (m) { return _notifArt(m) === a[0]; }).forEach(function (m) {
+        out.push({wert: m.email, name: m.name || '', adresse: m.email, gruppe: a[1],
+                  gesperrt: drin.has(m.email) ? 'ist schon Empfänger' : ''});
       });
-      dd.appendChild(item);
     });
-  });
-}
-
-function _showNotifDropdown() {
-  if (_notifHideTimer) { clearTimeout(_notifHideTimer); _notifHideTimer = null; }
-  const q = feldWert('notif-search-input').toLowerCase();
-  _filterNotifDropdown(q);
-  document.getElementById('notif-dropdown').style.display = 'block';
-}
-
-function _hideNotifDropdownDelayed() {
-  _notifHideTimer = setTimeout(function() {
-    const dd = document.getElementById('notif-dropdown');
-    if (dd) dd.style.display = 'none';
-  }, 150);
-}
-
-function _filterNotifDropdown(q) {
-  const available = _availableNotifMailboxes();
-  const filtered = q ? available.filter(m =>
-    m.email.toLowerCase().includes(q) || (m.name || '').toLowerCase().includes(q)
-  ) : available;
-  _renderNotifDropdownItems(filtered);
-  document.getElementById('notif-dropdown').style.display = 'block';
-}
-
-function _notifInputKeydown(e) {
-  const dd = document.getElementById('notif-dropdown');
-  if (e.key === 'Escape') { dd.style.display = 'none'; e.target.blur(); return; }
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    const first = dd.querySelector('div[style*="cursor:pointer"]');
-    if (first) first.dispatchEvent(new MouseEvent('mousedown'));
-    return;
-  }
-  if (e.key === 'ArrowDown') {
-    e.preventDefault();
-    const items = dd.querySelectorAll('div[style*="cursor:pointer"]');
-    if (items.length) { items[0].focus(); }
-  }
-}
+    return out;
+  },
+  waehlen: function (email) { addNotifRecipient(email); },
+  beimFokus: true,
+  leerText: 'Keine Ergebnisse',
+});
 
 function _renderNotifPicker() {
   const list = document.getElementById('notif-recipients-list');
@@ -1215,17 +1105,16 @@ function _renderNotifPicker() {
   if (empty) empty.style.display = 'none';
   _notifRecipients.forEach(function(em) {
     const row = document.createElement('div');
-    row.className = 'notif-recipient-row';
-    row.className = 'empfaenger-zeile';
+    // Beide Klassen: die erste findet das Neuzeichnen oben zum Entfernen, die
+    // zweite trägt die Optik. Bis v1.12.115 überschrieb eine zweite Zuweisung
+    // die erste — jede Änderung hängte die ganze Liste noch einmal an.
+    row.className = 'notif-recipient-row empfaenger-zeile';
     row.innerHTML = '<span style="font-family:monospace;font-size:12px">' + esc(em) + '</span>' +
       '<button type="button" onclick="removeNotifRecipient(\'' + escJsAttr(em) + '\')" ' +
       'style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:16px;padding:0 4px;line-height:1" title="Entfernen">×</button>';
     list.appendChild(row);
   });
-  const q = (document.getElementById('notif-search-input') || {}).value || '';
-  if (document.getElementById('notif-dropdown').style.display !== 'none') {
-    _filterNotifDropdown(q.toLowerCase());
-  }
+  _notifAuswahl.aktualisieren();
 }
 
 function addNotifRecipient(email) {
@@ -1283,6 +1172,7 @@ async function saveBenachrichtigungen() {
     NOTIFY_STARTUP: document.getElementById('notify-startup').checked,
     NOTIFY_SMIME_EXPIRY: document.getElementById('notify-smime-expiry').checked,
     NOTIFY_CERT_RENEWAL: document.getElementById('notify-cert-renewal').checked,
+    NOTIFY_RENEWAL_NOTICE: document.getElementById('notify-renewal-notice').checked,
     NOTIFY_LE_EVENTS: document.getElementById('notify-le-events').checked,
     NOTIFY_LOCAL_ADMIN_LOGIN: document.getElementById('notify-local-admin-login').checked,
     NOTIFY_CERT_WAITING: document.getElementById('notify-cert-waiting').checked,

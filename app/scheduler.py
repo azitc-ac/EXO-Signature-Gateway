@@ -185,6 +185,73 @@ def _get_gateway_url() -> str:
     return aussenadresse.basis()
 
 
+# Die Ereignisschleife der Weboberfläche (uvicorn, eigener Thread). Gesetzt
+# beim Start in webui.app._lifespan. Der Scheduler läuft in einem Thread OHNE
+# Schleife; was dort Folgeaufgaben anlegt, muss in DIESER Schleife laufen.
+_web_schleife: "asyncio.AbstractEventLoop | None" = None
+
+
+def web_schleife_setzen(schleife: "asyncio.AbstractEventLoop") -> None:
+    global _web_schleife
+    _web_schleife = schleife
+
+
+async def _samt_folgeaufgaben(coro):
+    """`coro` ausführen und danach warten, bis alle Aufgaben fertig sind, die sie
+    in dieser Schleife angelegt hat (ACME: Postfachabfrage → Abschluss)."""
+    ergebnis = await coro
+    while True:
+        rest = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()]
+        if not rest:
+            return ergebnis
+        await asyncio.gather(*rest, return_exceptions=True)
+
+
+def _erneuerung_starten(coro, timeout: float = 180):
+    """Eine Zertifikatsbestellung aus dem Scheduler-Thread anstoßen.
+
+    ⚠️ Nicht `asyncio.run(coro)`: `initiate_acme_order` legt die Postfachabfrage
+    per `create_task` an und kehrt zurück — `asyncio.run` bricht beim Beenden alle
+    offenen Aufgaben ab. Bis v1.12.112 lief die Abfrage deshalb NIE: Bei CASTLE
+    war das alte Zertifikat zu diesem Zeitpunkt schon widerrufen, ein neues kam
+    nicht, und keine Meldung (die 20-Minuten-Frist lief in der abgebrochenen
+    Aufgabe). Deshalb in der Schleife der Weboberfläche — derselbe Ort wie
+    „Jetzt erneuern“ in der Oberfläche. Ausnahmen (EinwilligungFehlt …) kommen
+    hier an. Ohne laufende Weboberfläche (Tests, Werkzeuge): eigene Schleife,
+    die bis zum Ende der Folgeaufgaben wartet."""
+    schleife = _web_schleife
+    if schleife is not None and schleife.is_running():
+        return asyncio.run_coroutine_threadsafe(coro, schleife).result(timeout)
+    log.warning("scheduler: Weboberfläche läuft nicht — Erneuerung im Scheduler-Thread, "
+                "wartet bis zum Abschluss")
+    return asyncio.run(_samt_folgeaufgaben(coro))
+
+
+def _erst_ankuendigen(email: str, cert_info: dict, backend, threshold: int) -> bool:
+    """Vor einer automatischen Verlängerung: erst ankündigen (mit Link zum
+    Abwählen), bei der NÄCHSTEN Schwelle bestellen. True = heute nur angekündigt,
+    nicht bestellen. Ohne nächste Schwelle (letzte bzw. einzige) bleibt kein
+    Zeitfenster — dann wird ohne Ankündigung bestellt. erneuerung_vorankuendigung.py."""
+    import erneuerung_vorankuendigung as ev
+    stufen = sorted({int(t) for t in (settings_store.get("CERT_RENEWAL_THRESHOLDS") or [30, 14, 7, 1])})
+    naechste = [t for t in stufen if t < threshold]
+    e = ev.eintrag(email, cert_info.get("expiry", ""))
+    if e is not None:
+        # Schon angekündigt: bestellt wird erst ab der gemerkten Schwelle. Der
+        # Merker je Schwelle (_user_notif_sent) liegt nur im Speicher — nach
+        # einem Neustart käme derselbe Tag wieder hier an und hätte ohne diese
+        # Prüfung sofort bestellt, die Frist zum Abwählen wäre weg.
+        return threshold > int(e.get("bestellen_bei") or 0)
+    if not naechste:
+        return False
+    try:
+        anbieter = backend.get_label()
+    except Exception:                                        # noqa: BLE001
+        anbieter = ""
+    ev.ankuendigen(email, cert_info, anbieter, max(naechste))
+    return True
+
+
 def _send_user_renewal_notification(
     email: str,
     cert_info: dict,
@@ -201,7 +268,14 @@ def _send_user_renewal_notification(
     import notification
     from ca_backends import get_backend
 
-    backend_name = user_cfg.get("backend", "assisted_manual")
+    backend_name = user_cfg.get("backend") or ""
+    if not backend_name:
+        # Ohne eigenen Bezugsweg: die Vorgabe (registry.bezugsweg) NUR bei
+        # ausdrücklich gesetztem „Automatisch erneuern“. Ein Altbestand mit
+        # nur „benachrichtigen“ gilt unten ebenfalls als auto_renew — der soll
+        # nicht plötzlich (womöglich kostenpflichtig) bestellen (registry.py).
+        from ca_backends.registry import bezugsweg
+        backend_name = bezugsweg(user_cfg) if user_cfg.get("auto_renew") is True else "assisted_manual"
     backend = get_backend(backend_name)
     # auto_renew absent → inherit notify_user for backwards compatibility
     auto_renew = user_cfg.get("auto_renew", user_cfg.get("notify_user", False))
@@ -213,10 +287,14 @@ def _send_user_renewal_notification(
             settings_store.get("MAILBOX_CONFIG") or {}, email).get("smime")
         if not smime_active:
             log.warning("scheduler: skipping auto-renewal for %s — S/MIME deactivated", email)
+        elif _erst_ankuendigen(email, cert_info, backend, threshold):
+            return
         else:
             try:
-                asyncio.run(backend.initiate_renewal(email, user_cfg))
+                _erneuerung_starten(backend.initiate_renewal(email, user_cfg))
                 log.info("scheduler: auto-renewal initiated for %s via %s", email, backend_name)
+                import erneuerung_vorankuendigung
+                erneuerung_vorankuendigung.erledigt(email)
                 return
             except NotImplementedError:
                 log.info("scheduler: %s auto-renewal not implemented", backend_name)

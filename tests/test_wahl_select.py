@@ -55,6 +55,7 @@ def _lauf(js: str):
     standard = re.search(r"^var STANDARD_WAHL = .*;$", t, re.M)
     assert standard, "STANDARD_WAHL nicht gefunden"
     vorspann = (_DOM + standard.group(0) + "\n"
+                + (SEITE.parents[1] / "static" / "vorlagen_name.js").read_text(encoding="utf-8") + "\n"
                 + "var _templatesByKind = {signatur: ['default', 'kurz'], oof: ['urlaub']};\n"
                 + _funktion(t, "_fuelleVorlagenSelect") + "\n" + _funktion(t, "_istFest") + "\n"
                 + _funktion(t, "_festQuelle") + "\n" + _funktion(t, "_wertText") + "\n"
@@ -90,7 +91,7 @@ def test_standardwahl_erscheint_genau_einmal(kind, slot, feld, leer):
     assert werte.count(r["standard"]) == 1, r["optionen"]
     assert not any("andere Art" in text for _, text in r["optionen"]), r["optionen"]
     assert r["wert"] == r["standard"]
-    assert r["optionen"][0] == [r["standard"], "Standard (default)"]
+    assert r["optionen"][0] == [r["standard"], "Vorgabe (Standard)"]
 
 
 def test_sicherheitsnetz_zeigt_fremden_wert_weiter():
@@ -149,10 +150,10 @@ console.log(JSON.stringify({wert: sel.value, gesperrt: sel.disabled, titel: sel.
 @pytest.mark.parametrize("mb,soll", [
     # Ohne eigene Wahl: Standard, Liste versteckt (die Liste zeigt dann "*").
     ({"addin_templates": None, "standard": {"addin": ["A"]}},
-     {"wert": "__standard__", "text": "Standard (A)", "versteckt": True, "gesperrt": False}),
+     {"wert": "__standard__", "text": "Vorgabe (A)", "versteckt": True, "gesperrt": False}),
     # Eigene Wahl [] (nur Standardsignatur) ist eine Wahl, nicht „Standard“.
     ({"addin_templates": [], "standard": {"addin": "*"}},
-     {"wert": "eigen", "text": "Standard (alle Vorlagen)", "versteckt": False, "gesperrt": False}),
+     {"wert": "eigen", "text": "Vorgabe (alle Vorlagen)", "versteckt": False, "gesperrt": False}),
     # Festgelegt: zeigt den festgelegten Wert, gesperrt, auch bei ruhender Wahl.
     ({"addin_templates": ["X"], "standard": {"addin": ["A", "B"]}, "fest": {"addin": "Marke"}},
      {"wert": "__standard__", "text": "A, B", "versteckt": True, "gesperrt": True}),

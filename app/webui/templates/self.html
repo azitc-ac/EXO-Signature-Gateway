@@ -291,6 +291,7 @@
      Verfassen-Add-in. Vom Gateway selbst, daher kein CDN-Risiko für das Zeichnen. -->
 <script src="{{ msal_url }}"></script>
 <script src="/static/addin_anmeldung.js?v={{ version }}"></script>
+<script src="/static/vorlagen_name.js?v={{ version }}"></script>
 <script>
 (function () {
   "use strict";
@@ -489,7 +490,7 @@
       el('min-speichern').hidden = true;
       el('min-keine-hinweis').hidden = true;   // „— keine —“ gibt es hier nicht
       el('min-org').hidden = false;
-      el('min-org').textContent = 'Von deiner Organisation vorgegeben: ' + ctx.min_template;
+      el('min-org').textContent = 'Von deiner Organisation vorgegeben: ' + vorlageAnzeige(ctx.min_template);
     }
     el('sig-fest').hidden = !!w.sig || istFest('sig');
     el('sig-auch-oof').hidden = !ctx.oof_mit_signatur;
@@ -573,19 +574,19 @@
     try { localStorage.setItem('self_reiter', r); } catch (e) { /* egal */ }
   }
 
-  // „Standard (X)" folgt dem Default des Betreibers (Gruppe bzw. global) und
+  // „Vorgabe (X)" folgt dem Default des Betreibers (Gruppe bzw. global) und
   // wandert mit, wenn er ihn ändert; eine Vorlage hält die eigene Wahl fest.
   var STANDARD = '__standard__';
   function fuelleWahl(id, slot, leerText) {
     var s = el(id); s.innerHTML = '';
     var std = (ctx.standard || {})[slot] || '';
-    s.appendChild(opt(STANDARD, 'Standard (' + (std || 'keine') + ')'));
+    s.appendChild(opt(STANDARD, 'Vorgabe (' + (std ? vorlageAnzeige(std) : 'keine') + ')'));
     if (leerText !== null) s.appendChild(opt('', leerText));
     var liste = ((ctx.listen || {})[slot] || []).slice();
     var aktuell = (ctx.wahl || {})[slot];
     if (aktuell === undefined || aktuell === null) aktuell = STANDARD;
     if (aktuell && aktuell !== STANDARD && liste.indexOf(aktuell) === -1) liste.push(aktuell);
-    liste.forEach(function (n) { s.appendChild(opt(n, n)); });
+    liste.forEach(function (n) { s.appendChild(opt(n, vorlageAnzeige(n))); });
     s.value = aktuell;
   }
   // Festgeschrieben? (ctx.fest, /api/self/context) — nur für die Anzeige.

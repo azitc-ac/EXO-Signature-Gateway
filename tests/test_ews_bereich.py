@@ -42,6 +42,13 @@ EVA = "eva.wolke@firma.at"                # EXO-Postfach, Signatur
 ADMIN_KW = "Adm1n-GEHEIM-xq7-4711"
 
 
+
+@pytest.fixture(autouse=True)
+def _hybrid_an(monkeypatch):
+    """Die EWS-Prüfungen gelten nur mit „Hybrid-Nutzer einbeziehen“ (abnahme._ohne_hybrid)."""
+    import exo_mailboxes
+    monkeypatch.setattr(exo_mailboxes, "hybrid_eingeschaltet", lambda: True)
+
 def _sid(rid: int) -> bytes:
     return struct.pack("<BB", 1, 5) + (5).to_bytes(6, "big") + struct.pack("<IIIII", 21, 1, 2, 3, rid)
 

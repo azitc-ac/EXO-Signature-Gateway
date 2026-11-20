@@ -5,6 +5,152 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.116 — 2026-11-20 — Automatische S/MIME-Verlängerung wird angekündigt, mit Link zum Abschalten
+
+Seit v1.12.115 verlängert der tägliche Lauf Zertifikate auch über den Hub und
+nach Sammelbestellungen — je nach Anbieter kostenpflichtig. Eine Verlängerung
+kommt jetzt nicht mehr unangekündigt:
+
+* Bei der **ersten Erneuerungsschwelle** (Vorgabe: 30 Tage vor Ablauf) wird
+  angekündigt statt bestellt; bestellt wird bei der **nächsten** (Vorgabe: 14
+  Tage). Die Ankündigung nennt Postfach, Ablaufdatum, Anbieter und den Tag der
+  Bestellung und enthält einen Link **„Automatische Verlängerung abschalten“**.
+  Der Link öffnet eine Bestätigungsseite (ohne Anmeldung); erst deren Knopf
+  schaltet „Automatisch erneuern“ für das Postfach ab — ein Mail-Scanner, der
+  Links vorab öffnet, löst nichts aus. Der Link gilt einmal und nur bis zur
+  Bestellung.
+* **Empfänger:** Hat der Postfachinhaber eingewilligt, dass das Gateway für ihn
+  bestellt, geht die Ankündigung an die Verwaltung (Adressen unter
+  *Einstellungen → Benachrichtigung*). Sonst an den Postfachinhaber selbst — als
+  anpassbare Nachricht „Zertifikat: Verlängerung angekündigt“ unter *Vorlagen*,
+  abhängig vom Schalter „Nachrichten an Postfachinhaber“.
+* **Neuer Schalter** unter *Einstellungen → Benachrichtigung → Welche Ereignisse*:
+  „S/MIME automatische Verlängerung steht bevor“. Ausgeschaltet geht keine
+  Ankündigung an die Verwaltung; die Frist bis zur Bestellung bleibt trotzdem.
+* Ist nur eine Erneuerungsschwelle eingestellt, bleibt kein Zeitfenster — dann
+  wird wie bisher ohne Ankündigung bestellt. Ein Neustart des Gateways zwischen
+  Ankündigung und Bestellung verkürzt die Frist nicht.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.115 — 2026-11-20 — Automatische S/MIME-Verlängerung über den Hub und nach Sammelbestellung
+
+**Zustimmungsbeleg bei der Verlängerung.** Bestellungen über den Hub (Certum,
+SwissSign) tragen den Zeitpunkt, zu dem den Bedingungen der Zertifizierungsstelle
+zugestimmt wurde. Die automatische Verlängerung im täglichen Lauf schickte keinen
+mit; bei Anbietern mit Bedingungen lehnt die Gegenstelle das ab — die Verlängerung
+kam nicht zustande, es blieb bei der Ablaufwarnung. Das Gateway merkt sich jetzt
+den Beleg der letzten angenommenen Bestellung je Postfach und Anbieter und
+verwendet ihn für die Verlängerung beim selben Anbieter. Ein Wechsel des Anbieters
+braucht wie bisher eine neue Zustimmung.
+
+**„Automatisch erneuern“ nach Sammel- und Auto-Bestellung.** Nur der Haken beim
+Postfach unter *S/MIME* schaltete die automatische Erneuerung ein; Postfächer aus
+der Sammelbestellung oder der automatischen Bestellung beim Aktivieren erneuerte
+der tägliche Lauf nie. Diese Bestellungen setzen den Haken jetzt mit (ein bewusst
+abgewählter bleibt aus). Postfächer ohne eigenen Bezugsweg nehmen bei gesetztem
+Haken den Standardbezugsweg; Einträge, die nur „benachrichtigen“ tragen, bestellen
+weiterhin nicht von selbst.
+
+**Einstellungen → Benachrichtigung → Empfänger:** Jede Änderung der Liste (hinzufügen,
+entfernen) hängte alle Empfänger noch einmal an — die Anzeige wuchs, gespeichert
+wurde aber das Richtige. Ursache war eine doppelte Klassenzuweisung, durch die das
+Neuzeichnen die alten Zeilen nicht mehr fand.
+
+**Zu tun:** Postfächer, die schon früher so bestellt wurden, werden nicht still
+umgestellt — das hieße, ungefragt (je nach Anbieter kostenpflichtige)
+Verlängerungen einzuschalten. Der Sammelpunkt oben rechts listet sie unter
+„Automatische Erneuerung bestellter Postfächer entscheiden“: unter *S/MIME* beim
+Postfach „Automatisch erneuern“ setzen oder bewusst leer lassen und speichern.
+
+---
+
+## v1.12.114 — 2026-11-20 — Personenauswahl überall gleich: statische Gruppen, Benachrichtigung, Verwaltung
+
+Die Personenauswahl aus v1.12.113 ist jetzt ein gemeinsamer Baustein und ersetzt
+drei weitere Auswahlfelder:
+
+* **Statische Gruppen → Mitglieder:** statt einer Liste mit einem Kästchen je
+  aktiviertem Postfach stehen die Mitglieder oben als Chips (✕ entfernt), darunter
+  das Suchfeld. Mitglieder, deren Postfach nicht mehr aktiviert ist, bleiben
+  sichtbar und gehen beim Speichern nicht mehr verloren — die alte Liste zeigte
+  nur aktivierte Postfächer und schrieb nur die angehakten zurück.
+* **Einstellungen → Benachrichtigung → Empfänger** und **Einstellungen →
+  Verwaltung → Benutzer suchen:** gleiche Suche (Name und Adresse, Akzente und
+  „ue“ für „ü“ egal), gleiche Bedienung. Bei der Verwaltung sucht das Feld nach
+  kurzer Tipp-Pause zusätzlich in Entra; ein Fehler dieser Suche steht in der
+  Liste. Bereits Eingetragene erscheinen ausgegraut statt gar nicht.
+
+Behoben: In beiden Feldern der Einstellungen übernahm **Enter** keinen Eintrag.
+Die Tastensteuerung suchte den ersten Eintrag an einem Inline-Stil, den die
+Einträge seit der Umstellung auf Klassen (Dunkelmodus) nicht mehr trugen.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.113 — 2026-11-20 — Automatische S/MIME-Erneuerung (CASTLE) lief nicht durch; Vorlage „Standard“; Personenauswahl in dynamischen Gruppen; EWS-Karte nur mit Hybrid-Nutzern
+
+**Automatische Erneuerung über CASTLE.** Der tägliche Lauf startete die
+Bestellung, brach die anschließende Abfrage des Postfachs nach der
+Challenge-Mail aber sofort wieder ab. Ursache: Er führte die Bestellung in
+einer eigenen, kurzlebigen Ereignisschleife aus, und deren Ende beendet alle
+noch offenen Aufgaben. Die Bestellung blieb bei „Warte auf Challenge-E-Mail…“ stehen,
+die Zeitüberschreitung mit Fehlermeldung an die Verwaltung lief in der
+abgebrochenen Aufgabe und kam nie. Weil das Gateway bei CASTLE das bisherige
+Zertifikat vor der Neubestellung widerruft, konnte ein Postfach so mit
+widerrufenem Zertifikat und ohne neues zurückbleiben. Erneuerungen aus dem
+täglichen Lauf laufen jetzt in derselben Schleife wie eine Bestellung aus der
+Oberfläche. Bestellungen über den Hub (Certum, SwissSign) waren nicht
+betroffen; ihr Stand wird dauerhaft gespeichert und regelmäßig abgefragt.
+
+Hast du Postfächer mit „Automatisch erneuern“ über CASTLE, sieh unter
+*S/MIME* nach, ob bei einem Postfach „Warte auf Challenge-E-Mail…“ hängen geblieben ist.
+Ein Neustart des Gateways nimmt sie wieder auf; sonst starte die Bestellung beim Postfach unter *S/MIME* neu.
+
+* Die Erneuerungs-Mail an den Postfachinhaber (CASTLE) behauptete, das Gateway
+  habe bereits bestellt und es sei nichts zu tun. Sie geht aber nur hinaus, wenn
+  das Gateway gerade NICHT bestellt hat (Haken „Automatisch erneuern“ aus oder
+  Start gescheitert). Sie sagt jetzt, dass noch nichts beantragt ist und die
+  Verwaltung die Erneuerung anstößt.
+* „Nächste Erneuerung“ unter *S/MIME* nannte den Tag vor dem Ablauf (kleinste
+  Schwelle). Der tägliche Lauf beginnt aber bei der größten (Vorgabe: 30 Tage
+  vorher); die Anzeige rechnet jetzt damit.
+
+**Vorlage „Standard“.** Die Standardvorlage heißt in der Oberfläche jetzt
+„Standard“ statt „default“ — in allen Auswahllisten, im Vorlagen-Editor, im
+Richtlinienergebnis, im Self-Service und im Verfassen-Add-in. Intern und in
+gespeicherten Zuordnungen, Richtlinien und Sicherungen bleibt der Schlüssel
+`default`; nichts wird umgeschrieben. Die erste Option einer Postfach-Auswahl,
+die der Gruppe bzw. der Standardrichtlinie folgt, heißt jetzt „Vorgabe (…)“
+statt „Standard (…)“ — sonst stünde dort „Standard (Standard)“. Der Name
+„Standard“ lässt sich für eigene Vorlagen nicht mehr neu vergeben (anlegen,
+umbenennen, kopieren; Groß-/Kleinschreibung egal).
+
+**Dynamische Gruppen: Personenauswahl.** „Immer dabei“ und „Nie dabei“ im
+Regel-Dialog suchen beim Tippen in Name und Adresse der aktivierten Postfächer
+(Groß-/Kleinschreibung und Akzente egal, „ue“ findet „ü“) und zeigen Name und
+Adresse untereinander. Auswahl per Tipp, Klick oder Pfeiltasten und Enter;
+Postfächer, die schon in einer der beiden Listen stehen, sind ausgegraut. Die
+bisherige Vorschlagsliste des Browsers zeigte auf Telefonen und in Teams nur
+die Adressen.
+
+**Einstellungen: Exchange lokal (EWS) nur mit Hybrid-Nutzern.** Die Karte
+*Exchange lokal (EWS)* erscheint nur noch, wenn unter *Postfächer* „Hybrid-Nutzer
+einbeziehen“ gesetzt ist — ohne Hybrid-Nutzer wirkt die Anbindung für niemanden.
+Eingetragene Werte bleiben gespeichert und erscheinen wieder, sobald der Haken
+gesetzt wird. Die EWS-Aufgaben im Sammelpunkt (Zugriffsbereich, Gruppe,
+Kontowechsel) entfallen ohne den Haken ebenfalls.
+
+**Zu tun:** Gibt es bei dir eine eigene Vorlage namens „Standard“, benenne sie
+um (*Signaturen* → Vorlage öffnen → *Umbenennen*) — sie stünde sonst neben der
+Standardvorlage zweimal gleich in jeder Auswahl. Der Sammelpunkt oben rechts
+meldet das. Zur CASTLE-Erneuerung siehe oben.
+
+---
+
 ## v1.12.112 — 2026-11-19 — Interne Mails ohne Banner und Disclaimer (einstellbar); Gruppenfarben, Variablen-Hilfe, Farbfeld
 
 **Interne Mails.** Signiert das Gateway rein interne Post (interne Signatur oder

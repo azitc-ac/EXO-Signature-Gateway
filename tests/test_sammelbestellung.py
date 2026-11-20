@@ -686,6 +686,10 @@ def test_sammellauf_kann_die_bestaetigung_uebernehmen(lauf, monkeypatch):
     # umgeworfen, die danach in ein Wörterbuch statt in die Einstellungen
     # schrieben.
     monkeypatch.setattr(settings_store, "update", lambda d: geschrieben.update(d))
+    # Lesen, was geschrieben wurde — wie im Betrieb. Sonst überschreibt jeder
+    # zweite Schreibvorgang den ersten mit dem leeren Ausgangsstand.
+    alt_get = settings_store.get
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: geschrieben[k] if k in geschrieben else alt_get(k, *a, **kw))
 
     import einwilligung
     erteilt = {}
@@ -709,7 +713,10 @@ def test_ohne_haken_wird_nichts_gesetzt(lauf, monkeypatch):
     monkeypatch.setattr(einwilligung, "erteilen",
                         lambda *a, **kw: pytest.fail("Einwilligung ohne Haken erteilt"))
     asyncio.run(sb.lauf_starten("hub:certum", ["a@x.de"]))
-    assert "CA_USER_CONFIG" not in geschrieben
+    # Seit v1.12.115 schreibt eine gestartete Bestellung Bezugsweg und
+    # „Automatisch erneuern“ — aber nichts, was eine Befugnis wäre.
+    for eintrag in (geschrieben.get("CA_USER_CONFIG") or {}).values():
+        assert set(eintrag) <= {"backend", "auto_renew"}, eintrag
 
 
 def test_lauf_zustand_zeigt_aktuell_und_stand_je_bestellung(monkeypatch):

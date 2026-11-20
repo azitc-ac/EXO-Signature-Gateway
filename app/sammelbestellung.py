@@ -528,6 +528,22 @@ async def _arbeiten() -> None:
         _lauf["meldung"] = f"{gut} von {_lauf['gesamt']} bestellt."
 
 
+def _automatisch_erneuern(adresse: str, provider_id: str) -> None:
+    """Nach gestarteter Sammel-/Auto-Bestellung: Bezugsweg und „Automatisch
+    erneuern“ festhalten. Bis v1.12.114 setzte nur der Haken in der Oberfläche
+    `auto_renew` — so bestellte Postfächer erneuerte der tägliche Lauf nie, es
+    kam nur die Ablaufwarnung an die Verwaltung. Ein ausdrücklich abgewählter
+    Haken (auto_renew False) bleibt abgewählt."""
+    import settings_store
+    cfg = dict(settings_store.get("CA_USER_CONFIG") or {})
+    eintrag = dict(cfg.get(adresse) or {})
+    eintrag.setdefault("backend", provider_id)
+    eintrag.setdefault("auto_renew", True)
+    if eintrag != (cfg.get(adresse) or {}):
+        cfg[adresse] = eintrag
+        settings_store.update({"CA_USER_CONFIG": cfg})
+
+
 async def _eine_bestellung(adresse: str, provider_id: str,
                            ca_terms_accepted_at: str = "") -> dict:
     """Eine einzelne Bestellung über denselben Weg wie die Einzelbestellung."""
@@ -550,6 +566,7 @@ async def _eine_bestellung(adresse: str, provider_id: str,
         # dem Start.
         await backend.initiate_renewal(
             adresse, cfg, extra={"ca_terms_accepted_at": ca_terms_accepted_at})
+        _automatisch_erneuern(adresse, provider_id)
         return {"email": adresse, "ok": True, "grund": ""}
     except Exception as exc:
         import acme_state

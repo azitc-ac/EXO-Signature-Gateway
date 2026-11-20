@@ -41,6 +41,7 @@ from fastapi.templating import Jinja2Templates
 
 import config
 import settings_store
+import signature_engine
 import sso as sso_mod
 import collections
 import queue as _queue_mod
@@ -56,6 +57,8 @@ _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 templates = Jinja2Templates(directory=str(_TEMPLATE_DIR))
 templates.env.globals["version"] = config.VERSION
+# {{ name|vorlage }}: Anzeigename („default“ → „Standard“), signature_engine.anzeigename
+templates.env.filters["vorlage"] = signature_engine.anzeigename
 
 
 def _lernmodus_rest_min() -> int:

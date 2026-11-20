@@ -142,7 +142,7 @@ jobs:
       # Falsche zeigt ("Container wird neu gestartet…", "Nutzungsbedingungen
       # konnten nicht geladen werden").
       - name: Ungebundene Bezeichner im Vorlagen-JavaScript
-        run: node tools/jsscopecheck.js app/webui/templates app/webui/static/common.js app/webui/static/sig_preview.js --eigen=app/webui/static/common.js --eigen=app/webui/static/sig_preview.js --eigen=app/webui/static/verfassen_ereignis.js --eigen=app/webui/static/addin_anmeldung.js
+        run: node tools/jsscopecheck.js app/webui/templates app/webui/static/common.js app/webui/static/sig_preview.js app/webui/static/vorlagen_name.js app/webui/static/personen_auswahl.js --eigen=app/webui/static/personen_auswahl.js --eigen=app/webui/static/common.js --eigen=app/webui/static/vorlagen_name.js --eigen=app/webui/static/sig_preview.js --eigen=app/webui/static/verfassen_ereignis.js --eigen=app/webui/static/addin_anmeldung.js
 
       # Die Gegenrichtung zu jsscopecheck: dort Verweis ohne Ziel, hier Ziel
       # ohne Verweis. Beides ist lauffähiges JavaScript, das keine der übrigen

@@ -18,7 +18,8 @@ import settings_store
 @pytest.fixture
 def werte(monkeypatch):
     w = {"EWS_ONPREM_URL": "https://exchange.firma.at/EWS/Exchange.asmx",
-         "ABWESENHEIT_AKTIV": True, "MAILBOX_HEALTH": {}}
+         "ABWESENHEIT_AKTIV": True, "MAILBOX_HEALTH": {},
+         "HYBRID_POSTFAECHER": True}   # ohne Haken entfallen alle EWS-Aufgaben (abnahme._ohne_hybrid)
     alt = settings_store.get
     monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: w[k] if k in w else alt(k, *a, **kw))
     monkeypatch.setattr(aufgaben, "_eingerichtet", lambda: True)
