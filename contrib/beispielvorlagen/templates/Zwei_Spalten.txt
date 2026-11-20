@@ -1,0 +1,9 @@
+Viele Grüße
+
+{{ user.displayName }}
+{% if user.jobTitle %}{{ user.jobTitle }}{% endif %}
+--
+{% if user.phone %}T {{ user.phone }}{% endif %}
+{% if user.mobilePhone %}M {{ user.mobilePhone }}{% endif %}
+{% if user.mail %}E {{ user.mail }}{% endif %}
+{% if user.website %}W {{ user.website }}{% endif %}

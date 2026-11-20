@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "kind": "signatur",
+  "text_eigen": false,
+  "global": {
+    "font_family": "Calibri, Arial, sans-serif",
+    "font_size": "10.5pt",
+    "base_color": "#1f2937",
+    "muted_color": "#6b7280",
+    "link_color": "#0369a1"
+  },
+  "blocks": [
+    {
+      "id": "25",
+      "type": "greeting",
+      "text": "Beste Grüße"
+    },
+    {
+      "id": "26",
+      "type": "spacer",
+      "height": 8
+    },
+    {
+      "id": "33",
+      "type": "box",
+      "width": 420,
+      "radius": 10,
+      "border_width": 1,
+      "border_color": "#bfdbfe",
+      "filled": true,
+      "fill_color": "#f0f9ff",
+      "padding": 14,
+      "padding_x": 18,
+      "children": [
+        {
+          "id": "27",
+          "type": "name_field",
+          "bold": true,
+          "size": "12pt",
+          "color": "#1e40af"
+        },
+        {
+          "id": "28",
+          "type": "field",
+          "field": "jobTitle",
+          "color": "muted"
+        },
+        {
+          "id": "29",
+          "type": "spacer",
+          "height": 6
+        },
+        {
+          "id": "30",
+          "type": "phone",
+          "field": "phone",
+          "prefix": "Tel."
+        },
+        {
+          "id": "31",
+          "type": "email_link"
+        },
+        {
+          "id": "32",
+          "type": "web_link"
+        }
+      ]
+    }
+  ]
+}

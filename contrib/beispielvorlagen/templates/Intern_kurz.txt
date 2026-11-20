@@ -1,0 +1,4 @@
+Viele Grüße
+{{ user.displayName }}
+{% if user.department %}{{ user.department }}{% endif %}
+{% if user.phone %}Durchwahl {{ user.phone }}{% endif %}

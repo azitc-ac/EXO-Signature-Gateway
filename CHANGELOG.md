@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.126 — 2026-11-20 — Beispielvorlagen zum Importieren
+
+Im Repository liegt unter `contrib/beispielvorlagen/` ein Paket mit neun
+Vorlagen, alle im Baukasten bearbeitbar: Klassisch mit Logo, Zwei Spalten,
+Kasten mit runden Ecken, Geteiltes Postfach (mit „Anzeigen wenn“), kurze interne
+Signatur, Antwort-Signatur, zweisprachige Abwesenheit mit Zeitraum, ein
+Kampagnen-Banner und ein Disclaimer. Das Logo ist ein neutraler Platzhalter.
+Importieren über *Signaturen → Vorlagen → Importieren …* mit
+`beispielvorlagen.zip`; je Vorlage liegt ein Vorschaubild bei.
+
+Am Gateway selbst ändert sich nichts.
+
+**Zu tun:** nichts.
+
 ## v1.12.125 — 2026-11-20 — S/MIME: CASTLE-Zertifikate widerrufen; widerrufene signieren nicht mehr
 
 **Widerrufen per Knopf.** Auf der Seite *S/MIME* steht bei jedem gültigen
