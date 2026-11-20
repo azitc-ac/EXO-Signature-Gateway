@@ -2,6 +2,7 @@
 {% block main_klasse %}weit{% endblock %}
 {% block content %}
 <script src="/static/sig_preview.js?v={{ version }}"></script>
+<script src="/static/bild_optimieren.js?v={{ version }}"></script>
 <h1>Signaturen</h1>
 
 {% set nav_aktiv = 'vorlagen' %}{% include "_nav_signaturen.html" %}
@@ -1248,6 +1249,10 @@ function buildBlockForm(b) {
           style="padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;width:100%;box-sizing:border-box">`}
         ${previewImg}
         ${isEmbed ? `<input type="hidden" data-bild-kennung value="${escAttr(_bildKennung(b.url))}">` : ''}
+        ${isEmbed ? `<span class="hint" data-bild-hinweis style="display:block;margin:4px 0 0">${esc(_bildHinweise[b.id] || ('Eingebettet: ' + bildGroesseText(_bildBytesAusDataUrl(b.url))))}</span>` : ''}
+        ${isEmbed ? `<button type="button" class="btn secondary btn-sm" style="margin-top:6px"
+          onclick="logoVerkleinern('${escJsAttr(b.id)}')"
+          title="Auf etwa die doppelte Anzeigebreite verkleinern und als JPG bzw. PNG neu speichern">Verkleinern</button>` : ''}
         ${isEmbed ? `<button type="button" onclick="logoClear('${escJsAttr(b.id)}')"
           style="margin-top:6px;font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;padding:0">✕ Einbettung entfernen</button>` : ''}
       </div>
@@ -1742,22 +1747,51 @@ function _bildKennung(url) {
   return s.length + ':' + h.toString(16);
 }
 
-window.logoFileUpload = function(input) {
+// Hinweis „Verkleinert: …“ je Baustein — nur für die Anzeige, nicht in den
+// Baukasten-Daten (die Meta soll keine Laufzeitnotizen tragen).
+const _bildHinweise = {};
+const BILD_MAX_ROH = 15 * 1024 * 1024;     // Ausgangsdatei: wird ja verkleinert
+const BILD_MAX_EINGEBETTET = 512 * 1024;   // nach dem Verkleinern
+
+// Bild hochladen: verkleinern (static/bild_optimieren.js), dann einbetten.
+// Bis v1.12.134 lehnte der Baukasten alles über 512 KB ab und nahm den Rest
+// unverändert — Logos mussten vorher von Hand und oft zu stark verkleinert werden.
+window.logoFileUpload = async function(input) {
   const bid = input.dataset.bid;
   const b = findBlock(bid);
   if (!b || !input.files || !input.files[0]) return;
   const file = input.files[0];
-  if (file.size > 512 * 1024) {
-    alert('Datei zu groß (max. 512 KB). Bitte vorher verkleinern.');
+  if (file.size > BILD_MAX_ROH) {
+    alert('Datei zu groß (höchstens 15 MB).');
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    b.url = reader.result;
-    _refreshCardBody(bid, b);
-  };
-  reader.readAsDataURL(file);
+  await _bildUebernehmen(bid, b, file);
 };
+
+// Schon eingebettetes Bild nachträglich verkleinern (Knopf „Verkleinern“).
+window.logoVerkleinern = async function(bid) {
+  const b = findBlock(bid);
+  if (!b || !(b.url || '').startsWith('data:')) return;
+  await _bildUebernehmen(bid, b, b.url);
+};
+
+async function _bildUebernehmen(bid, b, quelle) {
+  let erg;
+  try {
+    erg = await bildOptimieren(quelle, b.width || 100);
+  } catch (e) {
+    alert('Bild lässt sich nicht verarbeiten: ' + ((e && e.message) || e));
+    return;
+  }
+  if (erg.nachher.bytes > BILD_MAX_EINGEBETTET) {
+    alert('Auch verkleinert noch ' + bildGroesseText(erg.nachher.bytes)
+          + ' — bitte eine kleinere Breite wählen oder das Bild als Adresse (https://…) einbinden.');
+    return;
+  }
+  b.url = erg.dataUrl;
+  _bildHinweise[bid] = erg.hinweis || '';
+  _refreshCardBody(bid, b);
+}
 
 window.logoClear = function(bid) {
   const b = findBlock(bid);
