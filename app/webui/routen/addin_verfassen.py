@@ -608,6 +608,17 @@ async def verfassen_signatur(request: Request):
             extra = {"bearbeiter": graph_client.UserData(mail=bearbeiter)}
     sig_html, _txt = signature_engine.render(user_data, vorlage, extra)
     marked = markiert(sig_html) if sig_html else ""
+    # Kann der Client Inline-Anhänge (addFileAttachmentFromBase64Async, Mailbox
+    # 1.8), gehen eingebettete Bilder als Anhang mit — für Outlooks Grenze von
+    # 30.000 Zeichen zählt dann nur das schlanke HTML (signatur_bilder.py).
+    bilder: list[dict] = []
+    try:
+        inline = request.query_params.get("inline") == "1"
+    except AttributeError:
+        inline = False
+    if inline and marked:
+        import signatur_bilder
+        marked, bilder = signatur_bilder.auslagern(marked)
     zu_gross = signatur_zu_gross(marked)
     if zu_gross:
         # setSignatureAsync schlüge fehl (Classic: „Parameter name: data“). Nichts
@@ -619,11 +630,13 @@ async def verfassen_signatur(request: Request):
         return JSONResponse({"html": "", "kette": kette, "vorlage": vorlage,
                              "zu_gross": zu_gross, "max": OUTLOOK_SIGNATUR_MAX},
                             headers=_CORS)
-    log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s%s)", vorlage, ident, plattform,
-             ", alle Empfänger intern" if art == "intern" else "")
-    return JSONResponse({"html": marked, "kette": kette, "art": art,
-                         "vorlage": vorlage if sig_html else ""},
-                        headers=_CORS)
+    log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s%s%s)", vorlage, ident, plattform,
+             ", alle Empfänger intern" if art == "intern" else "",
+             f", {len(bilder)} Bild(er) als Inline-Anhang" if bilder else "")
+    antwort = {"html": marked, "kette": kette, "art": art, "vorlage": vorlage if sig_html else ""}
+    if bilder:
+        antwort["bilder"] = bilder
+    return JSONResponse(antwort, headers=_CORS)
 
 
 # ── Rückmeldung aus Outlook ins Gateway-Protokoll ──────────────────────────────

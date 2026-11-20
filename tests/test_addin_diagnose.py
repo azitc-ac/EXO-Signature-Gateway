@@ -302,3 +302,30 @@ def test_gleiche_von_adresse_ohne_zeile(umgebung, gross_rendern, caplog):
     gross_rendern["n"] = 100
     asyncio.run(av.verfassen_signatur(_ReqVon("Bearer " + _token(), "erika@zarenko.net")))
     assert not [s for s in caplog.records if "Von-Adresse" in s.getMessage()]
+
+
+class _ReqInline(_Req):
+    def __init__(self, auth):
+        super().__init__(auth)
+        self.query_params = {"inline": "1", "client": "PC"}
+
+
+def test_ereignis_mit_inline_bildern_bleibt_unter_der_grenze(umgebung, monkeypatch):
+    """Kunden-Rückmeldung 20.11.2026: Logos mussten bis zur Unkenntlichkeit
+    verkleinert werden, damit die Signatur unter 30.000 Zeichen blieb. Mit
+    inline=1 gehen Bilder getrennt (signatur_bilder.py), gezählt wird das HTML."""
+    import base64
+    import os
+
+    async def _user(email):
+        return graph_client.UserData(mail=email)
+    monkeypatch.setattr(graph_client, "get_user", _user)
+    bild = base64.b64encode(os.urandom(40000)).decode()           # ~53.000 Zeichen
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, t, extra=None: (f'<p>Name</p><img src="data:image/png;base64,{bild}">', ""))
+    ohne = json.loads(asyncio.run(av.verfassen_signatur(_Req("Bearer " + _token()))).body)
+    assert ohne["html"] == "" and ohne["zu_gross"] > GRENZE                 # alter Weg: zu groß
+    mit = json.loads(asyncio.run(av.verfassen_signatur(_ReqInline("Bearer " + _token()))).body)
+    assert "zu_gross" not in mit and len(mit["html"]) < 2000
+    (b,), = [mit["bilder"]]
+    assert b["base64"] == bild and f'cid:{b["name"]}' in mit["html"]

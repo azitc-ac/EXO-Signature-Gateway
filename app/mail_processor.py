@@ -318,6 +318,11 @@ def addin_signatur_entfernen(msg: email.message.Message) -> bool:
         if neu is not None:
             _set_part_payload(teil, neu, zeichensatz)
             entfernt = True
+    if entfernt:
+        # Bilder der entfernten Signatur hängen seit v1.12.136 als Inline-Anhang
+        # (gwsig-…) an — ohne Verweis erschienen sie beim Empfänger als lose Anhänge.
+        import signatur_bilder
+        signatur_bilder.verwaiste_entfernen(msg)
     return entfernt and not _has_own_sig_in_compose_area(msg)
 
 

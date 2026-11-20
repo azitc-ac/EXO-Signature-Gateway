@@ -517,3 +517,43 @@ def test_postfach_nur_mit_smime_bekommt_keine_signatur(umgebung, rendern):
     umgebung["MAILBOX_CONFIG"] = {"erika@zarenko.net": {"smime": True, "template": "default"}}
     code, body, _k = _abruf("Bearer " + _token())
     assert code == 200 and body == {"html": ""} and rendern == []
+
+
+# ── Bilder als Inline-Anhang (v1.12.136, signatur_bilder.py) ─────────────────────
+
+_MIT_ANHANG = ("{getComposeTypeAsync: " + _OK % "{composeType: 'newMail'}" +
+               ", disableClientSignatureAsync: " + _OK % "null" +
+               ", getAttachmentsAsync: function (cb) { cb({status: 'succeeded', value: "
+               "(protokoll.anhaenge || []).map(function (a) { return {name: a.name}; })}); }"
+               ", addFileAttachmentFromBase64Async: function (b, n, o, cb) {"
+               " protokoll.anhaenge = (protokoll.anhaenge || []).concat([{name: n, inline: o.isInline, b: b}]);"
+               " protokoll.reihenfolge = (protokoll.reihenfolge || []).concat(['anhang']); cb({status: 'succeeded', value: 1}); }"
+               ", body: {setSignatureAsync: function (h, o, cb) { protokoll.gesetzt = h;"
+               " protokoll.reihenfolge = (protokoll.reihenfolge || []).concat(['signatur']); cb({status: 'succeeded'}); }}}")
+_ANTWORT_BILD = ("{html: '<p>SIG</p><img src=\"cid:gwsig-ab.png\">', vorlage: 'Logo', "
+                 "bilder: [{name: 'gwsig-ab.png', typ: 'image/png', base64: 'QUJD'}]}")
+
+
+def test_handler_haengt_bilder_inline_an_bevor_er_die_signatur_setzt():
+    """Kunden-Rückmeldung 20.11.2026: Logos mussten bis zur Unkenntlichkeit
+    verkleinert werden — Outlook nimmt in setSignatureAsync höchstens 30.000
+    Zeichen. MS-Weg: Bild als Inline-Anhang, HTML verweist per cid."""
+    p = _handler_lauf(_MIT_ANHANG, plattform="PC", antwort=_ANTWORT_BILD)
+    assert "&inline=1" in p["url"]
+    assert p["anhaenge"] == [{"name": "gwsig-ab.png", "inline": True, "b": "QUJD"}]
+    assert p["reihenfolge"] == ["anhang", "signatur"]
+    assert 'cid:gwsig-ab.png' in p["gesetzt"] and p["fertig"] == 1 and not p["hinweise"]
+
+
+def test_handler_haengt_vorhandenes_bild_nicht_doppelt_an():
+    item = _MIT_ANHANG.replace("var item", "var item")
+    vorher = "(function () { protokoll.anhaenge = [{name: 'gwsig-ab.png'}]; return %s; })()" % item
+    p = _handler_lauf(vorher, plattform="PC", antwort=_ANTWORT_BILD)
+    assert p["anhaenge"] == [{"name": "gwsig-ab.png"}] and p["gesetzt"]
+
+
+def test_ohne_anhang_api_kein_inline_wunsch():
+    """Alte Clients (ohne Mailbox 1.8): Abruf ohne inline=1 — das Gateway liefert
+    dann wie bisher die Signatur mit eingebetteten Bildern."""
+    p = _handler_lauf(_VOLL, plattform="PC")
+    assert "inline=1" not in p["url"]

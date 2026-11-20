@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.136 — 2026-11-20 — Verfassen-Add-in: Bilder der Signatur als Inline-Anhang — keine 30.000-Zeichen-Falle mehr
+
+Outlook nimmt eine Signatur, die ein Add-in einsetzt (`setSignatureAsync`),
+nur bis 30.000 Zeichen — das ganze HTML, eingebettete Bilder eingeschlossen.
+Ein Logo in ordentlicher Qualität verbrauchte davon schnell den größten Teil.
+Das Verfassen-Add-in fügte die Signatur dann nicht ein („… ist für Outlook zu
+groß – das Gateway fügt sie beim Versand an“); Bilder mussten bis zu
+sichtbaren Qualitätsverlusten verkleinert werden, damit die Meldung verschwand.
+
+Jetzt hängt das Add-in eingebettete Bilder als **Inline-Anhang** an — der Weg,
+den Microsoft für Bilder in Signaturen beschreibt — und setzt eine schlanke
+Signatur, die darauf verweist. Für die Grenze zählt nur noch das HTML ohne
+Bilder. Dasselbe Bild wird nicht doppelt angehängt, wenn die Signatur beim
+Empfänger- oder Absenderwechsel neu gesetzt wird. Ersetzt das Gateway beim
+Versand eine Signatur des Add-ins, entfernt es deren Bilder mit, damit sie
+beim Empfänger nicht als lose Anhänge erscheinen.
+
+Outlook-Versionen ohne diese Funktion (Anforderungssatz Mailbox 1.8) bekommen
+die Signatur wie bisher mit eingebetteten Bildern.
+
+Das Add-in-Skript lädt Outlook vom Gateway; ein neues Manifest ist nicht nötig.
+Das klassische Outlook unter Windows hält eine ältere Fassung des Skripts
+allerdings eine Weile im Zwischenspeicher, bis dahin gilt dort noch der alte Weg.
+
+**Zu tun:** nichts.
+
 ## v1.12.135 — 2026-11-20 — Baukasten: hochgeladene Bilder werden passend verkleinert
 
 Ein Bild im Baustein *Logo* wurde bisher unverändert eingebettet; über 512 KB
