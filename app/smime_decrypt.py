@@ -11,11 +11,28 @@ log = logging.getLogger(__name__)
 
 
 def _decrypt_local(message_bytes: bytes, recipient: str) -> bytes | None:
-    """Decrypt using a local key file (key.pem or key.pem.bak)."""
-    paths = smime_store.get_signing_paths(recipient, allow_backup=True)
-    if not paths:
+    """Decrypt using a local key file (key.pem or key.pem.bak).
+
+    Alle Slots des Postfachs, der Standard zuerst (smime_store.entschluessel_paare):
+    Bis v1.12.126 nur der Standard-Slot — nach einer Erneuerung blieb Post an
+    das alte Zertifikat verschlüsselt."""
+    paare = smime_store.entschluessel_paare(recipient)
+    if not paare:
         return None
-    cert_path, key_path = paths
+    letzter_fehler = ""
+    for cert_path, key_path in paare:
+        ergebnis, letzter_fehler = _decrypt_mit(message_bytes, recipient, cert_path, key_path)
+        if ergebnis is not None:
+            if (cert_path, key_path) != paare[0]:
+                log.info("S/MIME decrypted for recipient=%s with non-default cert slot %s",
+                         recipient, cert_path.parent.name)
+            return ergebnis
+    log.error("openssl cms -decrypt failed for %s (%d Zertifikat(e) versucht): %s",
+              recipient, len(paare), letzter_fehler)
+    return None
+
+
+def _decrypt_mit(message_bytes: bytes, recipient: str, cert_path, key_path) -> tuple[bytes | None, str]:
     passin, umgebung = smime_store.openssl_passin()
     cmd = [
         # cms statt smime: `openssl smime` liest nur PKCS#7 und bricht an jeder
@@ -31,14 +48,11 @@ def _decrypt_local(message_bytes: bytes, recipient: str) -> bytes | None:
         result = subprocess.run(cmd, input=message_bytes, capture_output=True,
                                 timeout=15, env=umgebung)
         if result.returncode != 0:
-            log.error("openssl cms -decrypt failed for %s: %s",
-                      recipient, result.stderr.decode(errors="replace")[:400])
-            return None
+            return None, result.stderr.decode(errors="replace")[:400]
         log.info("S/MIME decrypted (local key) for recipient=%s", recipient)
-        return result.stdout
+        return result.stdout, ""
     except Exception as exc:
-        log.error("S/MIME local decrypt error for %s: %s", recipient, exc)
-        return None
+        return None, str(exc)
 
 
 async def _decrypt_keyvault(message_bytes: bytes, recipient: str) -> bytes | None:

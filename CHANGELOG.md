@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.127 — 2026-11-20 — S/MIME: Post an ein früheres Zertifikat wird wieder entschlüsselt
+
+Hat ein Postfach mehrere Zertifikate, etwa nach einer Erneuerung, versuchte das
+Gateway eingehende verschlüsselte Post nur mit dem Schlüssel des
+Standard-Zertifikats zu öffnen. Nach einer Erneuerung ist das das neue. Partner
+verschlüsseln aber noch eine Weile an das alte, das sie aus früherer Post
+kennen. Solche Mails blieben verschlüsselt. Mit der automatischen Verlängerung
+ist das kein Randfall mehr.
+
+Jetzt versucht das Gateway alle Zertifikate des Postfachs mit lokalem Schlüssel,
+das Standard-Zertifikat zuerst. Widerrufene zählen mit: Mit einem widerrufenen
+Zertifikat wird nicht mehr signiert, an es verschlüsselte Post bleibt lesbar.
+Mit Azure Key Vault gilt das für den lokalen Rückfall (`key.pem.bak`).
+
+**Zu tun:** nichts.
+
 ## v1.12.126 — 2026-11-20 — Beispielvorlagen zum Importieren
 
 Im Repository liegt unter `contrib/beispielvorlagen/` ein Paket mit neun
