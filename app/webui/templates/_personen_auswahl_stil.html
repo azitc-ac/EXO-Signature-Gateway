@@ -1,0 +1,37 @@
+{# Stile der Personenauswahl (static/personen_auswahl.js). Hier statt in style.css,
+   weil style.css/dark-mode.css mit dem Relay gespiegelt sind. Eingebunden in base.html. #}
+<style>
+  /* Personenauswahl (static/personen_auswahl.js): Trefferliste unter dem Feld,
+     genau so breit wie das Feld (left/right:0 an der Hülle) — auf dem Telefon
+     kein Querrollen. Rund acht Treffer sichtbar,
+     der Rest rollt. Zustände nur über Klasse/data-* (Dark-Mode-Regel 2). */
+  .pa-huelle { position:relative; display:flex; flex:1 1 150px; min-width:0; max-width:100% }
+  .pa-huelle > input { flex:1 1 auto; width:100% }
+  .pa-liste { position:absolute; left:0; right:0; top:100%; margin-top:2px; z-index:20;
+      max-height:316px; overflow-y:auto; overflow-x:hidden; background:#fff;
+      border:1px solid #e2e8f0; border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,0.12); box-sizing:border-box }
+  .pa-liste[hidden] { display:none }
+  .pa-eintrag { padding:4px 8px; cursor:pointer; font-size:12px; line-height:1.3 }
+  /* Je Eintrag genau zwei Zeilen (Name, Adresse) — sonst passen auf dem Telefon
+     bei langen Adressen nur vier Treffer ins Bild. Zu Langes endet mit „…“,
+     die volle Adresse steht im title und danach im Chip. */
+  .pa-name, .pa-adresse { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .pa-name { font-weight:600; color:#1e293b }
+  .pa-adresse { color:#64748b }
+  .pa-eintrag.pa-aktiv { background:#eff6ff }
+  .pa-eintrag[aria-disabled="true"] { cursor:default }
+  .pa-eintrag[aria-disabled="true"] .pa-name,
+  .pa-eintrag[aria-disabled="true"] .pa-adresse { color:#94a3b8 }
+  .pa-leer { padding:6px 8px; font-size:12px; color:#64748b }
+  [data-theme="dark"] .pa-liste { background:#14171f; border-color:#495166 }
+  [data-theme="dark"] .pa-name { color:#e2e8f0 }
+  [data-theme="dark"] .pa-adresse, [data-theme="dark"] .pa-leer { color:#94a3b8 }
+  [data-theme="dark"] .pa-eintrag.pa-aktiv { background:#0a1827 }
+  [data-theme="dark"] .pa-eintrag[aria-disabled="true"] .pa-name,
+  [data-theme="dark"] .pa-eintrag[aria-disabled="true"] .pa-adresse { color:#64748b }
+  .regel-mitglied { font-size:12px; padding:2px 0; overflow-wrap:anywhere }
+  /* Zwischenüberschrift (Eintrag mit „gruppe“), z. B. „Freigegebene Postfächer“. */
+  .pa-kopf { padding:5px 8px 2px; font-size:11px; font-weight:600; color:#64748b;
+      text-transform:uppercase; letter-spacing:.03em }
+  [data-theme="dark"] .pa-kopf { color:#94a3b8 }
+</style>

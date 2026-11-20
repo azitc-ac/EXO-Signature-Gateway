@@ -122,35 +122,6 @@
       border:1px solid #e2e8f0; border-radius:10px; max-width:100%; overflow-wrap:anywhere }
   [data-theme="dark"] .regel-chip { border-color:#495166 }
   .regel-chip button { background:none; border:none; cursor:pointer; font-size:12px; padding:0 2px; color:inherit }
-  /* Personenauswahl (personenAuswahl() unten): Trefferliste unter dem Feld,
-     genau so breit wie das Feld (left/right:0 an der Hülle) — auf dem Telefon
-     kein Querrollen. Rund acht Treffer sichtbar,
-     der Rest rollt. Zustände nur über Klasse/data-* (Dark-Mode-Regel 2). */
-  .pa-huelle { position:relative; display:flex; flex:1 1 150px; min-width:0; max-width:100% }
-  .pa-huelle > input { flex:1 1 auto; width:100% }
-  .pa-liste { position:absolute; left:0; right:0; top:100%; margin-top:2px; z-index:20;
-      max-height:316px; overflow-y:auto; overflow-x:hidden; background:#fff;
-      border:1px solid #e2e8f0; border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,0.12); box-sizing:border-box }
-  .pa-liste[hidden] { display:none }
-  .pa-eintrag { padding:4px 8px; cursor:pointer; font-size:12px; line-height:1.3 }
-  /* Je Eintrag genau zwei Zeilen (Name, Adresse) — sonst passen auf dem Telefon
-     bei langen Adressen nur vier Treffer ins Bild. Zu Langes endet mit „…“,
-     die volle Adresse steht im title und danach im Chip. */
-  .pa-name, .pa-adresse { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-  .pa-name { font-weight:600; color:#1e293b }
-  .pa-adresse { color:#64748b }
-  .pa-eintrag.pa-aktiv { background:#eff6ff }
-  .pa-eintrag[aria-disabled="true"] { cursor:default }
-  .pa-eintrag[aria-disabled="true"] .pa-name,
-  .pa-eintrag[aria-disabled="true"] .pa-adresse { color:#94a3b8 }
-  .pa-leer { padding:6px 8px; font-size:12px; color:#64748b }
-  [data-theme="dark"] .pa-liste { background:#14171f; border-color:#495166 }
-  [data-theme="dark"] .pa-name { color:#e2e8f0 }
-  [data-theme="dark"] .pa-adresse, [data-theme="dark"] .pa-leer { color:#94a3b8 }
-  [data-theme="dark"] .pa-eintrag.pa-aktiv { background:#0a1827 }
-  [data-theme="dark"] .pa-eintrag[aria-disabled="true"] .pa-name,
-  [data-theme="dark"] .pa-eintrag[aria-disabled="true"] .pa-adresse { color:#64748b }
-  .regel-mitglied { font-size:12px; padding:2px 0; overflow-wrap:anywhere }
   .regel-mitglied summary { cursor:pointer }
   .regel-mitglied ul { margin:2px 0 4px 18px; padding:0 }
   .regel-marke { font-size:10px; font-weight:600; padding:0 6px; border-radius:8px; margin-left:4px;
@@ -724,8 +695,15 @@ async function ankerAnwenden() {
   <div style="background:#fff;border-radius:10px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
     <button onclick="closeMembersModal()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:#888">✕</button>
     <h2 id="members-modal-title" style="margin-top:0;font-size:15px;margin-bottom:4px"></h2>
-    <p style="font-size:11px;color:#64748b;margin-top:0;margin-bottom:12px">Nur konfigurierte Postfächer werden angezeigt.</p>
-    <div id="members-modal-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
+    <p style="font-size:11px;color:#64748b;margin-top:0;margin-bottom:12px">Wählbar sind aktivierte Postfächer (Signatur oder S/MIME).</p>
+    <div id="members-modal-list" class="regel-chips"></div>
+    <div class="regel-zeile" style="margin-top:8px">
+      <span class="pa-huelle">
+        <input id="members-modal-neu" class="regel-wert" placeholder="Name oder Adresse"
+               aria-label="Mitglied hinzufügen"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </span>
+    </div>
     <div style="margin-top:16px;display:flex;gap:8px">
       <button class="btn secondary btn-sm" onclick="saveMembersModal()">Speichern</button>
       <button class="btn secondary btn-sm" onclick="closeMembersModal()">Abbrechen</button>
@@ -2194,48 +2172,70 @@ function removeGroup(name) {
 // Mitglieder-Modal
 var _memberModalGroupName = null;
 
+// Mitglieder einer statischen Gruppe: Chips der gewählten, darunter die
+// Personenauswahl (seit v1.12.114; bis dahin eine Liste mit einem Kästchen je
+// aktiviertem Postfach — bei vielen Postfächern ohne Suche kaum zu bedienen).
+var _memberArbeit = [];
+function _memberZeichnen() {
+  var list = document.getElementById('members-modal-list');
+  list.innerHTML = '';
+  _memberArbeit.forEach(function (k) {
+    var chip = document.createElement('span');
+    chip.className = 'regel-chip';
+    chip.appendChild(document.createTextNode(_schluesselText(k)));
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.textContent = '✕';
+    x.title = 'Entfernen';
+    x.addEventListener('click', function () {
+      _memberArbeit.splice(_memberArbeit.indexOf(k), 1);
+      _memberZeichnen();
+    });
+    chip.appendChild(x);
+    list.appendChild(chip);
+  });
+  if (!_memberArbeit.length) list.innerHTML = '<span class="hint">— noch keine Mitglieder —</span>';
+}
+var _memberAuswahl = (function () {
+  var feld = document.getElementById('members-modal-neu');
+  if (!feld) return null;
+  return personenAuswahl(feld, {
+    eintraege: function () {
+      return _mbData.filter(function (m) { return m.sig || m.smime; }).map(function (m) {
+        var k = m.config_key || m.email;
+        return {wert: k, name: m.name || '', adresse: m.email,
+                gesperrt: _memberArbeit.indexOf(k) >= 0 ? 'ist schon Mitglied' : ''};
+      });
+    },
+    waehlen: function (k) {
+      if (_memberArbeit.indexOf(k) < 0) _memberArbeit.push(k);
+      _memberZeichnen();
+    },
+    beimFokus: true,
+    leerText: 'Kein aktiviertes Postfach passt.',
+  });
+})();
+
 function openMembersModal(btn) {
   var name = btn.dataset.group;
   _memberModalGroupName = name;
   document.getElementById('members-modal-title').textContent = 'Mitglieder: ' + name;
-  var list = document.getElementById('members-modal-list');
-  list.innerHTML = '';
-  var currentKeys = _groups[name] || [];
-  var mbs = _mbData.filter(function(m) { return m.sig || m.smime; });
-  if (!mbs.length) {
-    list.innerHTML = '<p style="font-size:12px;color:#94a3b8">Keine konfigurierten Postfächer.</p>';
-  } else {
-    mbs.forEach(function(mb) {
-      var key = mb.config_key || mb.email;
-      var lbl = document.createElement('label');
-      lbl.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px';
-      var cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.value = key;
-      cb.checked = currentKeys.indexOf(key) >= 0;
-      lbl.appendChild(cb);
-      var span = document.createElement('span');
-      span.textContent = (mb.name && mb.name !== mb.email ? mb.name + ' <' + mb.email + '>' : mb.email);
-      lbl.appendChild(span);
-      list.appendChild(lbl);
-    });
-  }
+  _memberArbeit = (_groups[name] || []).slice();
+  document.getElementById('members-modal-neu').value = '';
+  _memberZeichnen();
   var overlay = document.getElementById('members-modal-overlay');
   overlay.style.display = 'flex';
 }
 
 function closeMembersModal() {
   document.getElementById('members-modal-overlay').style.display = 'none';
+  if (_memberAuswahl) _memberAuswahl.schliessen();
   _memberModalGroupName = null;
 }
 
 async function saveMembersModal() {
   if (!_memberModalGroupName) return;
-  var checked = [];
-  document.querySelectorAll('#members-modal-list input[type=checkbox]:checked').forEach(function(cb) {
-    checked.push(cb.value);
-  });
-  _groups[_memberModalGroupName] = checked;
+  _groups[_memberModalGroupName] = _memberArbeit.slice();
   _renderGroupsTable();
   _renderCustomPoliciesTable(); // refresh group selects
   // Sofort persistieren — kein separater Speichern-Schritt mehr. Bei Fehler bleibt
@@ -2451,131 +2451,8 @@ function _schluesselText(k) {
   return k;
 }
 
-// ── Personenauswahl: ein Baustein für Felder, in die man ein Postfach wählt ──
-// Tippen filtert nach Name UND Adresse (Teilstring, ohne Groß-/Kleinschreibung,
-// Akzente/Umlaute gleichwertig: „muller“ findet „Müller“). Liste unter dem Feld,
-// Auswahl per Klick/Tipp oder Pfeiltasten + Enter, Esc und Klick daneben
-// schließen. Einträge mit `gesperrt` (Text = Grund) erscheinen ausgegraut und
-// sind nicht wählbar. Enter ohne markierten Eintrag übergibt den Freitext an
-// `frei` (wenn angegeben) — z. B. eine vollständig getippte Adresse.
-//   optionen.eintraege() → [{wert, name, adresse, gesperrt}]
-//   optionen.waehlen(wert)          optionen.frei(text)
-function _paNorm(t) {
-  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/ß/g, 'ss').toLowerCase().trim();
-}
-function _paUmlaut(t) {
-  return String(t || '').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
-    .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue');
-}
-function personenAuswahl(feld, optionen) {
-  var huelle = feld.parentNode;
-  var liste = document.createElement('div');
-  liste.className = 'pa-liste';
-  liste.id = feld.id + '-liste';
-  liste.setAttribute('role', 'listbox');
-  liste.hidden = true;
-  huelle.appendChild(liste);
-  feld.setAttribute('role', 'combobox');
-  feld.setAttribute('aria-autocomplete', 'list');
-  feld.setAttribute('aria-controls', liste.id);
-  feld.setAttribute('aria-expanded', 'false');
-  var treffer = [], aktiv = -1;
-
-  function zu() {
-    liste.hidden = true; aktiv = -1;
-    feld.setAttribute('aria-expanded', 'false');
-    feld.removeAttribute('aria-activedescendant');
-  }
-  function markieren(i) {
-    aktiv = i;
-    Array.prototype.forEach.call(liste.children, function (c, j) {
-      c.classList.toggle('pa-aktiv', j === i);
-      if (c.getAttribute('role') === 'option') c.setAttribute('aria-selected', j === i ? 'true' : 'false');
-    });
-    if (i >= 0 && liste.children[i]) {
-      feld.setAttribute('aria-activedescendant', liste.children[i].id);
-      liste.children[i].scrollIntoView({block: 'nearest'});
-    } else {
-      feld.removeAttribute('aria-activedescendant');
-    }
-  }
-  function zeigen() {
-    var q = _paNorm(feld.value);
-    // „mueller“ soll „Müller“ finden wie „muller“: der Name zählt in beiden
-    // Schreibweisen (Akzent weg und Umlaut als ae/oe/ue).
-    treffer = optionen.eintraege().filter(function (e) {
-      return !q || [_paNorm(e.name), _paNorm(_paUmlaut(e.name)), _paNorm(e.adresse)]
-        .some(function (t) { return t.indexOf(q) >= 0; });
-    });
-    liste.innerHTML = treffer.length ? treffer.map(function (e, i) {
-      var name = e.name && e.name !== e.adresse ? e.name : e.adresse;
-      return '<div class="pa-eintrag" role="option" id="' + escAttr(liste.id + '-' + i) + '" data-i="' + i + '"' +
-        ' title="' + escAttr(name + (name !== e.adresse ? ' <' + e.adresse + '>' : '') +
-                             (e.gesperrt ? ' — ' + e.gesperrt : '')) + '"' +
-        (e.gesperrt ? ' aria-disabled="true"' : '') + '>' +
-        '<span class="pa-name">' + esc(name) + '</span>' +
-        (name !== e.adresse ? '<span class="pa-adresse">' + esc(e.adresse) + '</span>' : '') +
-        (e.gesperrt ? '<span class="pa-adresse">' + esc(e.gesperrt) + '</span>' : '') + '</div>';
-    }).join('') : '<div class="pa-leer">Kein aktiviertes Postfach passt.</div>';
-    liste.hidden = false;
-    feld.setAttribute('aria-expanded', 'true');
-    markieren(-1);
-  }
-  function waehlbar(i) { return treffer[i] && !treffer[i].gesperrt; }
-  function nehmen(i) {
-    if (!waehlbar(i)) return;
-    var w = treffer[i].wert;
-    feld.value = '';
-    zu();
-    optionen.waehlen(w);
-    feld.focus();
-  }
-  function schritt(r) {
-    if (liste.hidden) zeigen();
-    var len = treffer.length, start = aktiv >= 0 ? aktiv : (r > 0 ? -1 : len);
-    for (var n = 1; n <= len; n++) {
-      var i = (((start + r * n) % len) + len) % len;
-      if (waehlbar(i)) { markieren(i); return; }
-    }
-  }
-  feld.addEventListener('input', zeigen);
-  feld.addEventListener('focus', function () { if (feld.value) zeigen(); });
-  feld.addEventListener('keydown', function (e) {
-    if (e.key === 'ArrowDown') { schritt(1); e.preventDefault(); }
-    else if (e.key === 'ArrowUp') { schritt(-1); e.preventDefault(); }
-    else if (e.key === 'Escape') { if (!liste.hidden) { zu(); e.preventDefault(); e.stopPropagation(); } }
-    else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (!liste.hidden && aktiv >= 0) { nehmen(aktiv); return; }
-      var q = _paNorm(feld.value);
-      if (!q) return;
-      if (liste.hidden) zeigen();
-      // Genau getippte Adresse, sonst ein einziger wählbarer Treffer.
-      var genau = -1, wahl = [];
-      treffer.forEach(function (t, i) {
-        if (_paNorm(t.adresse) === q) genau = i;
-        if (!t.gesperrt) wahl.push(i);
-      });
-      if (genau >= 0) { nehmen(genau); return; }       // gesperrt → nimmt nichts, Liste zeigt den Grund
-      if (wahl.length === 1) { nehmen(wahl[0]); return; }
-      if (optionen.frei && q.indexOf('@') > 0) { zu(); optionen.frei(feld.value); }
-    }
-    else if (e.key === 'Tab') { zu(); }
-  });
-  // mousedown statt click: das Feld behält den Fokus (auf dem Telefon bleibt
-  // die Tastatur offen), und das Schließen „Klick daneben“ greift nicht vorher.
-  liste.addEventListener('mousedown', function (e) {
-    e.preventDefault();
-    var it = e.target.closest('.pa-eintrag');
-    if (it) nehmen(+it.dataset.i);
-  });
-  document.addEventListener('pointerdown', function (e) {
-    if (!liste.hidden && !huelle.contains(e.target)) zu();
-  });
-  return {schliessen: zu};
-}
-
+// Personenauswahl für „Immer/Nie dabei“: Baustein personenAuswahl() aus
+// static/personen_auswahl.js (eingebunden in base.html).
 function _regelAuswahlEintraege(art) {
   var andere = art === 'immer' ? 'nie' : 'immer';
   var titel = {immer: 'steht schon bei „Immer dabei“', nie: 'steht schon bei „Nie dabei“'};
@@ -2594,6 +2471,7 @@ var _regelAuswahl = {};
     eintraege: function () { return _regelAuswahlEintraege(art); },
     waehlen: function (k) { _regelSchluesselDazu(art, k); },
     frei: function () { _regelListeDazu(art); },
+    leerText: 'Kein aktiviertes Postfach passt.',
   });
 });
 

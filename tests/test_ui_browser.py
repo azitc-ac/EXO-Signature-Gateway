@@ -2313,3 +2313,81 @@ def test_personenauswahl_bei_393_ohne_querrollen(seite, thema):
     assert 7 <= r["sichtbar"] <= 9 and r["rollt"], r
     assert (r["hell"] < 90) if thema == "dark" else (r["hell"] > 200), r
     pg.context.close()
+
+
+# ── Personenauswahl als gemeinsamer Baustein (static/personen_auswahl.js) ────
+# Seit v1.12.114 auch für statische Gruppen und die zwei Suchfelder in den
+# Einstellungen. Deren alte Listen fanden bei Enter keinen Eintrag mehr
+# (`div[style*="cursor:pointer"]`, die Einträge hatten längst Klassen).
+
+def test_statische_gruppe_mitglieder_ueber_personenauswahl(seite):
+    pg = seite("/mailboxes", breite=393)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""p => {
+      _mbData = p;
+      _groups = {Vertrieb: ['g-1', 'alt-weg']};      // 'alt-weg': nicht mehr aktiviert
+      window._gespeichert = null;
+      saveGroups = async () => { window._gespeichert = JSON.parse(JSON.stringify(_groups)); return true; };
+      const b = document.createElement('button'); b.dataset.group = 'Vertrieb';
+      openMembersModal(b); }""", _PA_POSTFAECHER)
+    pg.locator("#members-modal-overlay").wait_for(state="visible")
+    chips = lambda: pg.evaluate("""() => Array.from(document.querySelectorAll('#members-modal-list .regel-chip'))
+        .map(c => c.firstChild.textContent)""")
+    assert chips() == ["erika.mustermann@firma.at", "alt-weg"]   # Bestand bleibt sichtbar
+    feld = pg.locator("#members-modal-neu")
+    feld.fill("erika")
+    assert pg.evaluate("""() => Array.from(document.querySelectorAll('#members-modal-neu-liste .pa-eintrag'))
+        .map(e => e.getAttribute('aria-disabled'))""") == ["true"]       # schon Mitglied
+    feld.fill("x mue")
+    feld.press("Enter")
+    assert chips() == ["erika.mustermann@firma.at", "alt-weg", "max.mueller@firma.at"]
+    pg.locator("#members-modal-list .regel-chip button").first.click()   # Erika entfernen
+    pg.evaluate("saveMembersModal()")
+    pg.wait_for_function("window._gespeichert !== null")
+    assert pg.evaluate("window._gespeichert.Vertrieb") == ["alt-weg", "g-2"]
+    breite = pg.evaluate("() => document.documentElement.scrollWidth")
+    assert breite <= 393
+    pg.context.close()
+
+
+def test_einstellungen_empfaenger_ueber_personenauswahl(seite):
+    pg = seite("/settings", breite=393)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      _notifAllMailboxes = [
+        {email: 'info@firma.at', name: 'Info', type: 'shared'},
+        {email: 'max.mueller@firma.at', name: 'Max Müller', type: 'user'},
+        {email: 'erika.mustermann@firma.at', name: 'Erika Mustermann', type: 'user'}];
+      _notifRecipients = ['info@firma.at']; _renderNotifPicker(); }""")
+    feld = pg.locator("#notif-search-input")
+    feld.click()                                    # beimFokus: Liste ohne Tippen
+    liste = "#notif-search-input-liste"
+    assert pg.is_visible(liste)
+    assert pg.evaluate(f"""() => Array.from(document.querySelectorAll('{liste} .pa-kopf')).map(e => e.textContent)""") \
+        == ["Freigegebene Postfächer", "Benutzer-Postfächer"]
+    feld.press("ArrowDown")                         # Info ist schon Empfänger → übersprungen
+    feld.press("Enter")
+    assert pg.evaluate("_notifRecipients") == ["info@firma.at", "max.mueller@firma.at"]
+    feld.fill("erika")
+    feld.press("Enter")                             # einziger Treffer
+    assert pg.evaluate("_notifRecipients")[-1] == "erika.mustermann@firma.at"
+    pg.context.close()
+
+
+def test_einstellungen_verwaltung_sucht_auch_in_entra(seite):
+    pg = seite("/settings", breite=393)
+    pg.route("**/api/entra/users?q=*", lambda r: r.fulfill(
+        json={"ok": True, "users": [{"upn": "neu.person@firma.at", "name": "Neue Person"}]}))
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("() => { _adminAllUsers = [{upn: 'erika.mustermann@firma.at', name: 'Erika Mustermann'}]; }")
+    feld = pg.locator("#admin-search-input")
+    feld.click()
+    feld.type("neu")
+    pg.wait_for_selector("#admin-search-input-liste .pa-eintrag", timeout=3000)
+    assert pg.inner_text("#admin-search-input-liste .pa-name") == "Neue Person"
+    feld.press("ArrowDown")
+    feld.press("Enter")
+    assert pg.is_visible("#admin-selected")
+    assert pg.inner_text("#admin-selected-name") == "Neue Person"
+    assert feld.input_value() == "neu.person@firma.at"
+    pg.context.close()

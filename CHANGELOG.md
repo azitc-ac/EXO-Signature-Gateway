@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.114 — 2026-11-20 — Personenauswahl überall gleich: statische Gruppen, Benachrichtigung, Verwaltung
+
+Die Personenauswahl aus v1.12.113 ist jetzt ein gemeinsamer Baustein und ersetzt
+drei weitere Auswahlfelder:
+
+* **Statische Gruppen → Mitglieder:** statt einer Liste mit einem Kästchen je
+  aktiviertem Postfach stehen die Mitglieder oben als Chips (✕ entfernt), darunter
+  das Suchfeld. Mitglieder, deren Postfach nicht mehr aktiviert ist, bleiben
+  sichtbar und gehen beim Speichern nicht mehr verloren — die alte Liste zeigte
+  nur aktivierte Postfächer und schrieb nur die angehakten zurück.
+* **Einstellungen → Benachrichtigung → Empfänger** und **Einstellungen →
+  Verwaltung → Benutzer suchen:** gleiche Suche (Name und Adresse, Akzente und
+  „ue“ für „ü“ egal), gleiche Bedienung. Bei der Verwaltung sucht das Feld nach
+  kurzer Tipp-Pause zusätzlich in Entra; ein Fehler dieser Suche steht in der
+  Liste. Bereits Eingetragene erscheinen ausgegraut statt gar nicht.
+
+Behoben: In beiden Feldern der Einstellungen übernahm **Enter** keinen Eintrag.
+Die Tastensteuerung suchte den ersten Eintrag an einem Inline-Stil, den die
+Einträge seit der Umstellung auf Klassen (Dunkelmodus) nicht mehr trugen.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.113 — 2026-11-20 — Automatische S/MIME-Erneuerung (CASTLE) lief nicht durch; Vorlage „Standard“; Personenauswahl in dynamischen Gruppen; EWS-Karte nur mit Hybrid-Nutzern
 
 **Automatische Erneuerung über CASTLE.** Der tägliche Lauf startete die
