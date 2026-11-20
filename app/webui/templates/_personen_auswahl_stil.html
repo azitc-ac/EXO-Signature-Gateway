@@ -7,6 +7,9 @@
      der Rest rollt. Zustände nur über Klasse/data-* (Dark-Mode-Regel 2). */
   .pa-huelle { position:relative; display:flex; flex:1 1 150px; min-width:0; max-width:100% }
   .pa-huelle > input { flex:1 1 auto; width:100% }
+  /* ⚠️ flex-basis gilt auf der HAUPTACHSE: in einer Spalte (.settings-control)
+     wären 150px eine HÖHE — Lücke unter dem Feld, Liste öffnet darunter. */
+  .settings-control > .pa-huelle { flex:0 0 auto }
   .pa-liste { position:absolute; left:0; right:0; top:100%; margin-top:2px; z-index:20;
       max-height:316px; overflow-y:auto; overflow-x:hidden; background:#fff;
       border:1px solid #e2e8f0; border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,0.12); box-sizing:border-box }

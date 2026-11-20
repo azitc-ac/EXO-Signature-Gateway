@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.119 — 2026-11-20 — Testerwartung an die neuen Mehrzahlformen angepasst
+
+Ein Test der Add-in-Verteilung prüfte noch den alten Wortlaut
+„2 Postfach/Postfächer“ aus der Abnahme (geändert in v1.12.118). Keine Änderung
+am Verhalten.
+
+**Zu tun:** nichts.
+
+## v1.12.118 — 2026-11-20 — Abnahme und Aufgaben: echte Einzahl und Mehrzahl
+
+Befunde in *Abnahme* und im Sammelpunkt *Offene Aufgaben* lauteten etwa
+„6 Postfach/Postfächer ohne Entscheidung“, „Vorlage(n)“ oder „1 Schlüsseldatei(en)
+liegen im Klartext“. Sie nennen jetzt die passende Form samt Verb („6 Postfächer“,
+„1 Schlüsseldatei liegt“). Betroffen waren 13 Texte.
+
+**Zu tun:** nichts.
+
+## v1.12.117 — 2026-11-20 — Personenauswahl: Lücke unter dem Empfängerfeld
+
+Unter *Einstellungen → Benachrichtigung → Empfänger* stand seit v1.12.114 unter
+dem Suchfeld eine Lücke von rund 115 px; der Pfeil ▼ hing mitten darin, die
+Trefferliste öffnete erst darunter. Ursache: Die Hülle der Personenauswahl hat
+`flex:1 1 150px`. In einer Zeile ist das eine Breite, in der Spalte
+`.settings-control` aber eine **Höhe** — die Hülle war 150 px hoch, das Feld 34 px.
+In `.settings-control` wächst die Hülle jetzt nicht mehr mit. Die übrigen
+Einbaustellen (Verwaltung, Gruppen, Mitglieder) stehen in Zeilen und waren nicht
+betroffen.
+
+**Zu tun:** nichts.
+
 ## v1.12.116 — 2026-11-20 — Automatische S/MIME-Verlängerung wird angekündigt, mit Link zum Abschalten
 
 Seit v1.12.115 verlängert der tägliche Lauf Zertifikate auch über den Hub und

@@ -49,6 +49,12 @@ ENTFAELLT = "entfaellt"          # in dieser Betriebsart ohne Bedeutung
 # Dauerfloskel („zeigt erst der Betrieb“). Am 09.11.2026 standen elf davon da,
 # drei längst behoben; die Abnahme las sich wie eine Mängelliste ohne Aussicht.
 # tests/test_abnahme_ton.py.
+def _zahl(n: int, einzahl: str, mehrzahl: str) -> str:
+    """„1 Postfach“ / „6 Postfächer“ statt „6 Postfach/Postfächer“. Ein Verb, das
+    an der Zahl hängt, gehört mit in die Wörter („Schlüsseldatei liegt“)."""
+    return f"{n} {einzahl if n == 1 else mehrzahl}"
+
+
 def _punkt(name: str, zustand: str, befund: str = "", zu_tun: str = "",
            deckt_nicht: str = "") -> dict:
     return {"name": name, "zustand": zustand, "befund": befund,
@@ -207,7 +213,7 @@ def _anmeldung() -> dict:
     import settings_store
     admins = settings_store.get("ADMIN_USERS") or []
     if admins:
-        return _punkt("Anmeldung möglich", OK, f"{len(admins)} Entra-Konto(en) zugelassen")
+        return _punkt("Anmeldung möglich", OK, f"{_zahl(len(admins), 'Entra-Konto', 'Entra-Konten')} zugelassen")
     return _punkt(
         "Anmeldung möglich", OFFEN, "Kein Entra-Konto zugelassen.",
         "Mindestens ein Konto eintragen. Der örtliche Notfallzugang bleibt "
@@ -258,7 +264,7 @@ def _postfaecher() -> dict:
             "Postfächer aktiviert", OFFEN, "Kein Postfach aktiviert.",
             "Ohne aktiviertes Postfach läuft ALLE Post unverändert durch — das "
             "Gateway tut dann nichts.")
-    return _punkt("Postfächer aktiviert", OK, f"{len(aktiv)} Postfach/Postfächer")
+    return _punkt("Postfächer aktiviert", OK, _zahl(len(aktiv), "Postfach", "Postfächer"))
 
 
 def _rueckweg() -> dict:
@@ -330,7 +336,7 @@ def _signaturvorlage() -> dict:
             "Unter „Signaturen“ eine Vorlage anlegen (der Baukasten bringt "
             "Beispiele mit).")
     return _punkt("Signaturvorlage vorhanden", OK,
-                  f"{len(vorhanden)} Vorlage(n): {', '.join(sorted(vorhanden))}"[:200])
+                  f"{_zahl(len(vorhanden), 'Vorlage', 'Vorlagen')}: {', '.join(sorted(vorhanden))}"[:200])
 
 
 def _anmeldenachweis() -> dict:
@@ -364,7 +370,7 @@ def _smime_schluessel() -> dict:
     roh = smime_store.unverschluesselte_schluessel()
     if not roh:
         return _punkt(name, OK, "Kein Privatschlüssel liegt im Klartext.")
-    anzahl = f"{len(roh)} Schlüsseldatei(en) liegen im Klartext."
+    anzahl = f"{_zahl(len(roh), 'Schlüsseldatei liegt', 'Schlüsseldateien liegen')} im Klartext."
     weg = "Einstellungen → S/MIME → Schlüsselablage: "
     if settings_store.get("SMIME_KEY_ENCRYPT") is False:
         return _punkt(name, OFFEN, anzahl + " Die Verschlüsselung ist abgeschaltet.",
@@ -412,8 +418,10 @@ def _tls_rueckweg() -> dict:
     uebernommen = sorted(zid for zid, t in domain_routing.ziele().items()
                          if isinstance(t, dict) and t.get("tls_uebernommen"))
     if uebernommen:
-        offen.append("Weiterleitungsziel(e) " + ", ".join(uebernommen)
-                     + " laufen noch ohne Zertifikatsprüfung, wie vor dem Update")
+        offen.append(("Weiterleitungsziel " if len(uebernommen) == 1 else "Weiterleitungsziele ")
+                     + ", ".join(uebernommen)
+                     + (" läuft" if len(uebernommen) == 1 else " laufen")
+                     + " noch ohne Zertifikatsprüfung, wie vor dem Update")
     if not offen:
         return _punkt(name, OK, "Ausgehende TLS-Verbindungen prüfen das Zertifikat, "
                       "oder die Ausnahme ist bewusst gewählt.")
@@ -485,7 +493,7 @@ def _wartende_zertifikate() -> dict:
     if not wartend:
         return _punkt(name, OK, "Kein Zertifikat wartet auf eine Entscheidung.")
     return _punkt(name, OFFEN,
-                  f"{len(wartend)} Empfängerzertifikat(e) warten auf eine Entscheidung; "
+                  f"{_zahl(len(wartend), 'Empfängerzertifikat wartet', 'Empfängerzertifikate warten')} auf eine Entscheidung; "
                   "an diese Partner wird bis dahin nicht verschlüsselt.",
                   "S/MIME → „Zertifikate, die auf Freigabe warten“: je Zeile den Grund "
                   "prüfen, freigeben oder verwerfen.")
@@ -513,7 +521,7 @@ def _erneuerung_unentschieden() -> dict:
     if not offen:
         return _punkt(name, OK, "Für jedes Postfach mit bestellendem Bezugsweg ist entschieden.")
     return _punkt(name, OFFEN,
-                  f"{len(offen)} Postfach/Postfächer ohne Entscheidung — sie werden nicht "
+                  f"{_zahl(len(offen), 'Postfach', 'Postfächer')} ohne Entscheidung — sie werden nicht "
                   f"automatisch erneuert: {', '.join(offen[:5])}" + (" …" if len(offen) > 5 else ""),
                   "S/MIME → beim Postfach „Automatisch erneuern“ setzen oder bewusst leer "
                   "lassen und speichern.")
@@ -529,7 +537,7 @@ def _bestand_durchsicht() -> dict:
     if not offen:
         return _punkt(name, OK, "Kein Bestandszertifikat wartet auf Durchsicht.")
     return _punkt(name, OFFEN,
-                  f"{len(offen)} Empfängerzertifikat(e) im Bestand führen auf keinen bekannten "
+                  f"{_zahl(len(offen), 'Empfängerzertifikat', 'Empfängerzertifikate')} im Bestand {'führt' if len(offen) == 1 else 'führen'} auf keinen bekannten "
                   "Aussteller und stammen aus der Zeit vor der Signaturprüfung; an diese "
                   "Partner wird weiterhin damit verschlüsselt.",
                   "S/MIME → „Zertifikate zur Durchsicht“: je Zeile behalten oder entfernen, "
@@ -594,7 +602,7 @@ def _exo_erkennung() -> dict:
     ab = exo_erkennung.abweisungen_gemeldet()
     if ab:
         return _punkt(name, OFFEN,
-                      f"{ab['anzahl']} Mail(s) aus dem eigenen Exchange Online in den "
+                      f"{_zahl(ab['anzahl'], 'Mail', 'Mails')} aus dem eigenen Exchange Online in den "
                       f"letzten 24 Stunden abgewiesen, zuletzt von {ab['ip']} (Stufe: {stufe}).",
                       "Erweitert → SMTP-Quell-IP-Allowlist: Stufe „Adresse oder Zertifikat“ "
                       "wählen; läuft das Gateway hinter einer Firewall mit Source-NAT, dort "
@@ -648,7 +656,7 @@ def _csp_berichte() -> dict:
     beispiele = "; ".join(f"{e['direktive']} {e['quelle']} auf {e['seite']} ({e['anzahl']}×)"
                           for e in arten[:3])
     return _punkt(name, OFFEN,
-                  f"{len(arten)} Art(en) von Verstößen gemeldet, u. a. {beispiele}.",
+                  f"{_zahl(len(arten), 'Art', 'Arten')} von Verstößen gemeldet, u. a. {beispiele}.",
                   "Nichts zu tun für den Betrieb — die Richtlinie ist nur berichtend. "
                   "Die Liste ist die Arbeitsgrundlage, bevor sie durchgesetzt wird.")
 
@@ -780,11 +788,11 @@ def _regel_kennung() -> dict:
     falsch = [r["name"] for r in p["regeln"] if not r["ok"]]
     if falsch:
         return _punkt(name, OFFEN,
-                      f"{len(falsch)} Regel(n) nehmen nicht genau die eigene Kennung "
+                      f"{_zahl(len(falsch), 'Regel nimmt', 'Regeln nehmen')} nicht genau die eigene Kennung "
                       f"{p['soll']} aus: {', '.join(falsch)}. Post anderer Gateways "
                       "umgeht dann die eingehenden S/MIME-Regeln.",
                       "Einstellungen → Signatur → Erweiterte Einstellungen → „Regeln prüfen“ → „Regeln angleichen“.")
-    return _punkt(name, OK, f"{len(p['regeln'])} Regel(n) mit Kennung {p['soll']}")
+    return _punkt(name, OK, f"{_zahl(len(p['regeln']), 'Regel', 'Regeln')} mit Kennung {p['soll']}")
 
 
 def _regel_auto_ausnahme() -> dict:
@@ -913,7 +921,7 @@ def _addin_fassung_art(art: str, name: str) -> dict:
     if lagen.get(av.ZUWEISUNG):
         z = sorted(lagen[av.ZUWEISUNG])
         return _punkt(name, OFFEN,
-                      f"{len(z)} Postfach/Postfächer ohne neue Fassung, 72 Stunden nachdem "
+                      f"{_zahl(len(z), 'Postfach', 'Postfächer')} ohne neue Fassung, 72 Stunden nachdem "
                       f"sie andere erreicht hat (z. B. {z[0]}).", av.ZUWEISUNG_WEG)
     if lagen.get(av.AKTUALISIEREN):
         alt = sorted(lagen[av.AKTUALISIEREN])
@@ -1101,7 +1109,7 @@ def _richtlinien_ruhend() -> dict:
     if not offen:
         return _punkt(name, OK, "Alle bei der Umstellung gesperrten Wahlen sind geklärt.")
     return _punkt(name, OFFEN,
-                  f"{len(offen)} Postfach/Postfächer: eigene Wahl galt bis v1.12.98, ruht seither "
+                  f"{_zahl(len(offen), 'Postfach', 'Postfächer')}: eigene Wahl galt bis v1.12.98, ruht seither "
                   f"unter einer Gruppen-Regel — {', '.join(offen[:5])}"
                   + (" …" if len(offen) > 5 else ""),
                   "Postfächer → Filter „nur ruhende Wahl“: die Wahl verwerfen (Kästchen bzw. "
