@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.139 — 2026-11-21 — Erteilte Berechtigungen wirken sofort
+
+„Fehlende Berechtigungen erteilen“ (und die Ersteinrichtung) wiesen die Rollen
+der Gateway-App zwar zu, der laufende Gateway-Prozess arbeitete aber weiter mit
+seinem zwischengespeicherten App-Token. Ein Client-Credentials-Token enthält die
+Rollen vom Zeitpunkt seiner Ausstellung und bleibt bis zu rund 90 Minuten
+gültig. Eine gerade erteilte Rolle war deshalb bis zu dessen Ablauf nicht
+wirksam: Der DMARC-Abruf aus einer Microsoft-365-Gruppe meldete etwa nach
+erfolgreicher Zustimmung zu `Group-Conversation.Read.All` weiter „Kein Zugriff“.
+Die Anzeige „erteilt“ stimmte dabei schon, denn sie prüft mit einem eigens
+geholten Token.
+
+Nach jeder Rollenzuweisung verwirft das Gateway jetzt seine zwischengespeicherten
+Tokens und holt beim nächsten Aufruf ein neues. Drosselzustände einzelner Apps
+bleiben erhalten.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.138 — 2026-11-20 — DMARC-Berichte auswerten
 
 ### Neu: Einstellungen → DMARC

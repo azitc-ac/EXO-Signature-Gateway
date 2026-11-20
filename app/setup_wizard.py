@@ -431,6 +431,8 @@ async def _grant_admin_consent(token: str, our_sp_id: str) -> list[str]:
     except Exception as exc:
         log.warning("Could not find EXO service principal: %s", exc)
         fehler.append(f"Exchange-Dienstprinzipal nicht gefunden: {exc}")
+    # Neu erteilte Rollen stehen erst in einem NEU ausgestellten Token.
+    _gc.token_zwischenspeicher_verwerfen()
     return fehler
 
 

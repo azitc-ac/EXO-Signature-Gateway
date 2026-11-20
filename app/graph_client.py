@@ -229,6 +229,19 @@ def _roher_pool() -> list[dict]:
              "client_secret": config.CLIENT_SECRET or settings_store.get("CLIENT_SECRET") or ""}]
 
 
+def token_zwischenspeicher_verwerfen() -> None:
+    """Zwischengespeicherte App-Tokens verwerfen — nach dem Erteilen von Rollen.
+
+    Ein Client-Credentials-Token trägt die Rollen vom Zeitpunkt seiner Ausstellung
+    und bleibt bis zu ~90 min im MSAL-Cache. Ohne Verwerfen sähe der laufende
+    Prozess eine gerade erteilte Rolle so lange nicht (403 trotz Zustimmung).
+    Der Pool wird beim nächsten Aufruf mit frischen, leeren Caches neu gebaut;
+    Drosselzustände (`_throttled_until`) bleiben erhalten."""
+    global _pool_hash
+    with _pool_lock:
+        _pool_hash = ""
+
+
 def _rebuild_pool_if_needed() -> None:
     global _pool_entries, _pool_hash, _pool_idx
     tenant = config.TENANT_ID or settings_store.get("TENANT_ID") or ""
