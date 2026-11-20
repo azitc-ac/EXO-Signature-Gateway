@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.128 — 2026-11-20 — Abnahme schneller; Oberfläche bleibt während Exchange-Abfragen bedienbar
+
+* **Abnahme** (*Einrichtung → Verbindungstest & Abnahme*): Die Punkte werden
+  jetzt nebeneinander geprüft statt nacheinander. Zwei davon (Kennung und
+  Empfängerbedingung der Transportregeln) bauen je eine PowerShell-Sitzung zu
+  Exchange Online auf, rund 15 Sekunden je Sitzung. Gemessen auf einem
+  Raspberry Pi: 41 Sekunden für 39 Punkte, davon 33 Sekunden in diesen beiden.
+  Jetzt bestimmt der langsamste Punkt die Dauer, nicht die Summe.
+* **Die Oberfläche stand still**, solange die Abnahme lief, und ebenso beim
+  Einrichten des Exchange-Connectors, der S/MIME-Regeln und des IMAP-Zugriffs:
+  Diese Schritte warteten auf Exchange, ohne andere Anfragen durchzulassen,
+  auch die des Outlook-Add-ins und des Self-Service. Sie laufen jetzt im
+  Hintergrund; die übrige Oberfläche bleibt bedienbar.
+
+**Zu tun:** nichts.
+
 ## v1.12.127 — 2026-11-20 — S/MIME: Post an ein früheres Zertifikat wird wieder entschlüsselt
 
 Hat ein Postfach mehrere Zertifikate, etwa nach einer Erneuerung, versuchte das

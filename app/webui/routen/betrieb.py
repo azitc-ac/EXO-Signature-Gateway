@@ -303,8 +303,11 @@ async def api_abnahme(_=Depends(_require_admin)):
     vergleicht. Siehe `abnahme.py` für die Punkte und für das, was sie
     ausdrücklich NICHT abdecken.
     """
+    import asyncio
     import abnahme
-    return JSONResponse(abnahme.bericht())
+    # Im Thread: bericht() wartet bis zu ~20 s auf Exchange — direkt in der
+    # Ereignisschleife stand bis v1.12.127 so lange die ganze Oberfläche still.
+    return JSONResponse(await asyncio.to_thread(abnahme.bericht))
 
 
 @router.get("/api/betriebsbaender")
