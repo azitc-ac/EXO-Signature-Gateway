@@ -124,8 +124,13 @@ DEFAULTS: dict = {
     # ── Secure Message Portal ────────────────────────────────────────────────
     "SECURE_PORTAL_ENABLED": False,       # Portal statt NDR für Empfänger ohne S/MIME-Cert
     "SECURE_PORTAL_BASE_URL": "",         # Öffentliche Basis-URL für Portal-Links (leer = aus Hostname)
-    "SECURE_PORTAL_RETENTION_DAYS": 14,   # Aufbewahrung in Tagen, danach täglicher Cleanup
-    "SECURE_PORTAL_OTP": True,            # Zugangscode per Mail beim Öffnen (wie Microsoft OME)
+    "SECURE_PORTAL_RETENTION_DAYS": 30,   # Aufbewahrung in Tagen, danach täglicher Cleanup
+    "SECURE_PORTAL_OTP": True,
+    # #enc an AUSSCHLIESSLICH interne Empfänger (Umschlag und An/Cc): normal
+    # zustellen (signiert, nicht verschlüsselt) statt Portal/Unzustellbarkeit.
+    # Vorgabe aus. Gemischte Mails bleiben unverändert — eine Teilzustellung
+    # erreichte im Graph-Modus (send_to_all) alle Kopf-Empfänger, auch externe.
+    "ENC_INTERN_NORMAL": False,            # Zugangscode per Mail beim Öffnen (wie Microsoft OME)
     "PORTAL_BRAND_NAME": "",              # Firmenname in Portal-Mails/-Seite (Vertrauen beim Empfänger)
     "SMIME_AUTO_RULES": [],               # [{action: encrypt|sign|nosign, sender, recipient, mode: and|or}]
     "LICENSE_KEY": "",                    # Fair-Use-Lizenz (EXOSIG1.…, Ed25519-signiert, Tenant-gebunden)

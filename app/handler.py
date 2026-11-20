@@ -1,6 +1,7 @@
 import asyncio
 import email
 import email.header
+import email.utils
 import email.mime.text
 import email.policy
 import email.utils
@@ -1271,6 +1272,27 @@ class SignatureHandler:
                 suppress_smime_sig = True
                 log.info("S/MIME-Regel: Signierung unterdrückt für %s", sender)
 
+            # ── #enc an ausschließlich interne Empfänger (ENC_INTERN_NORMAL) ───
+            # Eigene Postfächer haben meist kein Empfängerzertifikat; ohne den
+            # Schalter ginge die Mail ins Portal bzw. würde abgewiesen. NUR wenn
+            # Umschlag UND An/Cc ausschließlich intern sind: Bei gemischten
+            # Empfängern erreichte eine Teilzustellung im Graph-Modus
+            # (send_to_all) alle Kopf-Empfänger — auch externe, unverschlüsselt.
+            # Ist „intern“ unbekannt (leerer Zwischenspeicher), liefert
+            # alle_intern False → unverändert. Entscheidung 20.11.2026.
+            if wants_encryption and settings_store.get("ENC_INTERN_NORMAL") is True:
+                import intern as _intern_enc
+                _kopf_adressen = [a for _n, a in email.utils.getaddresses(
+                    (msg.get_all("To") or []) + (msg.get_all("Cc") or [])) if a]
+                if recipients and _intern_enc.alle_intern(list(recipients) + _kopf_adressen):
+                    wants_encryption = False
+                    subject = re.sub(r"\s*" + re.escape(enc_trigger) + r"#?\s*", " ",
+                                     subject, flags=re.IGNORECASE).strip()
+                    _betreff_setzen(msg, subject)
+                    stats.increment("enc_intern_normal")
+                    log.info("#enc an ausschließlich interne Empfänger %s — normal zugestellt "
+                             "(ENC_INTERN_NORMAL)", recipients)
+
             log.debug("Outbound from=%s subject=%r enc_trigger=%r wants_encryption=%s",
                       sender, subject, enc_trigger, wants_encryption)
             if wants_encryption:
@@ -1677,7 +1699,7 @@ class SignatureHandler:
                             _decode_subject(msg.get("Cc", "")),
                             _p_subject, msg.get("Date", ""))
                         _base_url = _portal_base_url()
-                        _retention = int(settings_store.get("SECURE_PORTAL_RETENTION_DAYS") or 14)
+                        _retention = _portal.aufbewahrung_tage()
                         for _rcpt in missing:
                             try:
                                 _tok, _key = _portal.create_message(

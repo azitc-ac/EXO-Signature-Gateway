@@ -260,3 +260,43 @@ def test_portal_bekommt_die_unsignierte_fassung(anlage):
     (_, _, _, _, nutzlast), = anlage["portal"]
     assert "Geheimer Inhalt" in nutzlast["text"]
     assert nutzlast["attachments"] == []
+
+
+# ── #enc an ausschließlich interne Empfänger (ENC_INTERN_NORMAL, v1.12.134) ──
+
+def _intern(anlage, alle):
+    import intern
+    gefragt = []
+    anlage["mp"].setattr(intern, "alle_intern", lambda adr: gefragt.append(list(adr)) or alle)
+    return gefragt
+
+
+def test_enc_nur_intern_mit_schalter_normal_zugestellt(anlage):
+    anlage["werte"]["ENC_INTERN_NORMAL"] = True
+    gefragt = _intern(anlage, True)
+    aufrufe = _verschluesselung(anlage, (ENC, []))
+    assert _lauf("Vertrag #enc").startswith("250")
+    assert aufrufe == [] and anlage["portal"] == [] and anlage["ndr"] == []
+    (_, empf, raw), = [z[:3] for z in anlage["zugestellt"]]
+    import email as _em
+    m = _em.message_from_bytes(raw)
+    assert empf == [EMPF] and "#enc" not in m["Subject"] and "#enc" not in (m["Thread-Topic"] or "")
+    assert "Geheimer Inhalt" in m.get_payload(decode=True).decode()
+    # Umschlag UND Kopf (An/Cc) wurden gefragt — nicht nur der Umschlag
+    assert any(len(g) >= 2 and EMPF in g for g in gefragt), gefragt
+
+
+def test_enc_gemischt_bleibt_verschluesselt(anlage):
+    anlage["werte"]["ENC_INTERN_NORMAL"] = True
+    _intern(anlage, False)
+    aufrufe = _verschluesselung(anlage, (ENC, []))
+    assert _lauf("Vertrag #enc").startswith("250")
+    assert aufrufe == [[EMPF]]
+    assert anlage["zugestellt"][0][2].startswith(b"MIME-Version") or b"pkcs7-mime" in anlage["zugestellt"][0][2]
+
+
+def test_enc_intern_ohne_schalter_unveraendert(anlage):
+    _intern(anlage, True)
+    aufrufe = _verschluesselung(anlage, (ENC, []))
+    assert _lauf("Vertrag #enc").startswith("250")
+    assert aufrufe == [[EMPF]]

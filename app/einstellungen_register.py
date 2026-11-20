@@ -245,6 +245,7 @@ REGISTER: dict[str, E] = {
     "SECURE_PORTAL_BASE_URL": E(art=OPTION, ort="settings_smime.html"),
     "SECURE_PORTAL_ENABLED": E(art=OPTION, ort="settings_smime.html"),
     "SECURE_PORTAL_OTP": E(art=OPTION, ort="settings_smime.html"),
+    "ENC_INTERN_NORMAL": E(art=OPTION, ort="settings_smime.html"),
     "SECURE_PORTAL_RETENTION_DAYS": E(art=OPTION, ort="settings_smime.html"),
     "SENT_ITEMS_UPDATE": E(art=OPTION, ort="settings_signature.html"),
     "SETUP_COMPLETE": E(art=ZUSTAND),

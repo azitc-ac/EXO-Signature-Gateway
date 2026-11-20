@@ -84,8 +84,18 @@ def _init():
         pass
 
 
-def _retention_days() -> int:
-    return int(settings_store.get("SECURE_PORTAL_RETENTION_DAYS") or 14)
+AUFBEWAHRUNG_VORGABE = 30   # Tage (bis v1.12.133: 14) — Entscheidung 20.11.2026
+
+
+def aufbewahrung_tage() -> int:
+    """Aufbewahrung im Portal in Tagen — EINE Quelle für Ablage, Mail und Anzeige.
+    Das Portal ist kein Archiv: Die gesendete Mail liegt in den Gesendeten
+    Elementen, Antworten kommen per Mail ins Postfach."""
+    try:
+        return int(settings_store.get("SECURE_PORTAL_RETENTION_DAYS") or AUFBEWAHRUNG_VORGABE)
+    except (TypeError, ValueError):
+        return AUFBEWAHRUNG_VORGABE
+
 
 
 def base_url() -> str:
@@ -156,7 +166,7 @@ def create_message(
     _init()
     token   = uuid.uuid4().hex
     now     = datetime.now(timezone.utc)
-    expires = now + timedelta(days=_retention_days())
+    expires = now + timedelta(days=aufbewahrung_tage())
     blob, key_bytes = encrypt_payload(payload)
     (_BLOB_DIR / f"{token}.enc").write_bytes(blob)
     with _conn() as con:
