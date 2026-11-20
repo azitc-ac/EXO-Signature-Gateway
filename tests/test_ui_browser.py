@@ -3357,3 +3357,60 @@ def test_ohne_gemerkten_filter_bleibt_der_bereich_zu(seite):
     pg.wait_for_load_state("networkidle")
     assert not pg.is_visible("#mb-sig-filter")
     pg.context.close()
+
+
+def _png(breite, hoehe, rgba=False, rauschen=True):
+    """Kleiner PNG-Kodierer (kein Pillow in der Testumgebung)."""
+    import os
+    import struct
+    import zlib
+    kanaele = 4 if rgba else 3
+    zeilen = bytearray()
+    for y in range(hoehe):
+        zeilen.append(0)
+        if rauschen:
+            zeilen += os.urandom(breite * kanaele)
+        else:
+            px = bytes([30, 80, 160, 0 if (y // 20) % 2 else 255][:kanaele])
+            zeilen += px * breite
+
+    def chunk(typ, daten):
+        return struct.pack(">I", len(daten)) + typ + daten + struct.pack(">I", zlib.crc32(typ + daten) & 0xffffffff)
+    kopf = struct.pack(">IIBBBBB", breite, hoehe, 8, 6 if rgba else 2, 0, 0, 0)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", kopf)
+            + chunk(b"IDAT", zlib.compress(bytes(zeilen), 6)) + chunk(b"IEND", b""))
+
+
+@pytest.mark.parametrize("art", ["foto", "transparent"])
+def test_baukasten_verkleinert_hochgeladene_bilder(seite, monkeypatch, tmp_path, art):
+    """Ideenliste 20.11.2026: Bis v1.12.134 lehnte der Baukasten Bilder über 512 KB
+    ab und nahm kleinere unverändert — Logos mussten von Hand, oft zu stark,
+    verkleinert werden. Jetzt: doppelte Anzeigebreite, Foto → JPG, Transparenz → PNG."""
+    import json
+    import config
+    import signature_engine
+    (tmp_path / "bild.html").write_text("<p>x</p>", encoding="utf-8")
+    (tmp_path / "bild.meta.json").write_text(json.dumps({
+        "version": 1, "kind": "signatur", "global": {},
+        "blocks": [{"id": "1", "type": "logo", "url": "", "width": 150}]}), encoding="utf-8")
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    signature_engine._reload_env()
+    if art == "foto":
+        daten, name = _png(1600, 800), "logo.png"            # ~3,8 MB Rauschen
+    else:
+        daten, name = _png(900, 300, rgba=True, rauschen=False), "logo.png"
+    pg = seite("/template?name=bild", breite=1280)
+    pg.wait_for_selector(".block-card")
+    pg.locator(".block-card").first.locator(".block-type-badge").click()
+    pg.set_input_files(".block-card input[type=file][data-bid]",
+                       files=[{"name": name, "mimeType": "image/png", "buffer": daten}])
+    pg.wait_for_function("(document.querySelector('[data-bild-hinweis]') || {}).textContent"
+                         " && document.querySelector('[data-bild-hinweis]').textContent.includes('Verkleinert')",
+                         timeout=15000)
+    m = pg.evaluate("""async () => { const u = document.querySelector('.block-card img[src^="data:"]').src;
+        const i = new Image(); await new Promise(r => { i.onload = r; i.src = u; });
+        return {typ: u.slice(5, u.indexOf(';')), breite: i.naturalWidth, hoehe: i.naturalHeight, laenge: u.length}; }""")
+    assert m["breite"] == 300, m                          # 2 × Anzeigebreite 150
+    assert m["typ"] == ("image/jpeg" if art == "foto" else "image/png"), m
+    assert m["laenge"] < 512 * 1024 * 4 / 3, m
+    pg.context.close()

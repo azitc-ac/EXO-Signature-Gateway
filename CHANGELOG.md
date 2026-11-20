@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.135 — 2026-11-20 — Baukasten: hochgeladene Bilder werden passend verkleinert
+
+Ein Bild im Baustein *Logo* wurde bisher unverändert eingebettet; über 512 KB
+lehnte der Baukasten es ab („Bitte vorher verkleinern“). Ein Logo direkt aus
+der Grafikabteilung musste deshalb von Hand verkleinert werden — oft stärker
+als nötig, mit sichtbarem Qualitätsverlust. Die Anzeigebreite im Baukasten
+verkleinert die Datei nicht.
+
+Jetzt verkleinert der Baukasten das Bild beim Hochladen selbst, im Browser:
+* auf etwa die **doppelte Anzeigebreite** (scharf auch auf hochauflösenden
+  Bildschirmen), nie größer als das Original;
+* Bilder **mit Transparenz als PNG**, sonst als das kleinere aus **JPG** und PNG
+  — Fotos werden JPG, flache Grafiken bleiben meist PNG;
+* **SVG** wird in ein Pixelbild umgewandelt (Outlook zeigt eingebettete SVG
+  nicht), **GIF** bleibt unverändert (eine Animation ginge verloren).
+
+Unter dem Bild steht, was geschah, etwa „Verkleinert: 1.600 × 800 px, 3,7 MB →
+300 × 150 px, 18 KB (JPG)“. Ein schon eingebettetes Bild lässt sich mit dem
+Knopf **Verkleinern** nachträglich ebenso behandeln. Hochladen geht jetzt bis
+15 MB, eingebettet werden höchstens 512 KB.
+
+Wer Logos bisher von Hand stark verkleinert hat, kann das Original jetzt neu
+hochladen.
+
+**Zu tun:** nichts.
+
 ## v1.12.134 — 2026-11-20 — Portal: Aufbewahrung 30 Tage, „kein Archiv“ erklärt; #enc an interne Empfänger optional normal zustellen
 
 * **Aufbewahrung im Portal:** Die Vorgabe steigt von 14 auf 30 Tage — Empfänger,
