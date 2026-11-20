@@ -69,6 +69,27 @@ def _reload_env() -> Environment:
     return _get_env()
 
 
+# Die Standardvorlage heißt intern „default“ (Datei signature.html) — dieser
+# Schlüssel steht in MAILBOX_CONFIG, TEMPLATE_POLICIES, Gruppen-Slots, Sicherungen
+# und Add-in-Zwischenspeichern und bleibt deshalb unverändert. Die Oberfläche
+# zeigt „Standard“ (seit v1.12.113). JS-Gegenstück: static/vorlagen_name.js,
+# deckungsgleich gehalten von tests/test_vorlage_standard_anzeige.py.
+STANDARD_SCHLUESSEL = "default"
+STANDARD_ANZEIGE = "Standard"
+
+
+def anzeigename(name: str | None) -> str:
+    """Name einer Vorlage, wie die Oberfläche ihn zeigt."""
+    return STANDARD_ANZEIGE if name == STANDARD_SCHLUESSEL else (name or "")
+
+
+def name_reserviert(name: str | None) -> bool:
+    """Darf keine eigene Vorlage so heißen? „default“/„signature“ sind die
+    Standardvorlage selbst, „Standard“ ihr Anzeigename — zwei Einträge gleichen
+    Namens in einer Auswahl wären nicht zu unterscheiden. Groß/klein egal."""
+    return (name or "").strip().lower() in ("default", "signature", "standard")
+
+
 def _resolve_template_names(template_name: str | None) -> tuple[str, str]:
     """Return (html_filename, txt_filename) for the given template name."""
     if not template_name or template_name == "default":

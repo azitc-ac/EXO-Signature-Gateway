@@ -117,7 +117,7 @@
     FELDER.forEach(f => {
       const liste = byKind[f.kind] || [];
       f.el.innerHTML = '';
-      [['', '— keine —'], ...liste.map(n => [n, n])].forEach(([wert, text]) => {
+      [['', '— keine —'], ...liste.map(n => [n, vorlageAnzeige(n)])].forEach(([wert, text]) => {
         const o = document.createElement('option');
         o.value = wert; o.textContent = text;
         f.el.appendChild(o);

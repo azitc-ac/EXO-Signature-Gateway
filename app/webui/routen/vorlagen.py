@@ -27,6 +27,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 import config
 import settings_store
 import signature_engine
+from signature_engine import name_reserviert as _name_reserviert  # lokale „import signature_engine“ in Routen überdecken den Modulnamen
 
 from webui.deps import (
     templates, log, _gateway_name, _check_auth, _require_admin,
@@ -152,7 +153,7 @@ async def api_get_templates(_=Depends(_check_auth)):
 async def api_delete_template(name: str, _=Depends(_check_auth)):
     """Delete a named template (not 'default')."""
     if not name or name == "default":
-        raise HTTPException(400, "Das 'default'-Template kann nicht gelöscht werden")
+        raise HTTPException(400, "Die Standardvorlage kann nicht gelöscht werden.")
     html_path = Path(config.TEMPLATE_DIR) / f"{name}.html"
     txt_path = Path(config.TEMPLATE_DIR) / f"{name}.txt"
     meta_path = Path(config.TEMPLATE_DIR) / f"{name}.meta.json"
@@ -181,8 +182,8 @@ async def api_rename_template(name: str, request: Request, _=Depends(_check_auth
     ziel = _re.sub(r"[^a-zA-Z0-9_\-]", "", (daten.get("ziel") or "").strip()).strip("-_")
     if not ziel:
         raise HTTPException(400, "Ungültiger Name (Buchstaben, Ziffern, - und _).")
-    if ziel == "default":
-        raise HTTPException(400, "Der Name 'default' ist vergeben.")
+    if _name_reserviert(ziel):
+        raise HTTPException(400, f"Der Name „{ziel}“ ist der Standardvorlage vorbehalten.")
 
     quelle_safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_") or "default"
     if quelle_safe == "default":
@@ -241,8 +242,8 @@ async def api_create_template(name: str, request: Request, _=Depends(_check_auth
     safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_")
     if not safe:
         raise HTTPException(400, "Ungültiger Name (Buchstaben, Ziffern, - und _).")
-    if safe == "default":
-        raise HTTPException(400, "Der Name 'default' ist vergeben.")
+    if _name_reserviert(safe):
+        raise HTTPException(400, f"Der Name „{safe}“ ist der Standardvorlage vorbehalten.")
     verz = Path(config.TEMPLATE_DIR)
     if (verz / f"{safe}.html").exists():
         raise HTTPException(409, f"Es gibt bereits eine Vorlage '{safe}'.")
@@ -281,8 +282,8 @@ async def api_duplicate_template(name: str, request: Request, _=Depends(_check_a
     if not ziel:
         raise HTTPException(400, "Bitte einen Namen für die Kopie angeben "
                                  "(Buchstaben, Ziffern, - und _).")
-    if ziel == "default":
-        raise HTTPException(400, "Der Name 'default' ist vergeben.")
+    if _name_reserviert(ziel):
+        raise HTTPException(400, f"Der Name „{ziel}“ ist der Standardvorlage vorbehalten.")
 
     quelle_safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_") or "default"
     quelle = "signature" if quelle_safe == "default" else quelle_safe

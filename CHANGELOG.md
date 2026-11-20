@@ -5,6 +5,66 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.113 — 2026-11-20 — Automatische S/MIME-Erneuerung (CASTLE) lief nicht durch; Vorlage „Standard“; Personenauswahl in dynamischen Gruppen; EWS-Karte nur mit Hybrid-Nutzern
+
+**Automatische Erneuerung über CASTLE.** Der tägliche Lauf startete die
+Bestellung, brach die anschließende Abfrage des Postfachs nach der
+Challenge-Mail aber sofort wieder ab. Ursache: Er führte die Bestellung in
+einer eigenen, kurzlebigen Ereignisschleife aus, und deren Ende beendet alle
+noch offenen Aufgaben. Die Bestellung blieb bei „Warte auf Challenge-E-Mail…“ stehen,
+die Zeitüberschreitung mit Fehlermeldung an die Verwaltung lief in der
+abgebrochenen Aufgabe und kam nie. Weil das Gateway bei CASTLE das bisherige
+Zertifikat vor der Neubestellung widerruft, konnte ein Postfach so mit
+widerrufenem Zertifikat und ohne neues zurückbleiben. Erneuerungen aus dem
+täglichen Lauf laufen jetzt in derselben Schleife wie eine Bestellung aus der
+Oberfläche. Bestellungen über den Hub (Certum, SwissSign) waren nicht
+betroffen; ihr Stand wird dauerhaft gespeichert und regelmäßig abgefragt.
+
+Hast du Postfächer mit „Automatisch erneuern“ über CASTLE, sieh unter
+*S/MIME* nach, ob bei einem Postfach „Warte auf Challenge-E-Mail…“ hängen geblieben ist.
+Ein Neustart des Gateways nimmt sie wieder auf; sonst starte die Bestellung beim Postfach unter *S/MIME* neu.
+
+* Die Erneuerungs-Mail an den Postfachinhaber (CASTLE) behauptete, das Gateway
+  habe bereits bestellt und es sei nichts zu tun. Sie geht aber nur hinaus, wenn
+  das Gateway gerade NICHT bestellt hat (Haken „Automatisch erneuern“ aus oder
+  Start gescheitert). Sie sagt jetzt, dass noch nichts beantragt ist und die
+  Verwaltung die Erneuerung anstößt.
+* „Nächste Erneuerung“ unter *S/MIME* nannte den Tag vor dem Ablauf (kleinste
+  Schwelle). Der tägliche Lauf beginnt aber bei der größten (Vorgabe: 30 Tage
+  vorher); die Anzeige rechnet jetzt damit.
+
+**Vorlage „Standard“.** Die Standardvorlage heißt in der Oberfläche jetzt
+„Standard“ statt „default“ — in allen Auswahllisten, im Vorlagen-Editor, im
+Richtlinienergebnis, im Self-Service und im Verfassen-Add-in. Intern und in
+gespeicherten Zuordnungen, Richtlinien und Sicherungen bleibt der Schlüssel
+`default`; nichts wird umgeschrieben. Die erste Option einer Postfach-Auswahl,
+die der Gruppe bzw. der Standardrichtlinie folgt, heißt jetzt „Vorgabe (…)“
+statt „Standard (…)“ — sonst stünde dort „Standard (Standard)“. Der Name
+„Standard“ lässt sich für eigene Vorlagen nicht mehr neu vergeben (anlegen,
+umbenennen, kopieren; Groß-/Kleinschreibung egal).
+
+**Dynamische Gruppen: Personenauswahl.** „Immer dabei“ und „Nie dabei“ im
+Regel-Dialog suchen beim Tippen in Name und Adresse der aktivierten Postfächer
+(Groß-/Kleinschreibung und Akzente egal, „ue“ findet „ü“) und zeigen Name und
+Adresse untereinander. Auswahl per Tipp, Klick oder Pfeiltasten und Enter;
+Postfächer, die schon in einer der beiden Listen stehen, sind ausgegraut. Die
+bisherige Vorschlagsliste des Browsers zeigte auf Telefonen und in Teams nur
+die Adressen.
+
+**Einstellungen: Exchange lokal (EWS) nur mit Hybrid-Nutzern.** Die Karte
+*Exchange lokal (EWS)* erscheint nur noch, wenn unter *Postfächer* „Hybrid-Nutzer
+einbeziehen“ gesetzt ist — ohne Hybrid-Nutzer wirkt die Anbindung für niemanden.
+Eingetragene Werte bleiben gespeichert und erscheinen wieder, sobald der Haken
+gesetzt wird. Die EWS-Aufgaben im Sammelpunkt (Zugriffsbereich, Gruppe,
+Kontowechsel) entfallen ohne den Haken ebenfalls.
+
+**Zu tun:** Gibt es bei dir eine eigene Vorlage namens „Standard“, benenne sie
+um (*Signaturen* → Vorlage öffnen → *Umbenennen*) — sie stünde sonst neben der
+Standardvorlage zweimal gleich in jeder Auswahl. Der Sammelpunkt oben rechts
+meldet das. Zur CASTLE-Erneuerung siehe oben.
+
+---
+
 ## v1.12.112 — 2026-11-19 — Interne Mails ohne Banner und Disclaimer (einstellbar); Gruppenfarben, Variablen-Hilfe, Farbfeld
 
 **Interne Mails.** Signiert das Gateway rein interne Post (interne Signatur oder

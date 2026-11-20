@@ -108,7 +108,7 @@
       li.className = 'herkunft-chip';
       if (t.kampagne) li.dataset.art = 'kampagne';
       else if (t.fest) li.dataset.art = 'fest';
-      li.textContent = t.name + ' „' + t.vorlage + '“ · ' + t.quelle
+      li.textContent = t.name + ' „' + vorlageAnzeige(t.vorlage) + '“ · ' + t.quelle
         + (t.fest && !t.kampagne ? ' · festgeschrieben' : '');
       liste.appendChild(li);
     });
@@ -139,7 +139,7 @@
       fehler(d.error ? 'Graph-Fehler: ' + d.error : '');
       const vh = document.getElementById('rl-vorlage');
       vh.textContent = d.vorlage
-        ? 'Aus dem Vorlagen-Editor: je Fall steht, ob „' + d.vorlage + '“ hier wirksam ist.'
+        ? 'Aus dem Vorlagen-Editor: je Fall steht, ob „' + vorlageAnzeige(d.vorlage) + '“ hier wirksam ist.'
         : '';
       vh.hidden = !d.vorlage;
       ziel.innerHTML = '';

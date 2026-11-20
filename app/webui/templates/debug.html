@@ -773,7 +773,7 @@ var _selftestData = [];
     const tmplSel = document.getElementById('selftest-template');
     d.templates.forEach(t => {
       const o = document.createElement('option');
-      o.value = t; o.textContent = t;
+      o.value = t; o.textContent = vorlageAnzeige(t);
       tmplSel.appendChild(o);
     });
     const emailSel = document.getElementById('selftest-email');

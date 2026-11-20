@@ -122,6 +122,34 @@
       border:1px solid #e2e8f0; border-radius:10px; max-width:100%; overflow-wrap:anywhere }
   [data-theme="dark"] .regel-chip { border-color:#495166 }
   .regel-chip button { background:none; border:none; cursor:pointer; font-size:12px; padding:0 2px; color:inherit }
+  /* Personenauswahl (personenAuswahl() unten): Trefferliste unter dem Feld,
+     genau so breit wie das Feld (left/right:0 an der Hülle) — auf dem Telefon
+     kein Querrollen. Rund acht Treffer sichtbar,
+     der Rest rollt. Zustände nur über Klasse/data-* (Dark-Mode-Regel 2). */
+  .pa-huelle { position:relative; display:flex; flex:1 1 150px; min-width:0; max-width:100% }
+  .pa-huelle > input { flex:1 1 auto; width:100% }
+  .pa-liste { position:absolute; left:0; right:0; top:100%; margin-top:2px; z-index:20;
+      max-height:316px; overflow-y:auto; overflow-x:hidden; background:#fff;
+      border:1px solid #e2e8f0; border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,0.12); box-sizing:border-box }
+  .pa-liste[hidden] { display:none }
+  .pa-eintrag { padding:4px 8px; cursor:pointer; font-size:12px; line-height:1.3 }
+  /* Je Eintrag genau zwei Zeilen (Name, Adresse) — sonst passen auf dem Telefon
+     bei langen Adressen nur vier Treffer ins Bild. Zu Langes endet mit „…“,
+     die volle Adresse steht im title und danach im Chip. */
+  .pa-name, .pa-adresse { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .pa-name { font-weight:600; color:#1e293b }
+  .pa-adresse { color:#64748b }
+  .pa-eintrag.pa-aktiv { background:#eff6ff }
+  .pa-eintrag[aria-disabled="true"] { cursor:default }
+  .pa-eintrag[aria-disabled="true"] .pa-name,
+  .pa-eintrag[aria-disabled="true"] .pa-adresse { color:#94a3b8 }
+  .pa-leer { padding:6px 8px; font-size:12px; color:#64748b }
+  [data-theme="dark"] .pa-liste { background:#14171f; border-color:#495166 }
+  [data-theme="dark"] .pa-name { color:#e2e8f0 }
+  [data-theme="dark"] .pa-adresse, [data-theme="dark"] .pa-leer { color:#94a3b8 }
+  [data-theme="dark"] .pa-eintrag.pa-aktiv { background:#0a1827 }
+  [data-theme="dark"] .pa-eintrag[aria-disabled="true"] .pa-name,
+  [data-theme="dark"] .pa-eintrag[aria-disabled="true"] .pa-adresse { color:#64748b }
   .regel-mitglied { font-size:12px; padding:2px 0; overflow-wrap:anywhere }
   .regel-mitglied summary { cursor:pointer }
   .regel-mitglied ul { margin:2px 0 4px 18px; padding:0 }
@@ -727,18 +755,21 @@ async function ankerAnwenden() {
     <h3>Immer dabei</h3>
     <div id="regel-immer" class="regel-chips"></div>
     <div class="regel-zeile">
-      <input id="regel-immer-neu" class="regel-wert" list="dyn-postfaecher" placeholder="Postfach-Adresse"
-             autocapitalize="off" autocorrect="off" spellcheck="false">
+      <span class="pa-huelle">
+        <input id="regel-immer-neu" class="regel-wert" placeholder="Name oder Adresse"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </span>
       <button class="btn secondary btn-sm" onclick="_regelListeDazu('immer')">Hinzufügen</button>
     </div>
     <h3>Nie dabei</h3>
     <div id="regel-nie" class="regel-chips"></div>
     <div class="regel-zeile">
-      <input id="regel-nie-neu" class="regel-wert" list="dyn-postfaecher" placeholder="Postfach-Adresse"
-             autocapitalize="off" autocorrect="off" spellcheck="false">
+      <span class="pa-huelle">
+        <input id="regel-nie-neu" class="regel-wert" placeholder="Name oder Adresse"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </span>
       <button class="btn secondary btn-sm" onclick="_regelListeDazu('nie')">Hinzufügen</button>
     </div>
-    <datalist id="dyn-postfaecher"></datalist>
     <h3>Vorschau</h3>
     <div class="regel-zeile">
       <span id="regel-stand" class="hint"></span>
@@ -825,7 +856,7 @@ function _fuelleVorlagenSelect(sel, kind, aktuell, opts) {
   namen.forEach(function(name) {
     var opt = document.createElement('option');
     opt.value = name;
-    opt.textContent = (typListe.indexOf(name) === -1) ? name + ' (andere Art)' : name;
+    opt.textContent = vorlageAnzeige(name) + (typListe.indexOf(name) === -1 ? ' (andere Art)' : '');
     if (name === aktuell) opt.selected = true;
     sel.appendChild(opt);
   });
@@ -885,7 +916,7 @@ function _addinAuswahl(wert, o) {
     cb.checked = isAll || selected.includes(name);
     cb.disabled = isAll;
     lbl.appendChild(cb);
-    lbl.appendChild(document.createTextNode(name));
+    lbl.appendChild(document.createTextNode(vorlageAnzeige(name)));
     tplWrap.appendChild(lbl);
   });
   inner.appendChild(tplWrap);
@@ -1243,9 +1274,9 @@ function _gruppenPunktHtml(name) {
 }
 // Anzeige eines Slot-Werts: Add-in-Auswahl als Text, sonst der Vorlagenname.
 function _wertText(slot, wert) {
-  if (slot !== 'addin') return wert || 'keine';
+  if (slot !== 'addin') return wert ? vorlageAnzeige(wert) : 'keine';
   if (wert === '*') return 'alle Vorlagen';
-  return (wert && wert.length) ? wert.join(', ') : 'nur Standardsignatur';
+  return (wert && wert.length) ? wert.map(vorlageAnzeige).join(', ') : 'nur Standardsignatur';
 }
 // Gesperrt, wenn ohne Wirkung (`aus`: Haken fehlt) ODER festgeschrieben.
 // Ausgegraut nur bei `aus` — der festgeschriebene Wert soll lesbar bleiben.
@@ -1303,7 +1334,7 @@ function _buildWahlSelect(idx, klasse, kind, mb, slot, feld, leerText) {
   var std = (mb.standard || {})[slot] || '';
   var o = document.createElement('option');
   o.value = STANDARD_WAHL;
-  o.textContent = 'Standard (' + (std || 'keine') + ')';
+  o.textContent = 'Vorgabe (' + _wertText(slot, std) + ')';
   sel.insertBefore(o, sel.firstChild);
   sel.value = aktuell;
   _festSperren(sel, o, mb, slot, std);
@@ -1338,7 +1369,7 @@ function _addinWahlZelle(idx, mb) {
   var std = (mb.standard || {}).addin;
   var o = document.createElement('option');
   o.value = STANDARD_WAHL;
-  o.textContent = 'Standard (' + _wertText('addin', std) + ')';
+  o.textContent = 'Vorgabe (' + _wertText('addin', std) + ')';
   sel.appendChild(o);
   var e = document.createElement('option');
   e.value = 'eigen';
@@ -1686,7 +1717,7 @@ function massenVorlagenListe() {
   _fuelleVorlagenSelect(sel, teile[1], '', {mitLeer: teile[2] === 'leer', leerText: '— keine —'});
   var o = document.createElement('option');
   o.value = STANDARD_WAHL;
-  o.textContent = 'Standard (je Postfach)';
+  o.textContent = 'Vorgabe (je Postfach)';
   sel.insertBefore(o, sel.firstChild);
   sel.value = STANDARD_WAHL;
 }
@@ -2420,20 +2451,159 @@ function _schluesselText(k) {
   return k;
 }
 
+// ── Personenauswahl: ein Baustein für Felder, in die man ein Postfach wählt ──
+// Tippen filtert nach Name UND Adresse (Teilstring, ohne Groß-/Kleinschreibung,
+// Akzente/Umlaute gleichwertig: „muller“ findet „Müller“). Liste unter dem Feld,
+// Auswahl per Klick/Tipp oder Pfeiltasten + Enter, Esc und Klick daneben
+// schließen. Einträge mit `gesperrt` (Text = Grund) erscheinen ausgegraut und
+// sind nicht wählbar. Enter ohne markierten Eintrag übergibt den Freitext an
+// `frei` (wenn angegeben) — z. B. eine vollständig getippte Adresse.
+//   optionen.eintraege() → [{wert, name, adresse, gesperrt}]
+//   optionen.waehlen(wert)          optionen.frei(text)
+function _paNorm(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/ß/g, 'ss').toLowerCase().trim();
+}
+function _paUmlaut(t) {
+  return String(t || '').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
+    .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue');
+}
+function personenAuswahl(feld, optionen) {
+  var huelle = feld.parentNode;
+  var liste = document.createElement('div');
+  liste.className = 'pa-liste';
+  liste.id = feld.id + '-liste';
+  liste.setAttribute('role', 'listbox');
+  liste.hidden = true;
+  huelle.appendChild(liste);
+  feld.setAttribute('role', 'combobox');
+  feld.setAttribute('aria-autocomplete', 'list');
+  feld.setAttribute('aria-controls', liste.id);
+  feld.setAttribute('aria-expanded', 'false');
+  var treffer = [], aktiv = -1;
+
+  function zu() {
+    liste.hidden = true; aktiv = -1;
+    feld.setAttribute('aria-expanded', 'false');
+    feld.removeAttribute('aria-activedescendant');
+  }
+  function markieren(i) {
+    aktiv = i;
+    Array.prototype.forEach.call(liste.children, function (c, j) {
+      c.classList.toggle('pa-aktiv', j === i);
+      if (c.getAttribute('role') === 'option') c.setAttribute('aria-selected', j === i ? 'true' : 'false');
+    });
+    if (i >= 0 && liste.children[i]) {
+      feld.setAttribute('aria-activedescendant', liste.children[i].id);
+      liste.children[i].scrollIntoView({block: 'nearest'});
+    } else {
+      feld.removeAttribute('aria-activedescendant');
+    }
+  }
+  function zeigen() {
+    var q = _paNorm(feld.value);
+    // „mueller“ soll „Müller“ finden wie „muller“: der Name zählt in beiden
+    // Schreibweisen (Akzent weg und Umlaut als ae/oe/ue).
+    treffer = optionen.eintraege().filter(function (e) {
+      return !q || [_paNorm(e.name), _paNorm(_paUmlaut(e.name)), _paNorm(e.adresse)]
+        .some(function (t) { return t.indexOf(q) >= 0; });
+    });
+    liste.innerHTML = treffer.length ? treffer.map(function (e, i) {
+      var name = e.name && e.name !== e.adresse ? e.name : e.adresse;
+      return '<div class="pa-eintrag" role="option" id="' + escAttr(liste.id + '-' + i) + '" data-i="' + i + '"' +
+        ' title="' + escAttr(name + (name !== e.adresse ? ' <' + e.adresse + '>' : '') +
+                             (e.gesperrt ? ' — ' + e.gesperrt : '')) + '"' +
+        (e.gesperrt ? ' aria-disabled="true"' : '') + '>' +
+        '<span class="pa-name">' + esc(name) + '</span>' +
+        (name !== e.adresse ? '<span class="pa-adresse">' + esc(e.adresse) + '</span>' : '') +
+        (e.gesperrt ? '<span class="pa-adresse">' + esc(e.gesperrt) + '</span>' : '') + '</div>';
+    }).join('') : '<div class="pa-leer">Kein aktiviertes Postfach passt.</div>';
+    liste.hidden = false;
+    feld.setAttribute('aria-expanded', 'true');
+    markieren(-1);
+  }
+  function waehlbar(i) { return treffer[i] && !treffer[i].gesperrt; }
+  function nehmen(i) {
+    if (!waehlbar(i)) return;
+    var w = treffer[i].wert;
+    feld.value = '';
+    zu();
+    optionen.waehlen(w);
+    feld.focus();
+  }
+  function schritt(r) {
+    if (liste.hidden) zeigen();
+    var len = treffer.length, start = aktiv >= 0 ? aktiv : (r > 0 ? -1 : len);
+    for (var n = 1; n <= len; n++) {
+      var i = (((start + r * n) % len) + len) % len;
+      if (waehlbar(i)) { markieren(i); return; }
+    }
+  }
+  feld.addEventListener('input', zeigen);
+  feld.addEventListener('focus', function () { if (feld.value) zeigen(); });
+  feld.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { schritt(1); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { schritt(-1); e.preventDefault(); }
+    else if (e.key === 'Escape') { if (!liste.hidden) { zu(); e.preventDefault(); e.stopPropagation(); } }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!liste.hidden && aktiv >= 0) { nehmen(aktiv); return; }
+      var q = _paNorm(feld.value);
+      if (!q) return;
+      if (liste.hidden) zeigen();
+      // Genau getippte Adresse, sonst ein einziger wählbarer Treffer.
+      var genau = -1, wahl = [];
+      treffer.forEach(function (t, i) {
+        if (_paNorm(t.adresse) === q) genau = i;
+        if (!t.gesperrt) wahl.push(i);
+      });
+      if (genau >= 0) { nehmen(genau); return; }       // gesperrt → nimmt nichts, Liste zeigt den Grund
+      if (wahl.length === 1) { nehmen(wahl[0]); return; }
+      if (optionen.frei && q.indexOf('@') > 0) { zu(); optionen.frei(feld.value); }
+    }
+    else if (e.key === 'Tab') { zu(); }
+  });
+  // mousedown statt click: das Feld behält den Fokus (auf dem Telefon bleibt
+  // die Tastatur offen), und das Schließen „Klick daneben“ greift nicht vorher.
+  liste.addEventListener('mousedown', function (e) {
+    e.preventDefault();
+    var it = e.target.closest('.pa-eintrag');
+    if (it) nehmen(+it.dataset.i);
+  });
+  document.addEventListener('pointerdown', function (e) {
+    if (!liste.hidden && !huelle.contains(e.target)) zu();
+  });
+  return {schliessen: zu};
+}
+
+function _regelAuswahlEintraege(art) {
+  var andere = art === 'immer' ? 'nie' : 'immer';
+  var titel = {immer: 'steht schon bei „Immer dabei“', nie: 'steht schon bei „Nie dabei“'};
+  return _mbData.filter(function (m) { return m.sig || m.smime; }).map(function (m) {
+    var k = m.config_key || m.email;
+    var drin = !_regelArbeit ? '' : _regelArbeit[art].indexOf(k) >= 0 ? art
+             : _regelArbeit[andere].indexOf(k) >= 0 ? andere : '';
+    return {wert: k, name: m.name || '', adresse: m.email, gesperrt: drin ? titel[drin] : ''};
+  });
+}
+var _regelAuswahl = {};
+['immer', 'nie'].forEach(function (art) {
+  var feld = document.getElementById('regel-' + art + '-neu');
+  if (!feld) return;
+  _regelAuswahl[art] = personenAuswahl(feld, {
+    eintraege: function () { return _regelAuswahlEintraege(art); },
+    waehlen: function (k) { _regelSchluesselDazu(art, k); },
+    frei: function () { _regelListeDazu(art); },
+  });
+});
+
 function openRegelModal(name) {
   var d = _dynGroups[name];
   if (!d) return;
   _regelName = name;
   _regelArbeit = JSON.parse(JSON.stringify(d));
   document.getElementById('regel-modal-title').textContent = 'Regel: ' + name;
-  var dl = document.getElementById('dyn-postfaecher');
-  dl.innerHTML = '';
-  _mbData.filter(function (m) { return m.sig || m.smime; }).forEach(function (m) {
-    var o = document.createElement('option');
-    o.value = m.email;
-    if (m.name && m.name !== m.email) o.label = m.name;
-    dl.appendChild(o);
-  });
+  ['immer', 'nie'].forEach(function (art) { document.getElementById('regel-' + art + '-neu').value = ''; });
   document.getElementById('regel-filter').value = '';
   document.getElementById('regel-save-result').textContent = '';
   document.getElementById('regel-einlesen-ergebnis').textContent = '';
@@ -2444,6 +2614,7 @@ function openRegelModal(name) {
 
 function closeRegelModal() {
   document.getElementById('regel-modal-overlay').style.display = 'none';
+  Object.keys(_regelAuswahl).forEach(function (a) { _regelAuswahl[a].schliessen(); });
   clearTimeout(_regelTakt);
   _regelName = null;
   _regelArbeit = null;
@@ -2587,11 +2758,15 @@ function _regelListeDazu(art) {
   var feld = document.getElementById('regel-' + art + '-neu');
   var k = _postfachZuSchluessel(feld.value);
   if (!k) { showMsg('regel-save-result', 'Kein aktiviertes Postfach mit dieser Adresse.', false); return; }
+  feld.value = '';
+  if (_regelAuswahl[art]) _regelAuswahl[art].schliessen();
+  _regelSchluesselDazu(art, k);
+}
+function _regelSchluesselDazu(art, k) {
   var andere = art === 'immer' ? 'nie' : 'immer';
   if (_regelArbeit[art].indexOf(k) < 0) _regelArbeit[art].push(k);
   var i = _regelArbeit[andere].indexOf(k);
   if (i >= 0) _regelArbeit[andere].splice(i, 1);    // ein Postfach steht nur in einer Liste
-  feld.value = '';
   _regelZeichnen();
 }
 

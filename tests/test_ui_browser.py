@@ -1549,7 +1549,7 @@ def test_festgelegte_auswahl_zeigt_nur_die_quelle_als_farbchip(seite, thema):
               sig: chips('select.mb-template'), min: chips('select.mb-min-sig'),
               addin: chips('select.mb-addin-modus'), soll: gruppenFarbe('Vertrieb'),
               ruht: zelle('select.mb-template').querySelector('.wahl-ruht').textContent}; }""")
-    assert r["option"] == "default" and r["gesperrt"] is True
+    assert r["option"] == "Standard" and r["gesperrt"] is True
     assert r["titel"] == "Festgelegt durch Gruppe „Vertrieb“"
     assert [c["text"] for c in r["sig"]] == ["Vertrieb"]
     assert r["sig"][0]["farbe"] == str(r["soll"])
@@ -2187,3 +2187,129 @@ def test_regel_editor_vorschau_und_keine_querrolle(seite, monkeypatch, tmp_path)
         pg.context.close()
     finally:
         dg.zuruecksetzen()
+
+
+# ── Dynamische Gruppen: Personenauswahl für „Immer/Nie dabei“ ───────────────
+# Vorher eine <datalist>: auf iOS/Teams-Webview kaum bedienbar, Name und Adresse
+# nicht zusammen sichtbar. Jetzt personenAuswahl() in mailboxes.html.
+
+_PA_POSTFAECHER = [
+    {"email": "erika.mustermann@firma.at", "name": "Erika Mustermann", "config_key": "g-1", "sig": True},
+    {"email": "max.mueller@firma.at", "name": "Max Müller", "config_key": "g-2", "sig": True},
+    {"email": "e.beispiel@firma.at", "name": "Eva Beispiel", "config_key": "g-3", "smime": True},
+    {"email": "aus@firma.at", "name": "Nicht Aktiviert", "config_key": "g-4"},
+] + [{"email": f"sehr.lange.adresse.nummer.{i}@abteilung-mit-langem-namen.firma.at",
+      "name": f"Testperson Mit Langem Namen {i}", "config_key": f"l-{i}", "sig": True}
+     for i in range(12)]
+
+
+def _pa_oeffnen(seite, breite=393, thema="light"):
+    pg = seite("/mailboxes", breite=breite, thema=thema)
+    pg.route("**/api/gruppen/dynamisch/vorschau", lambda r: r.fulfill(
+        json={"ok": True, "anzahl": 0, "neu": 0, "weg": 0, "mitglieder": [], "schnappschuss": {}}))
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""p => {
+      _mbData = p;
+      _dynGroups = {Vertrieb: {regel: {verknuepfung: 'alle', bedingungen: []}, immer: [], nie: []}};
+      openRegelModal('Vertrieb'); }""", _PA_POSTFAECHER)
+    pg.locator("#regel-modal-overlay").wait_for(state="visible")
+    return pg
+
+
+def _pa_treffer(pg, art):
+    return pg.evaluate("""a => Array.from(document.querySelectorAll('#regel-' + a + '-neu-liste .pa-eintrag'))
+        .map(e => ({name: (e.querySelector('.pa-name') || {}).textContent,
+                    gesperrt: e.getAttribute('aria-disabled') === 'true'}))""", art)
+
+
+def _chips(pg, art):
+    return pg.evaluate("""a => Array.from(document.querySelectorAll('#regel-' + a + ' .regel-chip'))
+        .map(c => c.firstChild.textContent)""", art)
+
+
+def test_personenauswahl_filtert_nach_name_und_adresse(seite):
+    pg = _pa_oeffnen(seite)
+    feld = pg.locator("#regel-immer-neu")
+    feld.fill("MULLER")                    # Name, ohne Umlaut, groß geschrieben
+    assert [t["name"] for t in _pa_treffer(pg, "immer")] == ["Max Müller"]
+    assert pg.inner_text("#regel-immer-neu-liste .pa-adresse") == "max.mueller@firma.at"
+    feld.fill("müll")                      # mit Umlaut
+    assert [t["name"] for t in _pa_treffer(pg, "immer")] == ["Max Müller"]
+    feld.fill("x mue")                     # Umlaut als ue, über die Leerstelle (Adresse hat dort einen Punkt)
+    assert [t["name"] for t in _pa_treffer(pg, "immer")] == ["Max Müller"]
+    feld.fill("e.beisp")                   # Teil der Adresse, nicht des Namens
+    assert [t["name"] for t in _pa_treffer(pg, "immer")] == ["Eva Beispiel"]
+    feld.fill("nicht aktiviert")           # weder Signatur noch S/MIME → nicht wählbar
+    assert _pa_treffer(pg, "immer") == []
+    pg.context.close()
+
+
+def test_personenauswahl_enter_waehlt_markierten_eintrag(seite):
+    pg = _pa_oeffnen(seite)
+    feld = pg.locator("#regel-immer-neu")
+    feld.fill("firma.at")                  # viele Treffer: kein Einzeltreffer-Kurzweg
+    feld.press("ArrowDown")
+    feld.press("ArrowDown")
+    feld.press("Enter")
+    assert _chips(pg, "immer") == ["max.mueller@firma.at"]
+    assert feld.input_value() == ""
+    assert pg.is_hidden("#regel-immer-neu-liste")
+    # Esc und Klick daneben schließen die Liste, der Dialog bleibt offen
+    feld.fill("eva")
+    assert pg.is_visible("#regel-immer-neu-liste")
+    feld.press("Escape")
+    assert pg.is_hidden("#regel-immer-neu-liste")
+    assert pg.is_visible("#regel-modal-overlay")
+    feld.fill("eva")
+    pg.click("#regel-modal-title")
+    assert pg.is_hidden("#regel-immer-neu-liste")
+    # Tipp auf einen Eintrag
+    feld.fill("eva")
+    pg.locator("#regel-immer-neu-liste .pa-eintrag").first.click()
+    assert _chips(pg, "immer") == ["max.mueller@firma.at", "e.beispiel@firma.at"]
+    pg.context.close()
+
+
+def test_personenauswahl_bereits_gewaehlte_nicht_doppelt(seite):
+    pg = _pa_oeffnen(seite)
+    immer = pg.locator("#regel-immer-neu")
+    immer.fill("erika")
+    immer.press("Enter")                   # einziger Treffer → gewählt
+    assert _chips(pg, "immer") == ["erika.mustermann@firma.at"]
+    for art in ("immer", "nie"):
+        feld = pg.locator(f"#regel-{art}-neu")
+        feld.fill("erika")
+        assert _pa_treffer(pg, art) == [{"name": "Erika Mustermann", "gesperrt": True}]
+        feld.press("ArrowDown")
+        feld.press("Enter")
+        feld.fill("erika")
+        pg.locator(f"#regel-{art}-neu-liste .pa-eintrag").first.click(force=True)   # aria-disabled
+        feld.fill("erika.mustermann@firma.at")
+        feld.press("Enter")
+    assert _chips(pg, "immer") == ["erika.mustermann@firma.at"]
+    assert _chips(pg, "nie") == []
+    pg.context.close()
+
+
+@pytest.mark.parametrize("thema", ["light", "dark"])
+def test_personenauswahl_bei_393_ohne_querrollen(seite, thema):
+    pg = _pa_oeffnen(seite, breite=393, thema=thema)
+    feld = pg.locator("#regel-nie-neu")
+    feld.fill("langem")
+    r = pg.evaluate("""() => {
+      const l = document.getElementById('regel-nie-neu-liste');
+      const h = l.parentNode.getBoundingClientRect(), b = l.getBoundingClientRect();
+      const box = document.querySelector('#regel-modal-overlay > div');
+      const eintrag = l.querySelector('.pa-eintrag').getBoundingClientRect().height;
+      const m = getComputedStyle(l).backgroundColor.match(/\\d+/g).map(Number);
+      return {links: b.left, rechts: b.right, hl: h.left, hr: h.right,
+              seite: document.documentElement.scrollWidth,
+              box: box.scrollWidth - box.clientWidth, liste: l.scrollWidth - l.clientWidth,
+              sichtbar: l.clientHeight / eintrag, rollt: l.scrollHeight > l.clientHeight,
+              hell: 0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2]}; }""")
+    assert r["links"] >= r["hl"] - 1 and r["rechts"] <= r["hr"] + 1, r
+    assert r["rechts"] <= 393, r
+    assert r["seite"] <= 393 and r["box"] <= 0 and r["liste"] <= 0, r
+    assert 7 <= r["sichtbar"] <= 9 and r["rollt"], r
+    assert (r["hell"] < 90) if thema == "dark" else (r["hell"] > 200), r
+    pg.context.close()

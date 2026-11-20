@@ -64,7 +64,7 @@ def _beschriftet(teil: dict) -> dict:
 
 def _ueberschrift(t: dict) -> str:
     fest = ", festgeschrieben" if t.get("fest") and not t.get("kampagne") else ""
-    return f"„{t['vorlage']}“ ({t['quelle']}{fest})"
+    return f"„{signature_engine.anzeigename(t['vorlage'])}“ ({t['quelle']}{fest})"
 
 
 async def zusammenstellen(email: str, fall: str = "neu", vorlage_override: str | None = None,

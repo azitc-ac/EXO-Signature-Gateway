@@ -51,20 +51,22 @@ class CastleAcmeBackend(CABackend):
         upload_url: str,
         user_config: dict,
     ) -> str:
-        return f"""
-<p>Das Gateway hat automatisch ein neues Zertifikat bei der CASTLE Platform beantragt.</p>
-<p>Kein weiterer Schritt erforderlich. Die Erneuerung läuft vollautomatisch ab:</p>
-<ol style="line-height:2">
-  <li>Das Gateway hat einen ACME-Auftrag bei
-      <a href="{_CASTLE_PORTAL}">{_CASTLE_PORTAL}</a> platziert.</li>
-  <li>CASTLE sendet eine Challenge-E-Mail an <strong>{_esc(email)}</strong>
-      (wird automatisch verarbeitet — kein Handlungsbedarf).</li>
-  <li>Das Gateway antwortet auf die Challenge und lädt das neue Zertifikat herunter.</li>
-  <li>Ihr Administrator erhält eine Bestätigung sobald das Zertifikat importiert ist.</li>
-</ol>
+        # ⚠️ Diese Mail geht NUR hinaus, wenn das Gateway NICHT selbst bestellt
+        # hat (scheduler._send_user_renewal_notification kehrt nach einer
+        # gestarteten Erneuerung zurück): Haken „Automatisch erneuern“ aus, oder
+        # der Start ist gescheitert. Bis v1.12.112 stand hier „Das Gateway hat
+        # automatisch ein neues Zertifikat beantragt … Kein weiterer Schritt
+        # erforderlich“ — in genau diesen Fällen falsch. Ablaufdatum und
+        # Resttage nennt die Vorlage „cert_renewal“ selbst (notification.py).
+        return """
+<p>Ein neues Zertifikat wurde noch <strong>nicht</strong> beantragt. Bei diesem Bezugsweg
+   (CASTLE Platform) bestellt es das Gateway für Sie; anstoßen kann das nur Ihr
+   Administrator. Bitte wenden Sie sich an ihn, damit die Erneuerung vor dem Ablauf
+   gestartet wird.</p>
 <p style="color:#888;font-size:12px">
-  Falls die automatische Erneuerung fehlschlägt, wenden Sie sich an Ihren Administrator —
-  die Bestellung läuft über das Gateway, Sie selbst können sie nicht anstossen.
+  Läuft die Bestellung, erhalten Sie gegebenenfalls eine Anfrage zur Einwilligung und
+  eine Bestätigungs-E-Mail der CASTLE Platform — beides verarbeitet das Gateway bzw.
+  der Link in der Anfrage.
 </p>
 """
         # ⚠️ Hier stand bis 18.08.2026 „Manueller Upload als Fallback" mit einem

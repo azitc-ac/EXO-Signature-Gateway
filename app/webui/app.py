@@ -62,6 +62,10 @@ async def _lifespan(application):
     except Exception as exc:
         logging.getLogger(__name__).error("Vorlagen-Seeding fehlgeschlagen: %s", exc)
 
+    # Bestellungen aus dem Scheduler-Thread laufen in DIESER Schleife, damit ihre
+    # Folgeaufgaben (ACME-Postfachabfrage) leben — scheduler._erneuerung_starten.
+    import scheduler
+    scheduler.web_schleife_setzen(asyncio.get_running_loop())
     import acme_state
     acme_state.resume_pending_polls()
     yield

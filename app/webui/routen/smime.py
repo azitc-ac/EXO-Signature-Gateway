@@ -142,9 +142,11 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
     all_emails = sorted(smime_from_config | smime_from_certs)
     smime_users = [{"email": email, "certs": smime_store.list_user_certs(email)} for email in all_emails]
     acme_orders = {em: _acme_state.get_order(em) for em in all_emails if _acme_state.get_order(em)}
-    # Enrich certs with next_renewal date (expiry − first renewal threshold)
+    # Enrich certs with next_renewal date (expiry − FIRST renewal threshold).
+    # Erste = größte: der Scheduler löst bei ≤30 Tagen aus, nicht bei 1 (bis
+    # v1.12.112 stand hier min() — die Anzeige nannte den Tag vor dem Ablauf).
     from datetime import datetime as _dt, timedelta as _td
-    _first_threshold = min(settings_store.get("CERT_RENEWAL_THRESHOLDS") or [30, 14, 7, 1])
+    _first_threshold = max(settings_store.get("CERT_RENEWAL_THRESHOLDS") or [30, 14, 7, 1])
     for u in smime_users:
         for c in u["certs"]:
             if c.get("expiry") and not c.get("error"):

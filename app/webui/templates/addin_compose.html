@@ -10,6 +10,7 @@
        Identitätstoken) — derselbe Baustein wie in /self und im Verfassen-Add-in. -->
   <script src="{{ msal_url }}"></script>
   <script src="/static/addin_anmeldung.js?v={{ version }}"></script>
+  <script src="/static/vorlagen_name.js?v={{ version }}"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -250,7 +251,7 @@
         list.forEach(function(name) {
           var opt = document.createElement('option');
           opt.value = name;
-          opt.textContent = name;
+          opt.textContent = vorlageAnzeige(name);
           if (name === def) opt.selected = true;
           sel.appendChild(opt);
         });

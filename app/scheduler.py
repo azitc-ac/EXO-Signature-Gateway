@@ -180,6 +180,48 @@ def _get_gateway_url() -> str:
     return aussenadresse.basis()
 
 
+# Die Ereignisschleife der Weboberfläche (uvicorn, eigener Thread). Gesetzt
+# beim Start in webui.app._lifespan. Der Scheduler läuft in einem Thread OHNE
+# Schleife; was dort Folgeaufgaben anlegt, muss in DIESER Schleife laufen.
+_web_schleife: "asyncio.AbstractEventLoop | None" = None
+
+
+def web_schleife_setzen(schleife: "asyncio.AbstractEventLoop") -> None:
+    global _web_schleife
+    _web_schleife = schleife
+
+
+async def _samt_folgeaufgaben(coro):
+    """`coro` ausführen und danach warten, bis alle Aufgaben fertig sind, die sie
+    in dieser Schleife angelegt hat (ACME: Postfachabfrage → Abschluss)."""
+    ergebnis = await coro
+    while True:
+        rest = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()]
+        if not rest:
+            return ergebnis
+        await asyncio.gather(*rest, return_exceptions=True)
+
+
+def _erneuerung_starten(coro, timeout: float = 180):
+    """Eine Zertifikatsbestellung aus dem Scheduler-Thread anstoßen.
+
+    ⚠️ Nicht `asyncio.run(coro)`: `initiate_acme_order` legt die Postfachabfrage
+    per `create_task` an und kehrt zurück — `asyncio.run` bricht beim Beenden alle
+    offenen Aufgaben ab. Bis v1.12.112 lief die Abfrage deshalb NIE: Bei CASTLE
+    war das alte Zertifikat zu diesem Zeitpunkt schon widerrufen, ein neues kam
+    nicht, und keine Meldung (die 20-Minuten-Frist lief in der abgebrochenen
+    Aufgabe). Deshalb in der Schleife der Weboberfläche — derselbe Ort wie
+    „Jetzt erneuern“ in der Oberfläche. Ausnahmen (EinwilligungFehlt …) kommen
+    hier an. Ohne laufende Weboberfläche (Tests, Werkzeuge): eigene Schleife,
+    die bis zum Ende der Folgeaufgaben wartet."""
+    schleife = _web_schleife
+    if schleife is not None and schleife.is_running():
+        return asyncio.run_coroutine_threadsafe(coro, schleife).result(timeout)
+    log.warning("scheduler: Weboberfläche läuft nicht — Erneuerung im Scheduler-Thread, "
+                "wartet bis zum Abschluss")
+    return asyncio.run(_samt_folgeaufgaben(coro))
+
+
 def _send_user_renewal_notification(
     email: str,
     cert_info: dict,
@@ -210,7 +252,7 @@ def _send_user_renewal_notification(
             log.warning("scheduler: skipping auto-renewal for %s — S/MIME deactivated", email)
         else:
             try:
-                asyncio.run(backend.initiate_renewal(email, user_cfg))
+                _erneuerung_starten(backend.initiate_renewal(email, user_cfg))
                 log.info("scheduler: auto-renewal initiated for %s via %s", email, backend_name)
                 return
             except NotImplementedError:

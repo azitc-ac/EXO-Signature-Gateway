@@ -321,7 +321,7 @@
     Aktivierte Hybrid-Nutzer kommen in die Verteilerliste des Gateways; ihre Post geht
     über den Smarthost an Exchange Online zurück. Das Outlook-Add-in ist für sie nicht
     verfügbar; Abwesenheit, Zertifikatsbezug über CASTLE oder den Hub und die Signatur in
-    OWA (lokal) nur mit der Anbindung an Exchange lokal (unten).
+    OWA (lokal) nur mit der Anbindung an Exchange lokal (erscheint unten, sobald der Haken gesetzt ist).
   </p>
   {% if reinject_mode != "smtp" %}
   <p class="hint" style="margin:6px 0 0;color:#b45309">
@@ -332,8 +332,11 @@
   {% endif %}
 </div>
 
-<!-- Exchange lokal (EWS): Abwesenheit für Hybrid-Nutzer -->
-<div class="settings-card" id="exchange-lokal-ews">
+<!-- Exchange lokal (EWS): Abwesenheit für Hybrid-Nutzer. Nur mit dem Haken
+     „Hybrid-Nutzer einbeziehen“ (oben): Ohne ihn gibt es niemanden, für den die
+     Anbindung wirkt. Gespeicherte Werte bleiben erhalten; die EWS-Aufgaben im
+     Sammelpunkt entfallen dann ebenso (abnahme._ews_*). -->
+<div class="settings-card" id="exchange-lokal-ews" {% if s.HYBRID_POSTFAECHER is not true %}hidden{% endif %}>
   <h2>Exchange lokal (EWS)</h2>
   <p class="hint" style="margin:0 0 10px">
     Optional. Damit verwaltet das Gateway Abwesenheit, Kalender-Automatik, Zertifikatsbezug
@@ -574,7 +577,9 @@
 <script>
 
 async function saveHybridPostfaecher(an) {
-  await savePartial({HYBRID_POSTFAECHER: an}, 'hybrid-postfaecher-result', 'settings:hybrid');
+  const ok = await savePartial({HYBRID_POSTFAECHER: an}, 'hybrid-postfaecher-result', 'settings:hybrid');
+  // Die EWS-Karte folgt dem GESPEICHERTEN Stand: scheitert das Speichern, bleibt sie, wie sie war.
+  if (ok) document.getElementById('exchange-lokal-ews').hidden = !an;
 }
 
 // Kennwort: leer = unverändert (Geheimnis wird nie in die Seite gerendert).
