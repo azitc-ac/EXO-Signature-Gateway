@@ -95,7 +95,8 @@ FUNKTIONEN = ["_fuelleVorlagenSelect", "_istFest", "_festQuelle", "_festGruppen"
               "_gruppenChip", "_wertText", "_festSperren",
               "_buildWahlSelect", "_festHinweis", "massenRuhendVerwerfen",
               "_wahlInZelle", "_istAusnahme", "_ausnahmeStand", "filterMailboxes",
-              "massenAufStandard", "_angehakt", "_selfTplStandText", "selfTplStandZeigen"]
+              "massenAufStandard", "_angehakt", "_selfTplStandText", "selfTplStandZeigen",
+              "_mbZahl", "_mbFilterMerken"]
 
 # Zeile mit Signatur- und Antwort-Wahl, gebaut über die echten Bausteine.
 _ZEILE = r"""
@@ -120,7 +121,8 @@ def _lauf(js: str):
         pytest.skip("node fehlt")
     t = SEITE.read_text(encoding="utf-8")
     vorspann = (_DOM + _var(t, "STANDARD_WAHL") + "\n" + _var(t, "WAHL_SELEKTOR") + "\n"
-                + _var(t, "GRUPPEN_FARBEN") + "\n"
+                + _var(t, "GRUPPEN_FARBEN") + "\n" + _var(t, "MB_FILTER_SCHLUESSEL") + "\n"
+                + _var(t, "MB_FILTER_FELDER") + "\n"
                 + (SEITE.parents[1] / "static" / "vorlagen_name.js").read_text(encoding="utf-8") + "\n"
                 + "var _templatesByKind = {signatur: ['default', 'kurz', 'lang'], oof: ['urlaub']};\n"
                 + "\n".join(_funktion(t, n) for n in FUNKTIONEN) + "\n" + _ZEILE)
@@ -225,7 +227,7 @@ def test_massenaktion_setzt_standard_und_ueberspringt_fest():
     assert r["h"] == ["lang", std], "ausgeblendete Zeilen bleiben unberührt"
     m = r["meldung"]
     assert m["el"] == "mb-massen-status" and m["ok"] is True
-    assert m["text"].startswith("3 Vorlage(n) in 2 Zeile(n) auf Standard gesetzt, 1 festgelegte übersprungen"), m
+    assert m["text"].startswith("3 Vorlagen in 2 Zeilen auf Standard gesetzt, 1 festgelegte übersprungen"), m
 
 
 def test_massenaktion_ohne_ausnahme_meldet_das():

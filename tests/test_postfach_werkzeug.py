@@ -225,7 +225,8 @@ def test_filterknopf_zaehlt_die_eingeklappten_filter():
       for (const id of ['mb-ausnahme-filter', 'mb-ruhend-filter']) _ids[id] = {checked: false};
       _ids['mb-filter-aktiv'] = {textContent: 'x'}; _ids['mb-filter-count'] = {textContent: ''};
       globalThis.document = { getElementById: id => _ids[id] || null, querySelectorAll: () => [] };
-    """ + _funktion(t, "filterMailboxes") + r"""
+    """ + _var(t, "MB_FILTER_SCHLUESSEL") + "\n" + _var(t, "MB_FILTER_FELDER") + "\n"
+      + _funktion(t, "_mbFilterMerken") + "\n" + _funktion(t, "filterMailboxes") + r"""
       const v = [];
       filterMailboxes(); v.push(_ids['mb-filter-aktiv'].textContent);
       _ids['mb-filter'].value = 'abc'; filterMailboxes(); v.push(_ids['mb-filter-aktiv'].textContent);

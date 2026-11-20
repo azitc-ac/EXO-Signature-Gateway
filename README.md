@@ -84,9 +84,14 @@ im selben Abschnitt.
   Eine vorhandene Signatur lässt sich übernehmen und in Bausteine zerlegen.
 - **Richtlinienergebnis** je Postfach: was das Gateway bei neuer Mail,
   Antwort, interner Mail und `#nosig` wirklich anhängt, je Teil mit Herkunft.
-- **Antwort-Signatur, Banner, Disclaimer** getrennt zuweisbar, global, je
-  Gruppe oder je Postfach. **Banner-Kampagnen** mit Zeitfenster und
-  Zielgruppe, gepflegt von einer eigenen Rolle.
+- **Antwort-Signatur, interne Signatur, Banner, Disclaimer** getrennt
+  zuweisbar: Standardrichtlinie für alle, Gruppen-Regeln mit Vorrang, auf
+  Wunsch festgeschrieben, sonst je Postfach abweichend. Rein interne Mails
+  auf Wunsch ohne Banner und Disclaimer.
+- **Dynamische Gruppen:** Mitglieder per Regel aus Entra-Attributen
+  (Abteilung, Stadt, Erweiterungsattribute …), stündlich aktuell.
+- **Banner-Kampagnen** mit Zeitfenster und Zielgruppe, gepflegt von einer
+  eigenen Rolle; wählbar, ob sie auch Postfächer mit eigenem Banner erreichen.
 - **Saubere Antworten:** Die Signatur steht vor dem Zitat und stapelt sich
   nicht. Die Signatur, die Outlook auf dem Handy selbst anhängt, wird
   entfernt.
@@ -113,6 +118,9 @@ Woher die Zertifikate kommen:
   noch nicht im Betrieb erprobt.
 - **Kostenpflichtige Zertifikate über den Signature Hub:** in Vorbereitung.
   Certum und SwissSign sind als Anbieter in Vorbereitung.
+
+Automatische Verlängerung je Postfach: Das Gateway kündigt sie vorher an, an
+die Verwaltung oder an den Postfachinhaber, mit einem Link zum Abschalten.
 
 <img src="docs/screenshots/smime-zertifikate.png" width="820" alt="S/MIME: Signaturzertifikate je Postfach mit Aussteller und Ablauf">
 
@@ -167,12 +175,23 @@ Erkennt ein Inbound-Connector deines Tenants die Ausgangsadresse an der IP
 Microsoft 365 deinem Tenant zu und schickt sie über dein Exchange Online. Der
 Connector des Gateways prüft das Zertifikat und ist davon nicht betroffen.
 
+### Exchange lokal (Hybrid)
+
+Liegt ein Teil der Postfächer noch in der lokalen Exchange-Organisation,
+bekommen auch diese Nutzer Signatur, Banner und Disclaimer, die zentrale
+Abwesenheit (über EWS), S/MIME, das Outlook-Add-in und auf Wunsch die
+Signatur in OWA. Den Zugriff des EWS-Dienstkontos begrenzt eine AD-Gruppe,
+die das Gateway anlegt und auf Wunsch pflegt. Zuschaltbar, Vorgabe aus.
+
 ### Betrieb
 
 Einrichtungsassistent mit automatischer App-Registrierung, Abnahme der ganzen
 Anlage, Prüfung und Nachtrag der Berechtigungen, Postfach-Status,
 Dashboard, Anmeldung über Entra ID mit Rollen, Update und Backup in der
-Oberfläche, hell und dunkel, bedienbar ab 320 px Breite.
+Oberfläche, hell und dunkel, bedienbar ab 320 px Breite. Eine Regelprobe zeigt,
+ob die Transportregel ein Postfach schon erfasst; eine tägliche Probe prüft den
+Direktversand bis in den Posteingang (Junk, SPF, DKIM, DMARC). Die Teams-App
+aktualisiert das Gateway per Knopf im Katalog.
 
 Alle Funktionen im Einzelnen: **[docs/funktionen.md](docs/funktionen.md)**
 
