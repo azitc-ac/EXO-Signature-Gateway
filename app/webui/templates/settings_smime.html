@@ -328,7 +328,24 @@
       Mails für Empfänger ohne Zertifikat im Portal bereitstellen
     </label>
     <div class="settings-control" style="flex-basis:100%">
-      <span class="hint">Standard: aus — dann bekommt der Absender einen Unzustellbarkeitsbericht.</span>
+      <span class="hint">Standard: aus — dann bekommt der Absender einen Unzustellbarkeitsbericht.
+        Das Portal ist kein Archiv: Die gesendete Mail bleibt in den Gesendeten Elementen, Antworten
+        aus dem Portal kommen per Mail ins Postfach, und beim ersten Öffnen erhält der Absender eine
+        Lesebestätigung.</span>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="enc-intern-normal"
+          {% if s.ENC_INTERN_NORMAL %}checked{% endif %}>
+      <code>{{ s.ENC_TRIGGER or '#enc' }}</code> an ausschließlich interne Empfänger normal zustellen
+    </label>
+    <div class="settings-control" style="flex-basis:100%">
+      <span class="hint">Eigene Postfächer haben meist kein Empfängerzertifikat; ohne diesen Schalter
+        gehen solche Mails ins Portal (oder werden abgewiesen). Eingeschaltet stellt das Gateway sie
+        S/MIME-signiert, aber unverschlüsselt zu — sie verlassen die eigene Organisation nicht.
+        Gilt nur, wenn ALLE Empfänger intern sind; Mails mit auch externen Empfängern laufen
+        unverändert über Verschlüsselung bzw. Portal. Standard: aus.</span>
     </div>
   </div>
   <!-- Die folgenden Angaben wirken nur bei eingeschaltetem Portal. Sie
@@ -362,9 +379,11 @@
   <div class="settings-row" style="margin-top:10px">
     <label for="portal-retention">Aufbewahrung (Tage)</label>
     <div class="settings-control">
-      <input type="number" id="portal-retention" value="{{ s.SECURE_PORTAL_RETENTION_DAYS or 14 }}"
+      <input type="number" id="portal-retention" value="{{ s.SECURE_PORTAL_RETENTION_DAYS or 30 }}"
         min="1" max="365" style="width:90px">
-      <span class="hint">Nach Ablauf werden Portal-Nachrichten endgültig gelöscht (täglicher Cleanup). Standard: 14.</span>
+      <span class="hint">Nach Ablauf werden Portal-Nachrichten endgültig gelöscht (täglicher Cleanup). Standard: 30.
+        Das Portal ist kein Archiv: Die gesendete Mail bleibt in den Gesendeten Elementen des Absenders,
+        Antworten aus dem Portal kommen per Mail in sein Postfach.</span>
     </div>
   </div>
   <div class="settings-row" style="margin-top:10px">
@@ -407,7 +426,7 @@
     </div><!-- /portal-optionen -->
 
   <div class="actions" style="margin-top:14px">
-    <button class="btn secondary" id="smime-portal-btn" data-wache="portal-enabled,portal-base-url,portal-retention,portal-otp,portal-brand-name"
+    <button class="btn secondary" id="smime-portal-btn" data-wache="portal-enabled,enc-intern-normal,portal-base-url,portal-retention,portal-otp,portal-brand-name"
             data-wache-hinweis="smime-portal-btn-result"
             onclick="smime_portalSpeichern()">Speichern</button>
     <span id="smime-portal-btn-result" style="font-size:12px;margin-left:8px"></span>
@@ -641,7 +660,8 @@ async function smime_portalSpeichern() {
   wacheFertig('smime-portal-btn', await savePartial({
     SECURE_PORTAL_ENABLED: document.getElementById('portal-enabled').checked,
     SECURE_PORTAL_BASE_URL: feldWert('portal-base-url'),
-    SECURE_PORTAL_RETENTION_DAYS: parseInt(document.getElementById('portal-retention').value, 10) || 14,
+    SECURE_PORTAL_RETENTION_DAYS: parseInt(document.getElementById('portal-retention').value, 10) || 30,
+    ENC_INTERN_NORMAL: document.getElementById('enc-intern-normal').checked,
     SECURE_PORTAL_OTP: document.getElementById('portal-otp').checked,
     PORTAL_BRAND_NAME: feldWert('portal-brand-name'),
   }, 'smime-portal-btn-result'));

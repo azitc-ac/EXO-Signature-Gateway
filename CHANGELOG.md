@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.134 — 2026-11-20 — Portal: Aufbewahrung 30 Tage, „kein Archiv“ erklärt; #enc an interne Empfänger optional normal zustellen
+
+* **Aufbewahrung im Portal:** Die Vorgabe steigt von 14 auf 30 Tage — Empfänger,
+  die spät öffnen, finden die Nachricht noch. Einen bereits gespeicherten Wert
+  behält deine Installation; ändern unter *Einstellungen → S/MIME → Secure
+  Message Portal* (Erweitert).
+* **Das Portal ist kein Archiv.** Die Oberfläche und die Funktionsübersicht
+  sagen das jetzt ausdrücklich: Die gesendete Mail bleibt in den Gesendeten
+  Elementen des Absenders, Antworten aus dem Portal kommen per Mail in sein
+  Postfach, und beim ersten Öffnen erhält er eine Lesebestätigung. Die
+  Portal-Kopie wird nach der Frist gelöscht.
+* **Neu: `#enc` an ausschließlich interne Empfänger normal zustellen**
+  (*Einstellungen → S/MIME → Secure Message Portal*, Vorgabe aus). Eigene
+  Postfächer haben meist kein Empfängerzertifikat; solche Mails gingen bisher
+  ins Portal oder wurden abgewiesen. Eingeschaltet stellt das Gateway sie
+  S/MIME-signiert, aber unverschlüsselt zu. Der Schalter greift nur, wenn
+  alle Empfänger intern sind — im Umschlag und in An/Cc. Mails mit auch
+  externen Empfängern laufen unverändert über Verschlüsselung bzw. Portal,
+  weil eine getrennte Zustellung an die internen Empfänger die Mail sonst
+  unter Umständen auch unverschlüsselt an die externen brächte.
+
+**Zu tun:** nichts.
+
 ## v1.12.133 — 2026-11-20 — Browser-Tests an die Änderungen aus v1.12.132 angepasst
 
 Zwei Browser-Tests prüften noch das frühere Verhalten der Personenauswahl

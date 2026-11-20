@@ -204,7 +204,7 @@ async def portal_admin_list(_=Depends(_require_admin)):
               "created_at", "expires_at", "read_at", "replied_at")
     return JSONResponse({
         "enabled": bool(settings_store.get("SECURE_PORTAL_ENABLED")),
-        "retention_days": int(settings_store.get("SECURE_PORTAL_RETENTION_DAYS") or 14),
+        "retention_days": portal_store.aufbewahrung_tage(),
         "messages": [{k: m[k] for k in fields} for m in msgs],
     })
 
