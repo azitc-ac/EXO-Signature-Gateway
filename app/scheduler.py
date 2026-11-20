@@ -4,7 +4,7 @@ import asyncio
 import logging
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import settings_store
@@ -227,6 +227,40 @@ def _erneuerung_starten(coro, timeout: float = 180):
     return asyncio.run(_samt_folgeaufgaben(coro))
 
 
+_ACME_LAEUFT = ("waiting_challenge", "processing_challenge", "challenge_replied", "validating", "finalizing")
+
+
+def _bestellung_offen(email: str) -> str:
+    """Läuft für dieses Postfach schon eine Bestellung? Grund als Text, sonst "".
+
+    Review 20.11.2026: Der tägliche Lauf bestellte an JEDER Schwelle neu, solange
+    das alte Zertifikat Standard war — bei Hub-Anbietern mit Bestätigungsmail
+    (kostenpflichtig) und bei einer laufenden CASTLE-Challenge entstand so eine
+    zweite Bestellung. Eine CASTLE-Challenge gilt höchstens einen Tag als
+    laufend (Zeitgrenze 30 min); eine Hub-Bestellung, bis der Hub sie erfüllt
+    oder ablehnt — sie steht sichtbar unter S/MIME."""
+    adresse = (email or "").strip().lower()
+    try:
+        import hub_orders
+        for o in hub_orders.list_pending():
+            if (o.get("email") or "").strip().lower() == adresse:
+                return f"offene Bestellung {o.get('order_id')} bei {o.get('provider')}"
+    except Exception as exc:                                   # noqa: BLE001
+        log.warning("scheduler: offene Hub-Bestellungen nicht lesbar: %s", exc)
+    try:
+        import acme_state
+        o = acme_state.get_order(adresse) or acme_state.get_order(email) or {}
+        if o.get("status") in _ACME_LAEUFT:
+            erstellt = datetime.fromisoformat(o.get("created") or "1970-01-01T00:00:00+00:00")
+            if erstellt.tzinfo is None:
+                erstellt = erstellt.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) - erstellt < timedelta(days=1):
+                return f"CASTLE-Bestellung läuft ({o.get('status')})"
+    except Exception as exc:                                   # noqa: BLE001
+        log.warning("scheduler: ACME-Auftrag für %s nicht lesbar: %s", email, exc)
+    return ""
+
+
 def _erst_ankuendigen(email: str, cert_info: dict, backend, threshold: int) -> bool:
     """Vor einer automatischen Verlängerung: erst ankündigen (mit Link zum
     Abwählen), bei der NÄCHSTEN Schwelle bestellen. True = heute nur angekündigt,
@@ -236,6 +270,10 @@ def _erst_ankuendigen(email: str, cert_info: dict, backend, threshold: int) -> b
     stufen = sorted({int(t) for t in (settings_store.get("CERT_RENEWAL_THRESHOLDS") or [30, 14, 7, 1])})
     naechste = [t for t in stufen if t < threshold]
     e = ev.eintrag(email, cert_info.get("expiry", ""))
+    if cert_info.get("widerrufen"):
+        # Standard-Zertifikat widerrufen: Es wird nicht mehr signiert, eine
+        # Frist zum Abwählen hätte keinen Sinn — sofort bestellen.
+        return False
     if e is not None:
         # Schon angekündigt: bestellt wird erst ab der gemerkten Schwelle. Der
         # Merker je Schwelle (_user_notif_sent) liegt nur im Speicher — nach
@@ -285,8 +323,12 @@ def _send_user_renewal_notification(
         import mailbox_match
         smime_active = mailbox_match.match_sender(
             settings_store.get("MAILBOX_CONFIG") or {}, email).get("smime")
+        offen = _bestellung_offen(email) if smime_active else ""
         if not smime_active:
             log.warning("scheduler: skipping auto-renewal for %s — S/MIME deactivated", email)
+        elif offen:
+            log.info("scheduler: keine neue Bestellung für %s — %s", email, offen)
+            return
         elif _erst_ankuendigen(email, cert_info, backend, threshold):
             return
         else:
@@ -294,7 +336,7 @@ def _send_user_renewal_notification(
                 _erneuerung_starten(backend.initiate_renewal(email, user_cfg))
                 log.info("scheduler: auto-renewal initiated for %s via %s", email, backend_name)
                 import erneuerung_vorankuendigung
-                erneuerung_vorankuendigung.erledigt(email)
+                erneuerung_vorankuendigung.bestellt(email)
                 return
             except NotImplementedError:
                 log.info("scheduler: %s auto-renewal not implemented", backend_name)
@@ -370,6 +412,10 @@ def _check_smime_lifecycle() -> None:
             continue
         email = c.get("email", "")
         days = c.get("days_left", 999)
+        if c.get("widerrufen"):
+            # Widerrufenes Standard-Zertifikat: signiert nicht mehr → wie
+            # abgelaufen behandeln, nicht erst kurz vor seinem alten Ablauf.
+            days = 0
         user_cfg = ca_user_config.get(email, {})
         auto_renew = user_cfg.get("auto_renew", user_cfg.get("notify_user", False))
         if not auto_renew and not user_cfg.get("notify_user", False):

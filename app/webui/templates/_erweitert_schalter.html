@@ -24,7 +24,7 @@
 <div class="erweitert-schalter">
   <label>
     <input type="checkbox" id="adv-cb-{{ adv_id }}"
-           onchange="_toggleAdv('{{ adv_id }}', this.checked)">
+           onchange="_toggleAdv({{ adv_id|tojson|forceescape }}, this.checked)">
     Erweiterte Einstellungen
   </label>
 </div>

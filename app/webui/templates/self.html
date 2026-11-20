@@ -292,7 +292,19 @@
 <script src="{{ msal_url }}"></script>
 <script src="/static/addin_anmeldung.js?v={{ version }}"></script>
 <script src="/static/vorlagen_name.js?v={{ version }}"></script>
+{# Vorschauen im abgeschotteten Rahmen (sandbox ohne Skripte): Vorlagen lassen
+   sich seit v1.12.123 aus Paketen importieren — ein <img onerror=…> darin lief
+   per innerHTML hier im Ursprung der Oberfläche (Review 20.11.2026). #}
+<script src="/static/sig_preview.js?v={{ version }}"></script>
 <script>
+// Hinweiszeile in einer Vorschau-Box („keine Signatur“) — als Text, nie HTML.
+function keineSig(text) {
+  var p = document.createElement('p');
+  p.className = 'keine-sig';
+  p.textContent = text;
+  return p;
+}
+
 (function () {
   "use strict";
   // Add-in-Sitzungstoken: im Outlook-Add-in trägt der Header (der Dialog-Login
@@ -673,27 +685,29 @@
         // Abwesenheitsnotiz wie in Exchange: Signatur, Banner und Disclaimer
         // nur, wenn das Gateway sie anhängt (abwesenheit._oof_anhang).
         // Bis v1.9.161 hing die Vorschau immer alles an.
-        el('vorschau').innerHTML = (d.oof_html || '')
+        var oofHtml = (d.oof_html || '')
           + (ctx.oof_mit_signatur ? (d.sig_html || '') : '')
           + (ctx.oof_mit_banner ? (d.banner_html || '') : '')
-          + (ctx.oof_mit_disclaimer ? (d.disclaimer_html || '') : '')
-          || '<p class="keine-sig">— nichts ausgewählt —</p>';
+          + (ctx.oof_mit_disclaimer ? (d.disclaimer_html || '') : '');
+        if (oofHtml) sigVorschau(el('vorschau'), oofHtml);
+        else el('vorschau').replaceChildren(keineSig('— nichts ausgewählt —'));
         // Neue Mail und Antwort: fertig vom Server, Banner und Disclaimer
         // schon dort angehängt, wo der Mailweg sie anhängt (bei Antworten nach
         // der Einstellung „Antworten in derselben Kette“).
         var neu = d.neu || {}, antwort = d.antwort || {};
         letzteAntwort = antwort;
-        if (neu.html) el('sig-vorschau').innerHTML = neu.html;
-        else {
-          // Grund als Text, nie als HTML (eigenständige Seite ohne esc()).
-          var leer = document.createElement('p');
-          leer.className = 'keine-sig';
-          leer.textContent = neu.grund_text || 'Keine Signatur.';
-          el('sig-vorschau').replaceChildren(leer);
+        // Grund als Text, nie als HTML (eigenständige Seite ohne esc()).
+        if (neu.html) sigVorschau(el('sig-vorschau'), neu.html);
+        else el('sig-vorschau').replaceChildren(keineSig(neu.grund_text || 'Keine Signatur.'));
+        var minBox = el('min-vorschau');
+        minBox.replaceChildren();
+        if (antwort.signatur_unterdrueckt)
+          minBox.appendChild(keineSig('Keine Antwort-Signatur – hier stünde nur dein eigener Gruß.'));
+        if (antwort.html) {
+          var minRahmen = document.createElement('div');
+          minBox.appendChild(minRahmen);
+          sigVorschau(minRahmen, antwort.html);
         }
-        el('min-vorschau').innerHTML = (antwort.signatur_unterdrueckt
-          ? '<p class="keine-sig">Keine Antwort-Signatur – hier stünde nur dein eigener Gruß.</p>'
-          : '') + (antwort.html || '');
       } catch (e) { /* Vorschau ist unkritisch */ }
     }, 250);
   }

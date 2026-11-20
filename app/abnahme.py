@@ -511,7 +511,10 @@ def _erneuerung_unentschieden() -> dict:
     name = "Automatische Erneuerung für alle bestellten Postfächer entschieden"
     offen = []
     for adresse, cfg in sorted((settings_store.get("CA_USER_CONFIG") or {}).items()):
-        if not isinstance(cfg, dict) or "auto_renew" in cfg or not cfg.get("backend"):
+        # Entschieden ist auch ein Altbestand mit „notify_user“: der Scheduler
+        # leitet auto_renew daraus ab (scheduler._send_user_renewal_notification).
+        if not isinstance(cfg, dict) or "auto_renew" in cfg or "notify_user" in cfg \
+                or not cfg.get("backend"):
             continue
         try:
             if ca_backends.get_backend(cfg["backend"]).can_auto_renew():

@@ -93,19 +93,45 @@ def ankuendigen(email: str, cert_info: dict, anbieter: str, tage_vorher: int) ->
     return an
 
 
+def bestellt(email: str) -> None:
+    """Nach gestarteter Bestellung: als bestellt markieren (Link verfällt). Bis
+    v1.12.131 wurde der Eintrag gelöscht — an der nächsten Schwelle kam dann eine
+    zweite Ankündigung und eine zweite Bestellung, solange die erste noch nicht
+    ausgestellt war (Review 20.11.2026). Der Eintrag gilt nur für sein
+    Ablaufdatum; mit dem neuen Zertifikat ist er von selbst bedeutungslos."""
+    alle = _alle()
+    e = alle.get(_norm(email))
+    if e is not None and not e.get("bestellt_am"):
+        e["bestellt_am"] = datetime.now().strftime("%Y-%m-%d")
+        _schreiben(alle)
+
+
 def erledigt(email: str) -> None:
-    """Nach gestarteter Bestellung: Ankündigung und Link verfallen."""
+    """Ankündigung entfernen (Abwahl ausgeführt)."""
     alle = _alle()
     if alle.pop(_norm(email), None) is not None:
         _schreiben(alle)
 
 
+def _aktueller_ablauf(email: str) -> str:
+    import smime_store
+    certs = smime_store.list_user_certs(email)
+    std = next((c for c in certs if c.get("is_default")), certs[0] if certs else None)
+    return (std or {}).get("expiry", "")
+
+
 def _zum_token(token: str) -> tuple[str, dict] | None:
+    """Ankündigung zu einem Link — nur solange er gilt: noch nicht bestellt und
+    für das AKTUELLE Standard-Zertifikat. Wurde inzwischen (auch von Hand) ein
+    neues eingespielt, schaltete ein später Klick sonst die Verlängerung des
+    neuen ab (Review 20.11.2026)."""
     if not token:
         return None
     h = _hash(token)
     for email, e in _alle().items():
         if e.get("token") == h:
+            if e.get("bestellt_am") or e.get("ablauf") != _aktueller_ablauf(email):
+                return None
             return email, e
     return None
 

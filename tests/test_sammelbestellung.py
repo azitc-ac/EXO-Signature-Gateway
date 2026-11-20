@@ -738,3 +738,15 @@ def test_lauf_zustand_zeigt_aktuell_und_stand_je_bestellung(monkeypatch):
     assert "phase" not in sb._lauf["erledigt"][0], "Zustand des Moduls darf nicht verändert werden"
     sb._lauf["status"] = sb.FERTIG
     assert sb.lauf_zustand()["aktuell"] == ""
+
+
+def test_bezugsweg_wird_der_bestellende_anbieter(monkeypatch):
+    """Review 20.11.: setdefault ließ einen alten, abweichenden Bezugsweg stehen —
+    die Verlängerung wäre über einen anderen Anbieter gelaufen. Eine bewusste
+    Abwahl (auto_renew False) bleibt."""
+    import settings_store
+    werte = {"CA_USER_CONFIG": {"a@x.de": {"backend": "castle_acme", "auto_renew": False}}}
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: werte.get(k))
+    monkeypatch.setattr(settings_store, "update", lambda d: werte.update(d))
+    sb._automatisch_erneuern("a@x.de", "hub:certum")
+    assert werte["CA_USER_CONFIG"]["a@x.de"] == {"backend": "hub:certum", "auto_renew": False}

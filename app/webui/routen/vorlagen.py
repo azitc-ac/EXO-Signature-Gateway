@@ -15,6 +15,7 @@ Sie sind technisch dieselben Vorlagen und werden im selben Editor bearbeitet.
 """
 from __future__ import annotations
 
+import asyncio
 import json as _json_mod
 import re as _re
 import shutil
@@ -494,14 +495,20 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
 async def _paket_lesen(dateien: list[UploadFile]) -> list[tuple[str, bytes]]:
     """Hochgeladene Dateien begrenzt lesen (nie unbegrenzt in den Speicher)."""
     import vorlagen_paket as vp
+    if len(dateien) > vp.MAX_DATEIEN:
+        raise HTTPException(400, f"Zu viele Dateien (höchstens {vp.MAX_DATEIEN}).")
     roh: list[tuple[str, bytes]] = []
-    for f in dateien[: vp.MAX_DATEIEN + 1]:
-        inhalt = await f.read(vp.MAX_GESAMT + 1)
-        if len(inhalt) > vp.MAX_GESAMT:
-            raise HTTPException(400, f"{f.filename}: zu gross.")
+    gelesen = 0
+    for f in dateien:
+        # Über ALLE Dateien zusammen begrenzt — nicht je Datei (Review 20.11.2026).
+        inhalt = await f.read(vp.MAX_GESAMT - gelesen + 1)
+        gelesen += len(inhalt)
+        if gelesen > vp.MAX_GESAMT:
+            raise HTTPException(400, f"Upload zusammen grösser als {vp.MAX_GESAMT // (1024 * 1024)} MB.")
         roh.append((f.filename or "", inhalt))
     try:
-        return vp.eingaben_aus_upload(roh)
+        # Entpacken im Thread: blockiert sonst die Ereignisschleife.
+        return await asyncio.to_thread(vp.eingaben_aus_upload, roh)
     except vp.PaketFehler as exc:
         raise HTTPException(400, str(exc))
 
@@ -511,7 +518,7 @@ async def api_templates_import_pruefen(dateien: list[UploadFile] = File(...), _=
     """Paket prüfen, NICHTS schreiben: welche Vorlagen darin sind, welche es
     schon gibt, welche fehlerhaft sind. Grundlage für die Auswahl."""
     import vorlagen_paket as vp
-    ergebnis = vp.lesen(await _paket_lesen(dateien))
+    ergebnis = await asyncio.to_thread(vp.lesen, await _paket_lesen(dateien))
     belegt: set[str] = set()
     for v in ergebnis["vorlagen"]:
         if v["vorhanden"] and not v["fehler"]:
@@ -532,7 +539,7 @@ async def api_templates_import(dateien: list[UploadFile] = File(...), entscheidu
         raise HTTPException(400, "Entscheidungen sind kein gültiges JSON")
     if not isinstance(ent, dict):
         raise HTTPException(400, "Entscheidungen: Objekt je Vorlagenname erwartet")
-    ergebnis = vp.importieren(await _paket_lesen(dateien), ent, _)
+    ergebnis = await asyncio.to_thread(vp.importieren, await _paket_lesen(dateien), ent, _)
     return {"ok": all(e["ok"] for e in ergebnis["ergebnis"]), **ergebnis}
 
 
@@ -543,7 +550,7 @@ async def api_templates_export(namen: str = "", _=Depends(_check_auth)):
     liste = [n.strip() for n in namen.split(",") if n.strip()]
     if not liste:
         raise HTTPException(400, "Keine Vorlage gewählt")
-    daten = vp.exportieren(liste)
+    daten = await asyncio.to_thread(vp.exportieren, liste)
     stempel = datetime.now().strftime("%Y%m%d-%H%M")
     log.info("Vorlagen exportiert (%d) von %s", len(liste), _)
     return Response(daten, media_type="application/zip",

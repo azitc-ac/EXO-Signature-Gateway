@@ -144,3 +144,39 @@ def test_export_und_reimport_sind_gleich(verz, monkeypatch):
     vp.importieren(e, {"Rund": {"aktion": "neu"}}, "t")
     assert (ziel / "Rund.meta.json").read_bytes() == META
     assert (ziel / "Rund.html").read_text() == "<p>R</p>"
+
+
+def test_grenzen_gelten_ueber_mehrere_zips(verz):
+    """Review 20.11.: Die Grenzen galten je ZIP — 5 ZIPs ergaben 90 MB entpackt."""
+    eins = io.BytesIO()
+    with zipfile.ZipFile(eins, "w") as z:
+        for i in range(9):
+            z.writestr(f"templates/V{i}.html", b"0" * (vp.MAX_DATEI - 10))
+    with pytest.raises(vp.PaketFehler):
+        vp.eingaben_aus_upload([(f"p{i}.zip", eins.getvalue()) for i in range(3)])
+
+
+def test_name_mit_zeilenumbruch_und_nutzermails_bleiben_draussen(verz):
+    (verz / "usermail_cert_ready.html").write_text("<p>angepasst</p>", encoding="utf-8")
+    e = _eingaben({"templates/abc\n.html": b"x", "templates/usermail_cert_ready.html": b"<p>boese</p>",
+                   "templates/default.html": b"<p>d</p>"})
+    r = vp.lesen(e)
+    assert [v["name"] for v in r["vorlagen"]] == ["default"] and r["vorlagen"][0]["reserviert"]
+    gruende = {u["datei"]: u["grund"] for u in r["uebersprungen"]}
+    assert "Postfachinhaber" in gruende["templates/usermail_cert_ready.html"]
+    assert "templates/abc\n.html" in gruende
+    vp.importieren(e, {"usermail_cert_ready": {"aktion": "ueberschreiben"},
+                       "default": {"aktion": "ueberschreiben"}}, "t")
+    assert (verz / "usermail_cert_ready.html").read_text() == "<p>angepasst</p>"
+    assert (verz / "signature.html").read_text() == "<p>Standard</p>"
+    erg = vp.importieren(e, {"default": {"aktion": "umbenennen", "ziel": "usermail_x"}}, "t")["ergebnis"]
+    assert erg[0]["ok"] is False
+
+
+def test_ueberschreiben_sichert_auch_baukasten_und_text(verz):
+    (verz / "K.html").write_text("ALT", encoding="utf-8")
+    (verz / "K.meta.json").write_bytes(META)
+    (verz / "K.txt").write_text("ALT-TEXT", encoding="utf-8")
+    vp.importieren(_eingaben({"templates/K.html": b"NEU"}), {"K": {"aktion": "ueberschreiben"}}, "t")
+    assert (verz / "K.meta.json.bak").read_bytes() == META
+    assert (verz / "K.txt.bak").read_text() == "ALT-TEXT"

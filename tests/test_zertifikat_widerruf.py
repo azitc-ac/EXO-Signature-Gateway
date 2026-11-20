@@ -27,6 +27,9 @@ EMAIL = "max.mustermann@firma.at"
 def _zert(aussteller: str, tage: int = 300):
     key = ec.generate_private_key(ec.SECP256R1())
     jetzt = datetime.now(timezone.utc)
+    if tage < 0:                                   # abgelaufen
+        jetzt = jetzt + timedelta(days=tage - 2)
+        tage = 1
     cert = (x509.CertificateBuilder()
             .subject_name(x509.Name([x509.NameAttribute(NameOID.EMAIL_ADDRESS, EMAIL)]))
             .issuer_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, aussteller)]))
@@ -38,8 +41,9 @@ def _zert(aussteller: str, tage: int = 300):
                               serialization.NoEncryption()))
 
 
-def _slot(basis: Path, aussteller: str = "IRE1, CASTLE Platform, ES", standard: bool = True) -> str:
-    cert_pem, key_pem = _zert(aussteller)
+def _slot(basis: Path, aussteller: str = "IRE1, CASTLE Platform, ES", standard: bool = True,
+          tage: int = 300) -> str:
+    cert_pem, key_pem = _zert(aussteller, tage)
     slot = x509.load_pem_x509_certificate(cert_pem).fingerprint(hashes.SHA256()).hex()[:16]
     d = basis / EMAIL / "certs" / slot
     d.mkdir(parents=True)
@@ -102,7 +106,7 @@ def test_nach_widerruf_wird_nicht_mehr_signiert_aber_entschluesselt(ablage, monk
 
 def test_anderes_gueltiges_zertifikat_signiert_weiter(ablage, monkeypatch):
     alt = _slot(ablage)
-    neu = _slot(ablage, standard=False)
+    neu = _slot(ablage, standard=False, tage=400)            # neuer: läuft später ab
     _knopf(monkeypatch, _Client(), alt)
     assert smime_store.get_signing_paths(EMAIL, nur_unwiderrufen=True)[0].parent.name == neu
     # Key Vault: Schlüssel gehört zum Standard-Slot (widerrufen) → kein Zertifikat
@@ -163,3 +167,37 @@ def test_key_vault_signiert_nicht_mit_widerrufenem(ablage, monkeypatch):
     monkeypatch.setattr(cms_sign, "sign_smime_keyvault", _kv_sign)
     assert asyncio.run(smime_signer.sign_async(b"Subject: x\r\n\r\nx", EMAIL)) is None
     assert aufrufe == []
+
+
+def test_kein_rueckfall_auf_aeltere_oder_abgelaufene(ablage, monkeypatch):
+    """Review 20.11.: Ältere Slots wurden bei CASTLE vor jeder Neuausstellung
+    widerrufen, tragen aber oft keinen Vermerk. Ist der Standard widerrufen, darf
+    das Gateway nur auf ein NEUERES, noch gültiges Zertifikat ausweichen."""
+    _slot(ablage, standard=False, tage=100)                  # älter, unvermerkt widerrufen
+    _slot(ablage, standard=False, tage=-5)                   # abgelaufen
+    standard = _slot(ablage, tage=300)
+    _knopf(monkeypatch, _Client(), standard)
+    assert smime_store.get_signing_paths(EMAIL, allow_backup=True, nur_unwiderrufen=True) is None
+    assert smime_signer.sign(b"Subject: x\r\n\r\nx", EMAIL, use_backup=True) is None
+
+
+def test_widerruf_vor_neuausstellung_nur_standard_und_nur_castle(ablage, monkeypatch):
+    fremd = _slot(ablage, aussteller="Certum S/MIME CA", tage=400)     # Standard, nicht CASTLE
+    _slot(ablage, standard=False)                                      # CASTLE, nicht Standard
+    c = _Client()
+    asyncio.run(acme_state._revoke_existing_cert_before_reissue(EMAIL, c, "test"))
+    assert c.aufrufe == [] and smime_store.widerruf(EMAIL, fremd) is None
+
+
+def test_vermerk_scheitert_kein_erfolg_melden(ablage, monkeypatch):
+    """Review 20.11.: CASTLE widerruft, der Vermerk scheitert (Rechte, Platte) —
+    die Oberfläche meldete Erfolg, das Gateway signierte weiter."""
+    slot = _slot(ablage)
+
+    def kaputt(*a, **k):
+        raise OSError("Permission denied")
+    monkeypatch.setattr(smime_store, "widerruf_vermerken", kaputt)
+    r = _knopf(monkeypatch, _Client(), slot)
+    assert r["ok"] is False and "Vermerk" in r["error"]
+    # Neuausstellung bricht dagegen nicht ab
+    asyncio.run(acme_state._revoke_existing_cert_before_reissue(EMAIL, _Client(), "test"))

@@ -65,3 +65,38 @@ def test_rundreise():
                                  capture_output=True, text=True, check=True).stdout
         erwartet = wert.replace("\n", " ")                           # escAttr nimmt Umbrüche heraus
         assert json.loads(zurueck) == erwartet, (wert, attr)
+
+
+def test_jinja_werte_in_inline_handlern_als_json():
+    """UI-Review 20.11.2026: `onclick="f('{{ u.email }}')"` — Autoescape macht aus
+    ' ein &#39;, der HTML-Parser wieder ein ', der JS-String bricht (Adresse
+    o'brien@… ist gültig). Seitdem `{{ x|tojson|forceescape }}`."""
+    import re
+    from pathlib import Path
+    treffer = []
+    for p in sorted((Path(__file__).resolve().parent.parent / "app" / "webui" / "templates").glob("*.html")):
+        for m in re.finditer(r'\bon[a-z]+="([^"]*)"', p.read_text(encoding="utf-8")):
+            if re.search(r"'\{\{", m.group(1)):
+                treffer.append(f"{p.name}: {m.group(0)[:90]}")
+    assert not treffer, "Jinja-Wert in Anführungszeichen im Handler — {{ x|tojson|forceescape }} nutzen:\n" + "\n".join(treffer)
+
+
+def test_apostroph_bricht_den_handler_nicht():
+    import html
+    import re
+    import shutil
+    import subprocess
+    import sys
+    from pathlib import Path
+    import pytest
+    if shutil.which("node") is None:
+        pytest.skip("node fehlt")
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+    from webui import deps
+    out = deps.templates.env.from_string(
+        '{% with adv_id = "o\'brien" %}{% include "_erweitert_schalter.html" %}{% endwith %}').render()
+    handler = html.unescape(re.search(r'onchange="([^"]*)"', out).group(1))
+    r = subprocess.run(["node", "-e", "let a; function _toggleAdv(x){a=x}; const t={checked:true};"
+                        f"(function(){{ {handler} }}).call(t); if (a !== \"o'brien\") process.exit(1)"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, (handler, r.stderr)

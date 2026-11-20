@@ -34,7 +34,7 @@
     <div style="padding:8px 14px;border-bottom:1px solid #f0f0f0;display:flex;gap:6px;flex-wrap:wrap">
       {% for d in dokumente %}
       <button type="button" class="btn-toggle zs-reiter" data-i="{{ loop.index0 }}"
-              onclick="zustimmungReiter('{{ kennung }}', {{ loop.index0 }})">{{ d[1] }}</button>
+              onclick="zustimmungReiter({{ kennung|tojson|forceescape }}, {{ loop.index0 }})">{{ d[1] }}</button>
       {% endfor %}
     </div>
     {% endif %}
@@ -42,13 +42,13 @@
     <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
       {% for d in dokumente %}
       <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:{{ '12px' if loop.last else '6px' }}">
-        <input type="checkbox" class="zs-haken" onchange="zustimmungHaken('{{ kennung }}')" style="margin-top:2px;flex-shrink:0">
+        <input type="checkbox" class="zs-haken" onchange="zustimmungHaken({{ kennung|tojson|forceescape }})" style="margin-top:2px;flex-shrink:0">
         <span>{{ d[2] | safe }}</span>
       </label>
       {% endfor %}
       <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn secondary" onclick="zustimmungSchliessen('{{ kennung }}')">Abbrechen</button>
-        <button type="button" class="btn primary zs-ok" disabled onclick="zustimmungBestaetigen('{{ kennung }}')">{{ knopf | safe }}</button>
+        <button type="button" class="btn secondary" onclick="zustimmungSchliessen({{ kennung|tojson|forceescape }})">Abbrechen</button>
+        <button type="button" class="btn primary zs-ok" disabled onclick="zustimmungBestaetigen({{ kennung|tojson|forceescape }})">{{ knopf | safe }}</button>
       </div>
     </div>
     <div class="field-msg zs-meldung" style="padding:6px 20px 10px"></div>

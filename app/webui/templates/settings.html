@@ -403,7 +403,7 @@
      elf Zeilen weniger. Offen, sobald ein Domänencontroller eingetragen ist; ein
      Sprung auf #ews-bereich (Aufgabe) öffnet ihn (base.html ankerZeigen). #}
   <details id="ews-bereich" class="feld-gruppe" style="margin-top:18px"
-           {% if s.EWS_LDAP_SERVER or s.EWS_BEREICH_AUTO %}open{% endif %}>
+           {% if s.EWS_LDAP_SERVER or s.EWS_BEREICH_AUTO or s.EWS_BEREICH_NEU_KONTO %}open{% endif %}>
   <summary><h3 style="display:inline;margin:0">Zugriffsbereich (Gruppe)</h3>
     <span class="hint" style="margin-left:6px">optional — Exchange-Scope über eine AD-Gruppe pflegen</span></summary>
   <p class="hint" style="margin:0 0 8px">
