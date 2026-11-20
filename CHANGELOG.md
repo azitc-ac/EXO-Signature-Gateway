@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.123 — 2026-11-20 — Vorlagen importieren und exportieren
+
+Unter *Signaturen → Vorlagen* stehen neben „+ Neue Vorlage“ zwei neue Knöpfe,
+für Admins und die Rolle Bearbeiter:
+
+* **Importieren …** — ein ZIP (aus „Exportieren“, aus einem Backup oder ein
+  Paket mit Beispielvorlagen) oder einzelne Dateien `Name.html`, `Name.txt`,
+  `Name.meta.json` hochladen. Zuerst prüft das Gateway das Paket, ohne etwas zu
+  speichern, und zeigt je Vorlage Art, Dateien und Zustand. Fehlerhafte Vorlagen
+  (ungültige Vorlagensyntax, kaputte Baukasten-Daten, Nachrichten an
+  Postfachinhaber) sind nicht wählbar; Dateien in Unterordnern oder mit fremder
+  Endung erscheinen als übersprungen, mit Grund.
+  **Eine Vorlage gleichen Namens wird nie still überschrieben:** Vorgabe ist
+  Umbenennen (mit einem freien Namen vorbelegt). Überschreiben gibt es nur auf
+  ausdrückliche Wahl, mit Rückfrage; die bisherige Fassung bleibt als
+  `Name.html.bak` liegen. Die Standardvorlage lässt sich nur umbenannt
+  importieren.
+* **Exportieren …** — Vorlagen auswählen und als ZIP herunterladen, im selben
+  Format, das der Import liest.
+
+Grenzen: höchstens 200 Dateien, je Datei 2 MB, zusammen 20 MB (entpackt).
+
+*Backup wiederherstellen* bleibt unverändert: Es nimmt nur vollständige
+Sicherungen an und stellt Vorlagen ohne Rückfrage wieder her.
+
+**Zu tun:** nichts.
+
 ## v1.12.122 — 2026-11-20 — Postfachliste: Unterstrich in den Auswahlen wieder sichtbar; Beschriftung der Add-in-Auswahl
 
 * **Postfachliste:** Seit v1.12.120 haben die Auswahlen eine feste Höhe, damit eine

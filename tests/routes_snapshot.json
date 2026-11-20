@@ -1981,6 +1981,27 @@
     "name": "api_get_templates"
   },
   {
+    "pfad": "/api/templates/export",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_templates_export"
+  },
+  {
+    "pfad": "/api/templates/import",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_templates_import"
+  },
+  {
+    "pfad": "/api/templates/import/pruefen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_templates_import_pruefen"
+  },
+  {
     "pfad": "/api/templates/textfassung",
     "methoden": [
       "POST"

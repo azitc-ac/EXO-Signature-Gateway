@@ -2561,3 +2561,71 @@ def test_gruppenregel_beschriftung_auf_hoehe_der_auswahl_schmal(seite):
     for slot, abstand in m:
         assert abs(abstand) <= 4, m
     pg.context.close()
+
+
+@pytest.mark.parametrize("breite", [1280, 393])
+def test_vorlagen_importieren_mit_auswahl(seite, monkeypatch, tmp_path, breite):
+    """Import (v1.12.123): Paket prüfen, vorhandene Vorlage wird per Vorgabe
+    umbenannt statt überschrieben, fehlerhafte ist nicht wählbar, Ergebnis am Ort."""
+    import io
+    import json
+    import zipfile
+    import config
+    import signature_engine
+    (tmp_path / "signature.html").write_text("<p>Standard</p>", encoding="utf-8")
+    (tmp_path / "Kompakt.html").write_text("ALT", encoding="utf-8")
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    signature_engine._reload_env()
+    paket = io.BytesIO()
+    with zipfile.ZipFile(paket, "w") as z:
+        z.writestr("templates/Kompakt.html", "<p>NEU</p>")
+        z.writestr("templates/Neu.html", "<p>{{ user.displayName }}</p>")
+        z.writestr("templates/Neu.meta.json", json.dumps({"version": 1, "kind": "banner", "blocks": []}))
+        z.writestr("templates/Kaputt.html", "{% if %}")
+        z.writestr("templates/sub/x.html", "x")
+    datei = tmp_path.parent / f"paket-{breite}.zip"
+    datei.write_bytes(paket.getvalue())
+    pg = seite("/template?name=default", breite=breite)
+    pg.click("#import-knopf")
+    pg.set_input_files("#import-dateien", str(datei))
+    pg.wait_for_selector("#import-tbody tr")
+    zeilen = pg.evaluate("""() => Array.from(document.querySelectorAll('#import-tbody tr')).map(tr => ({
+        name: tr.dataset.name, an: tr.querySelector('.import-an').checked,
+        aus: tr.querySelector('.import-an').disabled,
+        aktion: (tr.querySelector('.import-aktion') || {}).value || null,
+        ziel: (tr.querySelector('.import-ziel') || {}).value || null}))""")
+    z = {r["name"]: r for r in zeilen}
+    assert z["Kaputt"]["aus"] and not z["Kaputt"]["an"]
+    assert z["Kompakt"]["aktion"] == "umbenennen" and z["Kompakt"]["ziel"] == "Kompakt-2"
+    assert z["Neu"]["an"] and z["Neu"]["aktion"] is None
+    assert "Unterordner" in pg.inner_text("#import-uebersprungen")
+    assert pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    pg.click("#import-los")
+    pg.wait_for_function("document.getElementById('import-ergebnis').textContent.includes('Importiert')")
+    assert (tmp_path / "Kompakt.html").read_text() == "ALT"
+    assert (tmp_path / "Kompakt-2.html").read_text() == "<p>NEU</p>"
+    assert json.loads((tmp_path / "Neu.meta.json").read_text())["kind"] == "banner"
+    assert not (tmp_path / "Kaputt.html").exists()
+    pg.context.close()
+
+
+def test_vorlagen_exportieren_als_zip(seite, monkeypatch, tmp_path):
+    import io
+    import zipfile
+    import config
+    import signature_engine
+    (tmp_path / "signature.html").write_text("<p>Standard</p>", encoding="utf-8")
+    (tmp_path / "Kompakt.html").write_text("<p>K</p>", encoding="utf-8")
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    signature_engine._reload_env()
+    pg = seite("/template?name=default", breite=1280)
+    pg.click("#export-knopf")
+    pg.click("#export-modal button:has-text('Keine')")
+    pg.check("#export-liste .export-an[value='Kompakt']")
+    with pg.expect_download() as dl:
+        pg.click("#export-los")
+    pfad = dl.value.path()
+    with zipfile.ZipFile(io.BytesIO(open(pfad, "rb").read())) as zf:
+        assert sorted(zf.namelist()) == ["LIESMICH.txt", "templates/Kompakt.html"]
+    pg.wait_for_function("document.getElementById('export-stand').textContent.includes('1 Vorlage')")
+    pg.context.close()
