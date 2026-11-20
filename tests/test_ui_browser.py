@@ -2287,18 +2287,25 @@ def test_personenauswahl_bereits_gewaehlte_nicht_doppelt(seite):
     immer.fill("erika")
     immer.press("Enter")                   # einziger Treffer → gewählt
     assert _chips(pg, "immer") == ["erika.mustermann@firma.at"]
-    for art in ("immer", "nie"):
-        feld = pg.locator(f"#regel-{art}-neu")
-        feld.fill("erika")
-        assert _pa_treffer(pg, art) == [{"name": "Erika Mustermann", "gesperrt": True}]
-        feld.press("ArrowDown")
-        feld.press("Enter")
-        feld.fill("erika")
-        pg.locator(f"#regel-{art}-neu-liste .pa-eintrag").first.click(force=True)   # aria-disabled
-        feld.fill("erika.mustermann@firma.at")
-        feld.press("Enter")
-    assert _chips(pg, "immer") == ["erika.mustermann@firma.at"]
-    assert _chips(pg, "nie") == []
+    # Dieselbe Liste: gesperrt, kein Doppel — weder per Pfeil+Enter, Klick noch Adresse.
+    feld = pg.locator("#regel-immer-neu")
+    feld.fill("erika")
+    assert _pa_treffer(pg, "immer") == [{"name": "Erika Mustermann", "gesperrt": True}]
+    feld.press("ArrowDown")
+    feld.press("Enter")
+    feld.fill("erika")
+    pg.locator("#regel-immer-neu-liste .pa-eintrag").first.click(force=True)   # aria-disabled
+    feld.fill("erika.mustermann@firma.at")
+    feld.press("Enter")
+    assert _chips(pg, "immer") == ["erika.mustermann@firma.at"] and _chips(pg, "nie") == []
+    # Andere Liste: wählbar, mit Hinweis — und VERSCHIEBT (UI-Review 20.11.2026;
+    # bis v1.12.131 gesperrt, während „Hinzufügen“ verschob).
+    nie = pg.locator("#regel-nie-neu")
+    nie.fill("erika")
+    treffer = _pa_treffer(pg, "nie")
+    assert len(treffer) == 1 and treffer[0]["gesperrt"] is False and "wechselt von" in treffer[0]["name"]
+    nie.press("Enter")
+    assert _chips(pg, "immer") == [] and _chips(pg, "nie") == ["erika.mustermann@firma.at"]
     pg.context.close()
 
 
@@ -2542,8 +2549,10 @@ def test_postfachfilter_bleiben_nach_neuladen(seite):
     assert pg.is_checked("#mb-ausnahme-filter")
     assert pg.input_value("#mb-smime-filter") == ""
     assert pg.inner_text("#mb-filter-knopf").startswith("Filter (2)")
+    # Aktive gemerkte Filter klappen den Bereich auf — sonst wirkten sie unbemerkt
+    # (UI-Review 20.11.2026).
+    assert pg.is_visible("#mb-sig-filter")
     # Zurücksetzen wirkt ebenso über das Neuladen hinaus.
-    pg.click("#mb-filter-knopf")
     pg.select_option("#mb-sig-filter", "")
     pg.uncheck("#mb-ausnahme-filter")
     pg.reload()
@@ -2746,3 +2755,11 @@ def test_self_vorschau_fuehrt_kein_skript_aus(browser, server):
     pg.wait_for_timeout(800)
     assert pg.evaluate("window.__xss || 0") == 0
     ctx.close()
+
+
+
+def test_ohne_gemerkten_filter_bleibt_der_bereich_zu(seite):
+    pg = seite("/mailboxes", breite=1280)
+    pg.wait_for_load_state("networkidle")
+    assert not pg.is_visible("#mb-sig-filter")
+    pg.context.close()

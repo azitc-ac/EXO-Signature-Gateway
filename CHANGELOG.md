@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.133 — 2026-11-20 — Browser-Tests an die Änderungen aus v1.12.132 angepasst
+
+Zwei Browser-Tests prüften noch das frühere Verhalten der Personenauswahl
+(„Immer/Nie dabei“) und des Filterbereichs der Postfachliste. Keine Änderung am
+Verhalten.
+
+**Zu tun:** nichts.
+
 ## v1.12.132 — 2026-11-20 — Code-Review der letzten Fassungen: S/MIME-Erneuerung, Vorlagen-Import, Self-Service, Oberfläche
 
 Ein Review der Fassungen v1.12.113 bis v1.12.131 hat diese Fehler gefunden; alle
