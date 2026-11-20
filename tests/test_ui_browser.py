@@ -2629,3 +2629,35 @@ def test_vorlagen_exportieren_als_zip(seite, monkeypatch, tmp_path):
         assert sorted(zf.namelist()) == ["LIESMICH.txt", "templates/Kompakt.html"]
     pg.wait_for_function("document.getElementById('export-stand').textContent.includes('1 Vorlage')")
     pg.context.close()
+
+
+# Basis gegen Erweitert (Neuordnung 20.11.2026): was im einfachen Fall zu
+# entscheiden ist, steht ohne den Schalter da; Technik erst mit ihm.
+_BASIS_ERWEITERT = {
+    "/settings/signature": (["nosig-trigger", "nosig-behaelt", "kette-behaelt", "intern-behaelt"],
+                            ["fallback", "loop-header", "sent-items", "skip-duplicate-sig",
+                             "skip-sig-in-thread", "sign-internal-only", "antwort-letztes-wort"], "sig"),
+    "/settings/smime": (["smime-signing-enabled", "enc-trigger"], ["crl-check", "kv-url"], "smime"),
+    "/settings": (["notify-smime-expiry", "notify-cert-renewal"], ["notify-startup"], "benachrichtigungen"),
+}
+
+
+@pytest.mark.parametrize("url", list(_BASIS_ERWEITERT))
+def test_basis_und_erweitert(seite, url):
+    basis, erweitert, adv = _BASIS_ERWEITERT[url]
+    pg = seite(url, breite=1280)
+    pg.wait_for_load_state("domcontentloaded")
+    pg.evaluate(f"() => {{ try {{ localStorage.removeItem('advsec_{adv}'); }} catch (e) {{}} _initAdv('{adv}'); }}")
+    sichtbar = lambda i: pg.evaluate(f"() => {{ const e = document.getElementById('{i}'); return !!(e && e.getClientRects().length); }}")
+    assert [i for i in basis if not sichtbar(i)] == [], "fehlt in der Basis"
+    assert [i for i in erweitert if sichtbar(i)] == [], "gehört unter Erweitert"
+    pg.check(f"#adv-cb-{adv}")
+    assert [i for i in erweitert if not sichtbar(i)] == [], "mit Schalter nicht zu sehen"
+    pg.context.close()
+
+
+def test_ews_zugriffsbereich_zugeklappt_bis_eingerichtet(seite):
+    pg = seite("/settings", breite=1280)
+    pg.wait_for_load_state("domcontentloaded")
+    assert pg.evaluate("() => { const d = document.getElementById('ews-bereich'); return d && d.tagName === 'DETAILS' && !d.open; }")
+    pg.context.close()

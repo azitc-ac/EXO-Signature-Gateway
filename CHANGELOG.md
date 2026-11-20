@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.129 — 2026-11-20 — Einstellungen: Basis und Erweitert neu eingeteilt
+
+Ohne den Schalter *Erweiterte Einstellungen* steht jetzt, was im einfachen Fall
+zu entscheiden ist. Technische Schalter mit sinnvoller Vorgabe stehen unter
+Erweitert. Wirksam bleibt jede Einstellung wie bisher, auch wenn sie gerade
+nicht angezeigt wird.
+
+* **Signatur:** In der Basis stehen jetzt *Interne Mails* (Banner und
+  Disclaimer), der *Nicht-signieren-Trigger* samt „Der Trigger entfernt“ und
+  *Antworten in derselben Kette*. Unter Erweitert: Fallback bei Fehler,
+  Loop-Header, Gesendete Elemente, doppelte Signatur überspringen,
+  Stacking verhindern, Bildeinbettung, Erkennung fremder Signaturen, interne
+  Signatur ohne Add-in und Vorrang, letztes Wort bei Antworten.
+* **Allgemein:** Die Meldung *Container-Neustart* steht unter Erweitert. In der
+  Karte *Exchange lokal (EWS)* ist der Abschnitt *Zugriffsbereich (Gruppe)*
+  zugeklappt, solange kein Domänencontroller eingetragen ist; ein Hinweis aus
+  den offenen Aufgaben öffnet ihn.
+* **S/MIME:** Die Prüfung gegen Sperrlisten (CRL, Vorgabe an) steht unter
+  Erweitert, ebenso Azure Key Vault, solange kein Vault eingetragen ist.
+
+Außerdem: Bricht ein Scanner aus dem Internet eine Verbindung zu Port 80 ab,
+schreibt das Gateway dafür keinen vollständigen Fehlerbericht mehr ins
+Protokoll, sondern eine Zeile auf Debug-Stufe. Echte Fehler bleiben sichtbar.
+
+**Zu tun:** nichts.
+
 ## v1.12.128 — 2026-11-20 — Abnahme schneller; Oberfläche bleibt während Exchange-Abfragen bedienbar
 
 * **Abnahme** (*Einrichtung → Verbindungstest & Abnahme*): Die Punkte werden
