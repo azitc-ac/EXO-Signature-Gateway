@@ -49,7 +49,10 @@ ENDUNGEN = (".meta.json", ".html", ".txt")
 MAX_DATEIEN = 200
 MAX_DATEI = 2 * 1024 * 1024
 MAX_GESAMT = 20 * 1024 * 1024
-_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+# fullmatch statt match mit „$“: „$“ passt auch vor einem abschließenden „\n“
+# — „abc\n.html“ landete so als Datei im Vorlagenordner (Review 20.11.2026).
+_NAME = re.compile(r"[A-Za-z0-9_-]+")
+USERMAIL_PRAEFIX = "usermail_"        # Nachrichten an Postfachinhaber: eigener Weg, nie importieren
 STANDARD_DATEI = "signature"          # Dateiname der Standardvorlage
 ARTEN_IMPORT = ("signatur", "banner", "disclaimer", "oof")
 
@@ -102,14 +105,37 @@ def _dateien_lesen(eingaben: list[tuple[str, bytes]]) -> tuple[dict[str, dict[st
             uebersprungen.append({"datei": pfad, "grund": "keine Vorlagendatei (.html, .txt, .meta.json)"})
             continue
         basis, endung = geteilt
-        if not _NAME.match(basis):
+        if not _NAME.fullmatch(basis):
             uebersprungen.append({"datei": pfad, "grund": "Name nur aus Buchstaben, Ziffern, - und _"})
+            continue
+        if basis.lower().startswith(USERMAIL_PRAEFIX):
+            # Ohne Meta gälte sie als Signatur und überschriebe die angepasste
+            # Nachricht an Postfachinhaber (Review 20.11.2026).
+            uebersprungen.append({"datei": pfad, "grund": "Nachricht an Postfachinhaber — nicht importierbar"})
             continue
         gruppen.setdefault(basis, {})[endung] = inhalt
     return gruppen, uebersprungen
 
 
-def _aus_zip(daten: bytes) -> list[tuple[str, bytes]]:
+class _Zaehler:
+    """Grenzen über ALLE hochgeladenen Dateien und ZIPs zusammen — bis v1.12.131
+    galten sie je ZIP; 200 ZIPs ergaben gut 4 GB im Speicher (Review 20.11.2026)."""
+    def __init__(self):
+        self.dateien = 0
+        self.bytes = 0
+
+    def zaehlen(self, name: str, n: int) -> None:
+        self.dateien += 1
+        self.bytes += n
+        if n > MAX_DATEI:
+            raise PaketFehler(f"{name}: grösser als {MAX_DATEI // (1024 * 1024)} MB.")
+        if self.dateien > MAX_DATEIEN:
+            raise PaketFehler(f"Zu viele Dateien (höchstens {MAX_DATEIEN}).")
+        if self.bytes > MAX_GESAMT:
+            raise PaketFehler(f"Paket entpackt grösser als {MAX_GESAMT // (1024 * 1024)} MB.")
+
+
+def _aus_zip(daten: bytes, zaehler: "_Zaehler") -> list[tuple[str, bytes]]:
     try:
         zf = zipfile.ZipFile(io.BytesIO(daten))
     except zipfile.BadZipFile:
@@ -119,17 +145,12 @@ def _aus_zip(daten: bytes) -> list[tuple[str, bytes]]:
         if len(eintraege) > MAX_DATEIEN:
             raise PaketFehler(f"Zu viele Dateien im Paket (höchstens {MAX_DATEIEN}).")
         aus: list[tuple[str, bytes]] = []
-        gesamt = 0
         for e in eintraege:
             # Tatsächlich gelesene Bytes zählen — die Grösse im ZIP-Verzeichnis
             # kann gelogen sein.
             with zf.open(e) as f:
                 inhalt = f.read(MAX_DATEI + 1)
-            if len(inhalt) > MAX_DATEI:
-                raise PaketFehler(f"{e.filename}: grösser als {MAX_DATEI // (1024 * 1024)} MB.")
-            gesamt += len(inhalt)
-            if gesamt > MAX_GESAMT:
-                raise PaketFehler(f"Paket entpackt grösser als {MAX_GESAMT // (1024 * 1024)} MB.")
+            zaehler.zaehlen(e.filename, len(inhalt))
             aus.append((e.filename, inhalt))
         return aus
 
@@ -139,16 +160,12 @@ def eingaben_aus_upload(dateien: list[tuple[str, bytes]]) -> list[tuple[str, byt
     if len(dateien) > MAX_DATEIEN:
         raise PaketFehler(f"Zu viele Dateien (höchstens {MAX_DATEIEN}).")
     aus: list[tuple[str, bytes]] = []
-    gesamt = 0
+    zaehler = _Zaehler()
     for name, inhalt in dateien:
         if name.lower().endswith(".zip"):
-            aus.extend(_aus_zip(inhalt))
+            aus.extend(_aus_zip(inhalt, zaehler))
             continue
-        if len(inhalt) > MAX_DATEI:
-            raise PaketFehler(f"{name}: grösser als {MAX_DATEI // (1024 * 1024)} MB.")
-        gesamt += len(inhalt)
-        if gesamt > MAX_GESAMT:
-            raise PaketFehler(f"Dateien zusammen grösser als {MAX_GESAMT // (1024 * 1024)} MB.")
+        zaehler.zaehlen(name, len(inhalt))
         aus.append((Path(name.replace("\\", "/")).name, inhalt))
     return aus
 
@@ -163,7 +180,10 @@ def _pruefen(basis: str, teile: dict[str, bytes]) -> dict:
          "fehler": "", "baukasten": ".meta.json" in teile,
          # „Standard“ o. ä. als Dateiname: kollidiert mit dem Anzeigenamen der
          # Standardvorlage — nur umbenannt importierbar.
-         "reserviert": name != "default" and signature_engine.name_reserviert(name)}
+         # Eine Datei „default.*“ hiesse in der Oberfläche wie die Standardvorlage
+         # (signature.*) — zwei Einträge „default“ im selben Paket (Review 20.11.).
+         "reserviert": (name != "default" and signature_engine.name_reserviert(name))
+                       or basis.lower() == "default"}
     if e["reserviert"]:
         e["vorhanden"] = True
     if ".html" not in teile:
@@ -223,9 +243,12 @@ def freier_name(name: str, belegt: set[str] | None = None) -> str:
 def _schreiben(datei: str, teile: dict[str, bytes], ueberschreiben: bool) -> None:
     verz = _verz()
     if ueberschreiben:
-        alt = verz / f"{datei}.html"
-        if alt.exists():
-            (verz / f"{datei}.html.bak").write_bytes(alt.read_bytes())
+        # ALLE vorhandenen Dateien sichern — bis v1.12.131 nur die .html; die
+        # Baukasten-Daten der alten Fassung waren danach weg (Review 20.11.).
+        for endung in ENDUNGEN:
+            alt = verz / f"{datei}{endung}"
+            if alt.exists():
+                (verz / f"{datei}{endung}.bak").write_bytes(alt.read_bytes())
     fertig: list[tuple[Path, Path]] = []
     try:
         for endung, inhalt in teile.items():
@@ -282,9 +305,13 @@ def importieren(eingaben: list[tuple[str, bytes]], entscheidungen: dict[str, dic
             ziel = name
         elif aktion == "umbenennen":
             ziel = ((ent or {}).get("ziel") or "").strip()
-            if not _NAME.match(ziel):
+            if not _NAME.fullmatch(ziel):
                 ergebnis.append({"name": name, "ok": False,
                                  "meldung": "neuer Name nur aus Buchstaben, Ziffern, - und _"})
+                continue
+            if ziel.lower().startswith(USERMAIL_PRAEFIX):
+                ergebnis.append({"name": name, "ok": False,
+                                 "meldung": "dieser Namensanfang ist Nachrichten an Postfachinhaber vorbehalten"})
                 continue
             if signature_engine.name_reserviert(ziel):
                 ergebnis.append({"name": name, "ok": False,
@@ -330,7 +357,7 @@ def exportieren(namen: list[str]) -> bytes:
     with zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("LIESMICH.txt", _LIESMICH)
         for name in namen:
-            if not _NAME.match(name or ""):
+            if not _NAME.fullmatch(name or ""):
                 continue
             datei = _datei_von_name(name)
             if signature_engine.vorlagen_art(datei) not in ARTEN_IMPORT:

@@ -2219,10 +2219,10 @@ async function saveKeyvault() {
           </div>
           {% else %}
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px">
-            <button class="btn secondary btn-sm" onclick="copyManifestUrl('{{ addin_manifest_url }}', 'addin-copy-ok')">Kopieren</button>
+            <button class="btn secondary btn-sm" onclick="copyManifestUrl({{ addin_manifest_url|tojson|forceescape }}, 'addin-copy-ok')">Kopieren</button>
             <a href="{{ addin_manifest_url }}" target="_blank" class="btn secondary btn-sm">Öffnen</a>
             <a href="{{ addin_manifest_url }}" download="exo-signatur-addin.xml" class="btn secondary btn-sm">Herunterladen</a>
-            <button class="btn secondary btn-sm" onclick="validateAddinManifest(this, '{{ addin_manifest_url }}', 'addin-validate-result')">Erreichbarkeit prüfen</button>
+            <button class="btn secondary btn-sm" onclick="validateAddinManifest(this, {{ addin_manifest_url|tojson|forceescape }}, 'addin-validate-result')">Erreichbarkeit prüfen</button>
             <a href="https://admin.microsoft.com/Adminportal/Home#/Settings/IntegratedApps" target="_blank" rel="noopener" class="btn secondary btn-sm" title="Neue Fassung: Add-in wählen → Aktualisieren">Integrierte Apps öffnen</a>
             <span id="addin-validate-result" hidden></span>
           </div>
@@ -2292,10 +2292,10 @@ async function saveKeyvault() {
       <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
         <code style="font-size:12px;background:#f1f5f9;padding:5px 10px;border-radius:4px;border:1px solid #e2e8f0;word-break:break-all;align-self:flex-start">{{ av.url }}</code>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <button class="btn secondary btn-sm" onclick="copyManifestUrl('{{ av.url }}', 'addin-verfassen-copy-ok')">Kopieren</button>
+          <button class="btn secondary btn-sm" onclick="copyManifestUrl({{ av.url|tojson|forceescape }}, 'addin-verfassen-copy-ok')">Kopieren</button>
           <a href="{{ av.url }}" target="_blank" class="btn secondary btn-sm">Öffnen</a>
           <a href="{{ av.url }}" download="exo-signatur-verfassen.xml" class="btn secondary btn-sm">Herunterladen</a>
-          <button class="btn secondary btn-sm" onclick="validateAddinManifest(this, '{{ av.url }}', 'addin-verfassen-validate-result')">Erreichbarkeit prüfen</button>
+          <button class="btn secondary btn-sm" onclick="validateAddinManifest(this, {{ av.url|tojson|forceescape }}, 'addin-verfassen-validate-result')">Erreichbarkeit prüfen</button>
           <a href="https://admin.microsoft.com/Adminportal/Home#/Settings/IntegratedApps" target="_blank" rel="noopener" class="btn secondary btn-sm" title="Neue Fassung: Add-in wählen → Aktualisieren">Integrierte Apps öffnen</a>
           <span id="addin-verfassen-validate-result" hidden></span>
         </div>

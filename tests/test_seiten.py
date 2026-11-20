@@ -573,7 +573,7 @@ def _smime_neu(client, monkeypatch, vorgabe):
 def test_postfach_ohne_zertifikat_hat_knopf_zertifikat_bestellen(client, monkeypatch):
     html, zeile, knopf = _smime_neu(client, monkeypatch, "castle_acme")
     assert "Zertifikat bestellen" in zeile
-    assert "startAutoEnroll('neu@x.de'" in knopf and "disabled" not in knopf
+    assert 'startAutoEnroll(&#34;neu@x.de&#34;' in knopf and "disabled" not in knopf
     # Lifecycle-Auswahl zeigt den Weg aus der Vorgabe
     auswahl = html[html.index('class="lc-backend" data-email="neu@x.de"'):]
     auswahl = auswahl[:auswahl.index("</select>")]

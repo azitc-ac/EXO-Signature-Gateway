@@ -473,7 +473,8 @@ var _sysToday = new Date().toISOString().slice(0,10);
 function groesseMb(mb) {
   if (mb == null) return '—';
   const zahl = (x) => Number(x).toLocaleString('de-DE', {maximumFractionDigits: 1});
-  return mb >= 1024 ? zahl(mb / 1024) + ' GB' : zahl(mb) + ' MB';
+  if (mb >= 1024) return zahl(mb / 1024) + ' GB';
+  return mb >= 1 ? zahl(mb) + ' MB' : zahl(mb * 1024) + ' KB';
 }
 
 function openInFlightInfo(active, maintHeld, dfCount) {
@@ -552,12 +553,12 @@ function openInFlightInfo(active, maintHeld, dfCount) {
         tile('Warteschlange', inFlightTotal, inFlightSub, infClass, 'openInFlightInfo(' + d.in_flight + ',' + maintHeld + ',' + dfCount + ')') +
         tile('Ø Zeit / Mail', avgMs, 'pro Nachricht, letzte 24 h', '', 'openMailHourlyModal()') +
         tile('Mail-Peak heute', d.peak_hour != null ? Number(d.peak_hour) + '–' + (Number(d.peak_hour) + 1) + ' Uhr · ' + d.peak_hour_cnt + ' Mails' : '—', 'geschäftigste Stunde', '', peakOnclick) +
-        tile('RAM (Prozess)', d.rss_mb != null ? d.rss_mb + ' MB' : '—', 'RSS') +
+        tile('RAM (Prozess)', groesseMb(d.rss_mb), 'RSS') +
         tile('Uptime', fmt_uptime(d.uptime_s), fmt_start(d.uptime_s)) +
         tile('Disk belegt', groesseMb(d.disk_used_mb), d.disk_pct != null ? d.disk_pct + ' % von ' + groesseMb(d.disk_total_mb) : '', diskClass) +
         tile('Disk frei', groesseMb(d.disk_free_mb), '/app/data') +
-        tile('Audit-DB', d.db_size_kb != null ? d.db_size_kb + ' KB' : '—', 'mail_audit.db', '', 'openAuditModal("","",null)') +
-        tile('Mail-Logs', d.logs_size_kb != null ? (d.logs_size_kb >= 1024 ? (d.logs_size_kb/1024).toFixed(1)+' MB' : d.logs_size_kb+' KB') : '—', 'data/logs/ gesamt', '', 'openLogTailModal()');
+        tile('Audit-DB', d.db_size_kb != null ? groesseMb(d.db_size_kb / 1024) : '—', 'mail_audit.db', '', 'openAuditModal("","",null)') +
+        tile('Mail-Logs', d.logs_size_kb != null ? groesseMb(d.logs_size_kb / 1024) : '—', 'data/logs/ gesamt', '', 'openLogTailModal()');
       document.getElementById('sysRefreshNote').textContent = 'aktualisiert ' + new Date().toLocaleTimeString('de-DE');
     } catch(e) {
       document.getElementById('sysRefreshNote').textContent = 'Fehler: ' + e.message;

@@ -5,6 +5,65 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.132 — 2026-11-20 — Code-Review der letzten Fassungen: S/MIME-Erneuerung, Vorlagen-Import, Self-Service, Oberfläche
+
+Ein Review der Fassungen v1.12.113 bis v1.12.131 hat diese Fehler gefunden; alle
+sind behoben.
+
+**S/MIME-Erneuerung und Widerruf**
+* **Keine zweite Bestellung, solange eine offen ist.** Der tägliche Lauf bestellte
+  an jeder Erneuerungsschwelle erneut, solange das alte Zertifikat in Gebrauch
+  war — auch wenn eine Bestellung beim Anbieter noch auf Bestätigung wartete
+  oder eine CASTLE-Prüfung lief. Bei kostenpflichtigen Anbietern konnte so eine
+  zweite Bestellung entstehen. Jetzt prüft der Lauf vorher, ob eine Bestellung
+  offen ist. Die Ankündigung wird nach der Bestellung als erledigt markiert und
+  nicht wiederholt.
+* **Nach einem Widerruf** signiert das Gateway nur noch mit einem neueren, noch
+  gültigen Zertifikat desselben Postfachs — nicht mit einem älteren, das bei
+  einer früheren Erneuerung schon widerrufen wurde, und nicht mit einem
+  abgelaufenen. Ein widerrufenes Zertifikat wird sofort erneuert (ohne
+  Ankündigung), nicht erst kurz vor seinem alten Ablaufdatum.
+* Der Widerruf vor einer Neuausstellung trifft nur noch das aktuelle Zertifikat
+  und nur, wenn es von CASTLE ausgestellt ist.
+* Lässt sich nach einem erfolgreichen Widerruf der Vermerk nicht speichern,
+  meldet der Knopf einen Fehler statt Erfolg — das Gateway würde sonst weiter
+  mit dem widerrufenen Zertifikat signieren.
+* Der Link zum Abschalten der Verlängerung gilt nur für das angekündigte
+  Zertifikat; nach einem neuen Zertifikat ist er wirkungslos.
+* Die Abnahme zählt ältere Einträge mit „benachrichtigen“ als entschieden, wie
+  der Erneuerungslauf. Nach einer Sammelbestellung gilt der dabei verwendete
+  Anbieter als Bezugsweg.
+
+**Vorlagen importieren**
+* Grenzen (200 Dateien, 20 MB) gelten über alle hochgeladenen Dateien
+  zusammen, nicht je ZIP; das Entpacken blockiert die Oberfläche nicht mehr.
+* Nachrichten an Postfachinhaber (`usermail_…`) lassen sich nicht importieren
+  oder per Umbenennen erzeugen. Dateinamen mit Zeilenumbruch werden abgewiesen,
+  `default.*` nur umbenannt importiert.
+* Überschreiben sichert jetzt HTML, Text und Baukasten-Daten der alten Fassung
+  (`.bak`), nicht nur das HTML. Ein zweiter Klick auf „Importieren“ nach Erfolg
+  ist gesperrt.
+
+**Self-Service:** Die Vorschauen auf `/self` stehen jetzt in einem abgeschotteten
+Rahmen wie im Editor. Bisher wurden sie direkt in die Seite gesetzt; ein
+Bild-Ereignis (`onerror`) in einer — etwa importierten — Vorlage hätte dort Code
+ausgeführt.
+
+**Oberfläche**
+* Werte in Knöpfen (z. B. Postfachadressen auf der Seite S/MIME) werden als
+  sicher maskierte Zeichenkette übergeben. Eine gültige Adresse mit Apostroph
+  (`o'brien@…`) machte den Knopf bisher funktionslos.
+* „Immer dabei“/„Nie dabei“: Ein Postfach aus der jeweils anderen Liste lässt
+  sich per Auswahl verschieben (bisher gesperrt). Gemerkte Postfach-Filter
+  klappen den Filterbereich auf, damit sie nicht unbemerkt wirken.
+* Übersicht: auch RAM, Audit-DB und Mail-Logs mit einheitlichen Einheiten.
+* Einstellungen → Exchange lokal: Ein ausstehendes Dienstkonto öffnet den
+  Abschnitt *Zugriffsbereich*, damit die Warnung sichtbar ist.
+* Einrichtung: Exchange-Connector, S/MIME-Regeln und IMAP-Zugriff lassen sich
+  nicht zweimal gleichzeitig anstoßen.
+
+**Zu tun:** nichts.
+
 ## v1.12.131 — 2026-11-20 — Übersicht: nur Zeilen, die hier gelten; Spalten richtig benannt; Speicher in GB
 
 * **Zeilen je Funktion.** Die Zeilen zu S/MIME, zu den Korrekturen der

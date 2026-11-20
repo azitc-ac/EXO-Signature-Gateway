@@ -299,6 +299,29 @@ def _widerrufen(slot_dir: Path) -> bool:
     return (slot_dir / WIDERRUF_DATEI).exists()
 
 
+def _ablauf_von(cert_path: Path) -> datetime | None:
+    try:
+        return _get_expiry(x509.load_pem_x509_certificate(cert_path.read_bytes()))
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
+def standard_paar(email: str) -> tuple[Path, Path] | None:
+    """(cert, key) NUR des Standard-Slots, wenn er nicht widerrufen ist (key.pem,
+    sonst key.pem.bak). Für den Widerruf vor einer Neuausstellung: Der darf genau
+    das aktuelle Zertifikat treffen, nie einen anderen Slot."""
+    user_dir = SMIME_DIR / email.lower().strip()
+    default_file = user_dir / "default"
+    if not default_file.exists():
+        return None
+    slot_dir = user_dir / "certs" / default_file.read_text().strip()
+    c = slot_dir / "cert.pem"
+    k = slot_dir / "key.pem" if (slot_dir / "key.pem").exists() else slot_dir / "key.pem.bak"
+    if not c.exists() or not k.exists() or _widerrufen(slot_dir):
+        return None
+    return c, k
+
+
 # ── Multi-cert API ────────────────────────────────────────────────────────────
 
 def list_user_certs(email: str) -> list[dict]:
@@ -483,10 +506,22 @@ def get_signing_paths(email: str, allow_backup: bool = False,
                 return c, k
             if allow_backup and c.exists() and (slot_dir / "key.pem.bak").exists():
                 return c, slot_dir / "key.pem.bak"
+        # Standard widerrufen → nur auf ein NEUERES, noch gültiges Zertifikat
+        # ausweichen. Ältere Slots sind bei CASTLE vor jeder Neuausstellung
+        # widerrufen worden (seit Juli), tragen aber erst seit v1.12.125 einen
+        # Vermerk — „nicht vermerkt“ heißt bei ihnen nicht „gültig“ (Review 20.11.).
+        mindest_ablauf = None
+        if nur_unwiderrufen and default and _widerrufen(certs_dir / default):
+            mindest_ablauf = _ablauf_von(certs_dir / default / "cert.pem")
+        jetzt = datetime.now(timezone.utc)
         first_bak: tuple[Path, Path] | None = None
         for slot_dir in sorted(certs_dir.iterdir()):
             if not slot_dir.is_dir() or (nur_unwiderrufen and _widerrufen(slot_dir)):
                 continue
+            if mindest_ablauf is not None:
+                ablauf = _ablauf_von(slot_dir / "cert.pem")
+                if ablauf is None or ablauf <= mindest_ablauf or ablauf <= jetzt:
+                    continue
             c, k = slot_dir / "cert.pem", slot_dir / "key.pem"
             if c.exists() and k.exists():
                 return c, k

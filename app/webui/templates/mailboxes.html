@@ -2512,7 +2512,11 @@ function _regelAuswahlEintraege(art) {
     var k = m.config_key || m.email;
     var drin = !_regelArbeit ? '' : _regelArbeit[art].indexOf(k) >= 0 ? art
              : _regelArbeit[andere].indexOf(k) >= 0 ? andere : '';
-    return {wert: k, name: m.name || '', adresse: m.email, gesperrt: drin ? titel[drin] : ''};
+    // Gesperrt nur, wer schon in DIESER Liste steht. Aus der anderen wird
+    // verschoben (_regelSchluesselDazu) — bis v1.12.131 sperrte die Auswahl auch
+    // diese, Enter tat dann stumm nichts, „Hinzufügen“ verschob (UI-Review 20.11.).
+    return {wert: k, name: (m.name || '') + (drin === andere ? ' — wechselt von ' + titel[andere].replace('steht schon bei ', '') : ''),
+            adresse: m.email, gesperrt: drin === art ? titel[art] : ''};
   });
 }
 var _regelAuswahl = {};
@@ -3019,6 +3023,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (rf) rf.checked = true;
     mbKlappe('mb-filter-feld', true);    // gesetzter Filter bleibt sichtbar
   }
+  // Gemerkte Filter (v1.12.120) wirken sonst unsichtbar: Sammelaktionen träfen
+  // eine Teilmenge, die man nicht bemerkt (UI-Review 20.11.2026).
+  else if (MB_FILTER_FELDER.some(function(id) {
+    var el = document.getElementById(id);
+    return el && (el.type === 'checkbox' ? el.checked : !!el.value);
+  })) mbKlappe('mb-filter-feld', true);
   loadMailboxes(true);
   // Regeln erst nach den Gruppen: Ihr Gruppenfeld bietet die Gruppen zur Wahl
   // und kennzeichnet eine gelöschte — vorher ist die Liste leer.

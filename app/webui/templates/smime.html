@@ -219,7 +219,7 @@
           {% endif %}
         </div>
         <div class="user-hdr-actions">
-          <button class="btn secondary btn-sm" onclick="openImportModal('{{ u.email }}')">Importieren</button>
+          <button class="btn secondary btn-sm" onclick="openImportModal({{ u.email|tojson|forceescape }})">Importieren</button>
           {% set _backend_name = _weg %}
           {% set _backend_info = (backends | selectattr('name','equalto',_backend_name) | list | first) or {} %}
           {% set _sperre = bezug_gesperrt.get(u.email, '') if _backend_info.get('liest_postfach') else '' %}
@@ -230,7 +230,7 @@
              auf, statt ausgegraut zu sein — dort wird der Weg gewählt. #}
           <button id="ae-btn-{{ u.email | replace('@','_') | replace('.','_') }}"
                   class="btn secondary btn-sm"
-                  {% if _can_auto %}onclick="startAutoEnroll('{{ u.email }}',this)"
+                  {% if _can_auto %}onclick="startAutoEnroll({{ u.email|tojson|forceescape }},this)"
                   {% elif _sperre %}onclick="_zeileMehr(event, this)"
                   title="{{ _sperre }}"
                   {% else %}onclick="_zeileMehr(event, this)"
@@ -240,7 +240,7 @@
           {% else %}
           <button id="ae-btn-{{ u.email | replace('@','_') | replace('.','_') }}"
                   class="btn secondary btn-sm"
-                  {% if _can_auto %}onclick="startAutoEnroll('{{ u.email }}',this)"
+                  {% if _can_auto %}onclick="startAutoEnroll({{ u.email|tojson|forceescape }},this)"
                   {% else %}disabled style="opacity:.45;cursor:not-allowed"
                   title="{% if _sperre %}{{ _sperre }}{% elif _backend_info.get('auto') and not _backend_info.get('ready') %}{{ _backend_info.get('not_ready_reason') or 'Backend noch nicht vollständig konfiguriert' }}{% else %}Backend „{{ _backend_info.get('label', _backend_name) }}“ unterstützt kein Auto-Enroll{% endif %}"{% endif %}>
             Auto-Enroll
@@ -334,13 +334,13 @@
                      value="{{ c.slot_id }}"
                      {% if c.get("is_default") %}checked{% endif %}
                      {% if c.get("error") %}disabled{% endif %}
-                     onchange="setDefaultCert('{{ u.email }}','{{ c.slot_id }}',this)"
+                     onchange="setDefaultCert({{ u.email|tojson|forceescape }},{{ c.slot_id|tojson|forceescape }},this)"
                      title="Als Standard verwenden">
             </td>
             {% endif %}
             <td style="padding:8px 10px;text-align:right;white-space:nowrap;min-width:140px">
               <button class="btn secondary btn-sm"
-                      {% if c.get("error") %}disabled style="opacity:.4"{% else %}onclick="showCertDetails('{{ u.email }}','signing','{{ c.slot_id }}')"{% endif %}>
+                      {% if c.get("error") %}disabled style="opacity:.4"{% else %}onclick="showCertDetails({{ u.email|tojson|forceescape }},'signing',{{ c.slot_id|tojson|forceescape }})"{% endif %}>
                 Ansicht
               </button>
               {% if not c.get("error") %}
@@ -353,7 +353,7 @@
               {% endif %}
               {% if kv_configured and c.get("has_local_key") %}
               <button class="btn secondary btn-sm" 
-                      onclick="migrateSlotToKv('{{ u.email }}','{{ c.slot_id }}',this)"
+                      onclick="migrateSlotToKv({{ u.email|tojson|forceescape }},{{ c.slot_id|tojson|forceescape }},this)"
                       title="Diesen Schlüssel zu Azure Key Vault migrieren">
                 → KV
               </button>
@@ -369,13 +369,13 @@
               {% if not c.get("error") and not c.get("widerrufen") and not c.get("expired")
                     and "CASTLE" in (c.get("issuer") or "")|upper %}
               <button class="btn danger btn-sm"
-                      onclick="widerrufOeffnen('{{ u.email }}','{{ c.slot_id }}','{{ c.expiry }}')"
+                      onclick="widerrufOeffnen({{ u.email|tojson|forceescape }},{{ c.slot_id|tojson|forceescape }},{{ c.expiry|tojson|forceescape }})"
                       title="Bei CASTLE widerrufen — lässt sich nicht zurücknehmen">
                 Widerrufen
               </button>
               {% endif %}
               <button class="btn secondary btn-sm"
-                      onclick="deleteCertSlot('{{ u.email }}','{{ c.slot_id }}')">
+                      onclick="deleteCertSlot({{ u.email|tojson|forceescape }},{{ c.slot_id|tojson|forceescape }})">
                 Löschen
               </button>
             </td>
@@ -402,7 +402,7 @@
             <label style="width:160px;min-width:160px;font-size:13px">Backend</label>
             <select class="lc-backend" data-email="{{ u.email }}"
                     style="width:300px;font-size:13px"
-                    onchange="_onBackendChange('{{ u.email }}',this.value)">
+                    onchange="_onBackendChange({{ u.email|tojson|forceescape }},this.value)">
               {% for b in backends %}
               {% set is_selected = _weg == b.name %}
               <option value="{{ b.name }}"
@@ -432,7 +432,7 @@
             <label class="checkbox-label" style="font-size:13px">
               <input type="checkbox" class="lc-auto-renew" data-email="{{ u.email }}"
                      {% if ca_cfg.get('auto_renew') %}checked{% endif %}
-                     onchange="_onAutoRenewChange('{{ u.email }}',this.checked)">
+                     onchange="_onAutoRenewChange({{ u.email|tojson|forceescape }},this.checked)">
               Automatisch erneuern
               <span class="lc-auto-price-dyn"
                     style="font-size:11px;color:#6b7280;background:#f3f4f6;border-radius:8px;padding:1px 7px;margin-left:6px{% if not _backend_info.get('price_cents') %};display:none{% endif %}">
@@ -472,10 +472,10 @@
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             {% if ew.zustand == 'erteilt' %}
-              <button type="button" class="btn danger btn-sm" onclick="einwilligungAktion('{{ u.email }}','widerrufen',this)">Widerrufen</button>
+              <button type="button" class="btn danger btn-sm" onclick="einwilligungAktion({{ u.email|tojson|forceescape }},'widerrufen',this)">Widerrufen</button>
             {% else %}
-              <button type="button" class="btn secondary btn-sm" onclick="einwilligungAktion('{{ u.email }}','anfragen',this)">{% if ew.zustand == 'angefragt' %}Erneut anfragen{% else %}Beim Postfachinhaber anfragen{% endif %}</button>
-              <button type="button" class="btn secondary btn-sm" onclick="einwilligungAktion('{{ u.email }}','admin',this)">Als Administrator einwilligen</button>
+              <button type="button" class="btn secondary btn-sm" onclick="einwilligungAktion({{ u.email|tojson|forceescape }},'anfragen',this)">{% if ew.zustand == 'angefragt' %}Erneut anfragen{% else %}Beim Postfachinhaber anfragen{% endif %}</button>
+              <button type="button" class="btn secondary btn-sm" onclick="einwilligungAktion({{ u.email|tojson|forceescape }},'admin',this)">Als Administrator einwilligen</button>
             {% endif %}
               <span class="ew-result"></span>
             </div>
@@ -495,9 +495,9 @@
                wirksam, sobald er zurückwechselte. -->
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
             <button class="btn secondary btn-sm"
-                    onclick="saveCaConfig('{{ u.email }}')">Speichern</button>
+                    onclick="saveCaConfig({{ u.email|tojson|forceescape }})">Speichern</button>
             <button class="btn secondary btn-sm"
-                    onclick="sendRenewalNotification('{{ u.email }}',this)"
+                    onclick="sendRenewalNotification({{ u.email|tojson|forceescape }},this)"
                     {% if not has_certs %}disabled style="opacity:.4"{% endif %}>
               Test-Benachrichtigung senden
             </button>
@@ -514,7 +514,7 @@
             <div id="token-area-{{ u.email | replace('@','_') | replace('.','_') }}"
                  style="margin-top:8px">
               <button class="btn secondary btn-sm"
-                      onclick="generateToken('{{ u.email }}',this)">Link generieren / erneuern</button>
+                      onclick="generateToken({{ u.email|tojson|forceescape }},this)">Link generieren / erneuern</button>
             </div>
           </div>
 
@@ -522,7 +522,7 @@
           <div id="acme-reset-{{ u.email | replace('@','_') | replace('.','_') }}"
                style="margin-top:10px;{% if not acme_orders.get(u.email) %}display:none;{% endif %}">
             <button class="btn secondary btn-sm"
-                    onclick="clearAcmeOrder('{{ u.email }}',this)">ACME-Auftrag zurücksetzen</button>
+                    onclick="clearAcmeOrder({{ u.email|tojson|forceescape }},this)">ACME-Auftrag zurücksetzen</button>
           </div>
           <div id="lc-result-{{ u.email | replace('@','_') | replace('.','_') }}"
                class="alert" style="display:none;margin-top:8px"></div>
@@ -593,13 +593,13 @@
         <td style="font-size:12px">{{ (w.seit or '')[:10] }}{% if (w.anzahl or 1) > 1 %}, {{ w.anzahl }}× gesehen{% endif %}</td>
         <td style="white-space:nowrap">
           <button class="btn secondary btn-sm" 
-                  onclick="wartendFreigeben('{{ w.fingerabdruck }}', true)"
+                  onclick="wartendFreigeben({{ w.fingerabdruck|tojson|forceescape }}, true)"
                   title="Diese Zertifizierungsstelle künftig anerkennen">Aussteller freigeben</button>
           <button class="btn secondary btn-sm" 
-                  onclick="wartendFreigeben('{{ w.fingerabdruck }}', false)"
+                  onclick="wartendFreigeben({{ w.fingerabdruck|tojson|forceescape }}, false)"
                   title="Nur dieses eine Zertifikat übernehmen">nur dieses</button>
           <button class="btn danger btn-sm" 
-                  onclick="wartendVerwerfen('{{ w.fingerabdruck }}')">verwerfen</button>
+                  onclick="wartendVerwerfen({{ w.fingerabdruck|tojson|forceescape }})">verwerfen</button>
         </td>
       </tr>
       {% endfor %}
@@ -673,9 +673,9 @@
         {% else %}<span class="step-status done">Aktiv</span>{% endif %}
       </td>
       <td style="white-space:nowrap">
-        <button class="btn secondary btn-sm" onclick="showCertDetails('{{ c.email }}','recipient')">Ansicht</button>
+        <button class="btn secondary btn-sm" onclick="showCertDetails({{ c.email|tojson|forceescape }},'recipient')">Ansicht</button>
         <a class="btn secondary btn-sm" href="/api/smime/recipient/download/{{ c.email }}" download="{{ c.email }}.cer">Download</a>
-        <button class="btn secondary btn-sm" onclick="deleteRcptCert('{{ c.email }}')">Löschen</button>
+        <button class="btn secondary btn-sm" onclick="deleteRcptCert({{ c.email|tojson|forceescape }})">Löschen</button>
       </td>
     </tr>
     {% endfor %}

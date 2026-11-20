@@ -48,6 +48,13 @@ def welt(monkeypatch):
     monkeypatch.setattr(notification, "send_renewal_notification_to_user", lambda **kw: True)
     monkeypatch.setattr(einwilligung, "liegt_vor", lambda email: welt.einwilligung)
     monkeypatch.setattr(scheduler, "_web_schleife", None)
+    welt.offen = ""
+    monkeypatch.setattr(scheduler, "_bestellung_offen", lambda email: welt.offen)
+    # Aktuelles Standard-Zertifikat = das angekündigte (Abwahl-Link prüft das).
+    import smime_store
+    monkeypatch.setattr(smime_store, "list_user_certs",
+                        lambda email: [{"is_default": True, "expiry": welt.ablauf}])
+    welt.ablauf = "31.12.2026"
     welt.einwilligung = {"von": "admin"}
     welt.werte = werte
     return welt
@@ -68,7 +75,20 @@ def test_erst_ankuendigen_dann_bestellen(welt):
     assert welt.bestellt == [] and len(welt.mails) == 1
     _lauf(14)
     assert welt.bestellt == ["a@x.de"]
-    assert "_ERNEUERUNG_ANGEKUENDIGT" not in welt.werte or "a@x.de" not in welt.werte["_ERNEUERUNG_ANGEKUENDIGT"]
+    assert welt.werte["_ERNEUERUNG_ANGEKUENDIGT"]["a@x.de"]["bestellt_am"]   # markiert, nicht gelöscht
+    # Review 20.11.: Ist die Bestellung noch offen (Hub wartet auf Bestätigung),
+    # darf die nächste Schwelle weder erneut ankündigen noch erneut bestellen.
+    welt.offen = "offene Bestellung 42 bei hub:certum"
+    _lauf(7)
+    _lauf(1)
+    assert welt.bestellt == ["a@x.de"] and len(welt.mails) == 1
+    # Erledigt sich die Bestellung ohne Zertifikat (abgelehnt): neu bestellen,
+    # aber NICHT erneut ankündigen.
+    welt.offen = ""
+    import scheduler
+    scheduler._user_notif_sent.clear() if hasattr(scheduler, "_user_notif_sent") else None
+    _lauf(1)
+    assert welt.bestellt == ["a@x.de", "a@x.de"] and len(welt.mails) == 1
 
 
 def test_ohne_einwilligung_bekommt_der_inhaber_die_ankuendigung(welt):
@@ -117,3 +137,54 @@ def test_falsches_merkmal_ist_ungueltig(welt):
     r = TestClient(app).post("/erneuerung/abwahl/falsch")
     assert "nicht mehr gültig" in r.text
     assert welt.werte["CA_USER_CONFIG"]["a@x.de"]["auto_renew"] is True
+
+
+def test_abwahl_link_gilt_nur_fuer_das_aktuelle_zertifikat(welt):
+    """Review 20.11.: Wurde inzwischen (auch von Hand) ein neues Zertifikat
+    eingespielt, schaltete ein später Klick die Verlängerung des NEUEN ab."""
+    import erneuerung_vorankuendigung as ev
+    _lauf(30)
+    token = welt.mails[0][2].split("/erneuerung/abwahl/")[1].split('"')[0]
+    assert ev.abwahl_lesen(token) is not None
+    welt.ablauf = "31.12.2027"                                  # neues Zertifikat ist Standard
+    assert ev.abwahl_lesen(token) is None and ev.abwahl_ausfuehren(token) is None
+    assert welt.werte["CA_USER_CONFIG"]["a@x.de"]["auto_renew"] is True
+
+
+def test_bestellung_offen_erkennt_hub_und_castle(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    import acme_state
+    import hub_orders
+    import scheduler
+    monkeypatch.setattr(hub_orders, "list_pending", lambda: [{"order_id": "42", "email": "A@x.de", "provider": "hub:certum"}])
+    monkeypatch.setattr(acme_state, "get_order", lambda e: None)
+    assert "42" in scheduler._bestellung_offen("a@x.de")
+    assert scheduler._bestellung_offen("b@x.de") == ""
+    monkeypatch.setattr(hub_orders, "list_pending", lambda: [])
+    jetzt = datetime.now(timezone.utc)
+    monkeypatch.setattr(acme_state, "get_order", lambda e: {"status": "validating", "created": jetzt.isoformat()})
+    assert "CASTLE" in scheduler._bestellung_offen("a@x.de")
+    # Hängender Auftrag von vorgestern blockiert nicht für immer
+    monkeypatch.setattr(acme_state, "get_order",
+                        lambda e: {"status": "validating", "created": (jetzt - timedelta(days=2)).isoformat()})
+    assert scheduler._bestellung_offen("a@x.de") == ""
+    monkeypatch.setattr(acme_state, "get_order", lambda e: {"status": "error", "created": jetzt.isoformat()})
+    assert scheduler._bestellung_offen("a@x.de") == ""
+
+
+def test_widerrufenes_standardzertifikat_wird_sofort_bestellt(welt):
+    """Review 20.11.: Mit widerrufenem Standard wird nicht mehr signiert — keine
+    Ankündigungsfrist, sofort bestellen."""
+    import scheduler
+    scheduler._send_user_renewal_notification("a@x.de", {**CERT, "days_left": 200, "widerrufen": {"grund": "x"}},
+                                              settings_store.get("CA_USER_CONFIG")["a@x.de"], 30)
+    assert welt.bestellt == ["a@x.de"] and welt.mails == []
+
+
+def test_abnahme_zaehlt_notify_user_als_entschieden(monkeypatch):
+    import abnahme
+    werte = {"CA_USER_CONFIG": {"a@x.de": {"backend": "castle_acme", "notify_user": True},
+                                "b@x.de": {"backend": "castle_acme"}}}
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: werte.get(k))
+    p = abnahme._erneuerung_unentschieden()
+    assert "b@x.de" in p["befund"] and "a@x.de" not in p["befund"]

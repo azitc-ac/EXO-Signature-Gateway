@@ -537,7 +537,10 @@ def _automatisch_erneuern(adresse: str, provider_id: str) -> None:
     import settings_store
     cfg = dict(settings_store.get("CA_USER_CONFIG") or {})
     eintrag = dict(cfg.get(adresse) or {})
-    eintrag.setdefault("backend", provider_id)
+    # Bezugsweg = der Anbieter, über den gerade bestellt wurde. setdefault ließ
+    # einen alten, abweichenden stehen — verlängert hätte dann ein anderer
+    # Anbieter als der, der ausgestellt hat (Review 20.11.2026).
+    eintrag["backend"] = provider_id
     eintrag.setdefault("auto_renew", True)
     if eintrag != (cfg.get(adresse) or {}):
         cfg[adresse] = eintrag

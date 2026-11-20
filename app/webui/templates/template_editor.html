@@ -53,13 +53,13 @@
          (`kind` ist `usermail`).
        • Löschen hat hier einen ehrlicheren Namen: „Standard wiederherstellen". #}
     {% if not usermail_key %}
-    <button class="btn secondary" onclick="duplicateTemplate('{{ current_template }}')"
+    <button class="btn secondary" onclick="duplicateTemplate({{ current_template|tojson|forceescape }})"
             type="button" title="Kopie anlegen — samt Baukasten-Daten">Duplizieren</button>
     {% if current_template != 'default' %}
-    <button class="btn secondary" onclick="renameTemplate('{{ current_template }}')"
+    <button class="btn secondary" onclick="renameTemplate({{ current_template|tojson|forceescape }})"
             type="button" title="Vorlage umbenennen — Verweise ziehen mit">Umbenennen</button>
     <button class="btn danger" style="cursor:pointer"
-            onclick="deleteTemplate('{{ current_template }}')" type="button">Vorlage löschen</button>
+            onclick="deleteTemplate({{ current_template|tojson|forceescape }})" type="button">Vorlage löschen</button>
     {% endif %}
     {% endif %}
   </div>
@@ -170,7 +170,7 @@
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
     <label for="um-betreff" style="font-weight:600;white-space:nowrap">Betreff:</label>
     <input type="text" id="um-betreff" style="flex:1;min-width:260px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
-    <button class="btn secondary" type="button" onclick="usermailStandard('{{ u.key }}')"
+    <button class="btn secondary" type="button" onclick="usermailStandard({{ u.key|tojson|forceescape }})"
             title="Die mitgelieferte Fassung von Betreff und Text zurückholen">Standard wiederherstellen</button>
   </div>
 
@@ -2156,9 +2156,12 @@ window.neuAnlegen = async function() {
 // ── Vorlagen importieren / exportieren (vorlagen_paket.py) ──────────────────
 const VORLAGEN_GRUPPEN = {{ template_gruppen | tojson }};
 const ART_TEXT = {signatur: 'Signatur', banner: 'Banner', disclaimer: 'Disclaimer', oof: 'Abwesenheit'};
-let _importPaket = null;     // {vorlagen: [...]} aus /import/pruefen
+// Laufnummer der Prüfung: Wechselt die Datei schnell zweimal, darf eine ältere
+// Antwort die Tabelle nicht zuletzt füllen — sonst passte die Auswahl nicht zum
+// gesendeten Paket (UI-Review 20.11.2026).
+let _importLauf = 0;
 window.importOeffnen = function() {
-  _importPaket = null;
+  _importLauf++;
   document.getElementById('import-dateien').value = '';
   document.getElementById('import-tabelle').hidden = true;
   document.getElementById('import-uebersprungen').hidden = true;
@@ -2180,10 +2183,11 @@ window.importPruefen = async function() {
   tbody.innerHTML = '';
   _importKnopfStand();             // leere Tabelle → nichts zu importieren
   if (!document.getElementById('import-dateien').files.length) return;
+  const lauf = ++_importLauf;
   const d = await knopfAktion(null, 'Paket wird geprüft …', () => sendeFormular('/api/templates/import/pruefen', _importFormular()),
                               {anzeige: 'import-stand'});
+  if (lauf !== _importLauf) return;                         // inzwischen andere Datei gewählt
   if (!d.ok) { showMsg('import-stand', '✗ ' + errText(d), false); return; }
-  _importPaket = d;
   const brauchbar = d.vorlagen.filter(v => !v.fehler).length;
   showMsg('import-stand', d.vorlagen.length ? (brauchbar + ' von ' + d.vorlagen.length + ' importierbar') : 'Keine Vorlage im Paket.', brauchbar > 0);
   d.vorlagen.forEach((v, i) => tbody.appendChild(_importZeile(v, i)));
@@ -2232,12 +2236,14 @@ window.importAusfuehren = async function(btn) {
       : {aktion: 'ueberschreiben'};
   });
   const ueber = Object.keys(ent).filter(n => ent[n].aktion === 'ueberschreiben');
-  if (ueber.length && !confirm('Diese Vorlagen werden überschrieben (die bisherige Fassung bleibt als Sicherung): '
+  if (ueber.length && !confirm('Diese Vorlagen werden überschrieben (die bisherige Fassung — HTML, Text und Baukasten-Daten — bleibt als Sicherung): '
                                + ueber.map(vorlageAnzeige).join(', ') + '. Fortfahren?')) return;
   const fd = _importFormular();
   fd.append('entscheidungen', JSON.stringify(ent));
+  // Nach Erfolg bleibt der Knopf gesperrt: ein zweiter Klick überschriebe
+  // dieselben Vorlagen erneut. Eine neue Datei prüfen gibt ihn wieder frei.
   const d = await knopfAktion(btn, 'Wird importiert …', () => sendeFormular('/api/templates/import', fd),
-                              {anzeige: 'import-ergebnis'});
+                              {anzeige: 'import-ergebnis', gesperrtLassen: true});
   if (!d.ergebnis) { showMsg('import-ergebnis', '✗ ' + errText(d), false); return; }
   const gut = d.ergebnis.filter(e => e.ok);
   const schlecht = d.ergebnis.filter(e => !e.ok);

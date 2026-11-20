@@ -1024,7 +1024,7 @@ def test_self_reiter_vorschau_und_speichern_je_reiter(browser, server, breite):
     # Reiter Signatur
     pg.click("#r-sig")
     assert pg.is_visible("#p-sig") and not pg.is_visible("#p-abw")
-    pg.wait_for_selector("#sig-vorschau .sig-test", timeout=5000)
+    pg.frame_locator("#sig-vorschau iframe").locator(".sig-test").wait_for(timeout=5000)
     stempel = pg.evaluate("getComputedStyle(document.querySelector('#p-sig .muster'), '::after').content")
     assert "MUSTER" in stempel
     assert pg.evaluate("!document.querySelector('#sig-vorschau').closest('.muster')"), \
@@ -1032,7 +1032,7 @@ def test_self_reiter_vorschau_und_speichern_je_reiter(browser, server, breite):
     assert pg.is_visible("#sig-auch-oof"), "Hinweis „auch unter der Abwesenheitsnotiz“ fehlt"
     assert pg.is_disabled("#sig-speichern"), "Knopf ohne Änderung muss grau sein"
     pg.select_option("#sig-sel", "Lang")
-    pg.wait_for_function("document.querySelector('#sig-vorschau').textContent.includes('Lang')")
+    _vorschau_enthaelt(pg, "#sig-vorschau", "Lang")
     assert not pg.is_disabled("#sig-speichern")
     assert "Noch nicht gespeichert" in pg.text_content("#sig-hinweis")
     pg.select_option("#sig-sel", "__standard__")          # zurück zum gespeicherten Stand
@@ -1045,7 +1045,7 @@ def test_self_reiter_vorschau_und_speichern_je_reiter(browser, server, breite):
 
     # Reiter Antwort-Signatur: „— keine —“
     pg.click("#r-min")
-    pg.wait_for_selector("#min-vorschau .min-test", timeout=5000)
+    pg.frame_locator("#min-vorschau iframe").locator(".min-test").wait_for(timeout=5000)
     pg.select_option("#min-sel", "")
     pg.wait_for_selector("#min-vorschau .keine-sig", timeout=5000)
     pg.click("#min-speichern")
@@ -1070,6 +1070,17 @@ def test_self_reiter_vorschau_und_speichern_je_reiter(browser, server, breite):
     ctx.close()
 
 
+# Vorschauen auf /self stehen seit v1.12.132 in einem abgeschotteten Rahmen
+# (sig_preview.js): Text der Box samt Inhalt ihrer iframes.
+_VORSCHAU_TEXT = ("(sel) => { const b = document.querySelector(sel); if (!b) return '';"
+                  " let t = b.textContent; b.querySelectorAll('iframe').forEach(f => {"
+                  " try { t += f.contentDocument.body.textContent; } catch (e) {} }); return t; }")
+
+
+def _vorschau_enthaelt(pg, sel, text, timeout=5000):
+    pg.wait_for_function(f"({_VORSCHAU_TEXT})({sel!r}).includes({text!r})", timeout=timeout)
+
+
 @pytest.mark.parametrize("mit_sig,mit_ban,mit_disc",
                          [(True, False, True), (False, True, False), (False, False, False)])
 def test_self_abwesenheits_vorschau_wie_in_exchange(browser, server, mit_sig, mit_ban, mit_disc):
@@ -1078,8 +1089,8 @@ def test_self_abwesenheits_vorschau_wie_in_exchange(browser, server, mit_sig, mi
     — bis v1.9.161 immer alles, danach bis v1.10.60 nie den Disclaimer."""
     ctx, pg = _self_seite(browser, server, _self_kontext(
         oof_mit_signatur=mit_sig, oof_mit_banner=mit_ban, oof_mit_disclaimer=mit_disc), 393, [])
-    pg.wait_for_function("document.querySelector('#vorschau').textContent.includes('OOF')")
-    text = pg.text_content("#vorschau")
+    _vorschau_enthaelt(pg, "#vorschau", "OOF")
+    text = pg.evaluate(f"({_VORSCHAU_TEXT})('#vorschau')")
     assert ("SIG" in text) is mit_sig
     assert ("BAN" in text) is mit_ban
     assert ("DISC" in text) is mit_disc
@@ -1097,7 +1108,7 @@ def test_self_nur_ein_reiter_ohne_leiste(browser, server):
     assert not pg.is_visible("#reiter-leiste")
     assert pg.is_visible("#p-sig") and not pg.is_visible("#sig-block")
     assert pg.is_visible("#sig-fest") and not pg.is_visible("#sig-auch-oof")
-    pg.wait_for_selector("#sig-vorschau .sig-test", timeout=5000)
+    pg.frame_locator("#sig-vorschau iframe").locator(".sig-test").wait_for(timeout=5000)
     ctx.close()
 
 
@@ -2698,6 +2709,7 @@ def test_uebersicht_zeigt_nur_zeilen_die_hier_gelten(seite):
             assert weg not in z, weg
         assert pg.evaluate("() => !document.querySelector('th.col-py').getClientRects().length")
         assert pg.evaluate("groesseMb(15151.6)") == "14,8 GB" and pg.evaluate("groesseMb(512)") == "512 MB"
+        assert pg.evaluate("groesseMb(376 / 1024)") == "376 KB"
         pg.context.close()
         # Funktion an → Zeilen da; Vorjahr mit Daten → Spalte da
         settings_store.update({"ADDIN_ENABLED": True, "REINJECT_MODE": "graph_plus",
@@ -2714,3 +2726,23 @@ def test_uebersicht_zeigt_nur_zeilen_die_hier_gelten(seite):
     finally:
         stats.get_period = alt_period
         settings_store.update(vorher)
+
+
+def test_self_vorschau_fuehrt_kein_skript_aus(browser, server):
+    """Review 20.11.2026: /self setzte die gerenderte Signatur per innerHTML in die
+    Seite. Seit Vorlagen aus Paketen importiert werden (v1.12.123), liefe ein
+    <img onerror=…> darin im Ursprung der Oberfläche. Jetzt im abgeschotteten
+    Rahmen (sig_preview.js, sandbox ohne allow-scripts)."""
+    ctx, pg = _self_seite(browser, server, _self_kontext(), 393, [])
+    boese = '<p class="sig-test">SIG</p><img src="x" onerror="window.top.__xss=(window.top.__xss||0)+1">'
+    pg.unroute("**/api/self/preview*")
+    pg.route("**/api/self/preview*", lambda r: r.fulfill(json={
+        "ok": True, "oof_html": "<p>OOF</p>" + boese, "sig_html": boese, "banner_html": "", "disclaimer_html": "",
+        "neu": {"html": boese}, "antwort": {"html": boese}}))
+    pg.reload(wait_until="domcontentloaded")
+    pg.wait_for_selector("#inhalt:not([hidden])", timeout=10000)
+    pg.click("#r-sig")
+    _vorschau_enthaelt(pg, "#sig-vorschau", "SIG")          # gleich, ob im Rahmen oder in der Seite
+    pg.wait_for_timeout(800)
+    assert pg.evaluate("window.__xss || 0") == 0
+    ctx.close()

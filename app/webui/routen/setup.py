@@ -57,6 +57,16 @@ from webui.hilfen import (
 
 router = APIRouter()
 
+# Einrichtungsschritte mit PowerShell laufen seit v1.12.128 im Thread — zwei
+# Klicks (zwei Tabs, zwei Admins) liefen damit gleichzeitig an denselben
+# Connectoren und Regeln. Vorher serialisierte sie ungewollt die blockierte
+# Ereignisschleife (Review 20.11.2026). Je Schritt eine Sperre.
+_SCHRITT_SPERREN: dict[str, asyncio.Lock] = {}
+
+
+def _schritt_sperre(name: str) -> asyncio.Lock:
+    return _SCHRITT_SPERREN.setdefault(name, asyncio.Lock())
+
 def _addin_url_warning(base_url: str) -> str:
     """Return a warning string if the URL is unlikely to be publicly reachable, else ''."""
     from urllib.parse import urlparse
@@ -445,13 +455,17 @@ async def api_setup_exo_connector(request: Request, user: str = Depends(_require
 
     reinject_mode = settings_store.reinject_mode()
     skip_inbound = reinject_mode in ("graph", "graph_plus")
-    result = await asyncio.to_thread(  # PowerShell-Sitzung: nicht in der Ereignisschleife
-        setup_wizard.run_exo_connector_setup,
-        app_id=app_id,
-        tenant_domain=tenant_domain,
-        smtp_proxy_hostname=hostname,
-        skip_inbound_connector=skip_inbound,
-    )
+    sperre = _schritt_sperre('run_exo_connector_setup')
+    if sperre.locked():
+        raise HTTPException(409, "Dieser Schritt läuft bereits — bitte warten.")
+    async with sperre:
+        result = await asyncio.to_thread(  # PowerShell-Sitzung: nicht in der Ereignisschleife
+            setup_wizard.run_exo_connector_setup,
+            app_id=app_id,
+            tenant_domain=tenant_domain,
+            smtp_proxy_hostname=hostname,
+            skip_inbound_connector=skip_inbound,
+        )
     if result["ok"]:
         return JSONResponse({"ok": True, "output": result["output"]})
     raise HTTPException(500, result["output"])
@@ -509,11 +523,15 @@ async def api_setup_smime_rules(request: Request, user: str = Depends(_require_a
     if missing:
         raise HTTPException(400, f"Fehlende Konfiguration: {', '.join(missing)}")
 
-    result = await asyncio.to_thread(  # PowerShell-Sitzung: nicht in der Ereignisschleife
-        setup_wizard.run_smime_rules_setup,
-        app_id=app_id,
-        tenant_domain=tenant_domain,
-    )
+    sperre = _schritt_sperre('run_smime_rules_setup')
+    if sperre.locked():
+        raise HTTPException(409, "Dieser Schritt läuft bereits — bitte warten.")
+    async with sperre:
+        result = await asyncio.to_thread(  # PowerShell-Sitzung: nicht in der Ereignisschleife
+            setup_wizard.run_smime_rules_setup,
+            app_id=app_id,
+            tenant_domain=tenant_domain,
+        )
     if result["ok"]:
         return JSONResponse({"ok": True, "output": result["output"]})
     raise HTTPException(500, result["output"])
@@ -535,11 +553,15 @@ async def api_setup_imap_access(request: Request, user: str = Depends(_require_a
     if missing:
         raise HTTPException(400, f"Fehlende Konfiguration: {', '.join(missing)}")
 
-    result = await asyncio.to_thread(  # PowerShell-Sitzung: nicht in der Ereignisschleife
-        setup_wizard.run_imap_access_setup,
-        app_id=app_id,
-        tenant_domain=tenant_domain,
-    )
+    sperre = _schritt_sperre('run_imap_access_setup')
+    if sperre.locked():
+        raise HTTPException(409, "Dieser Schritt läuft bereits — bitte warten.")
+    async with sperre:
+        result = await asyncio.to_thread(  # PowerShell-Sitzung: nicht in der Ereignisschleife
+            setup_wizard.run_imap_access_setup,
+            app_id=app_id,
+            tenant_domain=tenant_domain,
+        )
     if result["ok"]:
         return JSONResponse({"ok": True, "output": result["output"]})
     raise HTTPException(500, result["output"])

@@ -61,3 +61,34 @@ def test_keine_async_route_ruft_powershell_direkt():
                         and (f.value.id.lstrip("_"), f.attr) in blockierend:
                     treffer.append(f"{p.name}:{c.lineno} {fn.name}() ruft {f.value.id}.{f.attr}() direkt")
     assert not treffer, "Mit asyncio.to_thread auslagern:\n" + "\n".join(treffer)
+
+
+def test_einrichtungsschritt_laeuft_nicht_doppelt(monkeypatch):
+    """Review 20.11.: Mit to_thread liefen zwei Klicks gleichzeitig an denselben
+    Exchange-Regeln. Der zweite bekommt jetzt 409."""
+    import asyncio
+    import sys
+    import time
+    sys.path.insert(0, str(APP))
+    import settings_store
+    import setup_wizard
+    from fastapi import HTTPException
+    from webui.routen import setup as route
+    werte = {"CLIENT_ID": "x", "TENANT_DOMAIN": "firma.at"}
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: werte.get(k))
+    laeufe = []
+
+    def langsam(**kw):
+        laeufe.append(1)
+        time.sleep(0.4)
+        return {"ok": True, "output": "ok"}
+    monkeypatch.setattr(setup_wizard, "run_smime_rules_setup", langsam)
+
+    async def zwei():
+        class R:
+            async def json(self): return {}
+        return await asyncio.gather(route.api_setup_smime_rules(R(), "admin"),
+                                    route.api_setup_smime_rules(R(), "admin"), return_exceptions=True)
+    erg = asyncio.run(zwei())
+    assert len(laeufe) == 1
+    assert sum(isinstance(e, HTTPException) and e.status_code == 409 for e in erg) == 1
