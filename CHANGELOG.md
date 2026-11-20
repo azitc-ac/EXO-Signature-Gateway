@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.119 — 2026-11-20 — Testerwartung an die neuen Mehrzahlformen angepasst
+
+Ein Test der Add-in-Verteilung prüfte noch den alten Wortlaut
+„2 Postfach/Postfächer“ aus der Abnahme (geändert in v1.12.118). Keine Änderung
+am Verhalten.
+
+**Zu tun:** nichts.
+
 ## v1.12.118 — 2026-11-20 — Abnahme und Aufgaben: echte Einzahl und Mehrzahl
 
 Befunde in *Abnahme* und im Sammelpunkt *Offene Aufgaben* lauteten etwa

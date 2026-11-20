@@ -118,7 +118,7 @@ def test_c_nach_72_stunden_offen_mit_zuweisung(stand, monkeypatch):
     assert p["zustand"] == abnahme.OFFEN
     assert "Zuweisung" in p["zu_tun"] or "Jeder" in p["zu_tun"]
     assert "Aktualisieren" not in p["zu_tun"]
-    assert "2 Postfach" in p["befund"]                      # alt + nicht installiert
+    assert "2 Postfächer ohne neue Fassung" in p["befund"]                      # alt + nicht installiert
     # Postfachprüfung nach Ablauf: Warnung mit dem Zuweisungsweg.
     r = health_check._check_addins({VERF: "1.10.31", KNOPF: "1.9.163"})["verfassen"]
     assert r["status"] == "warn" and "Zuweisung" in r["detail"]
