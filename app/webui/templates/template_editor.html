@@ -38,6 +38,10 @@
       {% endfor %}
     </select>
     <button class="btn secondary" onclick="createNewTemplate()" type="button">+ Neue Vorlage</button>
+    <button class="btn secondary" onclick="importOeffnen()" type="button" id="import-knopf"
+            title="Vorlagen aus einem ZIP oder einzelnen Dateien übernehmen — mit Auswahl, nichts wird still überschrieben">Importieren …</button>
+    <button class="btn secondary" onclick="exportOeffnen()" type="button" id="export-knopf"
+            title="Ausgewählte Vorlagen als ZIP herunterladen (zum Import in ein anderes Gateway)">Exportieren …</button>
     {# Kopieren, Umbenennen und Löschen gibt es für Nachrichten an
        Postfachinhaber NICHT — nicht aus Vorsicht, sondern weil jedes davon
        etwas kaputtmacht:
@@ -107,6 +111,53 @@
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn secondary" type="button" onclick="neuSchliessen()">Abbrechen</button>
       <button class="btn secondary" type="button" onclick="neuAnlegen()">Anlegen</button>
+    </div>
+  </div>
+</div>
+
+{# Dialog „Vorlagen importieren“ (vorlagen_paket.py, seit v1.12.123): erst
+   prüfen (schreibt nichts), dann je Vorlage entscheiden. Gleiche Namen werden
+   NIE still überschrieben — Vorgabe ist Umbenennen mit freiem Namen. #}
+<div id="import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center">
+  <div class="settings-card" style="max-width:760px;width:94%;max-height:90vh;overflow-y:auto;background:#fff">
+    <h3 style="margin-top:0">Vorlagen importieren</h3>
+    <p class="hint" style="margin:0 0 10px">Ein ZIP (wie aus „Exportieren“ oder einem Backup) oder einzelne Dateien
+      <code>Name.html</code>, <code>Name.txt</code>, <code>Name.meta.json</code>. Erst nach der Auswahl wird etwas gespeichert.</p>
+    <input type="file" id="import-dateien" multiple accept=".zip,.html,.txt,.json" onchange="importPruefen()">
+    <span id="import-stand" class="field-msg" style="display:block;margin:6px 0"></span>
+    <div class="tabellen-rollbereich">
+    <table id="import-tabelle" hidden style="width:100%;border-collapse:collapse;font-size:12px;min-width:520px">
+      <thead><tr style="border-bottom:2px solid #e2e8f0">
+        <th style="text-align:left;padding:4px 6px;width:24px"></th>
+        <th style="text-align:left;padding:4px 6px">Vorlage</th>
+        <th style="text-align:left;padding:4px 6px">Art</th>
+        <th style="text-align:left;padding:4px 6px">Im Gateway</th>
+      </tr></thead>
+      <tbody id="import-tbody"></tbody>
+    </table>
+    </div>
+    <ul id="import-uebersprungen" class="hint" hidden style="margin:8px 0 0;padding-left:18px"></ul>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
+      <span id="import-ergebnis" class="field-msg" style="flex:1 1 200px;margin:0"></span>
+      <button class="btn secondary" type="button" onclick="importSchliessen()">Schliessen</button>
+      <button class="btn secondary" type="button" id="import-los" disabled onclick="importAusfuehren(this)">Importieren</button>
+    </div>
+  </div>
+</div>
+
+{# Dialog „Vorlagen exportieren“: Auswahl → ZIP im Importformat. #}
+<div id="export-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center">
+  <div class="settings-card" style="max-width:520px;width:94%;max-height:90vh;overflow-y:auto;background:#fff">
+    <h3 style="margin-top:0">Vorlagen exportieren</h3>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button class="btn secondary btn-sm" type="button" onclick="exportAlle(true)">Alle</button>
+      <button class="btn secondary btn-sm" type="button" onclick="exportAlle(false)">Keine</button>
+    </div>
+    <div id="export-liste"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
+      <span id="export-stand" class="field-msg" style="flex:1 1 200px;margin:0"></span>
+      <button class="btn secondary" type="button" onclick="document.getElementById('export-modal').style.display='none'">Schliessen</button>
+      <button class="btn secondary" type="button" id="export-los" onclick="exportAusfuehren(this)">Herunterladen</button>
     </div>
   </div>
 </div>
@@ -2101,6 +2152,125 @@ window.neuAnlegen = async function() {
   const d = await postJSON('/api/templates/' + encodeURIComponent(safe) + '/create', {kind: kind});
   if (!d.ok) { zeige('Fehler: ' + (d.detail || d.error || 'Unbekannt')); return; }
   window.location.href = '/template?name=' + encodeURIComponent(d.name);
+};
+// ── Vorlagen importieren / exportieren (vorlagen_paket.py) ──────────────────
+const VORLAGEN_GRUPPEN = {{ template_gruppen | tojson }};
+const ART_TEXT = {signatur: 'Signatur', banner: 'Banner', disclaimer: 'Disclaimer', oof: 'Abwesenheit'};
+let _importPaket = null;     // {vorlagen: [...]} aus /import/pruefen
+window.importOeffnen = function() {
+  _importPaket = null;
+  document.getElementById('import-dateien').value = '';
+  document.getElementById('import-tabelle').hidden = true;
+  document.getElementById('import-uebersprungen').hidden = true;
+  document.getElementById('import-los').disabled = true;
+  showMsg('import-stand', '', true);
+  showMsg('import-ergebnis', '', true);
+  document.getElementById('import-modal').style.display = 'flex';
+};
+window.importSchliessen = function() {
+  document.getElementById('import-modal').style.display = 'none';
+};
+function _importFormular() {
+  const fd = new FormData();
+  Array.from(document.getElementById('import-dateien').files).forEach(f => fd.append('dateien', f, f.name));
+  return fd;
+}
+window.importPruefen = async function() {
+  const tbody = document.getElementById('import-tbody');
+  tbody.innerHTML = '';
+  _importKnopfStand();             // leere Tabelle → nichts zu importieren
+  if (!document.getElementById('import-dateien').files.length) return;
+  const d = await knopfAktion(null, 'Paket wird geprüft …', () => sendeFormular('/api/templates/import/pruefen', _importFormular()),
+                              {anzeige: 'import-stand'});
+  if (!d.ok) { showMsg('import-stand', '✗ ' + errText(d), false); return; }
+  _importPaket = d;
+  const brauchbar = d.vorlagen.filter(v => !v.fehler).length;
+  showMsg('import-stand', d.vorlagen.length ? (brauchbar + ' von ' + d.vorlagen.length + ' importierbar') : 'Keine Vorlage im Paket.', brauchbar > 0);
+  d.vorlagen.forEach((v, i) => tbody.appendChild(_importZeile(v, i)));
+  document.getElementById('import-tabelle').hidden = !d.vorlagen.length;
+  const ub = document.getElementById('import-uebersprungen');
+  ub.innerHTML = d.uebersprungen.map(u => '<li>Übersprungen: <code>' + esc(u.datei) + '</code> — ' + esc(u.grund) + '</li>').join('');
+  ub.hidden = !d.uebersprungen.length;
+  _importKnopfStand();
+};
+function _importZeile(v, i) {
+  const tr = document.createElement('tr');
+  tr.dataset.name = v.name;
+  const an = '<input type="checkbox" class="import-an" aria-label="' + escAttr(vorlageAnzeige(v.name)) + ' importieren"'
+    + (v.fehler ? ' disabled' : ' checked') + ' onchange="_importKnopfStand()">';
+  let status;
+  if (v.fehler) status = '<span class="field-msg" data-state="err" style="margin:0">' + esc(v.fehler) + '</span>';
+  else if (!v.vorhanden) status = 'neu';
+  else status = '<select class="import-aktion" style="font-size:12px" onchange="_importAktion(this)">'
+      + '<option value="umbenennen">gibt es schon — umbenennen in:</option>'
+      + (v.reserviert ? '' : '<option value="ueberschreiben">gibt es schon — überschreiben</option>')
+      + '</select> <input type="text" class="import-ziel" value="' + escAttr(v.vorschlag || '') + '" '
+      + 'autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:12px;width:140px">';
+  tr.innerHTML = '<td style="padding:4px 6px">' + an + '</td>'
+    + '<td style="padding:4px 6px"><strong>' + esc(vorlageAnzeige(v.name)) + '</strong>'
+    + '<br><span class="hint" style="margin:0">' + esc(v.dateien.join(', ')) + (v.baukasten ? '' : ' — ohne Baukasten-Daten') + '</span></td>'
+    + '<td style="padding:4px 6px">' + esc(ART_TEXT[v.art] || v.art) + '</td>'
+    + '<td style="padding:4px 6px">' + status + '</td>';
+  return tr;
+}
+window._importAktion = function(sel) {
+  const ziel = sel.parentNode.querySelector('.import-ziel');
+  if (ziel) ziel.hidden = sel.value !== 'umbenennen';
+};
+window._importKnopfStand = function() {
+  document.getElementById('import-los').disabled = !document.querySelector('#import-tbody .import-an:checked');
+};
+window.importAusfuehren = async function(btn) {
+  const ent = {};
+  document.querySelectorAll('#import-tbody tr').forEach(tr => {
+    const an = tr.querySelector('.import-an');
+    if (!an || !an.checked) return;
+    const sel = tr.querySelector('.import-aktion');
+    if (!sel) { ent[tr.dataset.name] = {aktion: 'neu'}; return; }
+    ent[tr.dataset.name] = sel.value === 'umbenennen'
+      ? {aktion: 'umbenennen', ziel: tr.querySelector('.import-ziel').value.trim()}
+      : {aktion: 'ueberschreiben'};
+  });
+  const ueber = Object.keys(ent).filter(n => ent[n].aktion === 'ueberschreiben');
+  if (ueber.length && !confirm('Diese Vorlagen werden überschrieben (die bisherige Fassung bleibt als Sicherung): '
+                               + ueber.map(vorlageAnzeige).join(', ') + '. Fortfahren?')) return;
+  const fd = _importFormular();
+  fd.append('entscheidungen', JSON.stringify(ent));
+  const d = await knopfAktion(btn, 'Wird importiert …', () => sendeFormular('/api/templates/import', fd),
+                              {anzeige: 'import-ergebnis'});
+  if (!d.ergebnis) { showMsg('import-ergebnis', '✗ ' + errText(d), false); return; }
+  const gut = d.ergebnis.filter(e => e.ok);
+  const schlecht = d.ergebnis.filter(e => !e.ok);
+  showMsg('import-ergebnis', (gut.length ? '✓ Importiert: ' + gut.map(e => vorlageAnzeige(e.ziel)).join(', ') + '. ' : '')
+    + (schlecht.length ? '✗ Nicht importiert: ' + schlecht.map(e => vorlageAnzeige(e.name) + ' (' + e.meldung + ')').join(', ') : '')
+    + (gut.length ? ' Die Vorlagenliste aktualisiert sich beim nächsten Öffnen der Seite.' : ''), !schlecht.length);
+};
+window.exportOeffnen = function() {
+  const liste = document.getElementById('export-liste');
+  let html = '';
+  Object.keys(VORLAGEN_GRUPPEN).forEach(art => {
+    const namen = VORLAGEN_GRUPPEN[art] || [];
+    if (!namen.length || !ART_TEXT[art]) return;
+    html += '<div style="font-weight:600;font-size:12px;margin:8px 0 2px">' + esc(ART_TEXT[art]) + '</div>';
+    namen.forEach(n => {
+      html += '<label class="checkbox-label" style="display:block;font-size:13px"><input type="checkbox" class="export-an" value="'
+        + escAttr(n) + '" checked> ' + esc(vorlageAnzeige(n)) + '</label>';
+    });
+  });
+  liste.innerHTML = html;
+  showMsg('export-stand', '', true);
+  document.getElementById('export-modal').style.display = 'flex';
+};
+window.exportAlle = function(an) {
+  document.querySelectorAll('#export-liste .export-an').forEach(c => { c.checked = an; });
+};
+window.exportAusfuehren = async function(btn) {
+  const namen = Array.from(document.querySelectorAll('#export-liste .export-an:checked')).map(c => c.value);
+  if (!namen.length) { showMsg('export-stand', 'Bitte mindestens eine Vorlage wählen.', false); return; }
+  const d = await knopfAktion(btn, 'ZIP wird erstellt …',
+    () => dateiHerunterladen('/api/templates/export?namen=' + encodeURIComponent(namen.join(',')), 'vorlagen.zip'),
+    {anzeige: 'export-stand'});
+  showMsg('export-stand', d.ok ? '✓ ' + namen.length + (namen.length === 1 ? ' Vorlage' : ' Vorlagen') + ' heruntergeladen (' + d.name + ').' : '✗ ' + errText(d), d.ok);
 };
 // Kopieren ueber die Schnittstelle, nicht ueber den Quelltext: der HTML-Code
 // ist das ERZEUGNIS des Baukastens, die Blockliste (.meta.json) ist die Quelle.

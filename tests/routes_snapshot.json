@@ -1960,6 +1960,13 @@
     "name": "api_smime_wartend_freigeben"
   },
   {
+    "pfad": "/api/smime/widerrufen/{cert_email}/{slot_id}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_widerrufen"
+  },
+  {
     "pfad": "/api/smtp-acl/refresh",
     "methoden": [
       "POST"
@@ -2091,6 +2098,27 @@
       "GET"
     ],
     "name": "api_get_templates"
+  },
+  {
+    "pfad": "/api/templates/export",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_templates_export"
+  },
+  {
+    "pfad": "/api/templates/import",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_templates_import"
+  },
+  {
+    "pfad": "/api/templates/import/pruefen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_templates_import_pruefen"
   },
   {
     "pfad": "/api/templates/textfassung",

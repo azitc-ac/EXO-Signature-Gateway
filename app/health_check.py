@@ -563,7 +563,8 @@ def _check_smime_key(email: str) -> dict:
     """Check whether a signing key is available (local, backup, or Key Vault)."""
     import smime_store
     try:
-        paths = smime_store.get_signing_paths(email, allow_backup=True)
+        # Signierfähig = ein nicht widerrufenes Zertifikat mit Schlüssel.
+        paths = smime_store.get_signing_paths(email, allow_backup=True, nur_unwiderrufen=True)
     except Exception as exc:
         return _make_result("error", f"Fehler: {exc}")
 

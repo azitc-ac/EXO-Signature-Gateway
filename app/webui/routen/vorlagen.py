@@ -21,8 +21,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 import config
 import settings_store
@@ -490,6 +490,65 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
     return {"ok": True, "html": html_content,
             "txt": signature_engine.textfassung_quelle(fname)[0],
             "text_eigen": meta["text_eigen"]}
+
+async def _paket_lesen(dateien: list[UploadFile]) -> list[tuple[str, bytes]]:
+    """Hochgeladene Dateien begrenzt lesen (nie unbegrenzt in den Speicher)."""
+    import vorlagen_paket as vp
+    roh: list[tuple[str, bytes]] = []
+    for f in dateien[: vp.MAX_DATEIEN + 1]:
+        inhalt = await f.read(vp.MAX_GESAMT + 1)
+        if len(inhalt) > vp.MAX_GESAMT:
+            raise HTTPException(400, f"{f.filename}: zu gross.")
+        roh.append((f.filename or "", inhalt))
+    try:
+        return vp.eingaben_aus_upload(roh)
+    except vp.PaketFehler as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.post("/api/templates/import/pruefen")
+async def api_templates_import_pruefen(dateien: list[UploadFile] = File(...), _=Depends(_check_auth)):
+    """Paket prüfen, NICHTS schreiben: welche Vorlagen darin sind, welche es
+    schon gibt, welche fehlerhaft sind. Grundlage für die Auswahl."""
+    import vorlagen_paket as vp
+    ergebnis = vp.lesen(await _paket_lesen(dateien))
+    belegt: set[str] = set()
+    for v in ergebnis["vorlagen"]:
+        if v["vorhanden"] and not v["fehler"]:
+            v["vorschlag"] = vp.freier_name(v["name"], belegt)
+            belegt.add(v["vorschlag"].lower())
+    return {"ok": True, **ergebnis}
+
+
+@router.post("/api/templates/import")
+async def api_templates_import(dateien: list[UploadFile] = File(...), entscheidungen: str = Form(...),
+                               _=Depends(_check_auth)):
+    """Ausgewählte Vorlagen importieren. Dasselbe Paket wie beim Prüfen, dazu je
+    Vorlage die Entscheidung (neu / umbenennen / überschreiben / auslassen)."""
+    import vorlagen_paket as vp
+    try:
+        ent = _json_mod.loads(entscheidungen)
+    except ValueError:
+        raise HTTPException(400, "Entscheidungen sind kein gültiges JSON")
+    if not isinstance(ent, dict):
+        raise HTTPException(400, "Entscheidungen: Objekt je Vorlagenname erwartet")
+    ergebnis = vp.importieren(await _paket_lesen(dateien), ent, _)
+    return {"ok": all(e["ok"] for e in ergebnis["ergebnis"]), **ergebnis}
+
+
+@router.get("/api/templates/export")
+async def api_templates_export(namen: str = "", _=Depends(_check_auth)):
+    """Ausgewählte Vorlagen (kommagetrennt) als ZIP im Importformat."""
+    import vorlagen_paket as vp
+    liste = [n.strip() for n in namen.split(",") if n.strip()]
+    if not liste:
+        raise HTTPException(400, "Keine Vorlage gewählt")
+    daten = vp.exportieren(liste)
+    stempel = datetime.now().strftime("%Y%m%d-%H%M")
+    log.info("Vorlagen exportiert (%d) von %s", len(liste), _)
+    return Response(daten, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="vorlagen-{stempel}.zip"'})
+
 
 @router.post("/api/templates/textfassung")
 async def api_textfassung(request: Request, _=Depends(_check_auth)):

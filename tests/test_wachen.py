@@ -257,6 +257,10 @@ EDITOR_DARF: dict[str, str] = {
     "/api/templates/{name}/create":     "Vorlage anlegen",
     "/api/templates/{name}/duplicate":  "Vorlage kopieren",
     "/api/templates/{name}/rename":     "Vorlage umbenennen",
+    "/api/templates/import/pruefen":    "Vorlagenpaket prüfen (schreibt nichts)",
+    "/api/templates/import":            ("Vorlagen importieren — wer Vorlagen anlegen und "
+                                         "überschreiben darf, darf sie auch aus einem Paket übernehmen"),
+    "/api/templates/export":            "Vorlagen als ZIP herunterladen",
     "/api/usermails":                   "Liste der Nachrichten an Postfachinhaber",
     "/api/usermails/{schluessel}/standard": ("mitgelieferte Fassung wiederherstellen — "
                                              "wer den Text ändern darf, muss ihn auch "
