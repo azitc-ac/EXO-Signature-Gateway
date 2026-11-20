@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.124 — 2026-11-20 — Vorlagen importieren/exportieren: Knöpfe in der üblichen Farbe
+
+Die Knöpfe „Importieren“ und „Herunterladen“ in den Dialogen aus v1.12.123 waren
+blau, eine Farbe, die Schritten eines Ablaufs vorbehalten ist. Sie sind jetzt
+grau wie die übrigen Knöpfe der Seite.
+
+**Zu tun:** nichts.
+
 ## v1.12.123 — 2026-11-20 — Vorlagen importieren und exportieren
 
 Unter *Signaturen → Vorlagen* stehen neben „+ Neue Vorlage“ zwei neue Knöpfe,
