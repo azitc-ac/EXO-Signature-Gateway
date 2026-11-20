@@ -2438,10 +2438,18 @@ def test_postfachzeile_auswahlen_auf_einer_linie(seite):
                 anzahl: sels.length,
                 tops: sels.map(s => Math.round(s.getBoundingClientRect().top)),
                 selMitte: mitte(sels[0].getBoundingClientRect()),
+                innen: sels.map(s => { const c = getComputedStyle(s);
+                    return [s.getBoundingClientRect().height - parseFloat(c.paddingTop) - parseFloat(c.paddingBottom)
+                            - parseFloat(c.borderTopWidth) - parseFloat(c.borderBottomWidth), parseFloat(c.fontSize)]; }),
                 kaestchen: Array.from(tr.querySelectorAll('input.mb-sig, input.mb-smime'))
                     .map(c => mitte(c.getBoundingClientRect()))}; }""")
     assert m["ausnahmen"] >= 1 and m["anzahl"] - m["ausnahmen"] >= 1, m   # beide Fälle in der Zeile
     assert max(m["tops"]) - min(m["tops"]) <= 1, m
+    # Unterstrich und Unterlängen (g, p, y) dürfen nicht abgeschnitten sein: Die
+    # feste Höhe mit dem globalen Innenabstand (7 px) liess v1.12.120 nur 14 px
+    # Platz für 12-px-Schrift — „Mit_Logo“ erschien als „Mit Logo“.
+    for innen, schrift in m["innen"]:
+        assert innen >= schrift * 1.4, m["innen"]
     for k in m["kaestchen"]:
         assert abs(k - m["selMitte"]) <= 2, m
     pg.context.close()
@@ -2531,4 +2539,25 @@ def test_postfachfilter_bleiben_nach_neuladen(seite):
     pg.wait_for_load_state("networkidle")
     assert pg.input_value("#mb-sig-filter") == ""
     assert not pg.is_checked("#mb-ausnahme-filter")
+    pg.context.close()
+
+
+def test_gruppenregel_beschriftung_auf_hoehe_der_auswahl_schmal(seite):
+    """393 px: Ist die Add-in-Liste („▶ Alle“) aufgeklappt, stand die Beschriftung
+    „Add-in-Auswahl“ mittig neben dem ganzen Block statt neben ihrer Auswahl."""
+    pg = seite("/mailboxes", breite=393)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      _groups = {'UserMBX': ['a']};
+      _customPolicies = [{condition_type: 'group', group_name: 'UserMBX', vorlagen: {addin: '*'}}];
+      _renderCustomPoliciesTable();
+      document.querySelectorAll('.cpol-karte details').forEach(d => d.open = true); }""")
+    m = pg.evaluate("""() => Array.from(document.querySelectorAll('.cpol-karte .cpol-zeile'))
+        .filter(z => z.offsetParent && z.querySelector('select')).map(z => {
+          const l = z.querySelector(':scope > label').getBoundingClientRect();
+          const s = z.querySelector('select').getBoundingClientRect();
+          return [z.dataset.slot, Math.round((l.top + l.bottom) / 2 - (s.top + s.bottom) / 2)]; })""")
+    assert any(slot == "addin" for slot, _ in m), m
+    for slot, abstand in m:
+        assert abs(abstand) <= 4, m
     pg.context.close()
