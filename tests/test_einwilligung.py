@@ -216,7 +216,9 @@ def test_verlaengerung_fragt_statt_still_zu_scheitern(ablage, monkeypatch):
     monkeypatch.setattr(notification, "send_renewal_notification_to_user",
                         lambda **kw: pytest.fail("Upload-Mail statt Einwilligungsanfrage"))
     scheduler._send_user_renewal_notification(
-        "a@x.de", {}, {"backend": "castle_acme", "auto_renew": True, "notify_user": True}, 14)
+        "a@x.de", {}, {"backend": "castle_acme", "auto_renew": True, "notify_user": True}, 1)
+    # Schwelle 1 = letzte: seit v1.12.116 wird bei früheren Schwellen erst
+    # angekündigt (erneuerung_vorankuendigung), bestellt erst danach.
     assert angefragt == ["verlaengerung"]
 
 

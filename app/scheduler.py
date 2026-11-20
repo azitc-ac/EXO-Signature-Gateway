@@ -222,6 +222,31 @@ def _erneuerung_starten(coro, timeout: float = 180):
     return asyncio.run(_samt_folgeaufgaben(coro))
 
 
+def _erst_ankuendigen(email: str, cert_info: dict, backend, threshold: int) -> bool:
+    """Vor einer automatischen Verlängerung: erst ankündigen (mit Link zum
+    Abwählen), bei der NÄCHSTEN Schwelle bestellen. True = heute nur angekündigt,
+    nicht bestellen. Ohne nächste Schwelle (letzte bzw. einzige) bleibt kein
+    Zeitfenster — dann wird ohne Ankündigung bestellt. erneuerung_vorankuendigung.py."""
+    import erneuerung_vorankuendigung as ev
+    stufen = sorted({int(t) for t in (settings_store.get("CERT_RENEWAL_THRESHOLDS") or [30, 14, 7, 1])})
+    naechste = [t for t in stufen if t < threshold]
+    e = ev.eintrag(email, cert_info.get("expiry", ""))
+    if e is not None:
+        # Schon angekündigt: bestellt wird erst ab der gemerkten Schwelle. Der
+        # Merker je Schwelle (_user_notif_sent) liegt nur im Speicher — nach
+        # einem Neustart käme derselbe Tag wieder hier an und hätte ohne diese
+        # Prüfung sofort bestellt, die Frist zum Abwählen wäre weg.
+        return threshold > int(e.get("bestellen_bei") or 0)
+    if not naechste:
+        return False
+    try:
+        anbieter = backend.get_label()
+    except Exception:                                        # noqa: BLE001
+        anbieter = ""
+    ev.ankuendigen(email, cert_info, anbieter, max(naechste))
+    return True
+
+
 def _send_user_renewal_notification(
     email: str,
     cert_info: dict,
@@ -257,10 +282,14 @@ def _send_user_renewal_notification(
             settings_store.get("MAILBOX_CONFIG") or {}, email).get("smime")
         if not smime_active:
             log.warning("scheduler: skipping auto-renewal for %s — S/MIME deactivated", email)
+        elif _erst_ankuendigen(email, cert_info, backend, threshold):
+            return
         else:
             try:
                 _erneuerung_starten(backend.initiate_renewal(email, user_cfg))
                 log.info("scheduler: auto-renewal initiated for %s via %s", email, backend_name)
+                import erneuerung_vorankuendigung
+                erneuerung_vorankuendigung.erledigt(email)
                 return
             except NotImplementedError:
                 log.info("scheduler: %s auto-renewal not implemented", backend_name)

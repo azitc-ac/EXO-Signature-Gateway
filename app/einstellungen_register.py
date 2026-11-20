@@ -157,6 +157,7 @@ REGISTER: dict[str, E] = {
     "NOTIFICATION_MAILBOX": E(art=OPTION, ort="settings.html"),
     "NOTIFICATION_RECIPIENTS": E(art=STRUKTUR, ort="settings.html"),
     "NOTIFY_CERT_RENEWAL": E(art=OPTION, ort="settings.html"),
+    "NOTIFY_RENEWAL_NOTICE": E(art=OPTION, ort="settings.html"),
     "NOTIFY_CERT_WAITING": E(art=OPTION, ort="settings.html"),
     "NOTIFY_LE_EVENTS": E(art=OPTION, ort="settings.html"),
     "NOTIFY_LOCAL_ADMIN_LOGIN": E(art=OPTION, ort="settings.html"),

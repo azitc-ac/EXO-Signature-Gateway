@@ -692,6 +692,30 @@ async def einwilligung_antwort(request: Request, token: str):
     return _einwilligung_seite(request, "zugestimmt", email=a["email"])
 
 
+@router.get("/erneuerung/abwahl/{token}", response_class=HTMLResponse)
+async def erneuerung_abwahl_seite(request: Request, token: str):
+    """Link aus der Ankündigung der automatischen Verlängerung
+    (erneuerung_vorankuendigung.py). ⚠️ GET ändert nichts — Mail-Scanner öffnen
+    Links vorab; abgeschaltet wird nur per POST."""
+    import erneuerung_vorankuendigung as ev
+    e = ev.abwahl_lesen(token)
+    if not e:
+        return templates.TemplateResponse(request=request, name="erneuerung_abwahl.html",
+                                          context={"zustand": "ungueltig"})
+    return templates.TemplateResponse(request=request, name="erneuerung_abwahl.html", context={
+        "zustand": "frage", "token": token, "email": e["email"], "ablauf": e.get("ablauf", ""),
+        "ab": e.get("bestellung_ab", ""), "anbieter": e.get("anbieter", "")})
+
+
+@router.post("/erneuerung/abwahl/{token}", response_class=HTMLResponse)
+async def erneuerung_abwahl(request: Request, token: str):
+    """Automatische Verlängerung für das Postfach abschalten (einmalig)."""
+    import erneuerung_vorankuendigung as ev
+    e = ev.abwahl_ausfuehren(token)
+    return templates.TemplateResponse(request=request, name="erneuerung_abwahl.html", context={
+        "zustand": "abgeschaltet" if e else "ungueltig", "email": (e or {}).get("email", "")})
+
+
 @router.post("/api/smime/keyvault/migrate/{email}")
 async def api_keyvault_migrate(email: str, _: str = Depends(_require_admin)):
     """Migrate active S/MIME private key slot to Azure Key Vault."""

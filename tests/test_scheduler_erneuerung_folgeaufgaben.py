@@ -56,7 +56,8 @@ def umgebung(monkeypatch):
 
 def _erneuern():
     scheduler._send_user_renewal_notification(
-        "a@x.de", {}, {"backend": "castle_acme", "auto_renew": True, "notify_user": True}, 30)
+        "a@x.de", {}, {"backend": "castle_acme", "auto_renew": True, "notify_user": True}, 1)
+    # Schwelle 1 = letzte: dort wird ohne Ankündigung bestellt (erneuerung_vorankuendigung).
 
 
 def test_folgeaufgabe_laeuft_in_der_schleife_der_weboberflaeche(umgebung):

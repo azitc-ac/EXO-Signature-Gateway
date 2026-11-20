@@ -810,6 +810,56 @@ def _vorlage_rendern(schluessel: str, kopf: str = "", footer: str | None = None,
                                kopf + rumpf + nachsatz, footer=footer)
 
 
+def _link_knopf(link: str, text: str) -> str:
+    """Knopf mit Link unter einer Nachricht, dazu der Link als Text (manche
+    Mailprogramme zeigen Knöpfe nicht). Fertiges HTML für `nachsatz` — kein
+    Platzhalter, damit er sich aus einer angepassten Vorlage nicht löschen lässt."""
+    import html as _html
+    return ('<p style="margin:18px 0"><a href="' + _html.escape(link, quote=True) + '" '
+            'style="background:#0078d4;color:#fff;padding:10px 18px;border-radius:6px;'
+            'text-decoration:none;font-weight:600">' + _html.escape(text) + '</a></p>'
+            '<p style="color:#6b7280;font-size:12px">Falls der Knopf nicht funktioniert: '
+            + _html.escape(link) + '</p>')
+
+
+def send_renewal_notice_admin(email: str, ablauf: str, anbieter: str, ab: str, link: str) -> bool:
+    """An die VERWALTUNG: Die automatische Verlängerung steht bevor (der Inhaber
+    hat eingewilligt, dass für ihn bestellt wird). Abschaltbar über
+    NOTIFY_RENEWAL_NOTICE. erneuerung_vorankuendigung.py."""
+    if not _should_notify("NOTIFY_RENEWAL_NOTICE"):
+        return False
+    to = _get_notify_to()
+    if not to:
+        log.info("Ankündigung der Verlängerung für %s: keine Adresse der Verwaltung hinterlegt", email)
+        return False
+    body = (f'<table>'
+            f'{_row("Postfach", email)}'
+            f'{_row("Zertifikat läuft ab", ablauf)}'
+            f'{_row("Verlängerung bei", anbieter)}'
+            f'{_row("Bestellung ab", ab or "nächster Lauf")}'
+            f'</table>'
+            '<p>Das Gateway bestellt das neue Zertifikat automatisch. Ist das nicht '
+            'gewünscht, schalte die automatische Verlängerung für dieses Postfach ab:</p>'
+            + _link_knopf(link, "Automatische Verlängerung abschalten"))
+    html = _html_wrap("S/MIME-Zertifikat wird bald automatisch verlängert", "#1e40af", body)
+    return _graph_send(to, f"Ankündigung: S/MIME-Verlängerung für {email} ab {ab or 'demnächst'}", html)
+
+
+def send_renewal_notice_user(email: str, ablauf: str, anbieter: str, ab: str, link: str) -> bool:
+    """An den POSTFACHINHABER (ohne seine Einwilligung zum Bestellen): Die
+    Verlängerung steht bevor, mit Link zum Abwählen. Anpassbar
+    (usermail `erneuerung_vorankuendigung`), folgt NOTIFY_USER_CERT."""
+    if not _should_notify("NOTIFY_USER_CERT"):
+        return False
+    gerendert = _vorlage_rendern("erneuerung_vorankuendigung",
+                                 nachsatz=_link_knopf(link, "Automatische Verlängerung abschalten"),
+                                 empfaenger=email, ca=anbieter or "", ablauf=ablauf, ab=ab or "")
+    if gerendert is None:
+        return False
+    betreff, html = gerendert
+    return _graph_send(email, betreff, html)
+
+
 def send_einwilligung_anfrage(user_email: str, link: str, ca_label: str) -> bool:
     """An den POSTFACHINHABER: Zustimmung erbeten, dass das Gateway sein
     Postfach lesen und in seinem Namen bei der CA bestätigen darf.
@@ -818,12 +868,7 @@ def send_einwilligung_anfrage(user_email: str, link: str, ca_label: str) -> bool
     für ein Postfach ohne Admin-Einwilligung keinen Weg zum Zertifikat — sie ist
     Teil des Bestellablaufs, keine Benachrichtigung.
     """
-    import html as _html
-    knopf = ('<p style="margin:18px 0"><a href="' + _html.escape(link, quote=True) + '" '
-             'style="background:#0078d4;color:#fff;padding:10px 18px;border-radius:6px;'
-             'text-decoration:none;font-weight:600">Zur Bestätigungsseite</a></p>'
-             '<p style="color:#6b7280;font-size:12px">Falls der Knopf nicht funktioniert: '
-             + _html.escape(link) + '</p>')
+    knopf = _link_knopf(link, "Zur Bestätigungsseite")
     gerendert = _vorlage_rendern("einwilligung", nachsatz=knopf,
                                  empfaenger=user_email, ca=ca_label or "")
     if gerendert is None:

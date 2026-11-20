@@ -193,6 +193,35 @@ VORLAGEN: dict[str, dict] = {
                  color="#1e293b"),
         ],
     },
+    "erneuerung_vorankuendigung": {
+        "anzeige": "Zertifikat: Verlängerung angekündigt",
+        "gruppe": "intern",
+        "ueberschrift": True,
+        # ⚠️ Der Knopf zum Abwählen ist kein Platzhalter, sondern wird angefügt
+        # (notification.send_renewal_notice_user) — gelöscht hiesse: Abwählen
+        # unmöglich, still.
+        "zweck": ("Geht an den Postfachinhaber, bevor das Gateway sein Zertifikat "
+                  "automatisch verlängert (nur wenn er nicht eingewilligt hat, dass "
+                  "für ihn bestellt wird — sonst erhält die Verwaltung die "
+                  "Ankündigung). Der Knopf zum Abschalten wird unter dem Text angefügt."),
+        "platzhalter": {**_CERT_PLATZHALTER,
+                        "ablauf": "Ablaufdatum des jetzigen Zertifikats",
+                        "ab": "Datum, ab dem das neue bestellt wird"},
+        "beispiel": {**_CERT_BEISPIEL, "ablauf": "22.12.2026", "ab": "08.12.2026"},
+        "betreff": "Ihr Zertifikat wird verlängert – {{ empfaenger }}",
+        "farbe": "#1e40af",
+        "bloecke": [
+            _abs('Das Zertifikat zum digitalen Signieren Ihrer E-Mails (**{{ empfaenger }}**) '
+                 'läuft am **{{ ablauf }}** ab.'),
+            _abs('Das Gateway bestellt {% if ab %}ab dem **{{ ab }}** {% endif %}automatisch '
+                 'ein neues bei **{{ ca }}**. Sie müssen dafür nichts tun.'),
+            _abs('Möchten Sie das nicht, schalten Sie die automatische Verlängerung über den '
+                 'Knopf unten ab. Ihre E-Mails werden nach dem Ablauf dann nicht mehr '
+                 'digital signiert.'),
+            _abs('Sollten Sie diese Nachricht unerwartet erhalten oder unsicher sein, '
+                 'wenden Sie sich bitte an Ihre IT.', color="#6b7280", size="13pt"),
+        ],
+    },
     "einwilligung": {
         "anzeige": "Zertifikat: Zustimmung erbeten",
         "gruppe": "intern",

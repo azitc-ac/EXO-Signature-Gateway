@@ -2296,6 +2296,20 @@
     "name": "einwilligung_antwort"
   },
   {
+    "pfad": "/erneuerung/abwahl/{token}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "erneuerung_abwahl_seite"
+  },
+  {
+    "pfad": "/erneuerung/abwahl/{token}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "erneuerung_abwahl"
+  },
+  {
     "pfad": "/favicon.ico",
     "methoden": [
       "GET"

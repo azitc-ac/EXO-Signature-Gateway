@@ -353,6 +353,7 @@ DEFAULTS: dict = {
     "NOTIFY_STARTUP": None,          # None/True = send; False = suppress startup notification
     "NOTIFY_SMIME_EXPIRY": None,     # None/True = send; False = suppress S/MIME expiry admin alert
     "NOTIFY_CERT_RENEWAL": None,     # None/True = send; False = suppress renewal success/failure
+    "NOTIFY_RENEWAL_NOTICE": None,   # None/True = send; False = keine Ankündigung der automatischen Verlängerung an die Verwaltung
     "NOTIFY_LE_EVENTS": None,        # None/True = send; False = suppress LE cert events
     # ── Azure Key Vault (S/MIME private key storage) ──────────────────────────
     "KEYVAULT_URL": "",                 # e.g. https://myvault.vault.azure.net — empty = local key files
@@ -521,6 +522,7 @@ INTERNAL_KEYS = frozenset({
     "_OWA_SIGNATUR_STAND",        # owa_signatur.py — je Hybrid-Nutzer Prüfsumme der übertragenen Signatur
     "_OWA_SIGNATUR_LAST",         # owa_signatur.py — Zählung des letzten Abgleichs
     "_EWS_BEREICH_STAND",         # ews_bereich.py — Gruppe, letzte Messung, wartende Mitglieder
+    "_ERNEUERUNG_ANGEKUENDIGT",   # erneuerung_vorankuendigung.py — Ankündigung je Postfach samt Abwahl-Link (Hash)
     "_CA_ZUSTIMMUNG",             # ca_backends/hub_provider.py — {postfach: {anbieter: Zeitpunkt}}:
                                   # Zustimmung zu den CA-Bedingungen bei der letzten Bestellung,
                                   # wiederverwendet für die automatische Verlängerung

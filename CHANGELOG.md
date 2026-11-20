@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.116 — 2026-11-20 — Automatische S/MIME-Verlängerung wird angekündigt, mit Link zum Abschalten
+
+Seit v1.12.115 verlängert der tägliche Lauf Zertifikate auch über den Hub und
+nach Sammelbestellungen — je nach Anbieter kostenpflichtig. Eine Verlängerung
+kommt jetzt nicht mehr unangekündigt:
+
+* Bei der **ersten Erneuerungsschwelle** (Vorgabe: 30 Tage vor Ablauf) wird
+  angekündigt statt bestellt; bestellt wird bei der **nächsten** (Vorgabe: 14
+  Tage). Die Ankündigung nennt Postfach, Ablaufdatum, Anbieter und den Tag der
+  Bestellung und enthält einen Link **„Automatische Verlängerung abschalten“**.
+  Der Link öffnet eine Bestätigungsseite (ohne Anmeldung); erst deren Knopf
+  schaltet „Automatisch erneuern“ für das Postfach ab — ein Mail-Scanner, der
+  Links vorab öffnet, löst nichts aus. Der Link gilt einmal und nur bis zur
+  Bestellung.
+* **Empfänger:** Hat der Postfachinhaber eingewilligt, dass das Gateway für ihn
+  bestellt, geht die Ankündigung an die Verwaltung (Adressen unter
+  *Einstellungen → Benachrichtigung*). Sonst an den Postfachinhaber selbst — als
+  anpassbare Nachricht „Zertifikat: Verlängerung angekündigt“ unter *Vorlagen*,
+  abhängig vom Schalter „Nachrichten an Postfachinhaber“.
+* **Neuer Schalter** unter *Einstellungen → Benachrichtigung → Welche Ereignisse*:
+  „S/MIME automatische Verlängerung steht bevor“. Ausgeschaltet geht keine
+  Ankündigung an die Verwaltung; die Frist bis zur Bestellung bleibt trotzdem.
+* Ist nur eine Erneuerungsschwelle eingestellt, bleibt kein Zeitfenster — dann
+  wird wie bisher ohne Ankündigung bestellt. Ein Neustart des Gateways zwischen
+  Ankündigung und Bestellung verkürzt die Frist nicht.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.115 — 2026-11-20 — Automatische S/MIME-Verlängerung über den Hub und nach Sammelbestellung
 
 **Zustimmungsbeleg bei der Verlängerung.** Bestellungen über den Hub (Certum,

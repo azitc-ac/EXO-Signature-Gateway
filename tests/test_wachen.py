@@ -77,6 +77,7 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     #    Mail, Zugang über einmaliges Merkmal (nur als Hash gespeichert). GET
     #    zeigt nur an, zugestimmt wird per POST.
     "/einwilligung/{token}":     "Zustimmung des Postfachinhabers, Zugang über Einmalmerkmal",
+    "/erneuerung/abwahl/{token}": "Automatische Verlängerung abwählen, Zugang über Merkmal aus der Ankündigung",
 
     # ── Outlook-Add-in: wird aus Outlook heraus geladen, Signaturen sind nicht
     #    vertraulich. Die Zuordnung zum Postfach unter /api/addin/* prüft sehr wohl.

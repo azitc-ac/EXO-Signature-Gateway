@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Automatische Verlängerung – Zertifikat</title>
+{% include "_favicon.html" %}
+  {# Eigenständige Seite (ohne Anmeldung, Zugang über das Merkmal aus der
+     Ankündigung, erneuerung_vorankuendigung.py). ⚠️ Der Aufruf (GET) ändert
+     nichts: Mail-Scanner öffnen Links vorab — abgeschaltet wird nur über den
+     Knopf (POST). #}
+{% include "_karte_ohne_anmeldung_stil.html" %}
+</head>
+<body>
+<div class="karte">
+{% if zustand == "frage" %}
+  <h1>Automatische Verlängerung abschalten?</h1>
+  <p>Das Zertifikat zum digitalen Signieren der E-Mails von <strong>{{ email }}</strong>
+     läuft am <strong>{{ ablauf }}</strong> ab. Das Gateway bestellt
+     {% if ab %}ab dem <strong>{{ ab }}</strong> {% endif %}automatisch ein neues{% if anbieter %}
+     bei <strong>{{ anbieter }}</strong>{% endif %}.</p>
+  <p>Schalten Sie die Verlängerung ab, wird nichts bestellt. Nach dem Ablauf werden die
+     E-Mails dieses Postfachs dann nicht mehr digital signiert.</p>
+  <form method="post" action="/erneuerung/abwahl/{{ token }}">
+    <div class="knoepfe">
+      <button type="submit" class="ja" id="abschalten">Verlängerung abschalten</button>
+    </div>
+  </form>
+  <p class="leise">Soll verlängert werden, müssen Sie nichts tun — schließen Sie einfach diese Seite.</p>
+{% elif zustand == "abgeschaltet" %}
+  <h1>Abgeschaltet</h1>
+  <div class="ergebnis gut">Für <strong>{{ email }}</strong> wird kein neues Zertifikat
+    automatisch bestellt. Ihre IT kann die Verlängerung jederzeit wieder einschalten.</div>
+{% else %}
+  <h1>Link nicht mehr gültig</h1>
+  <div class="ergebnis schlecht">Dieser Link wurde schon verwendet, oder die Verlängerung
+    wurde inzwischen bestellt. Wenden Sie sich an Ihre IT.</div>
+{% endif %}
+</div>
+</body>
+</html>
