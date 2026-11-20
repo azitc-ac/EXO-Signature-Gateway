@@ -521,6 +521,9 @@ INTERNAL_KEYS = frozenset({
     "_OWA_SIGNATUR_STAND",        # owa_signatur.py — je Hybrid-Nutzer Prüfsumme der übertragenen Signatur
     "_OWA_SIGNATUR_LAST",         # owa_signatur.py — Zählung des letzten Abgleichs
     "_EWS_BEREICH_STAND",         # ews_bereich.py — Gruppe, letzte Messung, wartende Mitglieder
+    "_CA_ZUSTIMMUNG",             # ca_backends/hub_provider.py — {postfach: {anbieter: Zeitpunkt}}:
+                                  # Zustimmung zu den CA-Bedingungen bei der letzten Bestellung,
+                                  # wiederverwendet für die automatische Verlängerung
 })
 
 # Schlüssel aus entfernten Funktionen. Sie blieben in settings.json stehen, weil

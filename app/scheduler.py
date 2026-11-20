@@ -238,7 +238,14 @@ def _send_user_renewal_notification(
     import notification
     from ca_backends import get_backend
 
-    backend_name = user_cfg.get("backend", "assisted_manual")
+    backend_name = user_cfg.get("backend") or ""
+    if not backend_name:
+        # Ohne eigenen Bezugsweg: die Vorgabe (registry.bezugsweg) NUR bei
+        # ausdrücklich gesetztem „Automatisch erneuern“. Ein Altbestand mit
+        # nur „benachrichtigen“ gilt unten ebenfalls als auto_renew — der soll
+        # nicht plötzlich (womöglich kostenpflichtig) bestellen (registry.py).
+        from ca_backends.registry import bezugsweg
+        backend_name = bezugsweg(user_cfg) if user_cfg.get("auto_renew") is True else "assisted_manual"
     backend = get_backend(backend_name)
     # auto_renew absent → inherit notify_user for backwards compatibility
     auto_renew = user_cfg.get("auto_renew", user_cfg.get("notify_user", False))

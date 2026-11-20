@@ -1094,8 +1094,10 @@ function _renderNotifPicker() {
   if (empty) empty.style.display = 'none';
   _notifRecipients.forEach(function(em) {
     const row = document.createElement('div');
-    row.className = 'notif-recipient-row';
-    row.className = 'empfaenger-zeile';
+    // Beide Klassen: die erste findet das Neuzeichnen oben zum Entfernen, die
+    // zweite trägt die Optik. Bis v1.12.115 überschrieb eine zweite Zuweisung
+    // die erste — jede Änderung hängte die ganze Liste noch einmal an.
+    row.className = 'notif-recipient-row empfaenger-zeile';
     row.innerHTML = '<span style="font-family:monospace;font-size:12px">' + esc(em) + '</span>' +
       '<button type="button" onclick="removeNotifRecipient(\'' + escJsAttr(em) + '\')" ' +
       'style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:16px;padding:0 4px;line-height:1" title="Entfernen">×</button>';

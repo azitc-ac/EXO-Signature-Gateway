@@ -491,6 +491,34 @@ def _wartende_zertifikate() -> dict:
                   "prüfen, freigeben oder verwerfen.")
 
 
+def _erneuerung_unentschieden() -> dict:
+    """Gibt es Postfächer mit selbst bestellendem Bezugsweg, bei denen „Automatisch
+    erneuern“ nie entschieden wurde (Schlüssel fehlt)? Bis v1.12.114 setzten
+    Sammel- und Auto-Bestellung den Haken nicht — der tägliche Lauf erneuerte sie
+    nie. Seit v1.12.115 setzen sie ihn; den Bestand still umzustellen hieße,
+    ungefragt (womöglich kostenpflichtige) Verlängerungen einzuschalten. Erledigt
+    durch Speichern der Einstellung des Postfachs (an ODER aus). Nur lokal."""
+    import ca_backends
+    import settings_store
+    name = "Automatische Erneuerung für alle bestellten Postfächer entschieden"
+    offen = []
+    for adresse, cfg in sorted((settings_store.get("CA_USER_CONFIG") or {}).items()):
+        if not isinstance(cfg, dict) or "auto_renew" in cfg or not cfg.get("backend"):
+            continue
+        try:
+            if ca_backends.get_backend(cfg["backend"]).can_auto_renew():
+                offen.append(adresse)
+        except Exception:                                   # noqa: BLE001
+            continue
+    if not offen:
+        return _punkt(name, OK, "Für jedes Postfach mit bestellendem Bezugsweg ist entschieden.")
+    return _punkt(name, OFFEN,
+                  f"{len(offen)} Postfach/Postfächer ohne Entscheidung — sie werden nicht "
+                  f"automatisch erneuert: {', '.join(offen[:5])}" + (" …" if len(offen) > 5 else ""),
+                  "S/MIME → beim Postfach „Automatisch erneuern“ setzen oder bewusst leer "
+                  "lassen und speichern.")
+
+
 def _bestand_durchsicht() -> dict:
     """Liegen Empfängerzertifikate von vor v1.10.115 ohne bekannten Aussteller
     im Bestand? Sie konnten ungeprüft hineingekommen sein; die Nachprüfung
@@ -1146,7 +1174,7 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _vorlage_standard_doppelt, _rueckweg, _regel_empfaenger, _regel_kennung,
               _regel_auto_ausnahme, _implicit_anmeldung,
               _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _ews_kontowechsel, _dynamische_gruppen_stand, _richtlinien_ruhend, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
-              _smime_schluessel, _vertragsbedingungen,
+              _smime_schluessel, _vertragsbedingungen, _erneuerung_unentschieden,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
               _smime_regeln_stand,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,

@@ -95,6 +95,9 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     Aufgabe("wartende-zertifikate", "Wartende Empfängerzertifikate entscheiden",
             abnahme._wartende_zertifikate, "/smime#wartend",
             seit="1.10.110"),
+    # Sammel-/Auto-Bestellung setzte „Automatisch erneuern“ bis v1.12.114 nie.
+    Aufgabe("erneuerung-entscheiden", "Automatische Erneuerung bestellter Postfächer entscheiden",
+            abnahme._erneuerung_unentschieden, "/smime", seit="1.12.115"),
     Aufgabe("tls-rueckweg", "Zertifikatsprüfung am TLS-Rückweg einschalten",
             abnahme._tls_rueckweg, "/settings/routing#weiterleitungsziele",
             seit="1.10.112"),

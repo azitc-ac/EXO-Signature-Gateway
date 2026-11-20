@@ -2371,6 +2371,11 @@ def test_einstellungen_empfaenger_ueber_personenauswahl(seite):
     feld.fill("erika")
     feld.press("Enter")                             # einziger Treffer
     assert pg.evaluate("_notifRecipients")[-1] == "erika.mustermann@firma.at"
+    # Jede Zeile genau einmal: Das Neuzeichnen entfernte die alten Zeilen über
+    # eine Klasse, die eine zweite className-Zuweisung überschrieb.
+    zeilen = pg.evaluate("""() => Array.from(document.querySelectorAll('#notif-recipients-list .empfaenger-zeile span'))
+        .map(e => e.textContent)""")
+    assert zeilen == ["info@firma.at", "max.mueller@firma.at", "erika.mustermann@firma.at"]
     pg.context.close()
 
 

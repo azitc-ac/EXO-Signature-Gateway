@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.115 — 2026-11-20 — Automatische S/MIME-Verlängerung über den Hub und nach Sammelbestellung
+
+**Zustimmungsbeleg bei der Verlängerung.** Bestellungen über den Hub (Certum,
+SwissSign) tragen den Zeitpunkt, zu dem den Bedingungen der Zertifizierungsstelle
+zugestimmt wurde. Die automatische Verlängerung im täglichen Lauf schickte keinen
+mit; bei Anbietern mit Bedingungen lehnt die Gegenstelle das ab — die Verlängerung
+kam nicht zustande, es blieb bei der Ablaufwarnung. Das Gateway merkt sich jetzt
+den Beleg der letzten angenommenen Bestellung je Postfach und Anbieter und
+verwendet ihn für die Verlängerung beim selben Anbieter. Ein Wechsel des Anbieters
+braucht wie bisher eine neue Zustimmung.
+
+**„Automatisch erneuern“ nach Sammel- und Auto-Bestellung.** Nur der Haken beim
+Postfach unter *S/MIME* schaltete die automatische Erneuerung ein; Postfächer aus
+der Sammelbestellung oder der automatischen Bestellung beim Aktivieren erneuerte
+der tägliche Lauf nie. Diese Bestellungen setzen den Haken jetzt mit (ein bewusst
+abgewählter bleibt aus). Postfächer ohne eigenen Bezugsweg nehmen bei gesetztem
+Haken den Standardbezugsweg; Einträge, die nur „benachrichtigen“ tragen, bestellen
+weiterhin nicht von selbst.
+
+**Einstellungen → Benachrichtigung → Empfänger:** Jede Änderung der Liste (hinzufügen,
+entfernen) hängte alle Empfänger noch einmal an — die Anzeige wuchs, gespeichert
+wurde aber das Richtige. Ursache war eine doppelte Klassenzuweisung, durch die das
+Neuzeichnen die alten Zeilen nicht mehr fand.
+
+**Zu tun:** Postfächer, die schon früher so bestellt wurden, werden nicht still
+umgestellt — das hieße, ungefragt (je nach Anbieter kostenpflichtige)
+Verlängerungen einzuschalten. Der Sammelpunkt oben rechts listet sie unter
+„Automatische Erneuerung bestellter Postfächer entscheiden“: unter *S/MIME* beim
+Postfach „Automatisch erneuern“ setzen oder bewusst leer lassen und speichern.
+
+---
+
 ## v1.12.114 — 2026-11-20 — Personenauswahl überall gleich: statische Gruppen, Benachrichtigung, Verwaltung
 
 Die Personenauswahl aus v1.12.113 ist jetzt ein gemeinsamer Baustein und ersetzt

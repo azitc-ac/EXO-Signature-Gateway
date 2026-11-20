@@ -15,6 +15,25 @@ from .csr import generate_key_and_csr_pem as _generate_key_and_csr_pem
 log = logging.getLogger(__name__)
 
 
+
+def zustimmung_gespeichert(email: str, provider_id: str) -> str:
+    """Zeitpunkt, zu dem bei der letzten angenommenen Bestellung dieses Postfachs
+    beim Anbieter den CA-Bedingungen zugestimmt wurde, sonst ''."""
+    import settings_store
+    alle = settings_store.get("_CA_ZUSTIMMUNG") or {}
+    return str(((alle.get((email or "").lower()) or {}).get(provider_id)) or "")
+
+
+def zustimmung_merken(email: str, provider_id: str, zeitpunkt: str) -> None:
+    """Nach einer vom Hub ANGENOMMENEN Bestellung mit Beleg — nicht vorher, sonst
+    stünde ein Beleg für eine abgelehnte Bestellung da."""
+    import settings_store
+    alle = dict(settings_store.get("_CA_ZUSTIMMUNG") or {})
+    eintrag = dict(alle.get((email or "").lower()) or {})
+    eintrag[provider_id] = zeitpunkt
+    alle[(email or "").lower()] = eintrag
+    settings_store.force_update({"_CA_ZUSTIMMUNG": alle})
+
 class HubProviderBackend(CABackend):
 
     def __init__(self, provider: dict):
@@ -97,7 +116,13 @@ veranlassen.</p>
         import einwilligung
         einwilligung.verlangen(email)
         provider_id = self._p.get("id", "")
-        ca_terms_accepted_at = (extra or {}).get("ca_terms_accepted_at", "")
+        # Zustimmungsbeleg: der mitgegebene (Bestellung aus der Oberfläche,
+        # Sammellauf, Auto-Enrollment), sonst der der letzten Bestellung dieses
+        # Postfachs beim selben Anbieter. Bis v1.12.114 schickte die automatische
+        # Verlängerung (scheduler) gar keinen — die Gegenstelle lehnt das bei
+        # Anbietern mit Bedingungen ab, die Verlängerung kam nie zustande.
+        mitgegeben = ((extra or {}).get("ca_terms_accepted_at") or "").strip()
+        ca_terms_accepted_at = mitgegeben or zustimmung_gespeichert(email, provider_id)
         key_pem, csr_pem = _generate_key_and_csr_pem(email)
         result = await hub_client.cert_order(email, csr_pem.decode(), {}, provider=provider_id,
                                              ca_terms_accepted_at=ca_terms_accepted_at)
@@ -109,6 +134,8 @@ veranlassen.</p>
                     result.get("benoetigt_cents", 0),
                     result.get("guthaben_cents", 0))
             raise RuntimeError(f"Hub-Bestellung fehlgeschlagen: {result.get('error')}")
+        if mitgegeben:
+            zustimmung_merken(email, provider_id, mitgegeben)
 
         # Synchron ausgestellt (API-Erfüllung ohne Wartezeit) → direkt importieren
         cert_pem = result.get("cert_pem")
