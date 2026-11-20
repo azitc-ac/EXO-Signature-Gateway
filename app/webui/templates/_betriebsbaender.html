@@ -72,17 +72,21 @@
   <a href="/advanced#maintenance" style="color:#92400e;font-weight:700;margin-left:auto">Zum Wartungsmodus</a>
 </div>
 {% endif %}
-{% set _zustellfehler = zustellfehler_anzahl() %}
+{% set _zf = zustellfehler_stand() %}
+{% set _zustellfehler = _zf.wiederholt + _zf.aufgegeben %}
 {% if _zustellfehler %}
 <div id="zustellfehler-banner"
      style="background:#fef2f2;border-bottom:2px solid #fca5a5;padding:9px 16px;
             font-size:13px;color:#991b1b;display:flex;gap:10px;
             align-items:center;flex-wrap:wrap">
   <strong>Zustellfehler</strong>
-  <span>{{ _zustellfehler }} Mail{{ '' if _zustellfehler == 1 else 's' }} konnte{{ '' if _zustellfehler == 1 else 'n' }}
-    nicht zugestellt werden und {{ 'wartet' if _zustellfehler == 1 else 'warten' }} in der Warteschlange.
-    Sie werden automatisch erneut zugestellt (erst minütlich, dann alle 5, dann alle 15 Minuten,
-    Aufgabe nach 2 Tagen). Bleibt es dauerhaft, prüfe die Zustellwege.</span>
+  <span>
+    {%- if _zf.wiederholt %}{{ _zf.wiederholt }} Mail{{ '' if _zf.wiederholt == 1 else 's' }} konnte{{ '' if _zf.wiederholt == 1 else 'n' }}
+    nicht zugestellt werden; {{ 'sie wird' if _zf.wiederholt == 1 else 'sie werden' }} automatisch erneut zugestellt
+    (erst minütlich, dann alle 5, dann alle 15 Minuten, Aufgabe nach 2 Tagen). Bleibt es dauerhaft, prüfe die Zustellwege.{% endif %}
+    {%- if _zf.aufgegeben %} {{ _zf.aufgegeben }} Mail{{ '' if _zf.aufgegeben == 1 else 's' }}
+    {{ 'hat' if _zf.aufgegeben == 1 else 'haben' }} das Gateway nach 2 Tagen aufgegeben —
+    {{ 'sie bleibt' if _zf.aufgegeben == 1 else 'sie bleiben' }} liegen, bis du {{ 'sie' }} zustellst oder löschst.{% endif %}</span>
   <a href="/advanced#maintenance" style="color:#991b1b;font-weight:700;margin-left:auto">Zur Warteschlange</a>
 </div>
 {% endif %}

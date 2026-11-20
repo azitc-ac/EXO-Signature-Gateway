@@ -2657,7 +2657,21 @@ def test_basis_und_erweitert(seite, url):
 
 
 def test_ews_zugriffsbereich_zugeklappt_bis_eingerichtet(seite):
-    pg = seite("/settings", breite=1280)
-    pg.wait_for_load_state("domcontentloaded")
-    assert pg.evaluate("() => { const d = document.getElementById('ews-bereich'); return d && d.tagName === 'DETAILS' && !d.open; }")
-    pg.context.close()
+    """Zustand ausdrücklich setzen: Andere Tests (test_ews_bereich) tragen einen
+    Domänencontroller in dieselben Einstellungen ein."""
+    import settings_store
+    vorher = {k: settings_store.get(k) for k in ("EWS_LDAP_SERVER", "EWS_BEREICH_AUTO")}
+    offen = "() => { const d = document.getElementById('ews-bereich'); return d && d.tagName === 'DETAILS' ? d.open : null; }"
+    try:
+        settings_store.update({"EWS_LDAP_SERVER": "", "EWS_BEREICH_AUTO": False})
+        pg = seite("/settings", breite=1280)
+        pg.wait_for_load_state("domcontentloaded")
+        assert pg.evaluate(offen) is False
+        pg.context.close()
+        settings_store.update({"EWS_LDAP_SERVER": "dc.firma.at"})
+        pg = seite("/settings", breite=1280)
+        pg.wait_for_load_state("domcontentloaded")
+        assert pg.evaluate(offen) is True               # eingerichtet: offen
+        pg.context.close()
+    finally:
+        settings_store.update(vorher)

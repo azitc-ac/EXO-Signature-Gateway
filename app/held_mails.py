@@ -252,6 +252,8 @@ def list_all() -> list[dict]:
                 "to_addrs":   d["to_addrs"],
                 "subject":    d["subject"],
                 "has_preview": bool(d.get("html_preview")),
+                "aufgegeben": bool(d.get("retry_exhausted")),
+                "versuche":   int(d.get("attempts") or 0),
             })
         except Exception as exc:
             log.warning("held_mails: could not read %s: %s", p.name, exc)
@@ -342,6 +344,23 @@ def mark_retry_failed(mail_id: str, now: "datetime | None" = None) -> dict:
         d["next_retry"] = (now + timedelta(seconds=_abstand_fuer(versuche))).isoformat()
     p.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
     return {"attempts": versuche, "retry_exhausted": bool(d.get("retry_exhausted"))}
+
+
+def zustellfehler_stand() -> dict:
+    """Zustellfehler getrennt nach „wird noch automatisch wiederholt“ und
+    „nach 2 Tagen aufgegeben, wartet auf Entscheidung“. Bis v1.12.129 zählte
+    beides als eine Zahl, und das Banner versprach für alle eine automatische
+    Zustellung — auch für Mails, die seit Wochen aufgegeben lagen (Raspi 20.11.)."""
+    _ensure_dir()
+    stand = {"wiederholt": 0, "aufgegeben": 0}
+    for p in _HELD_DIR.glob("*.json"):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if d.get("reason") == "delivery_failed":
+            stand["aufgegeben" if d.get("retry_exhausted") else "wiederholt"] += 1
+    return stand
 
 
 def count(reason: str | None = None) -> int:

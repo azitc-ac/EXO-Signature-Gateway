@@ -24,6 +24,9 @@ AB_VERSION = (1, 10, 80)
 
 # „Zu tun“ jenseits von „nichts“, das keine Aufgabe tragen KANN — mit Grund.
 OHNE_AUFGABE: dict[str, str] = {
+    "1.12.130": "aufgegebene Zustellfehler — das Zustellfehler-Banner zeigt sie auf JEDER "
+                "Seite, solange welche liegen (held_mails.zustellfehler_stand); eine Aufgabe "
+                "doppelte nur denselben Befund",
     "1.10.107": "Wahl des Update-Kanals — welcher richtig ist, entscheidet der Betreiber; "
                "keine Prüfung kann eine falsche Wahl erkennen, eine Aufgabe bliebe offen",
     "1.10.84": "einmalige Durchsicht der Admin-Liste — ob ein Eintrag dorthin "

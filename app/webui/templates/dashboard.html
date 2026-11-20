@@ -525,7 +525,9 @@ function openInFlightInfo(active, maintHeld, dfCount) {
       var subParts = [];
       if (d.in_flight > 0) subParts.push(d.in_flight + ' in Verarbeitung');
       if (maintHeld > 0)   subParts.push(maintHeld + ' im Wartungsmodus zurückgehalten');
-      if (dfCount > 0)     subParts.push(dfCount + ' wegen Zustellfehler in der Warteschlange');
+      const dfAufgegeben = d.delivery_failed_aufgegeben || 0;
+      if (dfCount > 0)     subParts.push(dfCount + ' wegen Zustellfehler in der Warteschlange'
+                                         + (dfAufgegeben ? ' (' + dfAufgegeben + ' aufgegeben — zustellen oder löschen)' : ''));
       const inFlightSub = subParts.length ? subParts.join(', ') : 'Keine Mails in Verarbeitung';
 
       grid.innerHTML =

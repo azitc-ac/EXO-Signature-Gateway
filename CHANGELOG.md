@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.130 — 2026-11-20 — Warteschlange: aufgegebene Zustellfehler werden nicht mehr als „wird wiederholt“ angezeigt
+
+Konnte eine Mail nicht zugestellt werden, versucht das Gateway es zwei Tage lang
+erneut und gibt dann auf. Die Mail bleibt liegen, bis du sie zustellst oder
+löschst. Banner und Übersicht sagten aber für alle Zustellfehler „werden
+automatisch erneut zugestellt“, auch für Mails, die seit Wochen aufgegeben
+waren.
+
+Jetzt unterscheiden beide:
+* **Banner:** Wie viele Mails noch automatisch wiederholt werden und wie viele
+  aufgegeben sind und auf deine Entscheidung warten.
+* **Übersicht → Warteschlange:** die Zahl der aufgegebenen in Klammern.
+* **Erweitert → Wartungsmodus → Warteschlange:** Aufgegebene stehen als
+  „Zustellfehler · aufgegeben“.
+
+**Zu tun:** Sieh unter *Erweitert → Wartungsmodus* nach, ob aufgegebene Mails
+liegen, und stelle sie zu oder lösche sie.
+
 ## v1.12.129 — 2026-11-20 — Einstellungen: Basis und Erweitert neu eingeteilt
 
 Ohne den Schalter *Erweiterte Einstellungen* steht jetzt, was im einfachen Fall

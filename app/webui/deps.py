@@ -196,16 +196,16 @@ def _wartung_gemeldet() -> dict | None:
 templates.env.globals["wartung_gemeldet"] = _wartung_gemeldet
 
 
-def _zustellfehler_anzahl() -> int:
-    """Mails, die nicht zugestellt werden konnten und in der Warteschlange warten."""
+def _zustellfehler_stand() -> dict:
+    """Zustellfehler in der Warteschlange: {wiederholt, aufgegeben}."""
     try:
         import held_mails
-        return held_mails.count("delivery_failed")
+        return held_mails.zustellfehler_stand()
     except Exception:                                       # noqa: BLE001
-        return 0
+        return {"wiederholt": 0, "aufgegeben": 0}
 
 
-templates.env.globals["zustellfehler_anzahl"] = _zustellfehler_anzahl
+templates.env.globals["zustellfehler_stand"] = _zustellfehler_stand
 
 
 def _ruecklauf_anzahl() -> int:
