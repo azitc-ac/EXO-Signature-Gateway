@@ -44,8 +44,8 @@
     [data-theme="dark"] .cpol-slots > .cpol-zeile > label:first-child { color:#94a3b8 }
     .cpol-slots > .cpol-zeile > .cpol-steuer { flex:none }
     .cpol-slots > .cpol-zeile > .cpol-steuer > select { width:100% }
-    .cpol-slots > .cpol-zeile[data-slot="addin"] { grid-column:1 / -1 }
-    .cpol-slots > .cpol-zeile[data-slot="addin"] > .cpol-steuer > select { width:auto }
+    /* Add-in-Auswahl steht wie die anderen in der Reihe; ihre Liste („▶ Alle“)
+       klappt in der eigenen Spalte auf. */
   }
   /* Werkzeugleiste über der Postfachliste: Suche, „Filter“, „Aktionen“ in EINER
      Zeile (auch bei 393 px); die Bereiche klappen darunter auf (mbKlappe). Das
@@ -96,6 +96,22 @@
   [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="6"] { background:#1a1200; color:#fb923c; border-color:#92400e }
   [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="7"] { background:#0a1f10; color:#86efac; border-color:#166534 }
   [data-theme="dark"] .gruppen-chip[data-gruppenfarbe="standard"] { background:#2a2d3e; color:#cbd5e1; border-color:#495166 }
+  /* Erklärtexte der Seite: EINE Breite und Zeilenhöhe. Bis v1.12.119 liefen sie
+     mal über die ganze Karte, mal fest auf 640 px (zwei Zeilenhöhen). 760 px ≈
+     110 Zeichen — breit genug für den Bildschirm, schmal genug zum Lesen. */
+  .settings-card p.hint, .settings-card .mb-text { max-width:760px; line-height:1.5 }
+  /* Gruppenzeile: Anzahl und Knöpfe brechen mit Abstand um, statt aneinander zu kleben. */
+  .gruppen-aktionen { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px }
+  .gruppen-aktionen > span { margin-right:2px }
+  /* Postfachzeile: Auswahlen oben bündig, auch wenn darunter eine Marke
+     („Ausnahme“, „▶ Alle“) die Zelle höher macht — sonst sitzt jede Auswahl
+     zellenmittig, und eine Zeile steht auf zwei Höhen. Kästchen und Status auf
+     der Mitte der Auswahl: feste Auswahlhöhe, gleiche Zeilenhöhe. */
+  .mb-zeile { --wahl-h: 30px }
+  .mb-zeile > td { vertical-align: top }
+  .mb-zeile select { height: var(--wahl-h); box-sizing: border-box }
+  .mb-zeile > td.mb-mitte { line-height: var(--wahl-h) }
+  .mb-zeile > td.mb-mitte > input[type=checkbox] { vertical-align: middle; margin-top: 0; margin-bottom: 0 }
   /* Ausnahme: Ein Wahl-Slot weicht vom Standard ab (JS setzt nur data-ausnahme
      am Select, _ausnahmeStand). Die Marke steht direkt dahinter und erscheint nur
      über diesen Selektor — Farbe allein hier, hell und dunkel. */
@@ -423,7 +439,7 @@ async function ankerAnwenden() {
        über `querySelectorAll`. Mein Muster fand nichts und meldete „keine
        Felder" — statt nachzusehen. -->
   <div id="policy-felder">
-  <p class="hint" style="margin-bottom:14px;line-height:1.6">
+  <p class="hint" style="margin-bottom:14px">
     Zwei Ebenen, für jede Vorlage gleich: Die <strong>Standardrichtlinie</strong> hier gilt für alle
     Postfächer; eine <strong>benutzerdefinierte Richtlinie</strong> (Gruppen-Regel unten) hat Vorrang
     für die Mitglieder ihrer Gruppe.
@@ -435,7 +451,7 @@ async function ankerAnwenden() {
     Postfach abweichen.{% endif %}
     Umstellen: <a href="/settings/signature#festschreiben">Einstellungen → Signatur → Erweitert</a>.
   </p>
-  <p class="hint" style="margin-bottom:14px;line-height:1.6">
+  <p class="hint" style="margin-bottom:14px">
     <strong>Antwort-Signatur:</strong> Antwortet ein Absender in einem Thread, in dem er <em>schon geschrieben</em> hat
     (ab der 2. eigenen Mail), wird nicht erneut der volle Block angehängt — sondern die hier/pro Postfach gewählte
     Antwort-Signatur (oder nichts bei „— keine —"). Neue Mails und die <em>erste</em> Antwort bekommen weiter die Standardsignatur.
@@ -546,7 +562,7 @@ async function ankerAnwenden() {
     Self-Service erlauben (Nutzer verwalten ihre Abwesenheit &amp; Signatur selbst)
     <span id="self-service-result" style="font-size:12px;margin-left:8px"></span>
   </label>
-  <p class="hint" style="margin:4px 0 0;max-width:640px">
+  <p class="hint" style="margin:4px 0 0">
     Schaltet die Seite <a href="/self" target="_blank">/self</a> frei: Postfach-Nutzer
     schalten dort ihre Abwesenheit an/aus, setzen den Zeitraum — mit korrekter Vorschau
     (anders als der native Outlook-Dialog). Ist der Schalter aus, ist die Seite nur
@@ -568,7 +584,7 @@ async function ankerAnwenden() {
              placeholder="leer = /self/rechtliches" style="min-width:min(320px,100%)">
     </div>
   </div>
-  <p class="hint" style="margin:4px 0 0;max-width:640px">
+  <p class="hint" style="margin:4px 0 0">
     Erscheinen im App-Paket für Outlook/Teams. Trag die Seiten deiner Organisation ein
     (nur https). Ohne Eintrag zeigen sie auf die öffentliche Seite
     <a href="/self/rechtliches" target="_blank">/self/rechtliches</a>. Nach einer Änderung
@@ -594,7 +610,7 @@ async function ankerAnwenden() {
     </label>
   </div>
   {% endfor %}
-  <p class="hint" style="margin:4px 0 0;max-width:640px">
+  <p class="hint" style="margin:4px 0 0">
     Mitglieder der angehakten Gruppen wählen im Self-Service ihre Vorlagen selbst,
     alle anderen nur an/aus/Zeitraum — welche Kategorien, legen die Schalter darunter
     fest. Einzelne Postfächer lassen sich über das Feld <code>self_templates</code> im
@@ -613,7 +629,7 @@ async function ankerAnwenden() {
   </div>
   {% endfor %}
   <p class="hint" id="self-tpl-stand" data-einzeln="{{ self_template_einzeln }}" aria-live="polite"
-     style="margin:6px 0 0;max-width:640px;font-weight:600"></p>
+     style="margin:6px 0 0;font-weight:600"></p>
 
   <!-- Interne Gruppen -->
   <div id="interne-gruppen" style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
@@ -622,7 +638,7 @@ async function ankerAnwenden() {
       <span style="font-size:11px;font-weight:400;color:#888">(rein interne Zuordnungen — keine Entra-Gruppen)</span>
     </div>
     <div style="overflow-x:auto;margin-bottom:6px">
-    <table id="groups-table" style="min-width:480px;width:100%;border-collapse:collapse;font-size:13px;max-width:520px">
+    <table id="groups-table" style="min-width:320px;width:100%;border-collapse:collapse;font-size:13px;max-width:900px">
       <thead>
         <tr style="border-bottom:2px solid #e2e8f0">
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Gruppenname</th>
@@ -633,12 +649,12 @@ async function ankerAnwenden() {
       <tbody id="groups-tbody"></tbody>
     </table>
     </div>
-    <p class="hint" style="margin:0 0 6px;max-width:640px">
+    <p class="hint" style="margin:0 0 6px">
       <em>Statisch</em>: Mitglieder von Hand gewählt. <em>Dynamisch</em>: Mitglieder per Regel
       aus Entra-Attributen (Abteilung, Erweiterungsattribute …) und Gateway-Feldern, dazu
       „immer dabei“, ohne „nie dabei“. Die Entra-Werte liest das Gateway stündlich ein.
     </p>
-    <div id="dyn-status" hidden style="font-size:12px;margin:0 0 8px;max-width:640px">
+    <div id="dyn-status" class="mb-text" hidden style="font-size:12px;margin:0 0 8px">
       <span id="dyn-status-text"></span>
       <span id="dyn-status-fehler" class="dyn-warnung" style="display:block"></span>
       <details id="dyn-aenderungen" style="margin-top:2px">
@@ -659,14 +675,14 @@ async function ankerAnwenden() {
       Benutzerdefinierte Richtlinien
       <span style="font-size:11px;font-weight:400;color:#888">(höhere Priorität · werden in Reihenfolge ausgewertet)</span>
     </div>
-    <p class="hint" style="margin:0 0 6px;max-width:640px">
+    <p class="hint" style="margin:0 0 6px">
       Eine Regel legt für die Mitglieder ihrer Gruppe beliebig viele Vorlagen fest.
       Je Vorlage gilt die <strong>erste</strong> Regel, die sie festlegt — die Nummer
       ist die Reihenfolge. <em>— nicht festgelegt —</em>: Die Regel sagt dazu nichts,
       eine spätere oder die Vorlagenrichtlinie gilt. <em>— keine —</em>: ausdrücklich
       keine Vorlage.
     </p>
-    <p class="hint" style="margin:0 0 6px;max-width:640px">
+    <p class="hint" style="margin:0 0 6px">
       {% if richtlinie_gruppe_fest %}Benutzerdefinierte Richtlinien schreiben <strong>fest</strong>: Was
       eine Regel festlegt, gilt für die Mitglieder ihrer Gruppe auch gegen eine eigene Wahl des Postfachs.
       Die Auswahl ist im Self-Service und in der Postfachliste gesperrt; eine eigene Wahl bleibt
@@ -675,7 +691,7 @@ async function ankerAnwenden() {
       Mitglieder ihrer Gruppe der Standard, von dem ein Postfach abweichen kann.{% endif %}
       Umstellen: <a href="/settings/signature#festschreiben">Einstellungen → Signatur → Erweitert</a>.
     </p>
-    <p class="hint" style="margin:0 0 6px;max-width:640px">
+    <p class="hint" style="margin:0 0 6px">
       <em>Add-in-Auswahl</em> legt fest, welche Vorlagen Mitglieder der Gruppe im
       Outlook-Add-in wählen können. Ist jemand in mehreren solchen Gruppen, kann er die
       Vorlagen aller dieser Gruppen wählen. Wer in keiner ist, bekommt die Auswahl aus
@@ -1494,6 +1510,7 @@ function renderMailboxTable(mailboxes) {
     var isResource = (mb.type === 'room' || mb.type === 'equipment');
     var isHybrid = (mb.type === 'hybrid');
     var tr = document.createElement('tr');
+    tr.className = 'mb-zeile';
     tr.style.borderBottom = '1px solid #f0f0f0';
     if (isResource) tr.style.opacity = '0.7';
     tr.dataset.search = (mb.email + ' ' + (mb.name || '')).toLowerCase();
@@ -1512,15 +1529,8 @@ function renderMailboxTable(mailboxes) {
       (isResource ? '<br><span style="color:#94a3b8;font-size:10px">zählt nicht zur Lizenz</span>' : '');
 
     // Standardsignatur checkbox
-    var tdSig = document.createElement('td');
-    tdSig.style.cssText = 'text-align:center;padding:6px 8px';
-    var sigCb = document.createElement('input');
-    sigCb.type = 'checkbox';
-    sigCb.className = 'mb-sig';
-    sigCb.dataset.idx = String(i);
-    if (mb.sig) sigCb.checked = true;
-    if (isResource) { sigCb.disabled = true; sigCb.title = 'Raum-/Geräte-Postfächer können nicht aktiviert werden'; }
-    tdSig.appendChild(sigCb);
+    var tdSig = _hakenZelle('mb-sig', i, mb.sig, isResource);
+    var sigCb = tdSig.firstChild;
 
     // Signatur
     var tdTpl = document.createElement('td');
@@ -1558,20 +1568,13 @@ function renderMailboxTable(mailboxes) {
     var addinCtrl = tdAddin.querySelector('details');
 
     // S/MIME checkbox
-    var tdSmime = document.createElement('td');
-    tdSmime.style.cssText = 'text-align:center;padding:6px 8px';
-    var smimeCb = document.createElement('input');
-    smimeCb.type = 'checkbox';
-    smimeCb.className = 'mb-smime';
-    smimeCb.dataset.idx = String(i);
-    if (mb.smime) smimeCb.checked = true;
-    if (isResource) { smimeCb.disabled = true; smimeCb.title = 'Raum-/Geräte-Postfächer können nicht aktiviert werden'; }
+    var tdSmime = _hakenZelle('mb-smime', i, mb.smime, isResource);
+    var smimeCb = tdSmime.firstChild;
     if (isHybrid && !_hybridAbwesenheit) smimeCb.title = HYBRID_SMIME_OHNE_EWS;
-    tdSmime.appendChild(smimeCb);
 
     // Health status
     var tdStatus = document.createElement('td');
-    tdStatus.className = 'mb-status-zelle';
+    tdStatus.className = 'mb-status-zelle mb-mitte';
     tdStatus.style.cssText = 'text-align:center;padding:6px 8px;' + (_hasHealthData ? '' : 'display:none');
     tdStatus.innerHTML = _healthBadge(mb);
 
@@ -1632,6 +1635,52 @@ function renderMailboxTable(mailboxes) {
   filterMailboxes();   // gesetzten Filter auf die neu aufgebaute Tabelle anwenden
 }
 
+// Gesetzte Filter (Bereich „Filter“) je Browser merken — reine Bequemlichkeit,
+// deshalb localStorage: ohne Speicher (privates Fenster) gilt die Vorgabe. Der
+// Suchtext bleibt bewusst aussen vor. Gespeichert wird bei jedem Filtern, also
+// auch das Zurücksetzen.
+var MB_FILTER_SCHLUESSEL = 'exo-mb-filter';
+var MB_FILTER_FELDER = ['mb-type-filter', 'mb-sig-filter', 'mb-smime-filter', 'mb-ausnahme-filter', 'mb-ruhend-filter'];
+function _mbFilterMerken() {
+  var werte = {};
+  MB_FILTER_FELDER.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) werte[id] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+  try { localStorage.setItem(MB_FILTER_SCHLUESSEL, JSON.stringify(werte)); } catch (e) { /* privat: nur jetzt */ }
+}
+function _mbFilterLaden() {
+  var werte;
+  try { werte = JSON.parse(localStorage.getItem(MB_FILTER_SCHLUESSEL) || '{}') || {}; } catch (e) { return; }
+  MB_FILTER_FELDER.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el || !(id in werte)) return;
+    if (el.type === 'checkbox') { el.checked = werte[id] === true; return; }
+    // Nur einen Wert, den die Auswahl (noch) kennt.
+    if (Array.prototype.some.call(el.options, function(o) { return o.value === werte[id]; })) el.value = werte[id];
+  });
+}
+_mbFilterLaden();
+
+// Zelle mit einem Haken der Postfachzeile (Signatur, S/MIME): mittig zur
+// Auswahlhöhe (.mb-mitte). Raum/Gerät: gesperrt.
+function _hakenZelle(klasse, idx, an, gesperrt) {
+  var td = document.createElement('td');
+  td.className = 'mb-mitte';
+  td.style.cssText = 'text-align:center;padding:6px 8px';
+  var cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.className = klasse;
+  cb.dataset.idx = String(idx);
+  if (an) cb.checked = true;
+  if (gesperrt) { cb.disabled = true; cb.title = 'Raum-/Geräte-Postfächer können nicht aktiviert werden'; }
+  td.appendChild(cb);
+  return td;
+}
+
+// „1 Zeile“ / „3 Zeilen“ statt „Zeile(n)“ (wie abnahme._zahl).
+function _mbZahl(n, einzahl, mehrzahl) { return n + ' ' + (n === 1 ? einzahl : mehrzahl); }
+
 function filterMailboxes() {
   // Ohne Argument aufgerufen: beide Kriterien werden aus den Feldern gelesen.
   // Wichtig, weil "Alle/Kein" nur auf sichtbare Zeilen wirkt (setAllVisible).
@@ -1664,6 +1713,7 @@ function filterMailboxes() {
   var aktiv = [typ, sigF, smimeF, nurAusnahmen, nurRuhend].filter(Boolean).length;
   var marke = document.getElementById('mb-filter-aktiv');
   if (marke) marke.textContent = aktiv ? ' (' + aktiv + ')' : '';
+  _mbFilterMerken();
   var zaehler = document.getElementById('mb-filter-count');
   if (zaehler) {
     zaehler.textContent = (q || typ || sigF || smimeF || nurAusnahmen || nurRuhend)
@@ -1717,7 +1767,7 @@ function massenVorlageSetzen() {
     }
     gesetzt++;
   });
-  showMsg('mb-massen-status', gesetzt + ' Zeile(n) gesetzt'
+  showMsg('mb-massen-status', _mbZahl(gesetzt, 'Zeile', 'Zeilen') + ' gesetzt'
     + (gesperrt ? ', ' + gesperrt + ' übersprungen (Spalte gesperrt, etwa ohne Signatur-Haken oder durch eine Gruppe festgelegt)' : '')
     + ' — wirksam nach „Speichern“.', gesetzt > 0);
 }
@@ -1743,7 +1793,7 @@ function massenAufStandard() {
     if (getroffen) zeilen++;
   });
   showMsg('mb-massen-status', slots
-    ? slots + ' Vorlage(n) in ' + zeilen + ' Zeile(n) auf Standard gesetzt'
+    ? _mbZahl(slots, 'Vorlage', 'Vorlagen') + ' in ' + _mbZahl(zeilen, 'Zeile', 'Zeilen') + ' auf Standard gesetzt'
       + (fest ? ', ' + fest + ' festgelegte übersprungen' : '') + ' — wirksam nach „Speichern“.'
     : 'Keine Ausnahme in den sichtbaren Zeilen' + (fest ? ' (' + fest + ' festgelegte übersprungen)' : '') + '.',
     slots > 0);
@@ -2080,12 +2130,11 @@ function _renderGroupsTable() {
         '<td style="padding:6px 8px;font-size:12px;font-weight:500">' +
           '<input type="hidden" value="' + escAttr(_grpState) + '">' + _gruppenPunktHtml(name) + esc(name) +
           '<span style="display:block;font-size:10px;font-weight:400;color:#94a3b8">vordefiniert</span></td>' +
-        '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
-          '<span>automatisch: ' + members.length + (members.length === 1 ? ' Postfach' : ' Postfächer') + '</span> ' +
+        '<td style="padding:6px 8px;font-size:12px;color:#374151"><div class="gruppen-aktionen">' +
+          '<span>automatisch: ' + members.length + (members.length === 1 ? ' Postfach' : ' Postfächer') + '</span>' +
           '<button class="btn secondary btn-sm" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +
-            'style="margin-left:4px" ' +
             'title="Custom-Variablen für alle Postfächer">Variablen (' +
-            Object.keys(_groupVars[name] || {}).length + ')</button></td>' +
+            Object.keys(_groupVars[name] || {}).length + ')</button></div></td>' +
         '<td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>';
       tbody.appendChild(tr);
       return;
@@ -2093,17 +2142,15 @@ function _renderGroupsTable() {
     var dyn = !!_dynGroups[name];
     var anzahl = members.length + (members.length === 1 ? ' Postfach' : ' Postfächer');
     var mitgliederZelle = dyn
-      ? '<span>dynamisch: ' + anzahl + '</span> ' +
-        '<button class="btn secondary btn-sm" onclick="openRegelModal(this.dataset.group)" data-group="' + escAttr(name) + '" ' +
-          'style="margin-left:4px">Regel</button> '
-      : '<span>' + anzahl + '</span> ' +
-        '<button class="btn secondary btn-sm" onclick="openMembersModal(this)" data-group="' + esc(name) + '" ' +
-          'style="margin-left:4px">Bearbeiten</button> ';
+      ? '<span>dynamisch: ' + anzahl + '</span>' +
+        '<button class="btn secondary btn-sm" onclick="openRegelModal(this.dataset.group)" data-group="' + escAttr(name) + '">Regel</button>'
+      : '<span>' + anzahl + '</span>' +
+        '<button class="btn secondary btn-sm" onclick="openMembersModal(this)" data-group="' + esc(name) + '">Bearbeiten</button>';
     var umwandeln = dyn
       ? '<button class="btn secondary btn-sm" onclick="zuStatisch(this.dataset.group)" data-group="' + escAttr(name) + '" ' +
-          'style="margin-left:2px" title="Aktuelle Mitglieder festschreiben">In statische umwandeln</button>'
+          'title="Aktuelle Mitglieder festschreiben">In statische umwandeln</button>'
       : '<button class="btn secondary btn-sm" onclick="zuDynamisch(this.dataset.group)" data-group="' + escAttr(name) + '" ' +
-          'style="margin-left:2px" title="Bisherige Mitglieder werden „immer dabei“">In dynamische umwandeln</button>';
+          'title="Bisherige Mitglieder werden „immer dabei“">In dynamische umwandeln</button>';
     tr.innerHTML =
       '<td style="padding:6px 8px">' +
         '<input type="hidden" value="' + escAttr(_grpState) + '">' +
@@ -2112,12 +2159,11 @@ function _renderGroupsTable() {
         'data-orig="' + esc(name) + '" autocapitalize="off" autocorrect="off" spellcheck="false" ' +
         'style="font-size:12px;width:150px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" ' +
         'onchange="renameGroup(this)"></span></td>' +
-      '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
+      '<td style="padding:6px 8px;font-size:12px;color:#374151"><div class="gruppen-aktionen">' +
         mitgliederZelle +
         '<button class="btn secondary btn-sm" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +
-          'style="margin-left:2px" ' +
           'title="Custom-Variablen für diese Gruppe (z.B. Vertreter)">Variablen (' +
-          Object.keys(_groupVars[name] || {}).length + ')</button> ' + umwandeln + '</td>' +
+          Object.keys(_groupVars[name] || {}).length + ')</button>' + umwandeln + '</div></td>' +
       '<td style="text-align:center;padding:6px 8px">' +
         '<button class="btn secondary btn-sm" onclick="removeGroup(\'' + escJsAttr(name) + '\')" ' +
           '>✕</button></td>';

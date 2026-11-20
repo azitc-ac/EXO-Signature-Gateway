@@ -415,7 +415,7 @@ def restore_backup(zip_bytes: bytes, auswahl: list[str] | None = None) -> dict:
                                 backup_settings["USER_BOOKINGS"] = merged
                                 backup_settings_bytes = json.dumps(backup_settings, ensure_ascii=False, indent=2).encode()
                                 warnings.append(
-                                    f"USER_BOOKINGS: {len(live_bookings)} Bookings-URL(s) aus dem "
+                                    f"USER_BOOKINGS: {len(live_bookings)} {'Bookings-URL' if len(live_bookings) == 1 else 'Bookings-URLs'} aus dem "
                                     "laufenden System in die wiederhergestellten Einstellungen übernommen."
                                 )
                     except Exception as merge_exc:

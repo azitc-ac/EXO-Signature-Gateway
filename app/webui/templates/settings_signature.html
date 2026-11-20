@@ -463,7 +463,7 @@ async function saveSignatur() {
 async function _regelPruefen(btn, el, url) {
   const d = await knopfAktion(btn, 'Exchange wird gefragt …', () => getJSON(url), {anzeige: el});
   if (!d.ok || d.zustand === 'unbekannt') {
-    showMsg(el, '✗ ' + (d.regel ? 'Regel „' + d.regel + '“' : 'Regeln') + ' ließ(en) sich nicht lesen'
+    showMsg(el, '✗ ' + (d.regel ? 'Regel „' + d.regel + '“ ließ' : 'Regeln ließen') + ' sich nicht lesen'
                 + (d.ok ? '' : ': ' + errText(d)), false);
     return null;
   }

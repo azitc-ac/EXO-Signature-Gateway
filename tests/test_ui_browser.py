@@ -2416,3 +2416,119 @@ def test_personenauswahl_huelle_so_hoch_wie_das_feld(seite, breite):
     for m in masse:
         assert m["feld"] > 0 and m["huelle"] == m["feld"], m
     pg.context.close()
+
+
+def test_postfachzeile_auswahlen_auf_einer_linie(seite):
+    """Eine Auswahl mit Marke „Ausnahme“ darunter macht die Zelle höher. Bis
+    v1.12.119 saßen die Auswahlen dadurch je Zelle mittig und standen in einer
+    Zeile auf verschiedenen Höhen. Jetzt: alle Auswahlen einer Zeile oben
+    bündig, Kästchen auf ihrer Mitte."""
+    pg = seite("/mailboxes", breite=1600)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      document.getElementById('mb-table-wrap').style.display = '';
+      renderMailboxTable([
+        {email: 'a@contoso.example', name: 'A', type: 'user', sig: true, smime: true,
+         template: 'Privat', min_template: '', standard: {sig: 'default', min: 'kurz'}},
+        {email: 'b@contoso.example', name: 'B', type: 'user', sig: true, smime: false}]); }""")
+    m = pg.evaluate("""() => { const tr = document.querySelector('#mb-tbody tr');
+        const sels = Array.from(tr.querySelectorAll('select')).filter(s => s.offsetParent);
+        const mitte = r => r.top + r.height / 2;
+        return {ausnahmen: sels.filter(s => s.dataset.ausnahme === '1').length,
+                anzahl: sels.length,
+                tops: sels.map(s => Math.round(s.getBoundingClientRect().top)),
+                selMitte: mitte(sels[0].getBoundingClientRect()),
+                kaestchen: Array.from(tr.querySelectorAll('input.mb-sig, input.mb-smime'))
+                    .map(c => mitte(c.getBoundingClientRect()))}; }""")
+    assert m["ausnahmen"] >= 1 and m["anzahl"] - m["ausnahmen"] >= 1, m   # beide Fälle in der Zeile
+    assert max(m["tops"]) - min(m["tops"]) <= 1, m
+    for k in m["kaestchen"]:
+        assert abs(k - m["selMitte"]) <= 2, m
+    pg.context.close()
+
+
+@pytest.mark.parametrize("breite", [1280, 393])
+def test_gruppenknoepfe_kleben_nicht_aneinander(seite, breite):
+    """Die Knöpfe einer Gruppenzeile (Regel, Variablen, Umwandeln) brachen bis
+    v1.12.119 in der auf 520 px begrenzten Tabelle untereinander um und
+    berührten sich. Jetzt: breit auf einer Linie, schmal mit Abstand."""
+    pg = seite("/mailboxes", breite=breite)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      _groups = {'UserMBX': ['a', 'b'], 'SharedMBX': ['c']};
+      _dynGroups = {'UserMBX': {regeln: []}};
+      _renderGroupsTable(); }""")
+    zeilen = pg.evaluate("""() => Array.from(document.querySelectorAll('#groups-tbody tr')).map(tr =>
+        Array.from(tr.querySelectorAll('td:nth-child(2) button')).map(b => {
+          const r = b.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.bottom), Math.round(r.left), Math.round(r.right)]; }))
+        .filter(k => k.length > 1)""")
+    assert zeilen, "keine Gruppenzeile mit mehreren Knöpfen"
+    for knoepfe in zeilen:
+        if breite >= 1280:
+            assert len({k[0] for k in knoepfe}) == 1, knoepfe            # eine Linie
+        for a in knoepfe:
+            for b in knoepfe:
+                if a is b:
+                    continue
+                ueberlappt_waagrecht = a[2] < b[3] and b[2] < a[3]
+                if ueberlappt_waagrecht and a[1] <= b[0]:              # a über b
+                    assert b[0] - a[1] >= 4, knoepfe
+                if a[0] == b[0] and a[3] <= b[2]:                      # a links von b
+                    assert b[2] - a[3] >= 4, knoepfe
+    pg.context.close()
+
+
+def test_gruppenregel_addin_in_derselben_zeile(seite):
+    """Breite Regelkarte: Die Add-in-Auswahl stand bis v1.12.119 allein in einer
+    zweiten Zeile, obwohl Platz war. Jetzt neben Disclaimer & Co."""
+    pg = seite("/mailboxes", breite=1600)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      _groups = {'UserMBX': ['a']};
+      _customPolicies = [{condition_type: 'group', group_name: 'UserMBX', vorlagen: {}}];
+      _renderCustomPoliciesTable(); }""")
+    tops = pg.evaluate("""() => Array.from(document.querySelectorAll('.cpol-karte .cpol-slots > .cpol-zeile'))
+        .filter(z => z.offsetParent).map(z => [z.dataset.slot, Math.round(z.getBoundingClientRect().top)])""")
+    assert any(s == "addin" for s, _ in tops), tops
+    assert len({t for _, t in tops}) == 1, tops
+    pg.context.close()
+
+
+def test_postfaecher_hinweistexte_einheitlich_breit(seite):
+    """Erklärtexte auf /mailboxes liefen bis v1.12.119 mal über die ganze Breite,
+    mal fest auf 640 px, mit zwei Zeilenhöhen. Jetzt eine Regel für alle."""
+    pg = seite("/mailboxes", breite=1600)
+    pg.wait_for_load_state("networkidle")
+    werte = pg.evaluate("""() => Array.from(document.querySelectorAll('.settings-card p.hint'))
+        .filter(p => !p.closest('[style*="position:fixed"]'))
+        .map(p => { const c = getComputedStyle(p);
+                    return [c.maxWidth, c.lineHeight, (p.textContent || '').trim().slice(0, 30)]; })""")
+    assert len(werte) >= 8, werte
+    assert len({w[0] for w in werte}) == 1, werte
+    assert len({w[1] for w in werte}) == 1, werte
+    pg.context.close()
+
+
+def test_postfachfilter_bleiben_nach_neuladen(seite):
+    """Gesetzte Filter (Bereich „Filter“) überstehen das Neuladen — je Browser
+    gemerkt. Der Suchtext bewusst nicht."""
+    pg = seite("/mailboxes", breite=1280)
+    pg.wait_for_load_state("networkidle")
+    pg.click("#mb-filter-knopf")
+    pg.select_option("#mb-sig-filter", "an")
+    pg.check("#mb-ausnahme-filter")
+    pg.reload()
+    pg.wait_for_load_state("networkidle")
+    assert pg.input_value("#mb-sig-filter") == "an"
+    assert pg.is_checked("#mb-ausnahme-filter")
+    assert pg.input_value("#mb-smime-filter") == ""
+    assert pg.inner_text("#mb-filter-knopf").startswith("Filter (2)")
+    # Zurücksetzen wirkt ebenso über das Neuladen hinaus.
+    pg.click("#mb-filter-knopf")
+    pg.select_option("#mb-sig-filter", "")
+    pg.uncheck("#mb-ausnahme-filter")
+    pg.reload()
+    pg.wait_for_load_state("networkidle")
+    assert pg.input_value("#mb-sig-filter") == ""
+    assert not pg.is_checked("#mb-ausnahme-filter")
+    pg.context.close()

@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.120 — 2026-11-20 — Postfächer: Auswahlen auf einer Linie, Gruppenknöpfe mit Abstand, Filter bleiben erhalten
+
+* **Postfachliste:** Eine Auswahl mit der Marke „Ausnahme“ darunter machte ihre
+  Zelle höher; weil jede Auswahl zellenmittig saß, standen die Auswahlen einer
+  Zeile auf zwei Höhen. Jetzt stehen alle Auswahlen einer Zeile oben bündig,
+  die Haken für Signatur und S/MIME und der Status auf ihrer Mitte.
+* **Interne Gruppen:** Die Tabelle war auf 520 px begrenzt; Anzahl und Knöpfe
+  (Regel, Variablen, Umwandeln) brachen untereinander um und berührten sich.
+  Die Tabelle nutzt jetzt bis 900 px, die Knöpfe stehen breit auf einer Linie
+  und brechen schmal mit Abstand um.
+* **Gruppen-Regeln:** Die Add-in-Auswahl steht in der breiten Ansicht in
+  derselben Reihe wie Signatur, Banner und Disclaimer statt allein darunter.
+* **Erklärtexte** auf der Seite *Postfächer* liefen mal über die ganze Breite,
+  mal fest auf 640 px, mit zwei Zeilenhöhen. Jetzt gilt für alle dieselbe Breite
+  (höchstens 760 px) und Zeilenhöhe.
+* **Filter bleiben erhalten:** Die Einstellungen im Bereich *Filter* (Typ,
+  Signatur, S/MIME, nur Ausnahmen, nur ruhende Wahl) überstehen das Neuladen der
+  Seite. Gemerkt wird je Browser; der Suchtext bleibt bewusst aussen vor.
+* **Einzahl und Mehrzahl** auch in den übrigen Meldungen: Sammelaktionen der
+  Postfachliste („1 Zeile gesetzt“), Transportregel-Prüfung unter *Signatur*,
+  Zertifikats-Umstellung im Einrichtungsassistenten („1 Secret gelöscht“) und
+  Wiederherstellung von Bookings-Adressen.
+* Drei Stilregeln der früheren Vorschlagslisten (vor der gemeinsamen
+  Personenauswahl aus v1.12.114) entfernt; sie wurden nirgends mehr benutzt.
+
+**Zu tun:** nichts.
+
 ## v1.12.119 — 2026-11-20 — Testerwartung an die neuen Mehrzahlformen angepasst
 
 Ein Test der Add-in-Verteilung prüfte noch den alten Wortlaut
