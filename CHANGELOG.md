@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.131 — 2026-11-20 — Übersicht: nur Zeilen, die hier gelten; Spalten richtig benannt; Speicher in GB
+
+* **Zeilen je Funktion.** Die Zeilen zu S/MIME, zu den Korrekturen der
+  Add-in-Signatur und zu den Abwesenheitsantworten des Gateways erscheinen nur
+  noch, wenn die Funktion genutzt wird (S/MIME an einem Postfach, Outlook-Add-in
+  an, Rückweg Graph++) oder im laufenden Jahr schon etwas gezählt wurde. Auf
+  einer Anlage ohne diese Funktionen standen sie überall auf 0. Die Schutzzeilen
+  („davon Stapel verhindert“ samt Bezugszeile, Fallback, Fehler) bleiben immer.
+* **Spalten.** Die Unterzeile nennt die Spalten, wie sie dastehen
+  (Heute · 3 Tage · drei Monate · Jahr ab 1. Januar). Die Spalte des Vorjahres
+  erscheint nur, wenn es dort Zahlen gibt. Die Jahreszahl enthält auch Monate vor
+  den drei gezeigten; daher kann sie größer sein als deren Summe.
+* **Graph-Aufrufe.** Der Hinweis unter *Cloud-Aufrufe* erklärt, warum der Graph
+  App-Pool mehr Aufrufe zeigt: Er zählt alle Graph-Aufrufe, auch Lese-Abfragen,
+  die Tabelle nur die zugestellten Mails.
+* **Speicher** in GB statt „15151.6 MB“.
+
+**Zu tun:** nichts.
+
 ## v1.12.130 — 2026-11-20 — Warteschlange: aufgegebene Zustellfehler werden nicht mehr als „wird wiederholt“ angezeigt
 
 Konnte eine Mail nicht zugestellt werden, versucht das Gateway es zwei Tage lang

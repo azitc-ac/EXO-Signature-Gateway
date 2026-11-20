@@ -2675,3 +2675,42 @@ def test_ews_zugriffsbereich_zugeklappt_bis_eingerichtet(seite):
         pg.context.close()
     finally:
         settings_store.update(vorher)
+
+
+def test_uebersicht_zeigt_nur_zeilen_die_hier_gelten(seite):
+    """Übersicht-Prüfung 20.11.2026: Zeilen für Funktionen, die nicht an sind,
+    standen überall auf 0; die Spalte „Vorjahr“ auch. Schutzzeilen bleiben."""
+    import settings_store
+    import stats
+    schluessel = ("SETUP_COMPLETE", "ADDIN_ENABLED", "MAILBOX_CONFIG", "REINJECT_MODE")
+    vorher = {k: settings_store.get(k) for k in schluessel}
+    alt_period = stats.get_period
+    zeilen = """() => Array.from(document.querySelectorAll('table tbody tr td:first-child')).map(t => t.textContent.trim())"""
+    try:
+        settings_store.update({"SETUP_COMPLETE": True, "ADDIN_ENABLED": False,
+                               "MAILBOX_CONFIG": {}, "REINJECT_MODE": "smtp"})
+        stats.get_period = lambda *a: {}
+        pg = seite("/", breite=1280)
+        pg.wait_for_load_state("domcontentloaded")
+        z = pg.evaluate(zeilen)
+        assert "davon Stapel verhindert" in z and "Verarbeitet" in z and "Fehler" in z
+        for weg in ("S/MIME signiert", "Add-in-Signatur ersetzt", "Abwesenheitsantworten (Gateway)"):
+            assert weg not in z, weg
+        assert pg.evaluate("() => !document.querySelector('th.col-py').getClientRects().length")
+        assert pg.evaluate("groesseMb(15151.6)") == "14,8 GB" and pg.evaluate("groesseMb(512)") == "512 MB"
+        pg.context.close()
+        # Funktion an → Zeilen da; Vorjahr mit Daten → Spalte da
+        settings_store.update({"ADDIN_ENABLED": True, "REINJECT_MODE": "graph_plus",
+                               "MAILBOX_CONFIG": {"x": {"smime": True}}})
+        from datetime import datetime as _dt
+        stats.get_period = lambda jahr, monat=None: {"processed": 3} if jahr < _dt.now().year or monat else {}
+        pg = seite("/", breite=1280)
+        pg.wait_for_load_state("domcontentloaded")
+        z = pg.evaluate(zeilen)
+        for da in ("S/MIME signiert", "Add-in-Signatur ersetzt", "Abwesenheitsantworten (Gateway)"):
+            assert da in z, da
+        assert pg.evaluate("() => !!document.querySelector('th.col-py').getClientRects().length")
+        pg.context.close()
+    finally:
+        stats.get_period = alt_period
+        settings_store.update(vorher)
