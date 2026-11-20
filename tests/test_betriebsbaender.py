@@ -19,10 +19,10 @@ from webui import deps
 VORLAGEN = Path(__file__).resolve().parent.parent / "app" / "webui" / "templates"
 
 
-def _alles_gemeldet(monkeypatch, wartung=None, fehler=0, waechter=None, lern=0, bypass=None):
+def _alles_gemeldet(monkeypatch, wartung=None, fehler=0, waechter=None, lern=0, bypass=None, aufgegeben=0):
     g = deps.templates.env.globals
     monkeypatch.setitem(g, "wartung_gemeldet", lambda: wartung)
-    monkeypatch.setitem(g, "zustellfehler_anzahl", lambda: fehler)
+    monkeypatch.setitem(g, "zustellfehler_stand", lambda: {"wiederholt": fehler, "aufgegeben": aufgegeben})
     monkeypatch.setitem(g, "waechter_gemeldet", lambda: waechter)
     monkeypatch.setitem(g, "lernmodus_rest_min", lambda: lern)
     monkeypatch.setitem(g, "bypass_gemeldet", lambda: bypass)
@@ -30,9 +30,9 @@ def _alles_gemeldet(monkeypatch, wartung=None, fehler=0, waechter=None, lern=0, 
 
 
 def _seite(monkeypatch, rolle="admin", wartung=None, fehler=0, waechter=None,
-           lern=0, bypass=None, angemeldet=True):
+           lern=0, bypass=None, angemeldet=True, aufgegeben=0):
     monkeypatch.setattr(aufgaben, "offene", lambda: [])
-    _alles_gemeldet(monkeypatch, wartung, fehler, waechter, lern, bypass)
+    _alles_gemeldet(monkeypatch, wartung, fehler, waechter, lern, bypass, aufgegeben)
     zustand = SimpleNamespace(user_role=rolle)
     if angemeldet:
         zustand.angemeldet = True
@@ -233,3 +233,18 @@ def test_notfall_ausgerufen_als_band_nur_fuer_admins(monkeypatch):
     assert 'id="notfall-banner"' not in _seite(monkeypatch, rolle="editor")
     monkeypatch.setitem(deps.templates.env.globals, "notfall_gemeldet", lambda: None)
     assert 'id="notfall-banner"' not in _seite(monkeypatch)
+
+
+def test_aufgegebene_zustellfehler_versprechen_keine_wiederholung(monkeypatch):
+    """Raspi 20.11.2026: 11 Mails, alle nach 2 Tagen aufgegeben (bis 196 Versuche),
+    das Banner sagte trotzdem „werden automatisch erneut zugestellt“."""
+    html = _seite(monkeypatch, fehler=0, aufgegeben=11)
+    band = html[html.index('id="zustellfehler-banner"'):]
+    band = band[:band.index("</div>")]
+    assert "automatisch erneut zugestellt" not in band
+    assert "11 Mails" in band and "aufgegeben" in band and "zustellst oder löschst" in band
+    html = _seite(monkeypatch, fehler=2, aufgegeben=1)
+    band = html[html.index('id="zustellfehler-banner"'):]
+    band = band[:band.index("</div>")]
+    assert "2 Mails konnten" in band and "automatisch erneut zugestellt" in band
+    assert "1 Mail" in band and "hat das Gateway nach 2 Tagen aufgegeben" in band

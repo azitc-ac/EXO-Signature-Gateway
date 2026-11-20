@@ -514,9 +514,24 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
     # und im Admin-Alarm, scheduler._check_smime_lifecycle.)
     expiring_certs = [c for c in signing_certs
                       if not c.get("error") and c.get("days_left", 999) <= warn_days]
+    prev_yearly = _stats_mod2.get_period(prev_year)
+    # Welche Zeilen der Mail-Tabelle gelten hier überhaupt (Übersicht-Prüfung
+    # 20.11.2026: neun von fünfzehn Zeilen standen auf einem Raspi überall auf 0,
+    # weil die Funktion dort gar nicht an ist). Eine Zeile mit Zählung im Jahr
+    # bleibt trotzdem — sonst verschwände Geschichte. Schutzzeilen („davon
+    # Stapel verhindert“) erscheinen immer, dort ist die Null die Aussage.
+    _mc = settings_store.get("MAILBOX_CONFIG") or {}
+    zeilen_zeigen = {
+        "smime": any(isinstance(v, dict) and v.get("smime") for v in _mc.values()) or bool(signing_certs),
+        "addin": bool(settings_store.get("ADDIN_ENABLED")),
+        "ablage": settings_store.reinject_mode() == "graph_plus",
+    }
+    vorjahr_zeigen = any(isinstance(v, (int, float)) and v for v in (prev_yearly or {}).values())
     return templates.TemplateResponse(
         request=request, name="dashboard.html",
         context={
+            "zeilen_zeigen": zeilen_zeigen,
+            "vorjahr_zeigen": vorjahr_zeigen,
             "stats": total,
             "stats_daily": daily,
             "stats_3d": _stats_mod2.get_last_n_days(3),
@@ -525,7 +540,7 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "stats_monthly_m1": _stats_mod2.get_period(m1y, m1m),
             "stats_monthly_m2": _stats_mod2.get_period(m2y, m2m),
             "stats_yearly": yearly,
-            "stats_prev_yearly": _stats_mod2.get_period(prev_year),
+            "stats_prev_yearly": prev_yearly,
             "stats_month_label": f"{_DE_MONTHS[now.month - 1]} {now.year}",
             "stats_month_m1_label": f"{_DE_MONTHS[m1m - 1]} {m1y}",
             "stats_month_m2_label": f"{_DE_MONTHS[m2m - 1]} {m2y}",

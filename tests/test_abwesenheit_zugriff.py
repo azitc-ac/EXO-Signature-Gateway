@@ -98,7 +98,7 @@ def test_band_text(monkeypatch):
     g = deps.templates.env.globals
     for k in ("wartung_gemeldet", "waechter_gemeldet", "bypass_gemeldet", "exo_abgewiesen_gemeldet"):
         monkeypatch.setitem(g, k, lambda: None)
-    monkeypatch.setitem(g, "zustellfehler_anzahl", lambda: 0)
+    monkeypatch.setitem(g, "zustellfehler_stand", lambda: {"wiederholt": 0, "aufgegeben": 0})
     monkeypatch.setitem(g, "lernmodus_rest_min", lambda: 0)
     monkeypatch.setitem(g, "ooo_zugriff_gemeldet", lambda: {
         "anzahl": 1, "postfaecher": ["rechnungen@firma.at"], "gruppe": "Mein Gateway - App Scope",

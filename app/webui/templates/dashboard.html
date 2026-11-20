@@ -105,14 +105,16 @@ function dismissWelcome() {
 @media (max-width: 520px) { .col-m2, .col-m1 { display:none; } }
 @media (max-width: 480px) { .col-y  { display:none; } }
 @media (max-width: 420px) { .col-py { display:none; } }
+/* Vorjahr ohne Daten: Spalte weg (Übersicht-Prüfung 20.11.2026, „2025“ überall 0). */
+.ohne-vorjahr .col-py { display:none; }
 </style>
 
 <div style="display:flex;align-items:baseline;gap:16px;margin:0 0 10px">
   <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0">Mails</h3>
-  <span style="font-size:12px;color:#aaa">Heute / 3 Tage / {{ stats_month_label }} / {{ stats_year_label }}</span>
+  <span style="font-size:12px;color:#aaa">Heute · 3 Tage · {{ stats_month_m2_label }} bis {{ stats_month_label }} · {{ stats_year_label }} ab 1. Januar{% if vorjahr_zeigen %} · Vorjahr{% endif %}</span>
 </div>
 <div class="settings-card" style="padding:0 16px;overflow-x:auto">
-  <table style="width:100%;border-collapse:collapse;min-width:300px">
+  <table class="{% if not vorjahr_zeigen %}ohne-vorjahr{% endif %}" style="width:100%;border-collapse:collapse;min-width:300px">
     <thead>
       <tr style="border-bottom:2px solid #e2e8f0">
         <th style="text-align:left;padding:8px 0;font-size:12px;color:#78716c;font-weight:600"></th>
@@ -127,11 +129,14 @@ function dismissWelcome() {
     </thead>
     <tbody>
       {{ stat_row("Verarbeitet", stats_daily.processed, stats_3d.processed, stats_monthly_m2.processed, stats_monthly_m1.processed, stats_monthly.processed, stats_prev_yearly.processed, stats_yearly.processed, "*") }}
+      {#- S/MIME-Zeilen nur, wenn S/MIME hier genutzt wird (oder im Jahr gezählt). -#}
+      {% if zeilen_zeigen.smime or stats_yearly.smime_signed or stats_yearly.smime_encrypted or stats_yearly.smime_decrypted or stats_yearly.smime_signiert_empfangen or stats_yearly.certs_harvested %}
       {{ stat_row("S/MIME signiert", stats_daily.smime_signed, stats_3d.smime_signed, stats_monthly_m2.smime_signed, stats_monthly_m1.smime_signed, stats_monthly.smime_signed, stats_prev_yearly.smime_signed, stats_yearly.smime_signed, "smime_signed") }}
       {{ stat_row("S/MIME verschlüsselt", stats_daily.smime_encrypted, stats_3d.smime_encrypted, stats_monthly_m2.smime_encrypted, stats_monthly_m1.smime_encrypted, stats_monthly.smime_encrypted, stats_prev_yearly.smime_encrypted, stats_yearly.smime_encrypted, "smime_encrypted") }}
       {{ stat_row("S/MIME entschlüsselt", stats_daily.smime_decrypted, stats_3d.smime_decrypted, stats_monthly_m2.smime_decrypted, stats_monthly_m1.smime_decrypted, stats_monthly.smime_decrypted, stats_prev_yearly.smime_decrypted, stats_yearly.smime_decrypted, "smime_decrypted") }}
       {{ stat_row("S/MIME signiert empfangen", stats_daily.smime_signiert_empfangen, stats_3d.smime_signiert_empfangen, stats_monthly_m2.smime_signiert_empfangen, stats_monthly_m1.smime_signiert_empfangen, stats_monthly.smime_signiert_empfangen, stats_prev_yearly.smime_signiert_empfangen, stats_yearly.smime_signiert_empfangen, "smime_signiert_empfangen") }}
       {{ stat_row("Zertifikate gesammelt", stats_daily.certs_harvested, stats_3d.certs_harvested, stats_monthly_m2.certs_harvested, stats_monthly_m1.certs_harvested, stats_monthly.certs_harvested, stats_prev_yearly.certs_harvested, stats_yearly.certs_harvested, "") }}
+      {% endif %}
       {#- Antworten auf bestehende Ketten, und wie oft dabei erkannt wurde, dass
           bereits signiert ist. BEIDE Zeilen: Die zweite allein waere nicht zu
           deuten — eine Null kann "nichts erkannt, obwohl es zu erkennen gab"
@@ -141,14 +146,19 @@ function dismissWelcome() {
           Tage wirkungslos mit, ohne dass es irgendwo sichtbar wurde. -#}
       {{ stat_row("Antworten in Ketten", stats_daily.antworten, stats_3d.antworten, stats_monthly_m2.antworten, stats_monthly_m1.antworten, stats_monthly.antworten, stats_prev_yearly.antworten, stats_yearly.antworten, "") }}
       {{ stat_row("davon Stapel verhindert", stats_daily.stapel_verhindert, stats_3d.stapel_verhindert, stats_monthly_m2.stapel_verhindert, stats_monthly_m1.stapel_verhindert, stats_monthly.stapel_verhindert, stats_prev_yearly.stapel_verhindert, stats_yearly.stapel_verhindert, "") }}
+      {#- Korrekturen von Add-in-Signaturen: Schutzzeilen, sobald das Add-in an ist. -#}
+      {% if zeilen_zeigen.addin or stats_yearly.addin_korrigiert or stats_yearly.intern_korrigiert or stats_yearly.geteilt_entwurf %}
       {{ stat_row("Add-in-Signatur ersetzt", stats_daily.addin_korrigiert, stats_3d.addin_korrigiert, stats_monthly_m2.addin_korrigiert, stats_monthly_m1.addin_korrigiert, stats_monthly.addin_korrigiert, stats_prev_yearly.addin_korrigiert, stats_yearly.addin_korrigiert, "") }}
       {{ stat_row("Interne Signatur nach außen ersetzt", stats_daily.intern_korrigiert, stats_3d.intern_korrigiert, stats_monthly_m2.intern_korrigiert, stats_monthly_m1.intern_korrigiert, stats_monthly.intern_korrigiert, stats_prev_yearly.intern_korrigiert, stats_yearly.intern_korrigiert, "") }}
       {{ stat_row("Geteiltes Postfach mit Add-in-Signatur", stats_daily.geteilt_entwurf, stats_3d.geteilt_entwurf, stats_monthly_m2.geteilt_entwurf, stats_monthly_m1.geteilt_entwurf, stats_monthly.geteilt_entwurf, stats_prev_yearly.geteilt_entwurf, stats_yearly.geteilt_entwurf, "") }}
       {{ stat_row("davon Signatur der Person ersetzt", stats_daily.geteilt_korrigiert, stats_3d.geteilt_korrigiert, stats_monthly_m2.geteilt_korrigiert, stats_monthly_m1.geteilt_korrigiert, stats_monthly.geteilt_korrigiert, stats_prev_yearly.geteilt_korrigiert, stats_yearly.geteilt_korrigiert, "") }}
+      {% endif %}
       {#- Abwesenheitsantworten, die das Gateway selbst schickt: für Post, die per
           Ablage statt per Zustellung ins Postfach kommt (eingehende S/MIME-Post
           von außen). Exchange schickt dort keine. -#}
+      {% if zeilen_zeigen.ablage or stats_yearly.oof_ablage_antwort %}
       {{ stat_row("Abwesenheitsantworten (Gateway)", stats_daily.oof_ablage_antwort, stats_3d.oof_ablage_antwort, stats_monthly_m2.oof_ablage_antwort, stats_monthly_m1.oof_ablage_antwort, stats_monthly.oof_ablage_antwort, stats_prev_yearly.oof_ablage_antwort, stats_yearly.oof_ablage_antwort, "") }}
+      {% endif %}
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:7px 0;font-size:13px;color:#d97706;font-weight:500">Fallback</td>
         <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stat_cell(stats_daily.fallback, "fallback", today) }}</td>
@@ -176,10 +186,10 @@ function dismissWelcome() {
 <!-- Cloud-Aufrufe (Graph sendMail, Key Vault) -->
 <div style="display:flex;align-items:baseline;gap:16px;margin:24px 0 10px">
   <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0">Cloud-Aufrufe (Microsoft Graph, Azure Key Vault)</h3>
-  <span style="font-size:12px;color:#aaa">Heute / 3 Tage / {{ stats_month_label }} / {{ stats_year_label }}</span>
+  <span style="font-size:12px;color:#aaa">Heute · 3 Tage · {{ stats_month_m2_label }} bis {{ stats_month_label }} · {{ stats_year_label }} ab 1. Januar{% if vorjahr_zeigen %} · Vorjahr{% endif %}</span>
 </div>
 <div class="settings-card" style="padding:0 16px;overflow-x:auto">
-  <table style="width:100%;border-collapse:collapse;min-width:300px">
+  <table class="{% if not vorjahr_zeigen %}ohne-vorjahr{% endif %}" style="width:100%;border-collapse:collapse;min-width:300px">
     <thead>
       <tr style="border-bottom:2px solid #e2e8f0">
         <th style="text-align:left;padding:8px 0;font-size:12px;color:#78716c;font-weight:600"></th>
@@ -198,7 +208,7 @@ function dismissWelcome() {
     </tbody>
   </table>
 </div>
-<p class="hint" style="margin-top:6px">Graph sendMail = Mails via Microsoft Graph API zugestellt. Key Vault Sign = S/MIME-Signaturen via Azure Key Vault.</p>
+<p class="hint" style="margin-top:6px">Graph sendMail = Mails, die das Gateway über die Graph-API zugestellt hat. Key Vault Sign = S/MIME-Signaturen über Azure Key Vault. Der Graph App-Pool weiter unten zählt dagegen <em>alle</em> Graph-Aufrufe, auch Lese-Abfragen (Postfächer, Abwesenheit, Prüfungen) — deshalb ist die Zahl dort höher.</p>
 
 <!-- TLS + S/MIME Zertifikate -->
 <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 10px">Zertifikate</h3>
@@ -458,6 +468,14 @@ function closePoolModal() {
 
 var _sysToday = new Date().toISOString().slice(0,10);
 
+// Speichergrösse lesbar: ab 1 GB in GB mit einer Nachkommastelle (de-DE).
+// Vorher „15151.6 MB“ (Übersicht-Prüfung 20.11.2026).
+function groesseMb(mb) {
+  if (mb == null) return '—';
+  const zahl = (x) => Number(x).toLocaleString('de-DE', {maximumFractionDigits: 1});
+  return mb >= 1024 ? zahl(mb / 1024) + ' GB' : zahl(mb) + ' MB';
+}
+
 function openInFlightInfo(active, maintHeld, dfCount) {
   maintHeld = maintHeld || 0;
   dfCount = dfCount || 0;
@@ -525,7 +543,9 @@ function openInFlightInfo(active, maintHeld, dfCount) {
       var subParts = [];
       if (d.in_flight > 0) subParts.push(d.in_flight + ' in Verarbeitung');
       if (maintHeld > 0)   subParts.push(maintHeld + ' im Wartungsmodus zurückgehalten');
-      if (dfCount > 0)     subParts.push(dfCount + ' wegen Zustellfehler in der Warteschlange');
+      const dfAufgegeben = d.delivery_failed_aufgegeben || 0;
+      if (dfCount > 0)     subParts.push(dfCount + ' wegen Zustellfehler in der Warteschlange'
+                                         + (dfAufgegeben ? ' (' + dfAufgegeben + ' aufgegeben — zustellen oder löschen)' : ''));
       const inFlightSub = subParts.length ? subParts.join(', ') : 'Keine Mails in Verarbeitung';
 
       grid.innerHTML =
@@ -534,8 +554,8 @@ function openInFlightInfo(active, maintHeld, dfCount) {
         tile('Mail-Peak heute', d.peak_hour != null ? Number(d.peak_hour) + '–' + (Number(d.peak_hour) + 1) + ' Uhr · ' + d.peak_hour_cnt + ' Mails' : '—', 'geschäftigste Stunde', '', peakOnclick) +
         tile('RAM (Prozess)', d.rss_mb != null ? d.rss_mb + ' MB' : '—', 'RSS') +
         tile('Uptime', fmt_uptime(d.uptime_s), fmt_start(d.uptime_s)) +
-        tile('Disk belegt', d.disk_used_mb != null ? d.disk_used_mb + ' MB' : '—', d.disk_pct != null ? d.disk_pct + '% von ' + d.disk_total_mb + ' MB' : '', diskClass) +
-        tile('Disk frei', d.disk_free_mb != null ? d.disk_free_mb + ' MB' : '—', '/app/data') +
+        tile('Disk belegt', groesseMb(d.disk_used_mb), d.disk_pct != null ? d.disk_pct + ' % von ' + groesseMb(d.disk_total_mb) : '', diskClass) +
+        tile('Disk frei', groesseMb(d.disk_free_mb), '/app/data') +
         tile('Audit-DB', d.db_size_kb != null ? d.db_size_kb + ' KB' : '—', 'mail_audit.db', '', 'openAuditModal("","",null)') +
         tile('Mail-Logs', d.logs_size_kb != null ? (d.logs_size_kb >= 1024 ? (d.logs_size_kb/1024).toFixed(1)+' MB' : d.logs_size_kb+' KB') : '—', 'data/logs/ gesamt', '', 'openLogTailModal()');
       document.getElementById('sysRefreshNote').textContent = 'aktualisiert ' + new Date().toLocaleTimeString('de-DE');
@@ -570,7 +590,7 @@ function openInFlightInfo(active, maintHeld, dfCount) {
             '<div style="font-size:11px;color:#78716c;margin-top:2px">' +
               '<span title="Aufrufe in dieser Stunde">' + thisH + ' / h</span>' +
               ' &nbsp;·&nbsp; <span title="Peak heute">Peak: ' + peakStr + '</span>' +
-              ' &nbsp;·&nbsp; <span title="Aufrufe heute gesamt">heute ' + today + ' ges.</span>' +
+              ' &nbsp;·&nbsp; <span title="Alle Graph-Aufrufe heute, auch Lese-Abfragen">heute ' + today + ' Aufrufe</span>' +
               ' &nbsp;·&nbsp; ' + statusStr +
             '</div>' +
           '</div>' +

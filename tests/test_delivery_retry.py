@@ -74,6 +74,11 @@ def test_mark_retry_failed_plant_nach_und_gibt_nach_2_tagen_auf(tmp_path, monkey
     assert st["retry_exhausted"] is True
     assert (tmp_path / f"{mid}.json").exists()                 # Fallnetz: bleibt liegen
     assert held_mails.due_for_retry(now=start + timedelta(days=3)) == []  # kein Auto-Retry mehr
+    # Anzeige: aufgegeben ist nicht „wird wiederholt“ (Banner, Übersicht, Liste)
+    held_mails.hold("c@x.de", ["d@x.de"], b"From: c@x.de\r\n\r\nx", reason="delivery_failed")
+    held_mails.hold("e@x.de", ["f@x.de"], b"From: e@x.de\r\n\r\nx", reason="maintenance")
+    assert held_mails.zustellfehler_stand() == {"wiederholt": 1, "aufgegeben": 1}
+    assert {m["id"]: m["aufgegeben"] for m in held_mails.list_all()}[mid] is True
 
 
 def test_scheduler_retry_erfolg_loescht_fehlschlag_plant_nach(tmp_path, monkeypatch):
