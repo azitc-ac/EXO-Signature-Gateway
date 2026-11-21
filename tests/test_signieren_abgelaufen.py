@@ -170,7 +170,12 @@ def test_jeder_zaehler_steht_in_keys():
     fehlt, dynamisch = set(), []
     for p in app.rglob("*.py"):
         text = p.read_text(encoding="utf-8")
-        fehlt |= set(re.findall(r'\bstats\.increment\(\s*"([a-z_]+)"', text)) - set(stats.KEYS)
+        fehlt |= set(re.findall(r'\bstats\.increment\(\s*"([a-z_]+)"\s*\)', text)) - set(stats.KEYS)
+        # Festes Präfix + Teil ("x_" + art): mindestens ein Schlüssel mit diesem
+        # Präfix muss in KEYS stehen; die einzelnen Teile prüft das Modul selbst.
+        for praefix in re.findall(r'\bstats\.increment\(\s*"([a-z_]+)"\s*\+', text):
+            if not any(k.startswith(praefix) for k in stats.KEYS):
+                fehlt.add(praefix + "…")
         dynamisch += [f"{p.name}" for _ in re.findall(r'\bstats\.increment\(\s*[^"\s)]', text)]
     assert not fehlt, f"stats.increment mit Schlüssel außerhalb von stats.KEYS: {sorted(fehlt)}"
     assert not dynamisch, f"stats.increment ohne festen Schlüssel (nicht prüfbar): {dynamisch}"
