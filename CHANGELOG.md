@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.142 — 2026-11-21 — DMARC aus einer M365-Gruppe: Abruf funktioniert
+
+Der Abruf aus einer Microsoft-365-Gruppe (seit v1.12.138) scheiterte an zwei
+Stellen, die erst mit echtem Zugriff auf eine Gruppe sichtbar wurden:
+
+* **Unterhaltungen:** Die Abfrage `…/threads` filterte nach Zustelldatum.
+  Exchange nimmt dort nur einen Filter auf `IsLocked` an und antwortet sonst mit
+  `501 ConversationFilterOther`. Der vorgesehene Ausweichweg griff nur bei 400.
+  Das Gateway fragt jetzt ohne Filter ab und prüft das Datum selbst.
+* **Anhänge:** `…/posts/{id}/attachments` unterstützt Microsoft mit
+  Anwendungsberechtigung nicht (Graph v1.0 „List attachments“, Antwort 403
+  `ErrorAccessDenied`). Das Gateway holt die Anhänge jetzt mit
+  `$expand=attachments` zusammen mit den Beiträgen, also eine Abfrage je
+  Unterhaltung statt einer je Anhang.
+
+Der Abruf aus einem Postfach ist unverändert.
+
+**Zu tun:** nichts. Nach dem Update unter Einstellungen → DMARC „Jetzt abrufen“
+klicken, oder auf den nächsten Abruf warten.
+
+---
+
 ## v1.12.141 — 2026-11-21 — DMARC aus einer M365-Gruppe trotz Postfach-Eingrenzung
 
 ### Neu: DMARC-Lese-App

@@ -386,15 +386,23 @@ GRUPPE_GESPERRT = ("Die Postfach-Eingrenzung der Gateway-App (ApplicationAccessP
                    "als zweite rua-Adresse (rua=mailto:…,mailto:…) eintragen.")
 
 
+def _dateianhang(a: dict) -> bool:
+    return a.get("@odata.type", "#microsoft.graph.fileAttachment") == "#microsoft.graph.fileAttachment"
+
+
+def _zu_gross(a: dict) -> bool:
+    return (a.get("size") or 0) > MAX_ANHANG + 64 * 1024
+
+
 def _anhaenge(client, basis: str, token: str) -> list[tuple[str, bytes]]:
-    """[(name, bytes)] der Dateianhänge unter `basis` (…/messages/{id} oder …/posts/{id}).
+    """[(name, bytes)] der Dateianhänge einer Postfach-Nachricht (…/messages/{id}).
     Größe vor dem Herunterladen geprüft."""
     aus = []
     for a in _seiten(client, f"{basis}/attachments", token,
                      {"$select": "id,name,size,contentType"}):
-        if a.get("@odata.type", "#microsoft.graph.fileAttachment") != "#microsoft.graph.fileAttachment":
+        if not _dateianhang(a):
             continue
-        if (a.get("size") or 0) > MAX_ANHANG + 64 * 1024:
+        if _zu_gross(a):
             aus.append((a.get("name") or "?", b""))       # zu groß: als Fehler zählen
             continue
         r = _get(client, f"{basis}/attachments/{a['id']}", token)
@@ -403,34 +411,46 @@ def _anhaenge(client, basis: str, token: str) -> list[tuple[str, bytes]]:
     return aus
 
 
+def _anhaenge_mitgeliefert(post: dict) -> list[tuple[str, bytes]]:
+    """[(name, bytes)] aus einem Gruppenbeitrag, der per $expand=attachments kam.
+    …/posts/{id}/attachments ist mit Anwendungsberechtigung NICHT unterstützt
+    (Graph v1.0 „List attachments“: Application „Not supported“, live 403
+    ErrorAccessDenied); $expand nennt dieselbe Seite als Weg."""
+    aus = []
+    for a in post.get("attachments") or []:
+        if not _dateianhang(a):
+            continue
+        if _zu_gross(a) or not a.get("contentBytes"):
+            aus.append((a.get("name") or "?", b""))       # zu groß/leer: als Fehler zählen
+            continue
+        aus.append((a.get("name") or "?", base64.b64decode(a["contentBytes"])))
+    return aus
+
+
 def _quellen(client, z: dict, token: str, seit: datetime):
-    """Je Bericht-Mail ein Basis-Pfad für die Anhänge — Postfach oder Gruppe."""
+    """Je Bericht-Mail (Betreff, Anhänge holen) — Postfach oder Gruppe. Der zweite
+    Wert ist eine Funktion ohne Argumente: erst holen, wenn der Betreff passt."""
     seit_iso = seit.strftime("%Y-%m-%dT%H:%M:%SZ")
     if z["art"] == "postfach":
         for m in _seiten(client, f"{GRAPH}/users/{z['id']}/messages", token, {
                 "$filter": f"receivedDateTime ge {seit_iso} and hasAttachments eq true",
                 "$select": "id,subject,receivedDateTime", "$top": "50",
                 "$orderby": "receivedDateTime desc"}):
-            yield m.get("subject") or "", f"{GRAPH}/users/{z['id']}/messages/{m['id']}"
+            basis = f"{GRAPH}/users/{z['id']}/messages/{m['id']}"
+            yield m.get("subject") or "", (lambda b=basis: _anhaenge(client, b, token))
         return
     gid = z["id"]
-    try:
-        threads = list(_seiten(client, f"{GRAPH}/groups/{gid}/threads", token, {
-            "$filter": f"lastDeliveredDateTime gt {seit_iso}",
-            "$select": "id,topic,lastDeliveredDateTime,hasAttachments", "$top": "50"}))
-    except _GraphFehler as exc:
-        if exc.status != 400:
-            raise
-        # Filter nicht angenommen → ohne Filter, Zeit selbst prüfen.
-        threads = list(_seiten(client, f"{GRAPH}/groups/{gid}/threads", token,
-                               {"$select": "id,topic,lastDeliveredDateTime,hasAttachments", "$top": "50"}))
+    # Ohne $filter: /threads nimmt nur „IsLocked eq true“ an, alles andere
+    # beantwortet Exchange mit 501 ConversationFilterOther. Zeit selbst prüfen.
+    threads = list(_seiten(client, f"{GRAPH}/groups/{gid}/threads", token,
+                           {"$select": "id,topic,lastDeliveredDateTime,hasAttachments", "$top": "50"}))
     for t in threads:
         if (t.get("lastDeliveredDateTime") or "") < seit_iso or t.get("hasAttachments") is False:
             continue
         for p in _seiten(client, f"{GRAPH}/groups/{gid}/threads/{t['id']}/posts", token,
-                         {"$select": "id,receivedDateTime,hasAttachments"}):
+                         {"$expand": "attachments"}):
             if p.get("hasAttachments") and (p.get("receivedDateTime") or "") >= seit_iso:
-                yield t.get("topic") or "", f"{GRAPH}/groups/{gid}/threads/{t['id']}/posts/{p['id']}"
+                yield t.get("topic") or "", (lambda p=p: _anhaenge_mitgeliefert(p))
 
 
 _RUF = re.compile(r"(forensic|failure|ruf)", re.IGNORECASE)
@@ -476,13 +496,13 @@ def abrufen() -> dict:
                                     "braucht Entra einige Minuten. Später erneut abrufen.")
                 return _abruf_merken(abruf)
         try:
-            for betreff, basis in _quellen(client, z, token, seit):
+            for betreff, holen in _quellen(client, z, token, seit):
                 abruf["mails"] += 1
                 if _RUF.search(betreff) and "report domain" not in betreff.lower():
                     # Einzelfallbericht (ruf): nur zählen — er enthält die Mail selbst.
                     abruf["ruf"] = abruf.get("ruf", 0) + 1
                     continue
-                for name, daten in _anhaenge(client, basis, token):
+                for name, daten in holen():
                     try:
                         if not daten:
                             raise BerichtFehler("Anhang zu groß")

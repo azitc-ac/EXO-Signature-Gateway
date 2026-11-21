@@ -211,10 +211,24 @@ class _Graph:
         if url.endswith("/groups/g1/threads"):
             if self.threads_status != 200:
                 return _Resp(self.threads_status, text=self.fehlertext)
+            if "$filter" in (params or {}):           # wie Exchange: nur IsLocked erlaubt
+                return _Resp(501, text='{"error":{"code":"ConversationFilterOther"}}')
+            # t0 ist älter als das Abruffenster — seine Beiträge gibt es hier nicht (404).
             return _Resp(200, {"value": [{"id": "t1", "topic": "Report Domain: firma.at",
-                                          "lastDeliveredDateTime": jetzt, "hasAttachments": True}]})
+                                          "lastDeliveredDateTime": jetzt, "hasAttachments": True},
+                                         {"id": "t0", "topic": "Report Domain: firma.at",
+                                          "lastDeliveredDateTime": "2020-01-01T00:00:00Z",
+                                          "hasAttachments": True}]})
         if url.endswith("/threads/t1/posts"):
-            return _Resp(200, {"value": [{"id": "p1", "receivedDateTime": jetzt, "hasAttachments": True}]})
+            # Wie Graph: Gruppenanhänge nur über $expand, nie über …/posts/{id}/attachments.
+            p = {"id": "p1", "receivedDateTime": jetzt, "hasAttachments": True}
+            if (params or {}).get("$expand") == "attachments":
+                p["attachments"] = [{"@odata.type": "#microsoft.graph.fileAttachment", "id": "a1",
+                                     "name": "r.xml.gz", "size": len(self.anhang),
+                                     "contentBytes": base64.b64encode(self.anhang).decode()}]
+            return _Resp(200, {"value": [p]})
+        if "/posts/" in url and url.endswith("/attachments"):
+            return _Resp(403, text='{"error":{"code":"ErrorAccessDenied"}}')
         if url.endswith("/attachments"):
             return _Resp(200, {"value": [{"id": "a1", "name": "r.xml.gz", "size": len(self.anhang)}]})
         if url.endswith("/attachments/a1"):
@@ -252,7 +266,7 @@ def test_abruf_postfach_und_gruppe(umgebung, monkeypatch, art):
     assert a["ok"] and a["neu"] == 1 and a["mails"] == 1
     assert dm.ziel()["art"] == art
     if art == "gruppe":
-        assert any("/groups/g1/threads/t1/posts/p1/attachments" in u for u in g.urls)
+        assert any(u.endswith("/groups/g1/threads/t1/posts") for u in g.urls)
         assert not any("/messages" in u for u in g.urls)
         assert _rolle_benoetigt()
     else:
