@@ -51,6 +51,9 @@ _GRAPH_PERMISSION_SPECS = [
     {"name": "AppCatalog.Read.All",      "id": "e12dae10-5a57-4817-b79d-dfbec5348930",
      "zweck": "Fassung der Teams-App im Katalog", "nur_wenn": "TEAMS_APP_AKTIV",
      "vorgabe": False},
+    {"name": "Group-Conversation.Read.All", "id": "4f0a8235-6f6f-4ec7-9500-34b452a4a0c3",
+     "zweck": "DMARC-Berichte aus einer Microsoft-365-Gruppe lesen", "nur_wenn": "_DMARC_GRUPPE",
+     "vorgabe": False},
 ]
 _EXO_PERMISSION_SPECS = [
     {"name": "Exchange.ManageAsApp",     "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
@@ -431,6 +434,8 @@ async def _grant_admin_consent(token: str, our_sp_id: str) -> list[str]:
     except Exception as exc:
         log.warning("Could not find EXO service principal: %s", exc)
         fehler.append(f"Exchange-Dienstprinzipal nicht gefunden: {exc}")
+    # Neu erteilte Rollen stehen erst in einem NEU ausgestellten Token.
+    _gc.token_zwischenspeicher_verwerfen()
     return fehler
 
 
@@ -1422,6 +1427,12 @@ def _app_scope_adressen() -> list[str]:
     notif = (settings_store.get("NOTIFICATION_MAILBOX") or "").strip().lower()
     if notif and "@" in notif:
         adr.add(notif)
+    # DMARC-Berichte werden aus diesem Postfach gelesen. Nur bei erkanntem
+    # POSTFACH — eine Microsoft-365-Gruppe nimmt die Policy nicht an.
+    dz = settings_store.get("_DMARC_ZIEL") or {}
+    da = (dz.get("adresse") or "").strip().lower() if isinstance(dz, dict) else ""
+    if dz.get("art") == "postfach" and da and da == (settings_store.get("DMARC_POSTFACH") or "").strip().lower():
+        adr.add(da)
     # Sende-Identitäten: ihre Shared-Mailbox-Adressen brauchen ebenfalls
     # App-Zugriff — Graph `sendMail` „als" die Shared Mailbox scheitert sonst an
     # der ApplicationAccessPolicy (RAOP-403). Lazy importiert (kein Ringschluss).
@@ -1469,6 +1480,16 @@ def run_app_access_policy_sync(app_id: str, tenant_domain: str) -> dict:
     except Exception as exc:
         log.error("App-Access-Policy-Sync Fehler: %s", exc)
         return {"ok": False, "output": str(exc)}
+
+
+def app_scope_nachziehen() -> dict:
+    """run_app_access_policy_sync mit der eigenen App und dem eigenen Tenant —
+    für Stellen, die nur „Scope könnte sich geändert haben“ wissen."""
+    app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    tenant = settings_store.get("TENANT_DOMAIN") or ""
+    if not (app_id and tenant):
+        return {"ok": False, "output": "App-ID oder Tenant fehlt"}
+    return run_app_access_policy_sync(app_id, tenant)
 
 
 def run_fetch_bookings_urls(app_id: str, tenant_domain: str, emails: list[str]) -> dict:

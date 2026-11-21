@@ -102,7 +102,7 @@ def test_doku_nennt_jede_beantragte_rolle():
     import re
     from pathlib import Path
     readme = (Path(__file__).resolve().parent.parent / "docs" / "installation.md").read_text(encoding="utf-8")
-    zeilen = set(re.findall(r"^\| `([A-Za-z.]+)` \|", readme, re.M))
+    zeilen = set(re.findall(r"^\| `([A-Za-z.-]+)` \|", readme, re.M))  # „-“: Group-Conversation.Read.All
     soll = {s["name"] for s in setup_wizard._GRAPH_PERMISSION_SPECS + setup_wizard._EXO_PERMISSION_SPECS}
     assert soll <= zeilen, f"in docs/installation.md fehlt: {sorted(soll - zeilen)}"
     assert "Mail.ReadWrite.All" not in zeilen

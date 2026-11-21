@@ -480,6 +480,26 @@ def _direktversand_probe() -> dict:
                   "„Probe jetzt“ startet sie sofort.")
 
 
+def _dmarc_berichte() -> dict:
+    """Werden die DMARC-Sammelberichte gelesen, und gibt es Befunde? Nur lokal
+    (Stand des letzten Abrufs), dieselbe Bewertung wie Tagesbericht und
+    Oberfläche (dmarc_berichte.bewertung). Ohne eingetragenes Ziel: ok — die
+    Auswertung ist freiwillig."""
+    import dmarc_berichte
+    name = "DMARC-Berichte"
+    ampel, text = dmarc_berichte.bewertung()
+    if ampel == "keine":
+        return _punkt(name, OK, "Auswertung nicht eingerichtet (freiwillig).")
+    if ampel == "ok":
+        return _punkt(name, OK, text)
+    # Noch kein Abruf: unbekannt. Befunde oder ein gescheiterter Abruf: offen.
+    stufe = UNBEKANNT if "noch kein Abruf" in text else OFFEN
+    return _punkt(name, stufe, text,
+                  "Einstellungen → DMARC: Befunde und Abrufstand ansehen; „Jetzt abrufen“ "
+                  "liest sofort. Bei einer Microsoft-365-Gruppe muss Group-Conversation.Read.All "
+                  "erteilt sein.")
+
+
 def _wartende_zertifikate() -> dict:
     """Warten eingesammelte Empfängerzertifikate auf eine Entscheidung?
 
@@ -1218,7 +1238,7 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _regel_auto_ausnahme, _implicit_anmeldung,
               _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _ews_kontowechsel, _dynamische_gruppen_stand, _richtlinien_ruhend, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen, _erneuerung_unentschieden,
-              _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe,
+              _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe, _dmarc_berichte,
               _smime_regeln_stand,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,
               _csp_berichte, _notbetrieb_lokal, _teams_katalog_signatur, _teams_katalog_notfall)

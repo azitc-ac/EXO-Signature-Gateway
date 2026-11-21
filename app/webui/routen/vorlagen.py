@@ -636,16 +636,13 @@ _GROESSE_BEISPIEL = dict(
     streetAddress="Musterstraße 123", postalCode="10115", city="Berlin", country="Deutschland")
 
 
-# Eingebettete Bilder (data:-Adressen) — ihr Anteil an der Länge
-_DATA_BILD = _re.compile(r"data:image/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+", _re.I)
-
-
 def _groessenpruefung(name: str) -> tuple[int, list[int]]:
-    """(Zeichenzahl über Outlooks Grenze oder 0, Längen der eingebetteten
-    Bilder absteigend). Gerendert mit einem Beispielnutzer; im Betrieb weicht
-    es um die Länge der echten Angaben ab."""
+    """(Zeichenzahl über Outlooks Grenze oder 0, Bytes der eingebetteten Bilder
+    absteigend). Gezählt wie beim Verfassen-Add-in: Bilder gehen als
+    Inline-Anhang und zählen nicht (addin.signatur_fuer_outlook). Gerendert mit
+    einem Beispielnutzer; im Betrieb weicht es um die echten Angaben ab."""
     import graph_client as _gc
-    from webui.routen.addin import markiert, signatur_zu_gross
+    from webui.routen.addin import markiert, signatur_fuer_outlook
     try:
         html, _txt = signature_engine.render(_gc.UserData(**_GROESSE_BEISPIEL), name)
     except Exception as exc:                                 # noqa: BLE001
@@ -653,13 +650,13 @@ def _groessenpruefung(name: str) -> tuple[int, list[int]]:
         return 0, []
     if not html:
         return 0, []
-    bilder = sorted((len(m.group(0)) for m in _DATA_BILD.finditer(html)), reverse=True)
-    return signatur_zu_gross(markiert(html)), bilder
+    _schlank, bilder, zu_gross = signatur_fuer_outlook(markiert(html))
+    return zu_gross, sorted((len(b["base64"]) * 3 // 4 for b in bilder), reverse=True)
 
 
 def _outlook_zu_gross(name: str) -> int:
     """Zeichenzahl, wenn die Signatur über Outlooks Grenze für den Signaturbereich
-    liegt (addin.signatur_zu_gross — dieselbe Prüfung wie beim Abruf), sonst 0."""
+    liegt (addin.signatur_fuer_outlook — dieselbe Prüfung wie beim Abruf), sonst 0."""
     return _groessenpruefung(name)[0]
 
 

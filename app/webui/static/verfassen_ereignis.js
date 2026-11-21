@@ -93,6 +93,9 @@
     var adresse = EXO_VERFASSEN.api + '?client=' + encodeURIComponent(plattform()) +
       '&anlass=' + encodeURIComponent(anlass || '') + '&js=' + encodeURIComponent(EXO_VERFASSEN.fassung || '');
     if (von) adresse += '&von=' + encodeURIComponent(von);
+    // Inline-Anhänge möglich (Mailbox 1.8): eingebettete Bilder kommen getrennt,
+    // die 30.000-Zeichen-Grenze gilt dann nur fürs HTML (signatur_bilder.py).
+    if (typeof Office.context.mailbox.item.addFileAttachmentFromBase64Async === 'function') adresse += '&inline=1';
     if (empfaenger) adresse += '&empfaenger=' + encodeURIComponent(empfaenger);
     if (antwort) {
       adresse += '&art=' + encodeURIComponent(antwort.art);
@@ -167,6 +170,29 @@
             function () { return false; });
   }
 
+  // Bilder der Signatur als Inline-Anhang (MS Learn: addFileAttachmentFromBase64Async
+  // mit isInline, HTML verweist per cid:Name). Schon angehängte (gleicher Name =
+  // gleicher Inhalt) nicht noch einmal — die Signatur wird bei Empfänger- oder
+  // Absenderwechsel neu gesetzt. Entfernen ist unnötig: Ein Inline-Anhang ohne
+  // Verweis im HTML fällt weg (MS Learn, „Remove an attachment“).
+  function bilderAnhaengen(item, bilder) {
+    if (!bilder || !bilder.length) return Promise.resolve();
+    var vorhanden = typeof item.getAttachmentsAsync !== 'function' ? Promise.resolve([])
+      : asynk(function (cb) { item.getAttachmentsAsync(cb); })
+          .then(function (liste) { return (liste || []).map(function (a) { return a.name; }); },
+                function () { return []; });
+    return vorhanden.then(function (namen) {
+      return bilder.reduce(function (kette, b) {
+        if (namen.indexOf(b.name) >= 0) return kette;
+        return kette.then(function () {
+          return asynk(function (cb) {
+            item.addFileAttachmentFromBase64Async(b.base64, b.name, { isInline: true }, cb);
+          });
+        });
+      }, Promise.resolve());
+    });
+  }
+
   // Zuletzt gesetzte Signatur dieses Entwurfs (sessionData, Mailbox 1.11 und
   // Outlook mobil) — bei Empfänger- oder Absenderwechsel nur neu setzen, wenn
   // sich die Wahl ändert. Fehlt die API, wird jedes Mal gesetzt.
@@ -236,13 +262,14 @@
           // vorhanden) — dann prüft es beim Versand nach (ANTWORT_LETZTES_WORT).
           var entschieden = start && d && typeof d.kette === 'boolean' && antwortArt;
           return (entschieden ? ketteMelden(item, d.kette) : Promise.resolve())
-            .then(function () { return { html: html, vorlage: vorlage }; });
+            .then(function () { return { html: html, vorlage: vorlage, bilder: (d && d.bilder) || [] }; });
         }).then(function (sig) {
           if (!sig.html) return null;
           return gemerkt(item).then(function (alt) {
             if (!start && alt === sig.vorlage) return null;   // Wahl unverändert
             return asynk(function (cb) { item.disableClientSignatureAsync(cb); })
               .catch(function () { /* ohne Client-Signatur weiter */ })
+              .then(function () { return bilderAnhaengen(item, sig.bilder); })
               .then(function () {
                 return asynk(function (cb) {
                   item.body.setSignatureAsync(sig.html, { coercionType: Office.CoercionType.Html }, cb);

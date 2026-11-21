@@ -108,6 +108,20 @@ def signatur_zu_gross(html: str) -> int:
     return n if n > OUTLOOK_SIGNATUR_MAX else 0
 
 
+def signatur_fuer_outlook(marked: str, inline: bool = True) -> tuple[str, list[dict], int]:
+    """(HTML, Bilder, Zeichenzahl über der Grenze oder 0) — so, wie das
+    Verfassen-Add-in die Signatur bekommt. Mit *inline* gehen eingebettete
+    Bilder als Inline-Anhang (signatur_bilder.py, v1.12.136) und zählen nicht
+    zur Grenze. EINE Quelle für Verfassen-Endpunkt und Vorlagen-Editor — bis
+    v1.12.137 zählte der Editor die Bilder noch mit und warnte, wo das Add-in
+    längst einfügte."""
+    bilder: list[dict] = []
+    if inline and marked:
+        import signatur_bilder
+        marked, bilder = signatur_bilder.auslagern(marked)
+    return marked, bilder, signatur_zu_gross(marked)
+
+
 def mailbox_match_eintrag(email: str) -> dict:
     """Roher MAILBOX_CONFIG-Eintrag des Postfachs ({} = nicht betreut)."""
     import mailbox_match

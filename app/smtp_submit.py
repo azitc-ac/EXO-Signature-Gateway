@@ -349,6 +349,14 @@ def deliver_outbound_as_sender(sender: str, rcpt_tos: list[str],
         log.warning("SMTP outbound-as-sender: no OAuth token — cannot attempt")
         return False
 
+    # Die DKIM-Signatur, die Exchange VOR dem Gateway gesetzt hat, passt nach dem
+    # Body-Umbau nicht mehr. Exchange signiert diese Einlieferung am Ausgang neu;
+    # bliebe die alte stehen, sähe der Empfänger „dkim=pass; fail“ und eine
+    # gebrochene ARC-Kette. Derselbe Schritt wie beim smtp-Reinject (v1.8.73) —
+    # bis v1.12.137 fehlte er hier.
+    import reinject
+    content_bytes = reinject._strip_stale_signatures(content_bytes)
+
     try:
         import aussenadresse
         with smtplib.SMTP(host, port, timeout=30,

@@ -5,6 +5,157 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.140 — 2026-11-21 — DMARC-Berichte mit aktiver Postfach-Eingrenzung
+
+Ist die Postfach-Eingrenzung der Gateway-App eingeschaltet (ApplicationAccessPolicy
+mit RestrictAccess auf die Gruppe „… - App Scope“), liest die App per Graph nur
+Postfächer dieser Gruppe. Mit v1.12.138 fehlte das DMARC-Postfach in der Liste,
+aus der das Gateway die Gruppe pflegt; der Abruf scheiterte mit HTTP 403, und die
+Meldung nannte fälschlich eine fehlende Berechtigung.
+
+* Ein als **Postfach** erkanntes DMARC-Ziel gehört jetzt zur Gruppe „App Scope“.
+  Beim Speichern des Ziels zieht das Gateway die Gruppe sofort nach; Exchange
+  braucht danach einige Zeit, bis der Zugriff wirkt.
+* Eine **Microsoft-365-Gruppe** lässt sich in die Eingrenzung nicht aufnehmen
+  (Exchange nimmt GroupMailbox dort nicht an). Die DMARC-Seite sagt das schon
+  beim Erkennen des Ziels und nennt den Weg: Nimm im DMARC-Eintrag zusätzlich
+  ein geteiltes Postfach als `rua`-Adresse auf (`rua=mailto:…,mailto:…`, DMARC
+  erlaubt mehrere) und trag dieses Postfach ein.
+* Ein 403 durch die Eingrenzung wird als solcher gemeldet, nicht mehr als
+  fehlende Graph-Rolle.
+
+**Zu tun:** nichts. Nutzt du die Eingrenzung und hast schon ein DMARC-Postfach
+eingetragen, speichere es unter Einstellungen → DMARC einmal neu.
+
+---
+
+## v1.12.139 — 2026-11-21 — Erteilte Berechtigungen wirken sofort
+
+„Fehlende Berechtigungen erteilen“ (und die Ersteinrichtung) wiesen die Rollen
+der Gateway-App zwar zu, der laufende Gateway-Prozess arbeitete aber weiter mit
+seinem zwischengespeicherten App-Token. Ein Client-Credentials-Token enthält die
+Rollen vom Zeitpunkt seiner Ausstellung und bleibt bis zu rund 90 Minuten
+gültig. Eine gerade erteilte Rolle war deshalb bis zu dessen Ablauf nicht
+wirksam: Der DMARC-Abruf aus einer Microsoft-365-Gruppe meldete etwa nach
+erfolgreicher Zustimmung zu `Group-Conversation.Read.All` weiter „Kein Zugriff“.
+Die Anzeige „erteilt“ stimmte dabei schon, denn sie prüft mit einem eigens
+geholten Token.
+
+Nach jeder Rollenzuweisung verwirft das Gateway jetzt seine zwischengespeicherten
+Tokens und holt beim nächsten Aufruf ein neues. Drosselzustände einzelner Apps
+bleiben erhalten.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.138 — 2026-11-20 — DMARC-Berichte auswerten
+
+### Neu: Einstellungen → DMARC
+
+Empfänger wie Google, Microsoft oder Yahoo schicken täglich Sammelberichte
+(RFC 7489) an die `rua=`-Adresse deines DMARC-Eintrags: welche IP-Adressen in
+deinem Namen gesendet haben und ob SPF, DKIM und DMARC bestanden. Das Gateway
+liest diese Berichte jetzt selbst, alle sechs Stunden, nur lesend und außerhalb
+des Mailpfads, und zeigt Domänen, absendende Quellen (mit Rückwärtsnamen) und
+Befunde mit Empfehlung:
+
+* **hoch** — Mails haben DMARC nicht bestanden und wurden trotzdem zugestellt
+  (Fälschung oder ein eigener Versender ohne SPF/DKIM).
+* **mittel** — eine Quelle besteht nur teilweise; DMARC hängt allein an SPF
+  (bricht bei Weiterleitung); neben einer gültigen reist eine ungültige
+  DKIM-Signatur der eigenen Domäne mit; die Richtlinie steht auf `p=none`.
+* **Info** — abgewiesene Fälschungsversuche; `pct` unter 100.
+
+Neue Befunde der Stufen hoch und mittel meldet das Gateway einmal per Mail an
+die Verwaltung (abschaltbar unter Einstellungen → Allgemein →
+Benachrichtigungen). Der Tagesbericht zeigt die Zeile „DMARC-Berichte“ mit der
+Zahl der Berichte und Befunde, sobald ein Ziel eingetragen ist, die Abnahme
+einen eigenen Punkt.
+
+Als Ziel taugt ein Postfach (auch ein geteiltes) oder eine
+Microsoft-365-Gruppe; das Gateway erkennt die Art selbst. Ein Postfach liest
+es mit seinen vorhandenen Rechten. Gruppenpost ist über den Postfachweg nicht
+erreichbar; dafür braucht die Gateway-App `Group-Conversation.Read.All`
+(Anwendungsrecht, gilt für die Unterhaltungen aller Gruppen und lässt sich
+nicht über RBAC for Applications eingrenzen). Das Gateway verlangt es nur,
+wenn eine Gruppe eingetragen ist; die Seite bietet „Fehlende Berechtigungen
+erteilen“ an.
+
+Berichte sind Fremddaten: XML mit DOCTYPE oder Entitäten wird verworfen, ein
+Anhang darf höchstens 10 MB groß sein und entpackt höchstens 50 MB ergeben
+(gezählt an den tatsächlich entpackten Bytes), ein ZIP höchstens fünf
+Dateien enthalten. Einzelfallberichte (`ruf=`) werden nur gezählt. Berichte
+bleiben 90 Tage gespeichert, ausgewertet werden die letzten 30.
+
+**Zu tun:** nichts. Die Auswertung ist freiwillig. Willst du sie nutzen:
+Einstellungen → DMARC → die `rua`-Adresse eintragen und speichern; bei einer
+Microsoft-365-Gruppe danach „Fehlende Berechtigungen erteilen“.
+
+---
+
+## v1.12.137 — 2026-11-20 — Port 587 hinterließ eine gebrochene DKIM-Signatur; Größenwarnung im Editor zählt wie das Add-in
+
+### Port 587: alte DKIM-Signatur wird entfernt
+
+Exchange signiert eine Mail mit DKIM, bevor sie über den Connector zum Gateway
+geht. Nach dem Einfügen der Signatur passt diese DKIM-Signatur nicht mehr; auf
+dem Rückweg signiert Exchange am Ausgang neu. Beim Rückweg über SMTP Port 25
+entfernt das Gateway die alte Signatur seit v1.8.73. Der Rückweg über Port 587
+— in Graph++ für von Exchange aufgeteilte Mails mit internen und externen
+Empfängern — reichte sie dagegen durch. Der Empfänger sah zwei
+DKIM-Signaturen, eine gültige und eine gebrochene („dkim=pass; fail“), dazu
+eine gebrochene ARC-Kette. DMARC bestand weiterhin über die gültige Signatur;
+strenge Empfänger können eine gebrochene Signatur trotzdem negativ werten.
+
+Jetzt entfernt auch der 587-Weg die alten DKIM- und ARC-Kopfzeilen, nur im
+Kopf; der Inhalt und eine S/MIME-Signatur bleiben unverändert.
+
+### Vorlagen-Editor: Größenwarnung
+
+Seit v1.12.136 gibt das Verfassen-Add-in eingebettete Bilder als Inline-Anhang
+mit; für Outlooks Grenze von 30.000 Zeichen zählt nur noch das HTML. Der
+Vorlagen-Editor rechnete noch mit Bildern und warnte „zu groß für Outlooks
+Signaturbereich“ auch bei Vorlagen, die Outlook längst einfügte.
+
+Editor und Add-in rechnen jetzt an einer Stelle. Die Warnung erscheint nur,
+wenn das HTML auch ohne Bilder über der Grenze liegt — dann ist der Text oder
+der HTML-Aufbau zu lang, nicht ein Bild. Tragen die eingebetteten Bilder
+zusammen mehr als 150 KB, nennt der Editor ihr Gewicht als Hinweis: Diese
+Größe trägt jede Mail mit, und „Verkleinern“ im Logo-Baustein spart sie
+meist ohne sichtbaren Unterschied.
+
+Die Protokollzeile bei einer zu großen Signatur unterscheidet jetzt, ob die
+Bilder mitgezählt wurden (Outlook ohne Inline-Anhänge) oder nicht.
+
+**Zu tun:** nichts.
+
+## v1.12.136 — 2026-11-20 — Verfassen-Add-in: Bilder der Signatur als Inline-Anhang — keine 30.000-Zeichen-Falle mehr
+
+Outlook nimmt eine Signatur, die ein Add-in einsetzt (`setSignatureAsync`),
+nur bis 30.000 Zeichen — das ganze HTML, eingebettete Bilder eingeschlossen.
+Ein Logo in ordentlicher Qualität verbrauchte davon schnell den größten Teil.
+Das Verfassen-Add-in fügte die Signatur dann nicht ein („… ist für Outlook zu
+groß – das Gateway fügt sie beim Versand an“); Bilder mussten bis zu
+sichtbaren Qualitätsverlusten verkleinert werden, damit die Meldung verschwand.
+
+Jetzt hängt das Add-in eingebettete Bilder als **Inline-Anhang** an — der Weg,
+den Microsoft für Bilder in Signaturen beschreibt — und setzt eine schlanke
+Signatur, die darauf verweist. Für die Grenze zählt nur noch das HTML ohne
+Bilder. Dasselbe Bild wird nicht doppelt angehängt, wenn die Signatur beim
+Empfänger- oder Absenderwechsel neu gesetzt wird. Ersetzt das Gateway beim
+Versand eine Signatur des Add-ins, entfernt es deren Bilder mit, damit sie
+beim Empfänger nicht als lose Anhänge erscheinen.
+
+Outlook-Versionen ohne diese Funktion (Anforderungssatz Mailbox 1.8) bekommen
+die Signatur wie bisher mit eingebetteten Bildern.
+
+Das Add-in-Skript lädt Outlook vom Gateway; ein neues Manifest ist nicht nötig.
+Das klassische Outlook unter Windows hält eine ältere Fassung des Skripts
+allerdings eine Weile im Zwischenspeicher, bis dahin gilt dort noch der alte Weg.
+
+**Zu tun:** nichts.
+
 ## v1.12.135 — 2026-11-20 — Baukasten: hochgeladene Bilder werden passend verkleinert
 
 Ein Bild im Baustein *Logo* wurde bisher unverändert eingebettet; über 512 KB

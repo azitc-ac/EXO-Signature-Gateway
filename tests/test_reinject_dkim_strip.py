@@ -57,3 +57,30 @@ def test_ohne_body_trenner_unveraendert():
 def test_ohne_dkim_arc_unveraendert():
     raw = b"From: a@x.de\r\nSubject: hi\r\n\r\nkorpus"
     assert reinject._strip_stale_signatures(raw) == raw
+
+
+def test_587_weg_strippt_ebenfalls(monkeypatch):
+    """Port 587 (Graph++, aufgeteilte Mails) liefert ebenfalls zurück an Exchange,
+    das neu signiert. Bis v1.12.137 blieb dort die gebrochene Signatur von vor
+    dem Gateway stehen → beim Empfänger „dkim=pass; fail“."""
+    import smtplib
+    import smtp_submit
+    gesendet = []
+
+    class _SMTP:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def ehlo(self): pass
+        def starttls(self, context=None): pass
+        def auth(self, *a, **k): pass
+        def sendmail(self, f, r, d): gesendet.append(d)
+
+    monkeypatch.setattr(smtplib, "SMTP", _SMTP)
+    monkeypatch.setattr(smtp_submit, "_acquire_smtp_token", lambda: "T")
+    roh = (b"DKIM-Signature: v=1; a=rsa-sha256; d=firma.at;\r\n\tb=ALT\r\n"
+           b"ARC-Seal: i=1; cv=none\r\nFrom: max@firma.at\r\nTo: a@x.example\r\n\r\nInhalt\r\n")
+    assert smtp_submit.deliver_outbound_as_sender("max@firma.at", ["a@x.example"], roh)
+    (d,) = gesendet
+    assert b"DKIM-Signature" not in d and b"ARC-Seal" not in d
+    assert d.endswith(b"From: max@firma.at\r\nTo: a@x.example\r\n\r\nInhalt\r\n")

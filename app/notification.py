@@ -364,6 +364,39 @@ def _direktversand_probe_row() -> str:
     return zeilen
 
 
+def _dmarc_row() -> str:
+    """Zeile „DMARC-Berichte“ — IMMER, sobald ein Ziel eingetragen ist, mit
+    Bezugsgröße (Zahl der Berichte). „0 Befunde“ ohne Berichte hiesse sonst
+    „alles gut“, obwohl nichts angekommen ist. Bewertung aus derselben Funktion
+    wie Oberfläche und Abnahme (dmarc_berichte.bewertung)."""
+    import dmarc_berichte
+    ampel, text = dmarc_berichte.bewertung()
+    if ampel == "keine":
+        return ""
+    return _row("DMARC-Berichte", text, _PROBE_FARBE.get(ampel, "#e74c3c"))
+
+
+def send_dmarc_befunde(neue: list[dict]) -> bool:
+    """An die Verwaltung: neue DMARC-Befunde der Stufen hoch/mittel.
+
+    Je Befund nur EINMAL (dmarc_berichte merkt die Kennung). Abschaltbar über
+    `NOTIFY_DMARC`; der Tagesbericht zeigt die Zahl unabhängig davon."""
+    to = _get_notify_to()
+    if not to or not neue or not _should_notify("NOTIFY_DMARC"):
+        return False
+    hoch = sum(b["stufe"] == "hoch" for b in neue)
+    zeilen = "".join(
+        f'<li style="margin-bottom:10px"><strong>{_esc(b["stufe"])}:</strong> {_esc(b["text"])}'
+        f'<br><span style="color:#6b7280">{_esc(b["empfehlung"])}</span></li>'
+        for b in neue[:30])
+    rest = f"<p>… und {len(neue) - 30} weitere.</p>" if len(neue) > 30 else ""
+    body = (f"<p>Die Auswertung der DMARC-Sammelberichte hat {len(neue)} neue "
+            f"{'Befund' if len(neue) == 1 else 'Befunde'} ergeben:</p><ul>{zeilen}</ul>{rest}"
+            f"<p>Alle Quellen und Befunde: <em>Einstellungen → DMARC</em>.</p>")
+    return _graph_send(to, f"DMARC: {len(neue)} neue Befunde" + (f" ({hoch} hoch)" if hoch else ""),
+                       _html_wrap("Neue DMARC-Befunde", "#c2410c" if hoch else "#b45309", body))
+
+
 def _eingang_rows(dval) -> str:
     """Zeilen zur Ablage externer Post (Graph++) und zu nicht bestätigten Signaturen.
 
@@ -548,6 +581,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         *([ _row("Container-Uptime", uptime_str) ] if uptime_str else []),
         ooo_row,
         _direktversand_probe_row(),
+        _dmarc_row(),
     ])
 
     # ── TLS cert ──

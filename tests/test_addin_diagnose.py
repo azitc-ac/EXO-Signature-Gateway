@@ -150,15 +150,23 @@ def test_editor_warnt_bei_zu_grosser_vorlage(monkeypatch):
     assert vorlagen._outlook_zu_gross("grossbild") == 0
 
 
-def test_editor_nennt_die_eingebetteten_bilder(monkeypatch):
+def test_editor_zaehlt_bilder_nicht_mit_wie_das_addin(monkeypatch):
+    """Kunden-Rückmeldung 20.11.2026: Die Warnung im Editor blieb, obwohl Outlook
+    die Signatur seit v1.12.136 einfügte — der Editor zählte die Bilder noch mit.
+    Jetzt dieselbe Rechnung wie das Add-in (addin.signatur_fuer_outlook)."""
+    import base64
     from webui.routen import vorlagen
-    bild = "data:image/png;base64," + "A" * (GRENZE + 10)
-    klein = "data:image/gif;base64,R0lGOD=="
-    monkeypatch.setattr(signature_engine, "render",
-                        lambda u, t, extra=None: (f'<img src="{bild}"><img src="{klein}">', ""))
+    gross = base64.b64encode(b"\x00" * 120_000).decode()        # 160.000 Zeichen
+    klein = "R0lGODlhAQABAAAAACw="
+    monkeypatch.setattr(signature_engine, "render", lambda u, t, extra=None: (
+        f'<img src="data:image/png;base64,{gross}"><img src="data:image/gif;base64,{klein}">', ""))
     n, bilder = vorlagen._groessenpruefung("grossbild")
-    assert n > GRENZE
-    assert bilder == [len(bild), len(klein)]
+    assert n == 0                                         # keine Warnung mehr
+    assert bilder == [120_000, len(klein) * 3 // 4]       # Bytes, absteigend
+    # Text allein zu lang → weiterhin Warnung, Bilder hin oder her
+    monkeypatch.setattr(signature_engine, "render", lambda u, t, extra=None: (
+        _gross(GRENZE + 1) + f'<img src="data:image/png;base64,{gross}">', ""))
+    assert vorlagen._groessenpruefung("grossbild")[0] > GRENZE
 
 
 def test_editor_zeigt_die_warnung():
@@ -166,8 +174,8 @@ def test_editor_zeigt_die_warnung():
     html = (pathlib.Path(addin.__file__).resolve().parents[1] / "templates"
             / "template_editor.html").read_text(encoding="utf-8")
     assert "{% if outlook_zu_gross %}" in html
-    # Erst verkleinern, dann verlinken — eingebettete Bilder sind die bessere Wahl
-    assert "Verkleinere sie deshalb zuerst" in html and "{% for n in outlook_bilder %}" in html
+    assert "Eingebettete Bilder zählen dabei nicht mit" in html
+    assert "{% if outlook_bilder and outlook_bilder|sum > 150 * 1024 %}" in html
 
 
 # ── 5. Meldungen aus Outlook ────────────────────────────────────────────────────
@@ -302,3 +310,30 @@ def test_gleiche_von_adresse_ohne_zeile(umgebung, gross_rendern, caplog):
     gross_rendern["n"] = 100
     asyncio.run(av.verfassen_signatur(_ReqVon("Bearer " + _token(), "erika@zarenko.net")))
     assert not [s for s in caplog.records if "Von-Adresse" in s.getMessage()]
+
+
+class _ReqInline(_Req):
+    def __init__(self, auth):
+        super().__init__(auth)
+        self.query_params = {"inline": "1", "client": "PC"}
+
+
+def test_ereignis_mit_inline_bildern_bleibt_unter_der_grenze(umgebung, monkeypatch):
+    """Kunden-Rückmeldung 20.11.2026: Logos mussten bis zur Unkenntlichkeit
+    verkleinert werden, damit die Signatur unter 30.000 Zeichen blieb. Mit
+    inline=1 gehen Bilder getrennt (signatur_bilder.py), gezählt wird das HTML."""
+    import base64
+    import os
+
+    async def _user(email):
+        return graph_client.UserData(mail=email)
+    monkeypatch.setattr(graph_client, "get_user", _user)
+    bild = base64.b64encode(os.urandom(40000)).decode()           # ~53.000 Zeichen
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, t, extra=None: (f'<p>Name</p><img src="data:image/png;base64,{bild}">', ""))
+    ohne = json.loads(asyncio.run(av.verfassen_signatur(_Req("Bearer " + _token()))).body)
+    assert ohne["html"] == "" and ohne["zu_gross"] > GRENZE                 # alter Weg: zu groß
+    mit = json.loads(asyncio.run(av.verfassen_signatur(_ReqInline("Bearer " + _token()))).body)
+    assert "zu_gross" not in mit and len(mit["html"]) < 2000
+    (b,), = [mit["bilder"]]
+    assert b["base64"] == bild and f'cid:{b["name"]}' in mit["html"]

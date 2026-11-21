@@ -497,6 +497,20 @@
     "name": "api_direkt_probe_senden"
   },
   {
+    "pfad": "/api/dmarc",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_dmarc_stand"
+  },
+  {
+    "pfad": "/api/dmarc/abruf",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_dmarc_abruf"
+  },
+  {
     "pfad": "/api/entra/users",
     "methoden": [
       "GET"
@@ -2833,6 +2847,13 @@
       "GET"
     ],
     "name": "settings_connect_page"
+  },
+  {
+    "pfad": "/settings/dmarc",
+    "methoden": [
+      "GET"
+    ],
+    "name": "settings_dmarc_page"
   },
   {
     "pfad": "/settings/routing",
