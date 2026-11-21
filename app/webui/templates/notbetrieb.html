@@ -939,7 +939,7 @@ function nbPostfaecherFiltern() {
   });
   document.getElementById('nb-pf-zahl').textContent = !zeilen.length ? ''
     : q ? sichtbar + ' von ' + zeilen.length + ' Postfächern'
-        : zeilen.length + (zeilen.length === 1 ? ' Postfach' : ' Postfächer');
+        : anzahlText(zeilen.length, 'Postfach', 'Postfächer');
 }
 
 // ── Platzbedarf ──────────────────────────────────────────────────────────

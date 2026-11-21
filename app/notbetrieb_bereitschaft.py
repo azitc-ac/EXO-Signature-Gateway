@@ -20,6 +20,7 @@ ausdrücklich kein OK.
 """
 from __future__ import annotations
 
+import texte
 import logging
 from datetime import datetime, timezone
 
@@ -291,7 +292,7 @@ def _zweitfaktor() -> dict:
         # einen Faktor hat) wäre zu viel — `teilweise` färbt nur die Zeile.
         fehlt = ab["nutzer"] - ab["eingerichtet"]
         p = _p("Zweiter Faktor", abnahme.OK,
-               befund + f" — {fehlt} könnte{'' if fehlt == 1 else 'n'} sich im Notfall nicht anmelden.",
+               befund + f" — {fehlt} {texte.wort(fehlt, 'könnte', 'könnten')} sich im Notfall nicht anmelden.",
                "Link zum Einrichten erneut verteilen — oder unter Anmeldung im Notbetrieb „im ausgerufenen "
                "Notfall auch ohne eingerichteten Faktor“ zulassen.")
         p["teilweise"] = True
