@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.152 — 2026-11-21 — Tests: Prüfungen für Mehrzahl und Kennzahlen genauer
+
+Die Prüfung auf Einzahl/Mehrzahl lässt eigenständige Seiten ohne den
+gemeinsamen Rahmen aus; der Baustein dafür steht dort nicht zur Verfügung. Die
+Prüfung der Kennzahlen erkennt Schlüssel mit festem Präfix. Am Produkt ändert
+sich nichts.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.151 — 2026-11-21 — Entwurf der Release-Notizen für 1.12
 
 Neu: `docs/release-1.12-entwurf.md` fasst zusammen, was seit dem letzten

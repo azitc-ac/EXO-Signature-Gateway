@@ -81,11 +81,21 @@ def test_keine_klammer_mehrzahl():
                          + "\n  ".join(treffer))
 
 
+def _ohne_gemeinsames_js(p: Path) -> bool:
+    """Eigenständige Seite (erbt nicht von base.html): anzahlText() gibt es dort
+    nicht. Python- und Jinja-Weichen prüft der Test dort trotzdem nicht — die
+    Seite hat ihren eigenen Rahmen (wie portal.html im driftcheck)."""
+    if (p.suffix != ".html" or p.parent.name != "templates" or p.name.startswith("_")
+            or p.name == "base.html"):
+        return False
+    return '{% extends "base.html" %}' not in p.read_text(encoding="utf-8")
+
+
 def test_keine_eigenen_zahlweichen():
     treffer = []
     for p in _quellen():
         rel = str(p.relative_to(WURZEL))
-        if rel in ("app/texte.py",):
+        if rel in ("app/texte.py",) or _ohne_gemeinsames_js(p):
             continue
         for i, z in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
             if _ist_kommentar(z) or "function anzahlText" in z:
