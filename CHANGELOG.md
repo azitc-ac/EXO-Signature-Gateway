@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.143 — 2026-11-21 — DMARC: Hinweis zur Gruppe folgt dem aktuellen Stand
+
+Der Hinweis unter dem DMARC-Ziel („Erkannt als Microsoft-365-Gruppe …“) wurde
+beim Erkennen des Ziels gespeichert und danach nicht mehr angepasst. Nach dem
+Anlegen der DMARC-Lese-App stand dort deshalb weiter „… legt sie an“, und nach
+dem Abschalten der Postfach-Eingrenzung weiter der Hinweis auf sie. Er wird
+jetzt bei jedem Seitenaufbau aus dem aktuellen Zustand gebildet: ohne
+Eingrenzung kein Hinweis, mit Eingrenzung und Lese-App „liest die Gruppe über
+die eigene DMARC-Lese-App“, ohne Lese-App wie bisher der Weg dorthin.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.142 — 2026-11-21 — DMARC aus einer M365-Gruppe: Abruf funktioniert
 
 Der Abruf aus einer Microsoft-365-Gruppe (seit v1.12.138) scheiterte an zwei

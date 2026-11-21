@@ -109,9 +109,25 @@ def adresse() -> str:
 
 
 def ziel() -> dict:
-    """Zuletzt aufgelöstes Ziel — nur gültig, wenn es zur eingetragenen Adresse passt."""
+    """Zuletzt aufgelöstes Ziel — nur gültig, wenn es zur eingetragenen Adresse passt.
+
+    Den Hinweis zur Eingrenzung bildet es beim LESEN aus dem aktuellen Zustand:
+    Gespeichert beim Auflösen, hätte er nach dem Anlegen der Lese-App weiter
+    „… legt sie an“ gesagt (oder nach dem Abschalten der Eingrenzung weiter von ihr)."""
     z = dict(settings_store.get(ZIEL_KEY) or {})
-    return z if z.get("adresse") == adresse() and adresse() else {}
+    if not (z.get("adresse") == adresse() and adresse()):
+        return {}
+    if z.get("art") == "gruppe":
+        z["meldung"] = gruppen_hinweis()
+    return z
+
+
+def gruppen_hinweis() -> str:
+    """Hinweis zu einer Gruppe als Ziel, je nach Eingrenzung und Lese-App."""
+    if not eingrenzung_aktiv():
+        return ""
+    import dmarc_lese_app
+    return GRUPPE_UEBER_LESE_APP if dmarc_lese_app.gespeichert() else GRUPPE_GESPERRT
 
 
 def _get(client, url: str, token: str, params: dict | None = None):
@@ -149,8 +165,7 @@ def ziel_aufloesen(client=None, token: str | None = None) -> dict:
             treffer = (g.json().get("value") or []) if g.status_code == 200 else []
             if treffer and "Unified" in (treffer[0].get("groupTypes") or []):
                 z.update(art="gruppe", id=treffer[0]["id"])
-                if eingrenzung_aktiv():
-                    z["meldung"] = GRUPPE_GESPERRT
+                z["meldung"] = gruppen_hinweis()
             elif treffer:
                 z["meldung"] = ("Die Adresse gehört einer Verteiler- oder Sicherheitsgruppe ohne "
                                 "eigenes Postfach. Berichte lassen sich nur aus einem Postfach "
@@ -384,6 +399,8 @@ GRUPPE_GESPERRT = ("Die Postfach-Eingrenzung der Gateway-App (ApplicationAccessP
                    "Gruppe deshalb über eine eigene DMARC-Lese-App (nur Group-Conversation.Read.All): "
                    "„Fehlende Berechtigungen erteilen“ legt sie an. Alternativ: ein geteiltes Postfach "
                    "als zweite rua-Adresse (rua=mailto:…,mailto:…) eintragen.")
+GRUPPE_UEBER_LESE_APP = ("Die Postfach-Eingrenzung der Gateway-App ist aktiv; das Gateway liest die "
+                         "Gruppe über die eigene DMARC-Lese-App.")
 
 
 def _dateianhang(a: dict) -> bool:

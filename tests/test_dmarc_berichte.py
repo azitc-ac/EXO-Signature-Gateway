@@ -332,6 +332,21 @@ def test_gruppe_bei_aktiver_eingrenzung_meldet_das_schon_beim_erkennen(umgebung,
     assert "Eingrenzung" in dm.ziel_aufloesen()["meldung"]
 
 
+def test_gruppenhinweis_folgt_dem_aktuellen_zustand(umgebung, monkeypatch):
+    """Der Hinweis am Ziel kommt nicht aus dem Speicher: Nach dem Anlegen der
+    Lese-App darf er nicht mehr „legt sie an“ sagen, ohne Eingrenzung gar nichts."""
+    nb, _ = umgebung
+    import dmarc_lese_app
+    monkeypatch.setattr(dm.httpx, "Client", _Graph("gruppe", b""))
+    nb["APP_ACCESS_POLICY_ENABLED"] = True
+    dm.ziel_aufloesen()
+    assert dm.ziel()["meldung"] == dm.GRUPPE_GESPERRT
+    nb[dmarc_lese_app.KEY] = {"client_id": "cid1", "objekt_id": "obj1"}   # Knopf gedrückt
+    assert dm.ziel()["meldung"] == dm.GRUPPE_UEBER_LESE_APP
+    nb["APP_ACCESS_POLICY_ENABLED"] = False
+    assert dm.ziel()["meldung"] == ""
+
+
 @pytest.mark.parametrize("art,drin", [("postfach", True), ("gruppe", False)])
 def test_dmarc_postfach_steht_im_app_scope(monkeypatch, art, drin):
     """Bei aktiver Eingrenzung liest das Gateway nur Postfächer der Gruppe
