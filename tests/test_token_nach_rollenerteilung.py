@@ -1,8 +1,9 @@
-"""Nach dem Erteilen von Rollen muss der LAUFENDE Prozess ein neues Token holen.
+"""Nach „Fehlende Berechtigungen erteilen“ muss der LAUFENDE Prozess ein neues Token holen.
 
 Ein Client-Credentials-Token trägt die Rollen seiner Ausstellung und bleibt bis
-zu ~90 min im MSAL-Cache. Ohne Verwerfen meldete z. B. der DMARC-Abruf aus einer
-M365-Gruppe nach erfolgreicher Zustimmung weiter 403.
+zu ~90 min im MSAL-Cache. `berechtigungen_nachziehen` verwirft ihn deshalb
+(`graph_client.reset_msal_app`). Der Test geht über den ECHTEN Ablauf — ein Test
+gegen `_grant_admin_consent` allein übersah 2026-11-21, dass das längst geschah.
 """
 from __future__ import annotations
 
@@ -52,7 +53,9 @@ def test_erteilte_rolle_steht_im_naechsten_token(monkeypatch):
         return {"value": [{"id": "sp-1"}], "appRoles": []}
 
     monkeypatch.setattr(setup_wizard, "_gh", _gh)
-    assert asyncio.run(setup_wizard._grant_admin_consent("admin-token", "sp-gw")) == []
+    monkeypatch.setattr(setup_wizard.settings_store, "get",
+                        lambda k, d=None: {"CLIENT_ID": "c1"}.get(k, d))
+    assert asyncio.run(setup_wizard.berechtigungen_nachziehen("admin-token"))["ok"]
     assert graph_client._acquire_token() == "token-neu"
 
 
@@ -60,6 +63,6 @@ def test_verwerfen_behaelt_drosselung(monkeypatch):
     _pool_attrappe(monkeypatch)
     monkeypatch.setattr(graph_client, "_throttled_until", {"c1": 123.0})
     graph_client._acquire_token()
-    graph_client.token_zwischenspeicher_verwerfen()
+    graph_client.reset_msal_app()
     graph_client._rebuild_pool_if_needed()
     assert graph_client._throttled_until == {"c1": 123.0}

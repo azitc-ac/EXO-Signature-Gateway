@@ -163,7 +163,10 @@ def ziel_aufloesen(client=None, token: str | None = None) -> dict:
         if eigen:
             client.close()
     alt_gruppe = settings_store.get(GRUPPE_KEY) is True
-    settings_store.force_update({ZIEL_KEY: z, GRUPPE_KEY: z["art"] == "gruppe"})
+    # Mit Eingrenzung braucht die HAUPT-App die Gruppenrolle nicht (sie wäre
+    # wirkungslos) — dann trägt die DMARC-Lese-App sie (dmarc_lese_app.noetig).
+    settings_store.force_update({ZIEL_KEY: z,
+                                 GRUPPE_KEY: z["art"] == "gruppe" and not eingrenzung_aktiv()})
     if alt_gruppe != (z["art"] == "gruppe"):
         log.info("DMARC: Ziel %s ist %s — %s wird %s", adr, z["art"], GRUPPEN_ROLLE,
                  "benötigt" if z["art"] == "gruppe" else "nicht benötigt")
@@ -377,9 +380,10 @@ def eingrenzung_aktiv() -> bool:
 
 
 GRUPPE_GESPERRT = ("Die Postfach-Eingrenzung der Gateway-App (ApplicationAccessPolicy) ist aktiv, "
-                   "und Microsoft-365-Gruppen lassen sich darin nicht freigeben. Nimm im DMARC-Eintrag "
-                   "zusätzlich ein geteiltes Postfach als rua-Adresse auf (rua=mailto:…,mailto:…) "
-                   "und trag hier dieses Postfach ein.")
+                   "und Microsoft-365-Gruppen lassen sich darin nicht freigeben. Das Gateway liest die "
+                   "Gruppe deshalb über eine eigene DMARC-Lese-App (nur Group-Conversation.Read.All): "
+                   "„Fehlende Berechtigungen erteilen“ legt sie an. Alternativ: ein geteiltes Postfach "
+                   "als zweite rua-Adresse (rua=mailto:…,mailto:…) eintragen.")
 
 
 def _anhaenge(client, basis: str, token: str) -> list[tuple[str, bytes]]:
@@ -460,6 +464,17 @@ def abrufen() -> dict:
         except (KeyError, TypeError, ValueError):
             bis = jetzt - timedelta(days=ERSTER_ABRUF_TAGE - UEBERLAPPUNG_H / 24)
         seit = bis - timedelta(hours=UEBERLAPPUNG_H)
+        if z["art"] == "gruppe" and eingrenzung_aktiv():
+            import dmarc_lese_app
+            if not dmarc_lese_app.zu_verwenden():
+                abruf["meldung"] = "Kein Zugriff auf die Gruppe. " + GRUPPE_GESPERRT
+                log.warning("DMARC: %s", abruf["meldung"])
+                return _abruf_merken(abruf)
+            token = dmarc_lese_app.token()
+            if not token:
+                abruf["meldung"] = ("Die DMARC-Lese-App bekommt noch kein Token — nach dem Anlegen "
+                                    "braucht Entra einige Minuten. Später erneut abrufen.")
+                return _abruf_merken(abruf)
         try:
             for betreff, basis in _quellen(client, z, token, seit):
                 abruf["mails"] += 1

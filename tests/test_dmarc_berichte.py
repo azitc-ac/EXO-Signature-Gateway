@@ -198,6 +198,7 @@ class _Graph:
 
     def get(self, url, headers=None, params=None):
         self.urls.append(url)
+        self.tokens = getattr(self, "tokens", []) + [(url, (headers or {}).get("Authorization", ""))]
         jetzt = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         if url.endswith("/users/dmarc@firma.at"):
             return _Resp(200, {"id": "u1"}) if self.art == "postfach" else _Resp(404)
@@ -303,9 +304,10 @@ def test_eingrenzung_wird_als_grund_genannt_nicht_die_rolle(umgebung, monkeypatc
     monkeypatch.setattr(dm.httpx, "Client", _Graph(art, b"", threads_status=403, fehlertext=_RAOP))
     a = dm.abrufen()
     assert not a["ok"] and "Eingrenzung" in a["meldung"]
-    assert dm.GRUPPEN_ROLLE not in a["meldung"]
     if art == "gruppe":
-        assert "rua=" in a["meldung"]
+        assert "Lese-App" in a["meldung"] and "rua=" in a["meldung"]
+    else:
+        assert dm.GRUPPEN_ROLLE not in a["meldung"]
 
 
 def test_gruppe_bei_aktiver_eingrenzung_meldet_das_schon_beim_erkennen(umgebung, monkeypatch):
@@ -328,3 +330,20 @@ def test_dmarc_postfach_steht_im_app_scope(monkeypatch, art, drin):
     assert ("dmarc@firma.at" in setup_wizard._app_scope_adressen()) is drin
     nb["DMARC_POSTFACH"] = ""                      # Ziel entfernt → nicht mehr im Scope
     assert "dmarc@firma.at" not in setup_wizard._app_scope_adressen()
+
+
+def test_gruppe_mit_eingrenzung_liest_ueber_die_lese_app(umgebung, monkeypatch):
+    nb, _ = umgebung
+    import dmarc_lese_app
+    nb["APP_ACCESS_POLICY_ENABLED"] = True
+    g = _Graph("gruppe", gzip.compress(_xml(_rec("192.0.2.10", 3, "pass", "pass"))))
+    monkeypatch.setattr(dm.httpx, "Client", g)
+    a = dm.abrufen()                                          # noch keine Lese-App
+    assert not a["ok"] and "Lese-App" in a["meldung"]
+    assert not any("/threads" in u for u in g.urls), "Haupt-App darf es gar nicht erst versuchen"
+    nb[dmarc_lese_app.KEY] = {"client_id": "cid1", "objekt_id": "obj1"}
+    monkeypatch.setattr(dmarc_lese_app, "token", lambda: "lese-tok")
+    a = dm.abrufen()
+    assert a["ok"] and a["neu"] == 1
+    gruppe = [t for u, t in g.tokens if "/groups/g1/" in u]
+    assert gruppe and all(t.endswith("lese-tok") for t in gruppe)

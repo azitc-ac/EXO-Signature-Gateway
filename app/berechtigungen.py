@@ -93,4 +93,9 @@ def status(nur: list[str] | None = None) -> list[dict]:
                 "erteilt": None if ist is None else (s["name"] in ist),
                 "benoetigt": setup_wizard.benoetigt(s),
             })
+    import dmarc_lese_app
+    if not nur or dmarc_lese_app.NAME in nur:
+        zeile = dmarc_lese_app.status_zeile()
+        if zeile:
+            ergebnis.append(zeile)
     return ergebnis

@@ -434,8 +434,6 @@ async def _grant_admin_consent(token: str, our_sp_id: str) -> list[str]:
     except Exception as exc:
         log.warning("Could not find EXO service principal: %s", exc)
         fehler.append(f"Exchange-Dienstprinzipal nicht gefunden: {exc}")
-    # Neu erteilte Rollen stehen erst in einem NEU ausgestellten Token.
-    _gc.token_zwischenspeicher_verwerfen()
     return fehler
 
 
@@ -469,6 +467,8 @@ async def berechtigungen_nachziehen(token: str) -> dict:
     if not sp_items:
         raise RuntimeError(f"Dienstprinzipal zu {client_id} nicht gefunden.")
     fehler = await _grant_admin_consent(token, sp_items[0]["id"])
+    import dmarc_lese_app
+    fehler += await dmarc_lese_app.abgleichen(token)
     # Neue Rollen stehen erst in einem NEUEN Token — den Cache verwerfen.
     _gc.reset_msal_app()
     return {"ok": not fehler, "fehler": fehler}
@@ -891,11 +891,7 @@ async def run_post_auth_setup(token: str) -> dict:
     # jede Pool-App: Seit v1.10.80 ist es der einzige Anmeldenachweis.
     try:
         cert_der, pfx_bytes = _generate_auth_cert()
-        await _upload_key_credential(token, app_info["app_object_id"], cert_der)
-        for eintrag in settings_store.get("APP_POOL") or []:
-            obj = await _app_objekt_id(token, eintrag.get("client_id", ""))
-            if obj:
-                await _upload_key_credential(token, obj, cert_der)
+        await _zert_an_alle_apps(token, app_info["app_object_id"], cert_der)
         _write_auth_pfx(pfx_bytes)
         _zert_hinterlegt_merken()
         _gc.reset_msal_app()
@@ -914,6 +910,24 @@ async def run_post_auth_setup(token: str) -> dict:
     import aufgaben
     aufgaben.vergessen()            # „läuft“ sofort im Sammelpunkt, nicht nach 10 s
     return result
+
+
+async def _zert_an_alle_apps(token: str, haupt_obj: str, cert_der: bytes) -> None:
+    """Neues Auth-Zertifikat an JEDE App, die sich damit anmeldet: Haupt-App,
+    Pool-Apps, DMARC-Lese-App. Fehlt eine, scheitert sie nach dem Tausch still
+    (AADSTS700027) — daher EINE Liste."""
+    await _upload_key_credential(token, haupt_obj, cert_der)
+    for eintrag in settings_store.get("APP_POOL") or []:
+        obj = await _app_objekt_id(token, eintrag.get("client_id", ""))
+        if obj:
+            await _upload_key_credential(token, obj, cert_der)
+    import dmarc_lese_app
+    lese = dmarc_lese_app.gespeichert().get("objekt_id")
+    if lese:
+        try:
+            await _upload_key_credential(token, lese, cert_der)
+        except Exception as exc:                                # noqa: BLE001
+            log.warning("DMARC-Lese-App: neues Zertifikat nicht hinterlegt: %s", exc)
 
 
 # ── Client Secrets abbauen (seit v1.10.80) ────────────────────────────────────

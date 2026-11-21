@@ -497,7 +497,8 @@ def _dmarc_berichte() -> dict:
     return _punkt(name, stufe, text,
                   "Einstellungen → DMARC: Befunde und Abrufstand ansehen; „Jetzt abrufen“ "
                   "liest sofort. Bei einer Microsoft-365-Gruppe muss Group-Conversation.Read.All "
-                  "erteilt sein.")
+                  "erteilt sein — mit Postfach-Eingrenzung an der DMARC-Lese-App („Fehlende "
+                  "Berechtigungen erteilen“ legt sie an).")
 
 
 def _wartende_zertifikate() -> dict:

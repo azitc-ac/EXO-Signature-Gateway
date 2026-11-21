@@ -17,7 +17,7 @@
 | `Calendars.Read` | Abwesenheit, Notbetrieb, abschaltbar | Abwesenheit aus dem Kalender, Ankündigung, Kalender im Notbetrieb; entfällt mit *Kalender der Postfächer lesen: aus* |
 | `Contacts.Read` | Notbetrieb (optional) | Persönliche Kontakte im Notfall-Webmail; nur mit eingeschaltetem Notbetrieb |
 | `AppCatalog.Read.All` | Teams-App (optional) | Fassung der Teams-App im Katalog prüfen; nur mit *Teams-App ist bereitgestellt* |
-| `Group-Conversation.Read.All` | DMARC-Berichte (optional) | Sammelberichte aus einer Microsoft-365-Gruppe lesen; nur, wenn unter *Einstellungen → DMARC* eine Gruppe eingetragen ist (ein Postfach braucht es nicht) |
+| `Group-Conversation.Read.All` | DMARC-Berichte (optional) | Sammelberichte aus einer Microsoft-365-Gruppe lesen; nur, wenn unter *Einstellungen → DMARC* eine Gruppe eingetragen ist (ein Postfach braucht es nicht). Ist die Postfach-Eingrenzung (ApplicationAccessPolicy) aktiv, erhält diese Rolle nicht die Gateway-App, sondern eine eigene App „… - DMARC-Leser“, die nur diese eine Rolle hat; „Fehlende Berechtigungen erteilen“ legt sie an und löscht sie wieder, wenn sie nicht mehr gebraucht wird |
 | `Exchange.ManageAsApp` | ✓ | EXO PowerShell (Connector/DG-Setup via Wizard) |
 | `IMAP.AccessAsApp` | IMAP-Modus | IMAP APPEND in Empfänger-Postfächer (kein Draft) |
 | `SMTP.SendAsApp` | Port 587 (optional) | SMTP-Einlieferung als Absender für bifurkierte Mails (gemischte interne/externe Empfänger, nur in Graph++) |
