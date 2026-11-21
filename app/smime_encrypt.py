@@ -44,7 +44,9 @@ def encrypt(message_bytes: bytes, recipients: list[str]) -> tuple[bytes | None, 
     missing: list[str] = []
 
     for rcpt in recipients:
-        path = smime_store.get_recipient_cert_path(rcpt)
+        # Eigene Postfächer (Schlüssel nur hier) zählen als „ohne Zertifikat“ —
+        # siehe smime_store.verschluesselungs_cert_path.
+        path = smime_store.verschluesselungs_cert_path(rcpt)
         if not path:
             missing.append(rcpt)
             continue

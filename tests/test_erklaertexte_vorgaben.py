@@ -74,7 +74,7 @@ ZUSAGEN = [
     ("settings_smime.html", "SECURE_PORTAL_RETENTION_DAYS",
      "Standard: 30", 30),
     ("settings_smime.html", "ENC_INTERN_NORMAL",
-     "unverändert über Verschlüsselung bzw. Portal. Standard: aus", False),
+     "geht die Mail an alle über das Portal. Standard: an", True),
     ("settings_smime.html", "SECURE_PORTAL_ENABLED",
      "Standard: aus — dann bekommt der Absender einen Unzustellbarkeitsbericht", False),
     # Auswahlfelder: die als „Standard" ausgezeichnete Option muss die sein,

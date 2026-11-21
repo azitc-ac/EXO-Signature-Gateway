@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.153 — 2026-11-21 — „#enc“ an eigene Postfächer bleibt lesbar
+
+Das Gateway entschlüsselt eingehende Post nur, wenn sie von außen kommt. Lag für
+ein eigenes Postfach ein Zertifikat im Empfängerbestand (eingesammelt,
+freigegeben oder importiert), verschlüsselte das Gateway eine interne
+„#enc“-Mail an dieses Postfach. Der Schlüssel liegt aber nur im Gateway, nicht
+beim Nutzer; die Mail ließ sich nirgends öffnen.
+
+* **„#enc“ an ausschließlich interne Empfänger** wird ab Werk signiert und
+  unverschlüsselt zugestellt (Einstellungen → S/MIME → Secure Message Portal,
+  bisher Vorgabe aus). Hast du den Schalter bewusst ausgeschaltet und
+  gespeichert, bleibt er aus.
+* **Eigene Postfächer zählen beim Verschlüsseln als „ohne Zertifikat“**, auch
+  wenn ihr Zertifikat im Empfängerbestand liegt. Ist bei gemischten Empfängern
+  (intern und extern) ein eigenes Postfach dabei, geht die Mail deshalb an alle
+  über das Portal — wie bisher, sobald ein Empfänger kein verwendbares
+  Zertifikat hat — und ist für alle lesbar. Ohne eigenes Postfach unter den
+  Empfängern wird wie bisher verschlüsselt.
+
+**Zu tun:** nichts. Wer „#enc“ an interne Empfänger weiter über das Portal
+schicken will, schaltet den Schalter unter Einstellungen → S/MIME → Secure
+Message Portal aus.
+
+---
+
 ## v1.12.152 — 2026-11-21 — Tests: Prüfungen für Mehrzahl und Kennzahlen genauer
 
 Die Prüfung auf Einzahl/Mehrzahl lässt eigenständige Seiten ohne den

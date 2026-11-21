@@ -125,12 +125,15 @@ DEFAULTS: dict = {
     "SECURE_PORTAL_ENABLED": False,       # Portal statt NDR für Empfänger ohne S/MIME-Cert
     "SECURE_PORTAL_BASE_URL": "",         # Öffentliche Basis-URL für Portal-Links (leer = aus Hostname)
     "SECURE_PORTAL_RETENTION_DAYS": 30,   # Aufbewahrung in Tagen, danach täglicher Cleanup
-    "SECURE_PORTAL_OTP": True,
+    "SECURE_PORTAL_OTP": True,            # Zugangscode per Mail beim Öffnen (wie Microsoft OME)
     # #enc an AUSSCHLIESSLICH interne Empfänger (Umschlag und An/Cc): normal
     # zustellen (signiert, nicht verschlüsselt) statt Portal/Unzustellbarkeit.
-    # Vorgabe aus. Gemischte Mails bleiben unverändert — eine Teilzustellung
-    # erreichte im Graph-Modus (send_to_all) alle Kopf-Empfänger, auch externe.
-    "ENC_INTERN_NORMAL": False,            # Zugangscode per Mail beim Öffnen (wie Microsoft OME)
+    # Vorgabe AN seit v1.12.153 (Entscheidung 21.11.2026; vorher aus): Ohne den
+    # Schalter verschlüsselte das Gateway an ein internes Postfach, dessen
+    # Schlüssel es selbst hält — der Empfänger konnte die Mail nirgends öffnen.
+    # Ein gespeichertes „aus“ bleibt. Gemischte Mails bleiben unverändert — eine
+    # Teilzustellung erreichte im Graph-Modus (send_to_all) alle Kopf-Empfänger.
+    "ENC_INTERN_NORMAL": True,
     "PORTAL_BRAND_NAME": "",              # Firmenname in Portal-Mails/-Seite (Vertrauen beim Empfänger)
     "SMIME_AUTO_RULES": [],               # [{action: encrypt|sign|nosign, sender, recipient, mode: and|or}]
     "LICENSE_KEY": "",                    # Fair-Use-Lizenz (EXOSIG1.…, Ed25519-signiert, Tenant-gebunden)

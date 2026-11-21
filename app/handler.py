@@ -1304,7 +1304,7 @@ class SignatureHandler:
             if wants_encryption:
                 import smime_store as _ss
                 missing_early = [r for r in recipients
-                                 if not _ss.get_recipient_cert_path(r)]
+                                 if not _ss.verschluesselungs_cert_path(r)]
                 if missing_early:
                     if settings_store.get("SECURE_PORTAL_ENABLED"):
                         pass  # handled in the late S/MIME block below

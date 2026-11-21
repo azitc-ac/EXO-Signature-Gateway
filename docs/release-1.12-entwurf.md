@@ -106,6 +106,12 @@ Begründung:
   zählen nicht mehr als Fehler. Der Tagesbericht nennt „Seit dem letzten
   Bericht“.
 * Portal-Aufbewahrung ab Werk 30 statt 14 Tage (ein gespeicherter Wert bleibt).
+* **„#enc“ an ausschließlich interne Empfänger** wird ab Werk signiert und
+  unverschlüsselt zugestellt; ein gespeichertes „aus“ bleibt. Eigene
+  Postfächer werden nie mehr an ihren eigenen, nur im Gateway liegenden
+  Schlüssel verschlüsselt — ist bei gemischten Empfängern ein eigenes Postfach
+  dabei, geht die Mail an alle über das
+  Portal.
 
 ## Zu tun beim Update
 
