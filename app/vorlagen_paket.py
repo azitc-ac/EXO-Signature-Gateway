@@ -39,6 +39,7 @@ import json
 import logging
 import re
 import zipfile
+import zlib
 from pathlib import Path
 
 import config
@@ -148,8 +149,14 @@ def _aus_zip(daten: bytes, zaehler: "_Zaehler") -> list[tuple[str, bytes]]:
         for e in eintraege:
             # Tatsächlich gelesene Bytes zählen — die Grösse im ZIP-Verzeichnis
             # kann gelogen sein.
-            with zf.open(e) as f:
-                inhalt = f.read(MAX_DATEI + 1)
+            # Kaputte, verschlüsselte oder unbekannt komprimierte Einträge sind
+            # ein Fehler des Pakets (400), kein Absturz der Route (bis v1.12.145: 500).
+            try:
+                with zf.open(e) as f:
+                    inhalt = f.read(MAX_DATEI + 1)
+            except (zipfile.BadZipFile, RuntimeError, NotImplementedError, EOFError,
+                    OSError, zlib.error) as exc:
+                raise PaketFehler(f"„{e.filename[:80]}“ im Paket nicht lesbar ({exc.__class__.__name__}).")
             zaehler.zaehlen(e.filename, len(inhalt))
             aus.append((e.filename, inhalt))
         return aus

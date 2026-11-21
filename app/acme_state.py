@@ -577,7 +577,8 @@ async def _widerruf_ausfuehren(email: str, client: "AcmeClient", fid: str, cert_
             await client.revoke_with_cert_key(cert_der, cert_key, reason=reason)
             log.info("[acme:%s] revoked existing cert for %s (cert keypair, reason %s)", fid, email, reason)
             widerrufen = True
-        log.warning("[acme:%s] existing cert for %s is non-EC — cannot keypair-revoke", fid, email)
+        else:
+            log.warning("[acme:%s] existing cert for %s is non-EC — cannot keypair-revoke", fid, email)
     except Exception as exc_key:
         log.warning("[acme:%s] cert-keypair revoke for %s failed (%s)", fid, email, exc_key)
     if widerrufen:

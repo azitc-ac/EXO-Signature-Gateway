@@ -11,6 +11,7 @@
   <script src="{{ msal_url }}"></script>
   <script src="/static/addin_anmeldung.js?v={{ version }}"></script>
   <script src="/static/vorlagen_name.js?v={{ version }}"></script>
+  <script src="/static/sig_preview.js?v={{ version }}"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -285,7 +286,9 @@
           _zuGross = d.zu_gross || 0;
           _sigTextProbe = _computeSigProbe(_markedSig);
           if (_markedSig) {
-            document.getElementById('preview').innerHTML = d.preview_html || '';
+            // Abgeschotteter Rahmen (sandbox ohne Skripte) wie /self — Vorlagen
+            // kommen auch aus importierten Paketen, Freitext-Bausteine sind rohes HTML.
+            sigVorschau(document.getElementById('preview'), d.preview_html || '');
             document.getElementById('btn-insert').disabled = false;
             // Kein automatisches Einfügen: Das übernimmt das Verfassen-Add-in über
             // den Signaturbereich. Hier wird nur auf Klick eingefügt.

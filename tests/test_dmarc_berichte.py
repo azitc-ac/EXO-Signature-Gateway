@@ -386,3 +386,67 @@ def test_gruppe_mit_eingrenzung_liest_ueber_die_lese_app(umgebung, monkeypatch):
     assert a["ok"] and a["neu"] == 1
     gruppe = [t for u, t in g.tokens if "/groups/g1/" in u]
     assert gruppe and all(t.endswith("lese-tok") for t in gruppe)
+
+
+# ── Review 21.11.2026: Robustheit des Abrufs ────────────────────────────────
+
+@pytest.mark.parametrize("kaputt", [
+    b"\x1f\x8b\x08\x00" + b"\x00" * 6 + b"kaputtes deflate",     # gzip: zlib.error
+    b"<feedback><kein-ende>",                                      # XML defekt
+])
+def test_kaputter_anhang_haelt_den_abruf_nicht_an(umgebung, monkeypatch, kaputt):
+    """Eine fremde Mail an die öffentliche rua-Adresse brach den ganzen Abruf ab
+    (zlib.error ist kein OSError) — `bis` rückte nie weiter."""
+    nb, _ = umgebung
+    monkeypatch.setattr(dm.httpx, "Client", _Graph("postfach", kaputt))
+    a = dm.abrufen()
+    assert a["ok"] and a["fehler"] == 1 and a["fehlertexte"]
+
+
+def test_netzfehler_wird_als_abruf_gemerkt(umgebung, monkeypatch):
+    nb, _ = umgebung
+    g = _Graph("postfach", b"")
+    echt = g.get
+
+    def get(url, headers=None, params=None):
+        if url.endswith("/messages"):
+            raise dm.httpx.ReadTimeout("zu langsam")
+        return echt(url, headers=headers, params=params)
+    g.get = get
+    monkeypatch.setattr(dm.httpx, "Client", g)
+    a = dm.abrufen()
+    assert not a["ok"] and "ReadTimeout" in a["meldung"]
+    assert dm.uebersicht()["abruf"]["meldung"] == a["meldung"]
+
+
+def test_unbekanntes_ziel_wird_neu_bestimmt(umgebung, monkeypatch):
+    """Ein vorübergehender Graph-Fehler beim Auflösen klebte für immer."""
+    nb, _ = umgebung
+    nb[dm.ZIEL_KEY] = {"adresse": "dmarc@firma.at", "art": "unbekannt",
+                       "meldung": "Graph antwortete mit HTTP 503."}
+    monkeypatch.setattr(dm.httpx, "Client", _Graph("postfach", gzip.compress(
+        _xml(_rec("192.0.2.2", 1, "pass", "pass")))))
+    a = dm.abrufen()
+    assert a["ok"] and dm.ziel()["art"] == "postfach"
+
+
+def test_lese_app_nennt_den_echten_grund(monkeypatch):
+    import dmarc_lese_app as la
+
+    class _App:
+        def acquire_token_silent(self, *a, **k):
+            return None
+
+        def acquire_token_for_client(self, **k):
+            return {"error": "unauthorized_client",
+                    "error_description": "AADSTS700016: Application not found.\nTrace ID: x"}
+    monkeypatch.setattr(la, "_msal_app", lambda: _App())
+    assert la.token() is None
+    assert la.letzter_fehler().startswith("AADSTS700016")
+
+
+def test_bericht_aus_der_zukunft_wird_abgewiesen():
+    x = _xml(_rec("192.0.2.2", 1, "pass", "pass")).replace(
+        b"<end>", b"<end>9").replace(b"</end>", b"0</end>")   # Ende weit in der Zukunft
+    with pytest.raises(dm.BerichtFehler):
+        dm.anhang_verarbeiten(x, {})

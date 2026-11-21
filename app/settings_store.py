@@ -525,7 +525,6 @@ INTERNAL_KEYS = frozenset({
     "_DMARC_ZIEL",                # dmarc_berichte.py — aufgelöstes Ziel {adresse, art, id}
     "_ZERT_ABGELAUFEN_GEMELDET",  # scheduler._check_cert_expiry — {email: Tag der letzten Ablaufmail}
     "_DMARC_LESE_APP",            # dmarc_lese_app.py — {client_id, objekt_id} der eigenen Lese-App
-    "_DMARC_GRUPPE",              # dmarc_berichte.py — Ziel ist M365-Gruppe → Group-Conversation.Read.All nötig
     "_SMIME_REGELN_STAND",        # setup_wizard.py — angewendeter Stand des S/MIME-Regel-Solls
     "_ADDIN_VERTEILUNG",          # addin_verteilung.py — je Add-in: Soll-Fassung + erstes Sichten
     "_ADDIN_LOKAL",               # addin_verteilung.py — Hybrid-Nutzer: Tag des letzten Add-in-Abrufs
@@ -546,6 +545,7 @@ INTERNAL_KEYS = frozenset({
 # Oberfläche, um sie zu löschen. Wer vorher Sectigo oder SwissSign konfiguriert
 # hatte, dessen Zugangsdaten lagen weiter in der Datei.
 OBSOLETE_KEYS = {
+    "_DMARC_GRUPPE":               "Rollen-Soll für Group-Conversation.Read.All wird seit v1.12.146 beim Lesen abgeleitet (dmarc_berichte.gruppen_rolle_noetig) — der gespeicherte Wert folgte dem Umschalten der Eingrenzung nicht",
     "SMTP_CLIENTZERT_BEOBACHTEN":  "Messschalter der Untersuchung vom 11.11.2026 — durch EXO_ERKENNUNG ersetzt (v1.11.24), das das Client-Zertifikat nur anfordert, wo die Adresse nicht reicht",
     "WEBUI_USERNAME":              "örtliche Anmeldung nur mit Kennwort (v1.10.77) — es gibt genau ein örtliches Konto",
     "STRIP_CLIENT_SIGS":           "in STRIP_CLIENT_SIGS_MOBILE (sicher, an) und _DESKTOP (experimentell, aus) aufgeteilt (v1.8.56); Migration v2→v3 übernimmt den Wert nach _DESKTOP",

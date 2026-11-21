@@ -50,8 +50,8 @@ _GRAPH_PERMISSION_SPECS = [
      "zweck": "Fassung der Teams-App im Katalog", "nur_wenn": "TEAMS_APP_AKTIV",
      "vorgabe": False},
     {"name": "Group-Conversation.Read.All", "id": "4f0a8235-6f6f-4ec7-9500-34b452a4a0c3",
-     "zweck": "DMARC-Berichte aus einer Microsoft-365-Gruppe lesen", "nur_wenn": "_DMARC_GRUPPE",
-     "vorgabe": False},
+     "zweck": "DMARC-Berichte aus einer Microsoft-365-Gruppe lesen",
+     "nur_wenn_fn": "dmarc_berichte.gruppen_rolle_noetig"},
 ]
 _EXO_PERMISSION_SPECS = [
     {"name": "Exchange.ManageAsApp",     "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
@@ -68,6 +68,11 @@ def benoetigt(spec: dict) -> bool:
     schon erteilte entzieht das Gateway NICHT selbst (nur ergänzen, nie
     entziehen) — die Prüfung weist auf sie hin. `vorgabe`: was gilt, wenn der
     Schalter keinen Wert hat (Calendars.Read: an, AppCatalog.Read.All: aus)."""
+    fn = spec.get("nur_wenn_fn")             # „modul.funktion“ — aus dem Zustand abgeleitet
+    if fn:
+        import importlib
+        modul, name = fn.rsplit(".", 1)
+        return bool(getattr(importlib.import_module(modul), name)())
     schalter = spec.get("nur_wenn")
     if not schalter:
         return True

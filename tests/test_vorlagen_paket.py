@@ -180,3 +180,13 @@ def test_ueberschreiben_sichert_auch_baukasten_und_text(verz):
     vp.importieren(_eingaben({"templates/K.html": b"NEU"}), {"K": {"aktion": "ueberschreiben"}}, "t")
     assert (verz / "K.meta.json.bak").read_bytes() == META
     assert (verz / "K.txt.bak").read_text() == "ALT-TEXT"
+
+
+def test_kaputter_zip_eintrag_ist_ein_paketfehler():
+    """Review 21.11.: zf.open/read lag außerhalb des try — ein kaputter Eintrag
+    ergab 500 statt einer Meldung im Dialog."""
+    roh = bytearray(_zip({"Signatur.html": b"<p>" + b"x" * 2000 + b"</p>"}))
+    i = roh.index(b"PK\x03\x04")
+    roh[i + 30 + len("Signatur.html"):i + 60 + len("Signatur.html")] = b"\xff" * 30   # Daten zerstören
+    with pytest.raises(vp.PaketFehler):
+        vp.eingaben_aus_upload([("paket.zip", bytes(roh))])

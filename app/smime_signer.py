@@ -20,8 +20,8 @@ log = logging.getLogger(__name__)
 
 
 def nur_abgelaufen(sender: str) -> bool:
-    """Hat *sender* ein (unwiderrufenes) Signaturzertifikat, aber kein zeitlich
-    gültiges? Dann geht die Mail unsigniert (Entscheidung 21.11.2026) — und das
+    """Hat *sender* ein Signaturzertifikat, aber keines, das zeitlich gültig UND
+    unwiderrufen ist? Dann geht die Mail unsigniert (Entscheidung 21.11.2026) — und das
     wird hier sichtbar gemacht: Kennzahl `smime_unsigniert_abgelaufen` (Übersicht,
     Tagesbericht) und Protokoll. Die Verwaltung erfährt es zusätzlich aus der
     Ablaufmail (notification.send_cert_expiry_alert), die das so benennt.
@@ -33,13 +33,17 @@ def nur_abgelaufen(sender: str) -> bool:
                or smime_store.get_signing_cert_path(sender, nur_unwiderrufen=True, nur_gueltig=True))
     if gueltig:
         return False
-    vorhanden = (smime_store.get_signing_paths(sender, allow_backup=True, nur_unwiderrufen=True)
-                 or smime_store.get_signing_cert_path(sender, nur_unwiderrufen=True))
+    # „Vorhanden“ OHNE Widerrufsfilter: Auch ein nur noch widerrufenes Zertifikat
+    # (Knopf „Widerrufen“, Widerruf vor einer gescheiterten Neuausstellung) lässt
+    # die Post unsigniert — das blieb bis v1.12.146 ohne Zahl (Review 21.11.).
+    vorhanden = (smime_store.get_signing_paths(sender, allow_backup=True)
+                 or smime_store.get_signing_cert_path(sender))
     if not vorhanden:
         return False
     import stats
     stats.increment("smime_unsigniert_abgelaufen")
-    log.warning("S/MIME: Zertifikat von %s nicht zeitlich gültig — Mail geht UNSIGNIERT", sender)
+    log.warning("S/MIME: kein gültiges, unwiderrufenes Zertifikat für %s (abgelaufen oder "
+                "widerrufen) — Mail geht UNSIGNIERT", sender)
     return True
 
 

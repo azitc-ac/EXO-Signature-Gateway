@@ -135,8 +135,12 @@ def test_hauptapp_verlangt_gruppenrolle_nicht_bei_eingrenzung(nb, monkeypatch):
     import graph_client
     monkeypatch.setattr(graph_client, "_acquire_token", lambda: "tok")
     monkeypatch.setattr(dm.httpx, "Client", t._Graph("gruppe", b""))
+    import setup_wizard
+    (spec,) = [s for s in setup_wizard._GRAPH_PERMISSION_SPECS if s["name"] == dm.GRUPPEN_ROLLE]
     dm.ziel_aufloesen()
-    assert nb[dm.GRUPPE_KEY] is False
+    assert setup_wizard.benoetigt(spec) is False
+    # Eingrenzung umschalten OHNE neues Auflösen — bis v1.12.145 blieb das Soll stehen.
     nb["APP_ACCESS_POLICY_ENABLED"] = False
-    dm.ziel_aufloesen()
-    assert nb[dm.GRUPPE_KEY] is True
+    assert setup_wizard.benoetigt(spec) is True
+    nb["APP_ACCESS_POLICY_ENABLED"] = True
+    assert setup_wizard.benoetigt(spec) is False

@@ -438,7 +438,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
               str(dval("smime_encrypt_fehler")), "#e74c3c")
          if dval("smime_encrypt_fehler") else ""),
         # Signaturzertifikat abgelaufen → unsigniert versandt (seit v1.12.145).
-        (_row("Unsigniert versandt (Zertifikat abgelaufen)",
+        (_row("Unsigniert versandt (Zertifikat abgelaufen/widerrufen)",
               str(dval("smime_unsigniert_abgelaufen")), "#e74c3c")
          if dval("smime_unsigniert_abgelaufen") else ""),
         # Bis v1.12.145 gezählt, aber verworfen (nicht in stats.KEYS).

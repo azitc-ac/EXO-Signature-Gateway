@@ -174,3 +174,26 @@ def test_jeder_zaehler_steht_in_keys():
         dynamisch += [f"{p.name}" for _ in re.findall(r'\bstats\.increment\(\s*[^"\s)]', text)]
     assert not fehlt, f"stats.increment mit Schlüssel außerhalb von stats.KEYS: {sorted(fehlt)}"
     assert not dynamisch, f"stats.increment ohne festen Schlüssel (nicht prüfbar): {dynamisch}"
+
+
+def test_nur_widerrufenes_zertifikat_wird_gezaehlt(ablage):
+    """Review 21.11.: Geschwister zu „abgelaufen“ — ein nur noch widerrufenes
+    Zertifikat ließ die Post ebenfalls unsigniert, ohne Zahl."""
+    basis, _, gezaehlt = ablage
+    slot = _slot(basis, tage=300)
+    d = basis / EMAIL / "certs" / slot
+    import json
+    (d / "widerrufen.json").write_text(json.dumps({"grund": "nicht_mehr_benoetigt"}))
+    assert smime_store._widerrufen(d)
+    assert smime_signer.sign(ROH, EMAIL) is None
+    assert gezaehlt == ["smime_unsigniert_abgelaufen"]
+
+
+def test_sammelbestellung_zaehlt_widerrufene_nicht(ablage):
+    basis, _, _ = ablage
+    import json
+    import sammelbestellung
+    slot = _slot(basis, tage=300)
+    assert sammelbestellung._gueltige_zertifikate(EMAIL) == 1
+    (basis / EMAIL / "certs" / slot / "widerrufen.json").write_text(json.dumps({"grund": "x"}))
+    assert sammelbestellung._gueltige_zertifikate(EMAIL) == 0

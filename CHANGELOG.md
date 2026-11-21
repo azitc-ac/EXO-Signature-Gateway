@@ -5,6 +5,61 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.146 — 2026-11-21 — Korrekturen aus der Durchsicht von v1.12.113–144
+
+### DMARC-Auswertung
+
+* **Ein kaputter Anhang hielt den Abruf an.** Die rua-Adresse steht öffentlich
+  im DNS. Eine Mail mit beschädigten gzip- oder zip-Daten oder unlesbarem
+  Anhang brach den ganzen Abruf ab, ohne dass das Ergebnis gespeichert wurde.
+  Danach blieb die Auswertung stehen, und die Anzeige zeigte weiter den letzten
+  Erfolg. Jetzt zählt so ein Anhang als einzelner Fehler, und der Abruf läuft
+  weiter. Netzfehler und Zeitüberschreitungen werden als Ergebnis des Abrufs
+  gemeldet statt als Fehler der Seite.
+* **Ein unbekanntes Ziel wird neu bestimmt.** Antwortete Graph beim Erkennen
+  des Ziels einmal mit einem vorübergehenden Fehler, blieb das Ziel dauerhaft
+  „unbekannt“. Jetzt versucht es jeder Abruf erneut. Eine nicht mehr gefundene
+  Gruppe wird wie ein Postfach zurückgesetzt.
+* **Rolle für die Gruppe folgt der Postfach-Eingrenzung.** Ob die Gateway-App
+  `Group-Conversation.Read.All` braucht, wurde nur beim Erkennen des Ziels
+  festgelegt. Wer danach die Eingrenzung umschaltete, bekam die Rolle weder
+  beantragt noch angezeigt. Jetzt wird es bei jeder Prüfung aus Ziel und
+  Eingrenzung abgeleitet.
+* **Die DMARC-Lese-App nennt den echten Grund,** wenn sie kein Token bekommt,
+  etwa „AADSTS700016“, wenn die App in Entra gelöscht wurde. Bisher hieß es
+  immer, Entra brauche noch einige Minuten.
+* **Berichte mit einem Zeitraum in der Zukunft werden abgewiesen.** Sie wären
+  nie aus dem Auswertungsfenster gefallen und hätten die angezeigte Richtlinie
+  bestimmt.
+
+### S/MIME
+
+* **Auch ein nur noch widerrufenes Zertifikat** lässt die Post jetzt sichtbar
+  unsigniert hinausgehen: Es zählt mit in „Unsigniert versandt (Zertifikat
+  abgelaufen/widerrufen)“. Bisher geschah das ohne Zahl.
+* **Die Sammelbestellung übersprang Postfächer, deren einziges Zertifikat
+  widerrufen ist,** als hätten sie ein gültiges. Jetzt sind sie bestellbar.
+* Beim Widerruf stand im Protokoll „non-EC — cannot keypair-revoke“ auch nach
+  einem erfolgreichen Widerruf mit dem Schlüsselpaar des Zertifikats.
+
+### Add-in
+
+* **Der Aufgabenbereich des Einstell-Add-ins zeigte die Signatur ungeschützt
+  in der Seite an.** Seit Vorlagen auch aus importierten Paketen kommen, lief
+  dort Skript aus einer Vorlage, etwa aus einem Freitext-Baustein, mit der
+  Sitzung des Nutzers. Jetzt steht die Vorschau wie auf der Self-Service-Seite
+  in einem abgeschotteten Rahmen ohne Skripte. Ein Test verbietet die rohe Form
+  auf allen Seiten.
+
+### Vorlagen importieren
+
+* Ein beschädigter oder verschlüsselter Eintrag im Vorlagenpaket führte zu
+  einem Serverfehler. Jetzt meldet der Dialog, welche Datei nicht lesbar ist.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.145 — 2026-11-21 — Abgelaufene Signaturzertifikate, Erneuerungs-Hinweise, verlorene Zähler, Mehrzahl
 
 ### Kein Signieren mehr mit abgelaufenen Zertifikaten
