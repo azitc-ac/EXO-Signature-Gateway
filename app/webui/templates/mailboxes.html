@@ -1684,9 +1684,6 @@ function _hakenZelle(klasse, idx, an, gesperrt) {
   return td;
 }
 
-// „1 Zeile“ / „3 Zeilen“ statt „Zeile(n)“ (wie abnahme._zahl).
-function _mbZahl(n, einzahl, mehrzahl) { return n + ' ' + (n === 1 ? einzahl : mehrzahl); }
-
 function filterMailboxes() {
   // Ohne Argument aufgerufen: beide Kriterien werden aus den Feldern gelesen.
   // Wichtig, weil "Alle/Kein" nur auf sichtbare Zeilen wirkt (setAllVisible).
@@ -1773,7 +1770,7 @@ function massenVorlageSetzen() {
     }
     gesetzt++;
   });
-  showMsg('mb-massen-status', _mbZahl(gesetzt, 'Zeile', 'Zeilen') + ' gesetzt'
+  showMsg('mb-massen-status', anzahlText(gesetzt, 'Zeile', 'Zeilen') + ' gesetzt'
     + (gesperrt ? ', ' + gesperrt + ' übersprungen (Spalte gesperrt, etwa ohne Signatur-Haken oder durch eine Gruppe festgelegt)' : '')
     + ' — wirksam nach „Speichern“.', gesetzt > 0);
 }
@@ -1799,7 +1796,7 @@ function massenAufStandard() {
     if (getroffen) zeilen++;
   });
   showMsg('mb-massen-status', slots
-    ? _mbZahl(slots, 'Vorlage', 'Vorlagen') + ' in ' + _mbZahl(zeilen, 'Zeile', 'Zeilen') + ' auf Standard gesetzt'
+    ? anzahlText(slots, 'Vorlage', 'Vorlagen') + ' in ' + anzahlText(zeilen, 'Zeile', 'Zeilen') + ' auf Standard gesetzt'
       + (fest ? ', ' + fest + ' festgelegte übersprungen' : '') + ' — wirksam nach „Speichern“.'
     : 'Keine Ausnahme in den sichtbaren Zeilen' + (fest ? ' (' + fest + ' festgelegte übersprungen)' : '') + '.',
     slots > 0);
@@ -1818,7 +1815,7 @@ function massenRuhendVerwerfen() {
       n++;
     });
   });
-  showMsg('mb-massen-status', n ? n + ' ruhende Wahl(en) zum Verwerfen markiert — wirksam nach „Speichern“.'
+  showMsg('mb-massen-status', n ? anzahlText(n, 'ruhende Wahl', 'ruhende Wahlen') + ' zum Verwerfen markiert — wirksam nach „Speichern“.'
                                 : 'Keine ruhende Wahl in den sichtbaren Zeilen.', n > 0);
 }
 
@@ -1848,7 +1845,7 @@ async function _regelProbe(emails, knopf, anzeige) {
     var offen = (r.gestartet || []).concat(r.laufen_schon || []);
     var t0 = Date.now();
     while (offen.length && Date.now() - t0 < REGEL_PROBE_MAX_MS) {
-      text('Prüfe ' + offen.length + (offen.length === 1 ? ' Postfach' : ' Postfächer') +
+      text('Prüfe ' + anzahlText(offen.length, 'Postfach', 'Postfächer') +
            ' … ' + Math.round((Date.now() - t0) / 1000) + ' s');
       await warten(5000);
       var s = await getJSON('/api/mailboxes/regel-probe/status');
@@ -1944,7 +1941,7 @@ async function autoEnrollBestaetigt(payload) {
   }
   if (!d || !d.aktiv || !d.bestellbar) return true;
 
-  let frage = d.bestellbar + (d.bestellbar === 1 ? ' Zertifikat wird' : ' Zertifikate werden') +
+  let frage = anzahlText(d.bestellbar, 'Zertifikat wird', 'Zertifikate werden') +
               ' automatisch bei ' + (d.anbieter || 'der Zertifizierungsstelle') + ' bestellt.';
   if (d.abrechnung === 'kostenlos') {
     frage += '\n\nDieser Bezugsweg ist kostenlos.';
@@ -2137,7 +2134,7 @@ function _renderGroupsTable() {
           '<input type="hidden" value="' + escAttr(_grpState) + '">' + _gruppenPunktHtml(name) + esc(name) +
           '<span style="display:block;font-size:10px;font-weight:400;color:#94a3b8">vordefiniert</span></td>' +
         '<td style="padding:6px 8px;font-size:12px;color:#374151"><div class="gruppen-aktionen">' +
-          '<span>automatisch: ' + members.length + (members.length === 1 ? ' Postfach' : ' Postfächer') + '</span>' +
+          '<span>automatisch: ' + anzahlText(members.length, 'Postfach', 'Postfächer') + '</span>' +
           '<button class="btn secondary btn-sm" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +
             'title="Custom-Variablen für alle Postfächer">Variablen (' +
             Object.keys(_groupVars[name] || {}).length + ')</button></div></td>' +
@@ -2146,7 +2143,7 @@ function _renderGroupsTable() {
       return;
     }
     var dyn = !!_dynGroups[name];
-    var anzahl = members.length + (members.length === 1 ? ' Postfach' : ' Postfächer');
+    var anzahl = anzahlText(members.length, 'Postfach', 'Postfächer');
     var mitgliederZelle = dyn
       ? '<span>dynamisch: ' + anzahl + '</span>' +
         '<button class="btn secondary btn-sm" onclick="openRegelModal(this.dataset.group)" data-group="' + escAttr(name) + '">Regel</button>'
@@ -2724,7 +2721,7 @@ async function _regelVorschau() {
   var st = d.schnappschuss || {};
   document.getElementById('regel-stand').textContent = 'Entra-Stand: ' +
     (st.stand ? _zeit(st.stand) : 'noch nicht eingelesen — Entra-Felder gelten als leer');
-  var text = d.anzahl + ' Mitglied' + (d.anzahl === 1 ? '' : 'er') + ' · +' + d.neu + ' neu, −' + d.weg +
+  var text = anzahlText(d.anzahl, 'Mitglied', 'Mitglieder') + ' · +' + d.neu + ' neu, −' + d.weg +
              ' fallen raus (gegenüber dem gespeicherten Stand)';
   if (d.ausgeschlossen) text += ' · ' + d.ausgeschlossen + ' durch „nie dabei“ ausgeschlossen';
   if (d.gefiltert < d.anzahl) text += ' · ' + d.gefiltert + ' passen zum Filter';

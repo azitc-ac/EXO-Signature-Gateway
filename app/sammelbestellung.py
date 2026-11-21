@@ -59,13 +59,16 @@ KEIN_SMIME = "kein_smime"
 
 
 def _gueltige_zertifikate(email: str) -> int:
-    """Anzahl brauchbarer Zertifikate — abgelaufene und defekte zählen nicht."""
+    """Anzahl brauchbarer Zertifikate — abgelaufene, widerrufene und defekte zählen
+    nicht. Widerrufene zählten bis v1.12.146 mit (Review 21.11.): Ein Postfach,
+    dessen einziges Zertifikat widerrufen war, galt als „hat Zertifikat“ und
+    wurde übersprungen, obwohl das Gateway damit nicht mehr signiert."""
     import smime_store
     from datetime import datetime
     heute = datetime.now()
     n = 0
     for c in smime_store.list_user_certs(email):
-        if c.get("error"):
+        if c.get("error") or c.get("widerrufen"):
             continue
         try:
             if datetime.strptime(c["expiry"], "%d.%m.%Y") > heute:

@@ -5,6 +5,252 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.151 — 2026-11-21 — Entwurf der Release-Notizen für 1.12
+
+Neu: `docs/release-1.12-entwurf.md` fasst zusammen, was seit dem letzten
+Stabil-Release v1.11.29 neu ist, was sich ohne Zutun ändert, was beim Update zu
+tun ist und welche Punkte offen sind. Am Produkt ändert sich nichts.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.150 — 2026-11-21 — Prüfgrundlage der Codeprüfung ergänzt
+
+Die Prüfung auf kopierten Oberflächen-Code kennt jetzt die neuen Zeilen der
+Aktionstabelle des Mailprotokolls aus v1.12.149 als gewollt. Am Produkt ändert
+sich nichts gegenüber v1.12.149.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.149 — 2026-11-21 — Übersicht: jede Zahl sagt, was sie misst
+
+### Heute heißt heute, in deiner Zeitzone
+
+„Heute“, die Monate und das Jahr zählen jetzt nach dem Tag in der eingestellten
+Zeitzone (Erweitert → Protokoll-Zeitzone), wie schon Peak und Stundenansicht.
+Bisher galt für die Zahlen der UTC-Tag; Post zwischen Mitternacht und 1 bzw.
+2 Uhr erschien unter dem Vortag. Die Klicklisten grenzen genauso ab. Ältere
+Tage bleiben, wie sie gezählt wurden.
+
+Der Tagesbericht nennt seine Zahlen jetzt „Seit dem letzten Bericht“ mit
+Zeitpunkt, denn das misst er. Bisher stand dort „Statistiken heute“. Der
+Monatsname steht auf Deutsch.
+
+### Zahl und Klickliste zeigen dieselben Mails
+
+* **Verarbeitet:** Das ist jede Mail, die das Gateway bearbeitet oder geprüft
+  hat: Signatur, S/MIME, Portal, Entschlüsselung und Prüfung eingehender
+  Signaturen. Eingehend signierte Post zählte bisher nur, wenn die Hülle
+  abgenommen wurde. Der Klick zeigte bisher alle Protokollzeilen, auch
+  durchgereichte; jetzt nur die gezählten. Das Portal schreibt eine Zeile je
+  Mail statt je Empfänger.
+* **S/MIME signiert / verschlüsselt:** Signiert und verschlüsselte Mails stehen
+  jetzt in beiden Klicklisten. Bisher fehlten sie unter „signiert“.
+* **Mail-Peak:** Der Klick zeigt nur die Mails dieser Stunde, nicht den ganzen
+  Tag.
+
+### Fehler aufgeteilt
+
+* **Fehler (Gateway)** zählt echte Ausfälle: abgebrochene Verarbeitung,
+  gescheiterte Ver- oder Entschlüsselung, gescheiterte Tenant-Weiterleitung und
+  Zustellfehler, die in die Warteschlange gingen. Die ersten zwei Ausfälle
+  zählten bisher teils nicht oder gar nicht. Darunter stehen die einzelnen Teile,
+  sobald sie vorkommen, auch „davon Fallback“.
+* **Ohne Empfängerzertifikat abgewiesen** ist eine eigene Zeile. Das ist ein
+  Bedienfall und zählte bisher als Fehler.
+* Fehlerzähler, die bisher nur im Tagesbericht standen, erscheinen in der
+  Übersicht, sobald sie vorkommen.
+
+### Anzeige
+
+* **Add-in-Signatur ersetzt** erscheint nur, wenn das Gateway bei Antworten das
+  letzte Wort hat; sonst bleibt die Zahl immer 0.
+* **Zustellung über Microsoft Graph** erscheint nur in den Graph-Modi.
+* **Key Vault** steht als „davon über Key Vault“ unter „S/MIME signiert“ und
+  nur, wenn ein Key Vault eingetragen ist.
+* **Graph App-Pool:** Die Zahlen heißen jetzt „Token-Abrufe“. Gezählt werden
+  Token-Anforderungen, nicht einzelne Graph-Aufrufe.
+* **Zertifikate:** „läuft bald ab“ nutzt dieselbe Schwelle wie das Band oben
+  (Warnfrist für Zertifikate) statt fest 30 Tagen.
+* **Zentrale Abwesenheit** nennt den Zeitpunkt des letzten Abgleichs.
+* **Kachel Warteschlange:** Sie trennt Wartungsmodus, Graph-Rücklauf und
+  Zustellfehler. Bisher lief alles außer den Zustellfehlern unter
+  „Wartungsmodus“.
+
+Außerdem konnte das Schreiben des Tagesbericht-Stands Zählungen verlieren, die
+genau in diesem Moment eingingen. Das ist behoben.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.148 — 2026-11-21 — Tests: neutrale Beispielwerte
+
+Ein Test der Sammelbestellung verwendet als Anbieterpreis jetzt einen frei
+gewählten Beispielwert. Am Produkt ändert sich nichts.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.147 — 2026-11-21 — Widerruf ohne stille Neubestellung, Bestellungen überstehen Neustarts, Direktversand ohne alte DKIM, sichererer Vorlagenimport
+
+### S/MIME
+
+* **Widerruf bestellt nicht mehr still neu.** Das Gateway behandelte ein
+  widerrufenes Standardzertifikat wie ein abgelaufenes und bestellte am Folgetag
+  ohne Ankündigung ein neues, auch beim Grund „nicht mehr benötigt“. Beim
+  Bezug über den Hub konnte das Kosten verursachen. Jetzt schaltet der Widerruf
+  des Standardzertifikats „Automatisch erneuern“ für das Postfach ab. Ausnahmen
+  sind die Gründe „ersetzt“ und „Schlüssel kompromittiert“: Dann wird wie
+  bisher gleich neu bestellt. Der Widerruf eines älteren, nicht mehr benutzten
+  Zertifikats lässt die Einstellung unberührt. Dialog und Rückmeldung sagen,
+  was passiert.
+* **CASTLE-Bestellungen überstehen einen Neustart.** Startete das Gateway neu,
+  während eine Bestellung nach der Antwort auf die Challenge oder beim
+  Abschließen war, blieb sie liegen. Es kam keine Fehlermail, und eine neue
+  Bestellung war einen Tag gesperrt; das alte Zertifikat war zu diesem Zeitpunkt
+  schon widerrufen. Jetzt nimmt das Gateway sie nach dem Neustart wieder auf.
+  War sie bei CASTLE schon fertig, holt es nur noch das Zertifikat ab.
+
+### Direktversand
+
+* **Alte DKIM-/ARC-Signaturen werden entfernt.** Post, die das Gateway über den
+  eigenen Postfix direkt zustellt, trug neben der eigenen DKIM-Signatur noch
+  die Signatur von vor dem Gateway. Weil das Gateway den Inhalt verändert,
+  stand beim Empfänger „dkim=fail“ daneben, und die ARC-Kette war gebrochen.
+  Die Rückwege über Port 25 und 587 entfernen sie schon; jetzt auch dieser Weg.
+
+### Vorlagen importieren
+
+* **Probe-Darstellung beim Prüfen.** Bisher prüfte der Import nur die Syntax.
+  Eine Vorlage mit unbekanntem Filter oder fehlender eingebundener Datei galt
+  als importierbar, und beim Versand fiel die Signatur dann still weg. Jetzt
+  stellt der Import jede Vorlage probeweise mit derselben abgesicherten
+  Umgebung dar wie der Versand und lehnt sie mit Grund ab, wenn das scheitert.
+* **Die Art einer Vorlage ändert sich nicht still.** Ein Paket ohne
+  Baukasten-Daten machte beim Überschreiben aus einem Banner, Disclaimer oder
+  einer Abwesenheitsvorlage eine Signatur; sie verschwand aus ihrer Auswahl.
+  Jetzt bietet der Dialog in diesem Fall nur Umbenennen an und sagt, warum.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.146 — 2026-11-21 — Korrekturen aus der Durchsicht von v1.12.113–144
+
+### DMARC-Auswertung
+
+* **Ein kaputter Anhang hielt den Abruf an.** Die rua-Adresse steht öffentlich
+  im DNS. Eine Mail mit beschädigten gzip- oder zip-Daten oder unlesbarem
+  Anhang brach den ganzen Abruf ab, ohne dass das Ergebnis gespeichert wurde.
+  Danach blieb die Auswertung stehen, und die Anzeige zeigte weiter den letzten
+  Erfolg. Jetzt zählt so ein Anhang als einzelner Fehler, und der Abruf läuft
+  weiter. Netzfehler und Zeitüberschreitungen werden als Ergebnis des Abrufs
+  gemeldet statt als Fehler der Seite.
+* **Ein unbekanntes Ziel wird neu bestimmt.** Antwortete Graph beim Erkennen
+  des Ziels einmal mit einem vorübergehenden Fehler, blieb das Ziel dauerhaft
+  „unbekannt“. Jetzt versucht es jeder Abruf erneut. Eine nicht mehr gefundene
+  Gruppe wird wie ein Postfach zurückgesetzt.
+* **Rolle für die Gruppe folgt der Postfach-Eingrenzung.** Ob die Gateway-App
+  `Group-Conversation.Read.All` braucht, wurde nur beim Erkennen des Ziels
+  festgelegt. Wer danach die Eingrenzung umschaltete, bekam die Rolle weder
+  beantragt noch angezeigt. Jetzt wird es bei jeder Prüfung aus Ziel und
+  Eingrenzung abgeleitet.
+* **Die DMARC-Lese-App nennt den echten Grund,** wenn sie kein Token bekommt,
+  etwa „AADSTS700016“, wenn die App in Entra gelöscht wurde. Bisher hieß es
+  immer, Entra brauche noch einige Minuten.
+* **Berichte mit einem Zeitraum in der Zukunft werden abgewiesen.** Sie wären
+  nie aus dem Auswertungsfenster gefallen und hätten die angezeigte Richtlinie
+  bestimmt.
+
+### S/MIME
+
+* **Auch ein nur noch widerrufenes Zertifikat** lässt die Post jetzt sichtbar
+  unsigniert hinausgehen: Es zählt mit in „Unsigniert versandt (Zertifikat
+  abgelaufen/widerrufen)“. Bisher geschah das ohne Zahl.
+* **Die Sammelbestellung übersprang Postfächer, deren einziges Zertifikat
+  widerrufen ist,** als hätten sie ein gültiges. Jetzt sind sie bestellbar.
+* Beim Widerruf stand im Protokoll „non-EC — cannot keypair-revoke“ auch nach
+  einem erfolgreichen Widerruf mit dem Schlüsselpaar des Zertifikats.
+
+### Add-in
+
+* **Der Aufgabenbereich des Einstell-Add-ins zeigte die Signatur ungeschützt
+  in der Seite an.** Seit Vorlagen auch aus importierten Paketen kommen, lief
+  dort Skript aus einer Vorlage, etwa aus einem Freitext-Baustein, mit der
+  Sitzung des Nutzers. Jetzt steht die Vorschau wie auf der Self-Service-Seite
+  in einem abgeschotteten Rahmen ohne Skripte. Ein Test verbietet die rohe Form
+  auf allen Seiten.
+
+### Vorlagen importieren
+
+* Ein beschädigter oder verschlüsselter Eintrag im Vorlagenpaket führte zu
+  einem Serverfehler. Jetzt meldet der Dialog, welche Datei nicht lesbar ist.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.145 — 2026-11-21 — Abgelaufene Signaturzertifikate, Erneuerungs-Hinweise, verlorene Zähler, Mehrzahl
+
+### Kein Signieren mehr mit abgelaufenen Zertifikaten
+
+Das Gateway signierte ausgehende Mails mit dem Standardzertifikat des Postfachs,
+solange es nicht widerrufen war, auch wenn es abgelaufen war. Die Empfänger sahen
+dann eine ungültige Signatur. Das betraf auch den Weg über den Key Vault.
+
+Jetzt signiert das Gateway nur mit einem zeitlich gültigen Zertifikat. Ist das
+Standardzertifikat abgelaufen, aber ein anderes gültiges vorhanden, nimmt es
+dieses. Gibt es keines, geht die Mail **unsigniert** hinaus:
+
+* Die Zahl steht als „Unsigniert versandt (Zertifikat abgelaufen)“ in Übersicht
+  und Tagesbericht.
+* Die Ablaufmail an die Verwaltung sagt ausdrücklich, dass Mails dieses
+  Postfachs unsigniert hinausgehen.
+
+Entschlüsseln eingehender Post mit dem abgelaufenen Schlüssel geht weiter.
+
+### Erneuerung
+
+* **Ablaufmail an die Verwaltung:** Nach dem Ablauf kam sie jeden Tag, ohne
+  Ende. Jetzt kommt sie vor dem Ablauf weiter täglich (Warnfrist
+  `CERT_WARN_DAYS`), danach einmal pro Woche. Gemerkt wird das in den
+  Einstellungen, also auch über Neustarts hinweg.
+* **Bewusst abgewählte automatische Erneuerung:** Bisher galt das als
+  „entschieden“, und ein ablaufendes Zertifikat war nur am Ablauf-Band zu sehen.
+  Jetzt erscheint die Aufgabe „Ablaufendes Zertifikat ohne automatische
+  Erneuerung“, sobald es in der Warnfrist liegt. Ab 30 Tagen nach dem Ablauf
+  gilt das Weglassen als gewollt, und die Aufgabe entfällt.
+* **Erneuerungsmail an den Postfachinhaber:** Sie richtet sich jetzt nach dem
+  Schalter „Mails an Postfachinhaber“ (`NOTIFY_USER_CERT`), wie alle anderen
+  Mails an Inhaber. Bisher ging sie auch bei ausgeschaltetem Schalter hinaus.
+
+### Zähler, die verloren gingen
+
+Drei Zähler wurden hochgezählt, standen aber nicht in der Liste der bekannten
+Kennzahlen: Zustellfehler in die Warteschlange, Graph-Rücklauf in die
+Warteschlange und „#enc an rein interne Empfänger normal zugestellt“. Beim
+Neustart wurden sie verworfen, angezeigt wurden sie nirgends. Jetzt bleiben sie
+erhalten und erscheinen in Tagesbericht und Übersicht, sobald sie vorkommen. Ein
+Test verlangt, dass jeder gezählte Schlüssel bekannt ist.
+
+### Einzahl und Mehrzahl
+
+Texte wie „Regel(n)“, „Gerät(e)“, „Secret(s)“ oder „1 Mails“ stehen jetzt in
+richtiger Einzahl oder Mehrzahl, in der Oberfläche, in Mails und in Meldungen.
+Der Betreff der Lizenz-Erinnerung lautete bei einem Tag „läuft in 1 Tagen ab“.
+Alle Stellen nutzen einen gemeinsamen Baustein; ein Test verbietet die
+Klammerform. Protokollzeilen sind davon ausgenommen.
+
+**Zu tun:** nichts. Läuft ein Signaturzertifikat mit abgewählter Erneuerung ab,
+erscheint die neue Aufgabe von selbst.
+
+---
+
 ## v1.12.144 — 2026-11-21 — Nachträglich gefüllte Hinweise lassen sich aufklappen
 
 Lange Erklärtexte werden auf zwei Zeilen gekürzt und bekommen einen Schalter

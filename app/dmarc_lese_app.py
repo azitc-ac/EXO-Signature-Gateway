@@ -34,6 +34,14 @@ _GRAPH = "https://graph.microsoft.com/v1.0"
 _SCOPES = ["https://graph.microsoft.com/.default"]
 
 _msal_cache: dict = {}
+_fehler: dict = {"text": ""}
+
+
+def letzter_fehler() -> str:
+    """Grund des letzten gescheiterten Token-Abrufs (AADSTS…), leer nach Erfolg.
+    Ohne ihn hieß jede Ursache „Entra braucht einige Minuten“ — auch eine in
+    Entra gelöschte App (AADSTS700016) oder ein fehlendes Zertifikat (AADSTS700027)."""
+    return _fehler["text"]
 
 
 def anzeigename() -> str:
@@ -83,9 +91,17 @@ def token() -> str | None:
     try:
         r = app.acquire_token_silent(_SCOPES, account=None) or app.acquire_token_for_client(scopes=_SCOPES)
     except Exception as exc:                                    # noqa: BLE001
+        _fehler["text"] = str(exc)[:200]
         log.warning("DMARC-Lese-App: Token fehlgeschlagen: %s", exc)
         return None
-    return r.get("access_token") if isinstance(r, dict) else None
+    tok = r.get("access_token") if isinstance(r, dict) else None
+    if tok:
+        _fehler["text"] = ""
+    else:
+        _fehler["text"] = (str((r or {}).get("error_description") or (r or {}).get("error") or "")
+                           .split("\n")[0][:200])
+        log.warning("DMARC-Lese-App: kein Token: %s", _fehler["text"])
+    return tok
 
 
 def erteilt() -> bool | None:

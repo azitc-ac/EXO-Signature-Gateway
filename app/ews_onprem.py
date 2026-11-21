@@ -61,6 +61,7 @@ Diese Aufrufe sind blockierend (requests). Aufrufer im Event-Loop nutzen
 """
 from __future__ import annotations
 
+import texte
 import contextvars
 import ipaddress
 import logging
@@ -1221,7 +1222,7 @@ def posteingang_lesen(adresse: str, ab: datetime | None = None, betreff_enthaelt
         return []
     ziel = _ziel(adresse)
     return nachrichten_aus_antwort(_aufruf(
-        ziel, f"GetItem ({len(kennungen)} Nachricht(en))",
+        ziel, f"GetItem ({texte.zahl(len(kennungen), 'Nachricht', 'Nachrichten')})",
         anfrage_nachrichten_holen(ziel, kennungen), teilweise=True))
 
 
@@ -1298,7 +1299,7 @@ def bezug_per_kennung(adresse: str, message_id: str) -> list[dict]:
     if not kennungen:
         return []
     return nachrichten_als_graph(nachrichten_aus_antwort(_aufruf(
-        ziel, f"GetItem ({len(kennungen)} Nachricht(en), Kette)",
+        ziel, f"GetItem ({texte.zahl(len(kennungen), 'Nachricht', 'Nachrichten')}, Kette)",
         anfrage_nachrichten_holen(ziel, kennungen, kette=True), teilweise=True)))
 
 

@@ -96,7 +96,7 @@ FUNKTIONEN = ["_fuelleVorlagenSelect", "_istFest", "_festQuelle", "_festGruppen"
               "_buildWahlSelect", "_festHinweis", "massenRuhendVerwerfen",
               "_wahlInZelle", "_istAusnahme", "_ausnahmeStand", "filterMailboxes",
               "massenAufStandard", "_angehakt", "_selfTplStandText", "selfTplStandZeigen",
-              "_mbZahl", "_mbFilterMerken"]
+              "_mbFilterMerken"]
 
 # Zeile mit Signatur- und Antwort-Wahl, gebaut über die echten Bausteine.
 _ZEILE = r"""
@@ -125,7 +125,10 @@ def _lauf(js: str):
                 + _var(t, "MB_FILTER_FELDER") + "\n"
                 + (SEITE.parents[1] / "static" / "vorlagen_name.js").read_text(encoding="utf-8") + "\n"
                 + "var _templatesByKind = {signatur: ['default', 'kurz', 'lang'], oof: ['urlaub']};\n"
-                + "\n".join(_funktion(t, n) for n in FUNKTIONEN) + "\n" + _ZEILE)
+                + "\n".join(_funktion(t, n) for n in FUNKTIONEN) + "\n"
+                # Gemeinsamer Helfer aus base.html (Einzahl/Mehrzahl, test_mehrzahl).
+                + _funktion((SEITE.parent / "base.html").read_text(encoding="utf-8"), "anzahlText")
+                + "\n" + _ZEILE)
     out = subprocess.run(["node", "-e", vorspann + "\n" + js],
                          capture_output=True, text=True, check=True).stdout
     return json.loads(out)
@@ -295,7 +298,7 @@ def test_ruhende_wahl_zeigt_verwerfen_und_filter():
                       "chips": [["Standardrichtlinie", "standard"]], "ruht": None}
     assert r["mit"] == ["none", "", "none"]
     assert r["angehakt"] == ["template"]
-    assert r["meldung"]["ok"] is True and r["meldung"]["text"].startswith("1 ruhende Wahl(en)")
+    assert r["meldung"]["ok"] is True and r["meldung"]["text"].startswith("1 ruhende Wahl zum")
 
 
 def test_ruhend_filter_und_knopf_stehen_auf_der_seite():

@@ -60,6 +60,9 @@ def ablage(tmp_path, monkeypatch):
     monkeypatch.setattr(smime_store, "schluessel_passwort", lambda: "")
     werte = {"CA_USER_CONFIG": {EMAIL: {"backend": "castle_acme"}}}
     monkeypatch.setattr(settings_store, "get", lambda k, v=None: werte.get(k, v))
+    # Der Widerruf schaltet ggf. „Automatisch erneuern“ ab (v1.12.147) — nie in
+    # echte Einstellungen schreiben.
+    monkeypatch.setattr(settings_store, "force_update", lambda patch: werte.update(patch))
     return tmp_path
 
 
@@ -90,7 +93,7 @@ def test_nach_widerruf_wird_nicht_mehr_signiert_aber_entschluesselt(ablage, monk
     slot = _slot(ablage)
     assert smime_store.get_signing_paths(EMAIL, nur_unwiderrufen=True)
     c = _Client()
-    assert _knopf(monkeypatch, c, slot) == {"ok": True}
+    assert _knopf(monkeypatch, c, slot)["ok"] is True
     assert c.aufrufe == [("konto", 5)]                       # cessationOfOperation
     assert smime_store.widerruf(EMAIL, slot)["grund"] == "nicht_mehr_benoetigt"
     # Signieren: lokal und Key Vault

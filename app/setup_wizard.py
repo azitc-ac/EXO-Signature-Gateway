@@ -6,6 +6,7 @@ Microsoft Graph CLI App.  The token has delegated permissions that allow
 creating app registrations and granting admin consent.
 """
 
+import texte
 import asyncio
 import base64
 import logging
@@ -52,8 +53,8 @@ _GRAPH_PERMISSION_SPECS = [
      "zweck": "Fassung der Teams-App im Katalog", "nur_wenn": "TEAMS_APP_AKTIV",
      "vorgabe": False},
     {"name": "Group-Conversation.Read.All", "id": "4f0a8235-6f6f-4ec7-9500-34b452a4a0c3",
-     "zweck": "DMARC-Berichte aus einer Microsoft-365-Gruppe lesen", "nur_wenn": "_DMARC_GRUPPE",
-     "vorgabe": False},
+     "zweck": "DMARC-Berichte aus einer Microsoft-365-Gruppe lesen",
+     "nur_wenn_fn": "dmarc_berichte.gruppen_rolle_noetig"},
 ]
 _EXO_PERMISSION_SPECS = [
     {"name": "Exchange.ManageAsApp",     "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
@@ -70,6 +71,11 @@ def benoetigt(spec: dict) -> bool:
     schon erteilte entzieht das Gateway NICHT selbst (nur ergänzen, nie
     entziehen) — die Prüfung weist auf sie hin. `vorgabe`: was gilt, wenn der
     Schalter keinen Wert hat (Calendars.Read: an, AppCatalog.Read.All: aus)."""
+    fn = spec.get("nur_wenn_fn")             # „modul.funktion“ — aus dem Zustand abgeleitet
+    if fn:
+        import importlib
+        modul, name = fn.rsplit(".", 1)
+        return bool(getattr(importlib.import_module(modul), name)())
     schalter = spec.get("nur_wenn")
     if not schalter:
         return True
@@ -1024,7 +1030,7 @@ async def secrets_abbauen(token: str, warten_s: int = 900, takt_s: int = 30) -> 
                     await _gh("post", f"{GRAPH}/applications/{obj}/removePassword", token,
                               json={"keyId": pw["keyId"]})
                 n = len(d.get('passwordCredentials') or [])
-                ergebnis[cid] = f"{n} {'Secret' if n == 1 else 'Secrets'} gelöscht"
+                ergebnis[cid] = f"{texte.zahl(n, 'Secret', 'Secrets')} gelöscht"
                 _secret_aus_einstellungen(cid)
                 log.info("App %s: Zertifikat trägt, %s", cid[:8], ergebnis[cid])
             except Exception as exc:                            # noqa: BLE001

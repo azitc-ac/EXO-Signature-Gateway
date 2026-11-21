@@ -117,6 +117,10 @@ async def api_system_info(user: str = Depends(_require_admin)):
         "maintenance_mode": bool(settings_store.get("MAINTENANCE_MODE")),
         "held_mail_count":  _held_mails_mod.count(),
         "delivery_failed_count": _held_mails_mod.count("delivery_failed"),
+        # Der Rest war nicht nur „Wartungsmodus“ — auch der Graph-Rücklauf liegt
+        # hier (Grund „ruecklauf“). Die Kachel nennt die Gründe getrennt.
+        "maintenance_count": _held_mails_mod.count("maintenance"),
+        "ruecklauf_count": _held_mails_mod.count("ruecklauf"),
         # Teilmenge: nach 2 Tagen aufgegeben, wartet auf Entscheidung (keine Wiederholung mehr).
         "delivery_failed_aufgegeben": _held_mails_mod.zustellfehler_stand()["aufgegeben"],
     }

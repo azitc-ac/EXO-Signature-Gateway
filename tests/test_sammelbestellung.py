@@ -41,7 +41,7 @@ def welt(monkeypatch):
         # `available` gehört dazu: die Vorschau prüft seit v1.7.221, ob der
         # Bezugsweg überhaupt einsatzbereit ist. Ein Katalogeintrag ohne dieses
         # Feld gilt als nicht verfügbar — real wie im Test.
-        "provider": {"id": "certum", "label": "Certum", "price_cents": 500,
+        "provider": {"id": "certum", "label": "Certum", "price_cents": 123,
                      "available": True},
     }
 
@@ -89,16 +89,16 @@ def test_defektes_zertifikat_zaehlt_nicht(welt):
 
 def test_kosten_stehen_vorher_fest_und_zwar_brutto(welt):
     v = _vorschau(["a@x.de", "b@x.de"])
-    assert v["anbieter"]["netto_cents"] == 500
-    assert v["anbieter"]["brutto_cents"] == 595          # 5,00 € + 19 %
-    assert v["kosten_cents"] == 1190                      # zwei Postfächer
+    assert v["anbieter"]["netto_cents"] == 123            # Testwert, kein echter Preis
+    assert v["anbieter"]["brutto_cents"] == 146          # 1,23 € + 19 % = 1,4637 → 1,46
+    assert v["kosten_cents"] == 292                       # zwei Postfächer
     assert v["fehlbetrag_cents"] == 0                     # 100 € Guthaben reichen
 
 
 def test_fehlbetrag_wird_beziffert(welt):
-    welt["rechte"]["balance_cents"] = 500
+    welt["rechte"]["balance_cents"] = 100
     v = _vorschau(["a@x.de", "b@x.de"])
-    assert v["fehlbetrag_cents"] == 690
+    assert v["fehlbetrag_cents"] == 192
     assert any("fehlen" in h for h in v["hindernisse"])
 
 

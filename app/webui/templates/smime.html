@@ -723,7 +723,9 @@
     <p style="margin:0 0 8px;font-size:13px">Postfach <strong id="widerruf-wer"></strong>, gültig bis <span id="widerruf-bis"></span>.</p>
     <p class="hint" style="margin:0 0 12px">Das Gateway widerruft das Zertifikat bei CASTLE. Das lässt sich
       <strong>nicht zurücknehmen</strong>. Danach signiert das Gateway damit nicht mehr; der Schlüssel bleibt,
-      damit verschlüsselte Mails lesbar bleiben. Ein neues Zertifikat bestellst du wie gewohnt.</p>
+      damit verschlüsselte Mails lesbar bleiben. Bei „ersetzt“ und „kompromittiert“ bestellt das
+      Gateway gleich ein neues (wenn „Automatisch erneuern“ an ist); bei den anderen Gründen schaltet
+      es „Automatisch erneuern“ für das Postfach ab — ein neues bestellst du dann selbst.</p>
     <label for="widerruf-grund" style="display:block;font-weight:600;margin-bottom:4px">Grund</label>
     <select id="widerruf-grund" style="width:100%">
       {% for k, text in widerruf_gruende.items() %}<option value="{{ k }}">{{ text }}</option>{% endfor %}
@@ -1129,8 +1131,8 @@ async function sammelVorschau() {
     (hind ? '<ul style="margin:8px 0 0;padding-left:18px">' + hind + '</ul>' : '') +
     (d.startbereit && d.bestellbar
        ? '<div style="margin-top:10px"><button class="btn primary btn-sm" ' +
-         'onclick="sammelStarten()">' + d.bestellbar + ' Zertifikat' +
-         (d.bestellbar === 1 ? '' : 'e') + ' jetzt bestellen</button></div>'
+         'onclick="sammelStarten()">' + anzahlText(d.bestellbar, 'Zertifikat', 'Zertifikate') +
+         ' jetzt bestellen</button></div>'
        : '');
 }
 
@@ -1165,7 +1167,7 @@ async function sammelStarten() {
   // ⚠️ Rückfrage ist Pflicht, nicht Höflichkeit: Was bei der Zertifizierungs-
   // stelle liegt, lässt sich nicht zurückholen. Der Betrag steht deshalb IM
   // Dialog, nicht nur darüber auf der Seite.
-  const stueck = d.bestellbar + ' Zertifikat' + (d.bestellbar === 1 ? '' : 'e');
+  const stueck = anzahlText(d.bestellbar, 'Zertifikat', 'Zertifikate');
   let frage;
   if (d.abrechnung === 'kostenlos') {
     frage = stueck + ' bestellen?\n\nDieser Bezugsweg ist kostenlos, es wird nichts abgebucht.';
@@ -1196,7 +1198,7 @@ async function sammelStarten() {
   const wegInfo = (_BACKEND_CAPS || []).find(b => b.name === wegName) || {};
   let zustimmung = '';
   if (wegInfo.terms_url) {
-    const anzahl = d.bestellbar + (d.bestellbar === 1 ? ' Postfach' : ' Postfächer');
+    const anzahl = anzahlText(d.bestellbar, 'Postfach', 'Postfächer');
     const ok = await caBedingungenZeigen(anzahl, wegInfo.label || wegName,
                                          wegInfo.terms_url, wegInfo.docs || [],
                                          'Bestellungen aufgeben');
@@ -1627,7 +1629,12 @@ async function widerrufAusfuehren(btn) {
     () => postJSON('/api/smime/widerrufen/' + encodeURIComponent(_widerruf.email) + '/' + encodeURIComponent(_widerruf.slot),
                    {grund: grund}),
     {anzeige: 'widerruf-stand', gesperrtLassen: true});
-  if (d.ok) { showMsg('widerruf-stand', '✓ Widerrufen.', true); setTimeout(() => location.reload(), 1200); return; }
+  if (d.ok) {
+    showMsg('widerruf-stand', d.erneuerung_aus
+      ? '✓ Widerrufen. „Automatisch erneuern“ ist für dieses Postfach jetzt aus.' : '✓ Widerrufen.', true);
+    setTimeout(() => location.reload(), d.erneuerung_aus ? 2500 : 1200);
+    return;
+  }
   showMsg('widerruf-stand', '✗ ' + errText(d), false);   // knopfAktion gibt den Knopf selbst frei
 }
 

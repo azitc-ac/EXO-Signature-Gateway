@@ -28,7 +28,7 @@ def test_signierte_huelle_traegt_sender(monkeypatch, tmp_path):
     subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
                     "-keyout", str(key), "-out", str(crt), "-days", "1",
                     "-subj", "/CN=team@firma.at"], check=True, capture_output=True)
-    monkeypatch.setattr(smime_store, "get_signing_paths", lambda s, allow_backup=False, nur_unwiderrufen=False: (crt, key))
+    monkeypatch.setattr(smime_store, "get_signing_paths", lambda s, **_k: (crt, key))
     monkeypatch.setattr(smime_store, "openssl_passin", lambda: ([], None))
     aus = smime_signer.sign(ROH, "team@firma.at")
     assert aus

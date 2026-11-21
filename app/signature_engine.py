@@ -215,6 +215,29 @@ def render_fehler(user: UserData, template_name: str | None = None,
     return None
 
 
+def quelle_rendert_nicht(html: str, art: str = "signatur") -> str | None:
+    """Wie `render_fehler`, aber für eine Vorlage, die noch NICHT abgelegt ist
+    (Import eines Pakets): mit derselben Sandbox-Umgebung kompilieren und mit
+    einem Beispielnutzer rendern. `parse()` allein prüft weder Filter noch
+    Includes — eine importierte Vorlage mit unbekanntem Filter galt als
+    importierbar, und `render()` lieferte danach still "" (Review 21.11.2026)."""
+    import graph_client
+    extra = None
+    if art == "oof":
+        leer = {k: "" for k in OOF_PLATZHALTER}
+        extra = {"oof": leer, **leer}
+    ctx = _kontext(graph_client.UserData(displayName="Max Mustermann", givenName="Max",
+                                         surname="Mustermann", mail="max.mustermann@example.org"),
+                   extra)
+    try:
+        _get_env().from_string(html).render(**ctx)
+    except TemplateNotFound as exc:
+        return f"eingebundene Vorlage {exc.name} fehlt"
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return None
+
+
 def render(user: UserData, template_name: str | None = None,
            extra: dict | None = None) -> tuple[str, str]:
     """`(html, txt)` einer Vorlage. `extra` reicht zusätzliche Template-Variablen

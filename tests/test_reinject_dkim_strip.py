@@ -84,3 +84,32 @@ def test_587_weg_strippt_ebenfalls(monkeypatch):
     (d,) = gesendet
     assert b"DKIM-Signature" not in d and b"ARC-Seal" not in d
     assert d.endswith(b"From: max@firma.at\r\nTo: a@x.example\r\n\r\nInhalt\r\n")
+
+
+
+def test_direktversand_strippt_ebenfalls(monkeypatch):
+    """Review 21.11.: Auch der Direktversand (eigener Postfix) lieferte die
+    gebrochene Exchange-DKIM/ARC neben der eigenen Signatur aus. Die eigene
+    (dkim_signatur.signieren) kommt danach und bleibt."""
+    import smtplib
+    import dkim_signatur
+    gesendet = []
+
+    class _SMTP:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def ehlo(self): pass
+        def sendmail(self, f, r, d): gesendet.append(d)
+
+    monkeypatch.setattr(smtplib, "SMTP", _SMTP)
+    monkeypatch.setattr(dkim_signatur, "signieren",
+                        lambda b: (b"DKIM-Signature: v=1; d=firma.at; b=NEU\r\n" + b, "signiert"))
+    roh = (b"DKIM-Signature: v=1; a=rsa-sha256; d=firma.at;\r\n\tb=ALT\r\n"
+           b"ARC-Seal: i=1; cv=none\r\nFrom: max@firma.at\r\nTo: a@x.example\r\n"
+           b"Date: Sat, 21 Nov 2026 10:00:00 +0000\r\nMessage-ID: <1@firma.at>\r\n\r\nInhalt\r\n")
+    reinject._an_postfix("max@firma.at", ["a@x.example"], roh, "mta", 25)
+    (d,) = gesendet
+    assert b"b=ALT" not in d and b"ARC-Seal" not in d
+    assert d.count(b"DKIM-Signature") == 1 and b"b=NEU" in d
+    assert d.endswith(b"\r\n\r\nInhalt\r\n")

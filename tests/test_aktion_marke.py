@@ -29,7 +29,7 @@ def _tabelle() -> dict[str, tuple[str, str]]:
     block = re.search(r"const AKTIONEN = \{(.*?)\n\s*\};", BASE, re.S)
     assert block, "AKTIONEN fehlt in base.html"
     return {k: (n, a) for k, n, a in
-            re.findall(r"(\w+):\s*\['([^']*)',\s*'(\w+)'\]", block.group(1))}
+            re.findall(r"'?(@?\w+)'?:\s*\['([^']*)',\s*'(\w+)'\]", block.group(1))}
 
 
 def _server_aktionen() -> set[str]:
@@ -37,10 +37,11 @@ def _server_aktionen() -> set[str]:
     src = (WURZEL / "app/handler.py").read_text(encoding="utf-8")
     werte = set(re.findall(r'\b_audit\("(\w+)"', src))
     werte |= set(re.findall(r'action="(\w+)"', src))
-    # _action = "smime_encrypted" if … else ("smime_signed" if … else "signed")
-    m = re.search(r"_action = (.+)", src)
-    assert m, "Zuweisung _action in handler.py nicht gefunden — Prüfer veraltet"
-    werte |= set(re.findall(r'"(\w+)"', m.group(1)))
+    # _action = "…" — seit v1.12.149 mehrere Zuweisungen (signiert+verschlüsselt eigen)
+    zuweisungen = re.findall(r"_action = (.+)", src)
+    assert zuweisungen, "Zuweisung _action in handler.py nicht gefunden — Prüfer veraltet"
+    for z in zuweisungen:
+        werte |= set(re.findall(r'"(\w+)"', z))
     return werte
 
 
@@ -49,8 +50,18 @@ def test_jede_server_aktion_hat_namen_und_gruppe():
     assert len(server) >= 14, f"Prüfer findet zu wenig Aktionen: {sorted(server)}"
     fehlt = server - set(tabelle)
     assert not fehlt, f"Aktion ohne Eintrag in AKTIONEN (base.html): {sorted(fehlt)}"
-    tot = set(tabelle) - server
+    # Einträge „@…“ sind Gruppen (Titel der Klickliste in der Übersicht) —
+    # genau die aus mail_audit.AKTIONSGRUPPEN, keine anderen.
+    import sys
+    sys.path.insert(0, str(WURZEL / "app"))
+    import mail_audit
+    gruppen = {k for k in tabelle if k.startswith("@")}
+    assert gruppen == set(mail_audit.AKTIONSGRUPPEN), (sorted(gruppen), sorted(mail_audit.AKTIONSGRUPPEN))
+    tot = set(tabelle) - server - gruppen
     assert not tot, f"AKTIONEN nennt Aktionen, die der Server nie schreibt: {sorted(tot)}"
+    # Jede Aktion einer Gruppe schreibt der Server wirklich.
+    for g, liste in mail_audit.AKTIONSGRUPPEN.items():
+        assert set(liste) <= server, f"{g}: {sorted(set(liste) - server)} schreibt der Server nie"
 
 
 def test_jede_gruppe_hat_helle_und_dunkle_regel():

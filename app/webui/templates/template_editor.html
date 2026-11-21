@@ -2085,9 +2085,9 @@ async function umwandlungAnbieten() {
   zeigeUmwandlungsHinweis(
     (QUELLTEXT_NEUER
       ? `Der Quelltext wurde nach dem letzten Speichern im Baukasten geändert. `
-        + `Die ${d.blocks} Baustein(e) unten stammen aus dem AKTUELLEN Quelltext. `
+        + `Die ${anzahlText(d.blocks, 'Baustein', 'Bausteine')} unten stammen aus dem AKTUELLEN Quelltext. `
         + `Einmal „Speichern“, dann sind sie übernommen.`
-      : `Aus dem HTML wurden ${d.blocks} Baustein(e) gebildet. Prüfe die Vorschau — `
+      : `Aus dem HTML gebildet: ${anzahlText(d.blocks, 'Baustein', 'Bausteine')}. Prüfe die Vorschau — `
         + `erst mit „Speichern“ wird daraus die neue Vorlage. Ohne Speichern bleibt `
         + `alles beim bisherigen HTML.`),
     d.hinweise || [], true);
@@ -2237,13 +2237,17 @@ function _importZeile(v, i) {
   const an = '<input type="checkbox" class="import-an" aria-label="' + escAttr(vorlageAnzeige(v.name)) + ' importieren"'
     + (v.fehler ? ' disabled' : ' checked') + ' onchange="_importKnopfStand()">';
   let status;
+  // Überschreiben ohne Baukasten-Daten änderte still die Art (Banner → Signatur).
+  const artWechsel = v.art_vorhanden && v.art_vorhanden !== v.art;
   if (v.fehler) status = '<span class="field-msg" data-state="err" style="margin:0">' + esc(v.fehler) + '</span>';
   else if (!v.vorhanden) status = 'neu';
   else status = '<select class="import-aktion" style="font-size:12px" onchange="_importAktion(this)">'
       + '<option value="umbenennen">gibt es schon — umbenennen in:</option>'
-      + (v.reserviert ? '' : '<option value="ueberschreiben">gibt es schon — überschreiben</option>')
+      + (v.reserviert || artWechsel ? '' : '<option value="ueberschreiben">gibt es schon — überschreiben</option>')
       + '</select> <input type="text" class="import-ziel" value="' + escAttr(v.vorschlag || '') + '" '
-      + 'autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:12px;width:140px">';
+      + 'autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:12px;width:140px">'
+      + (artWechsel ? '<br><span class="hint" style="margin:0">Vorhanden ist ' + esc(ART_TEXT[v.art_vorhanden] || v.art_vorhanden)
+        + ' — ohne Baukasten-Daten würde Überschreiben die Art ändern.</span>' : '');
   tr.innerHTML = '<td style="padding:4px 6px">' + an + '</td>'
     + '<td style="padding:4px 6px"><strong>' + esc(vorlageAnzeige(v.name)) + '</strong>'
     + '<br><span class="hint" style="margin:0">' + esc(v.dateien.join(', ')) + (v.baukasten ? '' : ' — ohne Baukasten-Daten') + '</span></td>'
@@ -2310,7 +2314,7 @@ window.exportAusfuehren = async function(btn) {
   const d = await knopfAktion(btn, 'ZIP wird erstellt …',
     () => dateiHerunterladen('/api/templates/export?namen=' + encodeURIComponent(namen.join(',')), 'vorlagen.zip'),
     {anzeige: 'export-stand'});
-  showMsg('export-stand', d.ok ? '✓ ' + namen.length + (namen.length === 1 ? ' Vorlage' : ' Vorlagen') + ' heruntergeladen (' + d.name + ').' : '✗ ' + errText(d), d.ok);
+  showMsg('export-stand', d.ok ? '✓ ' + anzahlText(namen.length, 'Vorlage', 'Vorlagen') + ' heruntergeladen (' + d.name + ').' : '✗ ' + errText(d), d.ok);
 };
 // Kopieren ueber die Schnittstelle, nicht ueber den Quelltext: der HTML-Code
 // ist das ERZEUGNIS des Baukastens, die Blockliste (.meta.json) ist die Quelle.

@@ -462,7 +462,7 @@ function zeichneMailuserStand(mu) {
   if (!el) return;
   const n = (mu && typeof mu.count === 'number') ? mu.count : 0;
   const ts = (mu && mu.ts) ? mu.ts : '';
-  el.textContent = n + (n === 1 ? ' Postfach' : ' Postfächer') + ' außerhalb von Exchange Online'
+  el.textContent = anzahlText(n, 'Postfach', 'Postfächer') + ' außerhalb von Exchange Online'
     + (ts ? ' · Stand ' + ts.replace('T', ' ').replace('Z', ' UTC')
           : ' · noch kein Abgleich');
 }
@@ -959,7 +959,7 @@ function zeichneCoexStats(st) {
   const summe = document.getElementById('coex-fluss-summe');
   const anz = st.gesamt_anzahl || 0;
   summe.textContent = anz
-    ? anz + ' Mail' + (anz === 1 ? '' : 's') + ' · ' + volumenText(st.gesamt_bytes || 0)
+    ? anzahlText(anz, 'Mail', 'Mails') + ' · ' + volumenText(st.gesamt_bytes || 0)
       + (st.gesamt_fehler ? ' · ' + st.gesamt_fehler + ' Fehler' : '')
     : '';
   const tb = document.getElementById('coex-fluss-body');

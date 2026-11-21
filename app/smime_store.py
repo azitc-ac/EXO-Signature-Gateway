@@ -454,12 +454,18 @@ def delete_cert_slot(email: str, slot_id: str) -> None:
     log.info("S/MIME cert slot %s deleted for %s", slot_id, email)
 
 
-def get_signing_cert_path(email: str, nur_unwiderrufen: bool = False) -> Path | None:
+def _zeit_ok(cert_path: Path) -> bool:
+    return zeitlich_gueltig(cert_path)[0]
+
+
+def get_signing_cert_path(email: str, nur_unwiderrufen: bool = False,
+                          nur_gueltig: bool = False) -> Path | None:
     """Return cert.pem path for the default slot (for details/export use).
 
     `nur_unwiderrufen` (Key-Vault-Signatur): Der Vault-Schlüssel gehört zum
     Standard-Slot. Ist der widerrufen, gibt es KEIN Zertifikat zum Signieren —
-    auch kein anderes, dessen Schlüssel nicht im Vault liegt."""
+    auch kein anderes, dessen Schlüssel nicht im Vault liegt. `nur_gueltig`:
+    ebenso, wenn der Standard abgelaufen oder noch nicht gültig ist."""
     email_low = email.lower().strip()
     user_dir = SMIME_DIR / email_low
     certs_dir = user_dir / "certs"
@@ -469,15 +475,17 @@ def get_signing_cert_path(email: str, nur_unwiderrufen: bool = False) -> Path | 
         if default and (certs_dir / default / "cert.pem").exists():
             if nur_unwiderrufen and _widerrufen(certs_dir / default):
                 return None
+            if nur_gueltig and not _zeit_ok(certs_dir / default / "cert.pem"):
+                return None
             return certs_dir / default / "cert.pem"
-        if nur_unwiderrufen:
+        if nur_unwiderrufen or nur_gueltig:
             return None
         for slot_dir in sorted(certs_dir.iterdir()):
             p = slot_dir / "cert.pem"
             if p.exists():
                 return p
     p = user_dir / "cert.pem"
-    return p if p.exists() else None
+    return p if p.exists() and not (nur_gueltig and not _zeit_ok(p)) else None
 
 
 def get_signing_cert_path_for_slot(email: str, slot_id: str) -> Path | None:
@@ -488,18 +496,23 @@ def get_signing_cert_path_for_slot(email: str, slot_id: str) -> Path | None:
 # ── Signing paths (used by handler + signer) ──────────────────────────────────
 
 def get_signing_paths(email: str, allow_backup: bool = False,
-                      nur_unwiderrufen: bool = False) -> tuple[Path, Path] | None:
+                      nur_unwiderrufen: bool = False,
+                      nur_gueltig: bool = False) -> tuple[Path, Path] | None:
     """Return (cert_path, key_path) for the default cert slot, or None.
     If allow_backup=True, also considers key.pem.bak when no key.pem is present.
     `nur_unwiderrufen=True` (Signieren, Widerruf vor Neuausstellung): widerrufene
-    Slots überspringen. Entschlüsseln ruft OHNE — der Schlüssel bleibt nutzbar."""
+    Slots überspringen. Entschlüsseln ruft OHNE — der Schlüssel bleibt nutzbar.
+    `nur_gueltig=True` (Signieren, seit v1.12.145): nur zeitlich gültige
+    Zertifikate. Mit einem abgelaufenen signiert, sähe jeder Empfänger eine
+    ungültige Signatur; die Mail geht dann unsigniert (Entscheidung 21.11.2026)."""
     email_low = email.lower().strip()
     user_dir = SMIME_DIR / email_low
     certs_dir = user_dir / "certs"
     if certs_dir.exists():
         default_file = user_dir / "default"
         default = default_file.read_text().strip() if default_file.exists() else ""
-        if default and not (nur_unwiderrufen and _widerrufen(certs_dir / default)):
+        if default and not (nur_unwiderrufen and _widerrufen(certs_dir / default)) \
+                and not (nur_gueltig and not _zeit_ok(certs_dir / default / "cert.pem")):
             slot_dir = certs_dir / default
             c, k = slot_dir / "cert.pem", slot_dir / "key.pem"
             if c.exists() and k.exists():
@@ -518,6 +531,8 @@ def get_signing_paths(email: str, allow_backup: bool = False,
         for slot_dir in sorted(certs_dir.iterdir()):
             if not slot_dir.is_dir() or (nur_unwiderrufen and _widerrufen(slot_dir)):
                 continue
+            if nur_gueltig and not _zeit_ok(slot_dir / "cert.pem"):
+                continue
             if mindest_ablauf is not None:
                 ablauf = _ablauf_von(slot_dir / "cert.pem")
                 if ablauf is None or ablauf <= mindest_ablauf or ablauf <= jetzt:
@@ -533,6 +548,8 @@ def get_signing_paths(email: str, allow_backup: bool = False,
             return first_bak
     # Legacy fallback
     c, k = user_dir / "cert.pem", user_dir / "key.pem"
+    if nur_gueltig and c.exists() and not _zeit_ok(c):
+        return None
     if c.exists() and k.exists():
         return c, k
     if allow_backup:

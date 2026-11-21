@@ -39,6 +39,7 @@ import json
 import logging
 import re
 import zipfile
+import zlib
 from pathlib import Path
 
 import config
@@ -148,8 +149,14 @@ def _aus_zip(daten: bytes, zaehler: "_Zaehler") -> list[tuple[str, bytes]]:
         for e in eintraege:
             # Tatsächlich gelesene Bytes zählen — die Grösse im ZIP-Verzeichnis
             # kann gelogen sein.
-            with zf.open(e) as f:
-                inhalt = f.read(MAX_DATEI + 1)
+            # Kaputte, verschlüsselte oder unbekannt komprimierte Einträge sind
+            # ein Fehler des Pakets (400), kein Absturz der Route (bis v1.12.145: 500).
+            try:
+                with zf.open(e) as f:
+                    inhalt = f.read(MAX_DATEI + 1)
+            except (zipfile.BadZipFile, RuntimeError, NotImplementedError, EOFError,
+                    OSError, zlib.error) as exc:
+                raise PaketFehler(f"„{e.filename[:80]}“ im Paket nicht lesbar ({exc.__class__.__name__}).")
             zaehler.zaehlen(e.filename, len(inhalt))
             aus.append((e.filename, inhalt))
         return aus
@@ -218,6 +225,18 @@ def _pruefen(basis: str, teile: dict[str, bytes]) -> dict:
         e["art"] = art
     if e["art"] not in ARTEN_IMPORT:
         e["fehler"] = "Nachrichten an Postfachinhaber lassen sich nicht importieren"
+        return e
+    fehler = signature_engine.quelle_rendert_nicht(html, e["art"])
+    if fehler:
+        e["fehler"] = f"Vorlage lässt sich nicht darstellen: {fehler}"[:300]
+        return e
+    # Überschreiben ohne Baukasten-Daten machte aus einem Banner/Disclaimer/
+    # einer Abwesenheitsvorlage still eine Signatur (vorlagen_art fällt ohne
+    # .meta.json auf „signatur“) — sie verschwand aus ihrer Auswahl. Die Art
+    # der vorhandenen Vorlage zeigt der Dialog; importieren() verweigert dann
+    # das Überschreiben (Umbenennen geht).
+    if e["vorhanden"] and not e["reserviert"] and not e["baukasten"]:
+        e["art_vorhanden"] = signature_engine.vorlagen_art(_datei_von_name(name))
     return e
 
 
@@ -322,6 +341,13 @@ def importieren(eingaben: list[tuple[str, bytes]], entscheidungen: dict[str, dic
                 continue
         elif aktion == "ueberschreiben":
             ziel = name
+            alt = e.get("art_vorhanden")
+            if alt and alt != e["art"]:
+                ergebnis.append({"name": name, "ok": False, "meldung":
+                                 f"die vorhandene Vorlage ist ein(e) {alt}, das Paket enthält "
+                                 f"keine Baukasten-Daten (würde zur {e['art']}) — umbenennen "
+                                 "oder die Vorlage mit Baukasten-Daten exportieren"})
+                continue
         else:
             ergebnis.append({"name": name, "ok": False, "meldung": f"unbekannte Aktion {aktion!r}"})
             continue

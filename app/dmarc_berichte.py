@@ -18,7 +18,7 @@ WIE
     dort `ErrorInvalidUser` (gemessen 20.11.2026). Braucht
     `Group-Conversation.Read.All` (Application, laut Graph-Doku das schmalste
     Recht dafür; nicht über RBAC for Applications eingrenzbar). Die Rolle wird
-    nur verlangt, wenn eine Gruppe eingetragen ist (`_DMARC_GRUPPE`,
+    nur verlangt, wenn eine Gruppe eingetragen ist (`gruppen_rolle_noetig()`,
     setup_wizard._GRAPH_PERMISSION_SPECS „nur_wenn“).
 * Nur lesend: Berichte werden weder gelöscht noch als gelesen markiert.
 * Doppelte Berichte (dieselbe Mail zweimal gelesen, Überlappung des Zeitfensters)
@@ -55,8 +55,10 @@ eingetragen ist.
 """
 from __future__ import annotations
 
+import texte
 import base64
 import gzip
+import binascii
 import io
 import ipaddress
 import json
@@ -66,6 +68,7 @@ import socket
 import threading
 import time
 import zipfile
+import zlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -80,7 +83,6 @@ log = logging.getLogger(__name__)
 
 GRAPH = "https://graph.microsoft.com/v1.0"
 ZIEL_KEY = "_DMARC_ZIEL"          # {adresse, art, id, ts, meldung}
-GRUPPE_KEY = "_DMARC_GRUPPE"      # bool — steuert, ob Group-Conversation.Read.All verlangt wird
 GRUPPEN_ROLLE = "Group-Conversation.Read.All"
 
 TAKT_H = 6
@@ -120,6 +122,19 @@ def ziel() -> dict:
     if z.get("art") == "gruppe":
         z["meldung"] = gruppen_hinweis()
     return z
+
+
+def gruppen_rolle_noetig() -> bool:
+    """Braucht die HAUPT-App Group-Conversation.Read.All? Nur bei einer Gruppe als
+    Ziel UND ohne Postfach-Eingrenzung — mit Eingrenzung wäre sie wirkungslos,
+    dann trägt die DMARC-Lese-App sie (dmarc_lese_app.noetig).
+
+    Beim LESEN abgeleitet (setup_wizard-Spezifikation `nur_wenn_fn`). Bis
+    v1.12.145 stand das als `_DMARC_GRUPPE` in den Einstellungen und entstand nur
+    beim Auflösen des Ziels — wer danach die Eingrenzung umschaltete, bekam die
+    Rolle weder beantragt noch angezeigt, und „Fehlende Berechtigungen erteilen“
+    half nie."""
+    return ziel().get("art") == "gruppe" and not eingrenzung_aktiv()
 
 
 def gruppen_hinweis() -> str:
@@ -177,11 +192,8 @@ def ziel_aufloesen(client=None, token: str | None = None) -> dict:
     finally:
         if eigen:
             client.close()
-    alt_gruppe = settings_store.get(GRUPPE_KEY) is True
-    # Mit Eingrenzung braucht die HAUPT-App die Gruppenrolle nicht (sie wäre
-    # wirkungslos) — dann trägt die DMARC-Lese-App sie (dmarc_lese_app.noetig).
-    settings_store.force_update({ZIEL_KEY: z,
-                                 GRUPPE_KEY: z["art"] == "gruppe" and not eingrenzung_aktiv()})
+    alt_gruppe = (settings_store.get(ZIEL_KEY) or {}).get("art") == "gruppe"
+    settings_store.force_update({ZIEL_KEY: z})
     if alt_gruppe != (z["art"] == "gruppe"):
         log.info("DMARC: Ziel %s ist %s — %s wird %s", adr, z["art"], GRUPPEN_ROLLE,
                  "benötigt" if z["art"] == "gruppe" else "nicht benötigt")
@@ -243,7 +255,7 @@ def entpacken(daten: bytes) -> list[bytes]:
         with gzip.GzipFile(fileobj=io.BytesIO(daten)) as gz:
             try:
                 return [_begrenzt_lesen(gz, MAX_ENTPACKT)]
-            except (OSError, EOFError) as exc:
+            except (OSError, EOFError, zlib.error) as exc:
                 raise BerichtFehler(f"gzip defekt: {exc}") from exc
     if daten[:4] == b"PK\x03\x04":
         try:
@@ -260,7 +272,7 @@ def entpacken(daten: bytes) -> list[bytes]:
             try:
                 with zf.open(info) as f:
                     stueck = _begrenzt_lesen(f, MAX_ENTPACKT - summe)
-            except (zipfile.BadZipFile, OSError, RuntimeError) as exc:   # RuntimeError: verschlüsselt
+            except (zipfile.BadZipFile, OSError, RuntimeError, zlib.error) as exc:   # RuntimeError: verschlüsselt
                 raise BerichtFehler(f"zip-Eintrag nicht lesbar: {exc}") from exc
             summe += len(stueck)
             aus.append(stueck)
@@ -323,6 +335,11 @@ def bericht_lesen(xml: bytes) -> dict:
                        "adkim": _text(pol, "adkim", 2).lower(), "aspf": _text(pol, "aspf", 2).lower()},
         "zeilen": [],
     }
+    # Ein Zeitraum, der in der Zukunft endet, ist kein echter Bericht: Er fiele
+    # nie aus dem Fenster (_aufraeumen) und bestimmte dauerhaft die angezeigte
+    # Richtlinie (_richtlinien nimmt das größte Ende). rua steht öffentlich im DNS.
+    if bericht["ende"] > time.time() + 2 * 86400:
+        raise BerichtFehler("Berichtszeitraum endet in der Zukunft")
     for rec in wurzel.findall("record")[:MAX_ZEILEN_JE_BERICHT]:
         ip = _text(rec, "row/source_ip", 45)
         try:
@@ -424,7 +441,10 @@ def _anhaenge(client, basis: str, token: str) -> list[tuple[str, bytes]]:
             continue
         r = _get(client, f"{basis}/attachments/{a['id']}", token)
         if r.status_code == 200 and r.json().get("contentBytes"):
-            aus.append((a.get("name") or "?", base64.b64decode(r.json()["contentBytes"])))
+            try:
+                aus.append((a.get("name") or "?", base64.b64decode(r.json()["contentBytes"])))
+            except (binascii.Error, ValueError):
+                aus.append((a.get("name") or "?", b""))
     return aus
 
 
@@ -440,7 +460,10 @@ def _anhaenge_mitgeliefert(post: dict) -> list[tuple[str, bytes]]:
         if _zu_gross(a) or not a.get("contentBytes"):
             aus.append((a.get("name") or "?", b""))       # zu groß/leer: als Fehler zählen
             continue
-        aus.append((a.get("name") or "?", base64.b64decode(a["contentBytes"])))
+        try:
+            aus.append((a.get("name") or "?", base64.b64decode(a["contentBytes"])))
+        except (binascii.Error, ValueError):
+            aus.append((a.get("name") or "?", b""))       # als Fehler zählen, nicht abbrechen
     return aus
 
 
@@ -487,7 +510,11 @@ def abrufen() -> dict:
         abruf["meldung"] = "Kein Graph-Token (Anbindung fehlt)."
         return _abruf_merken(abruf)
     with httpx.Client(timeout=60) as client:
-        z = ziel() or ziel_aufloesen(client, token)
+        z = ziel()
+        if z.get("art") not in ("postfach", "gruppe"):
+            # Auch ein früher „unbekannt“ aufgelöstes Ziel neu bestimmen: Ein
+            # vorübergehender Graph-Fehler (5xx, 429) blieb sonst für immer stehen.
+            z = ziel_aufloesen(client, token)
         if z.get("art") not in ("postfach", "gruppe"):
             abruf["meldung"] = z.get("meldung") or "Ziel nicht auflösbar."
             return _abruf_merken(abruf)
@@ -509,8 +536,10 @@ def abrufen() -> dict:
                 return _abruf_merken(abruf)
             token = dmarc_lese_app.token()
             if not token:
-                abruf["meldung"] = ("Die DMARC-Lese-App bekommt noch kein Token — nach dem Anlegen "
-                                    "braucht Entra einige Minuten. Später erneut abrufen.")
+                grund = dmarc_lese_app.letzter_fehler()
+                abruf["meldung"] = (f"Die DMARC-Lese-App bekommt kein Token: {grund}" if grund else
+                                    "Die DMARC-Lese-App bekommt noch kein Token — nach dem Anlegen "
+                                    "braucht Entra einige Minuten. Später erneut abrufen.")[:300]
                 return _abruf_merken(abruf)
         try:
             for betreff, holen in _quellen(client, z, token, seit):
@@ -526,10 +555,15 @@ def abrufen() -> dict:
                         n, dop = anhang_verarbeiten(daten, berichte)
                         abruf["neu"] += n
                         abruf["doppelt"] += dop
-                    except BerichtFehler as exc:
+                    except Exception as exc:                    # noqa: BLE001
+                        # JEDER Anhangsfehler bleibt beim Anhang. Eine fremde Mail
+                        # an die öffentliche rua-Adresse (kaputtes Deflate:
+                        # zlib.error, kein OSError) brach bis v1.12.145 den ganzen
+                        # Abruf ab — `bis` rückte nie weiter, die Anzeige blieb
+                        # beim letzten Erfolg stehen.
                         abruf["fehler"] += 1
                         if len(abruf["fehlertexte"]) < 5:
-                            abruf["fehlertexte"].append(f"{name[:80]}: {exc}")
+                            abruf["fehlertexte"].append(f"{name[:80]}: {exc}"[:200])
         except _GraphFehler as exc:
             if exc.eingrenzung and z["art"] == "gruppe":
                 abruf["meldung"] = "Kein Zugriff auf die Gruppe. " + GRUPPE_GESPERRT
@@ -544,11 +578,19 @@ def abrufen() -> dict:
             elif exc.status == 403:
                 abruf["meldung"] = ("Kein Zugriff auf das Postfach (HTTP 403) — liegt es außerhalb "
                                     "des RBAC-Bereichs der Gateway-App?")
-            elif exc.status == 404 and z["art"] == "postfach":
-                abruf["meldung"] = "Postfach nicht gefunden (HTTP 404)."
+            elif exc.status == 404:
+                abruf["meldung"] = ("Postfach" if z["art"] == "postfach" else "Gruppe") \
+                    + " nicht gefunden (HTTP 404) — wird beim nächsten Abruf neu bestimmt."
                 settings_store.force_update({ZIEL_KEY: {}})
             else:
                 abruf["meldung"] = f"Abruf gescheitert: {exc}"[:300]
+            log.warning("DMARC: %s", abruf["meldung"])
+            return _abruf_merken(abruf)
+        except (httpx.HTTPError, ValueError) as exc:
+            # Netz/Zeitüberschreitung oder unlesbare Graph-Antwort: als Abruf-
+            # Ergebnis merken, nicht als Ausnahme aus abrufen() hinaus (dann
+            # blieb der letzte Erfolg stehen und „Jetzt abrufen“ lieferte 500).
+            abruf["meldung"] = f"Abruf gescheitert ({exc.__class__.__name__}): {exc}"[:300]
             log.warning("DMARC: %s", abruf["meldung"])
             return _abruf_merken(abruf)
     with _lock:
@@ -645,13 +687,9 @@ def _richtlinien(berichte: dict) -> dict[str, dict]:
 
 
 
-def _n(n: int, eins: str, mehr: str) -> str:
-    return eins if n == 1 else mehr
-
-
 def _mails(n: int) -> str:
     """„1 Mail“, „4 Mails“ — Befundtexte stehen so in Oberfläche und Tagesbericht."""
-    return f"{n} {_n(n, 'Mail', 'Mails')}"
+    return texte.zahl(n, "Mail", "Mails")
 
 def befunde(berichte: dict, jetzt: float | None = None) -> list[dict]:
     """[{kennung, stufe, art, domain, ip, mails, text, empfehlung}] — hoch zuerst."""
@@ -668,8 +706,8 @@ def befunde(berichte: dict, jetzt: float | None = None) -> list[dict]:
         if e["fail_zugestellt"]:
             neu("hoch", "fail_zugestellt", dom, ip, e["fail_zugestellt"],
                 f"{_mails(e['fail_zugestellt'])} von {ip} im Namen von {dom} "
-                f"{_n(e['fail_zugestellt'], 'bestand', 'bestanden')} DMARC nicht und "
-                f"{_n(e['fail_zugestellt'], 'wurde', 'wurden')} trotzdem zugestellt.",
+                f"{texte.wort(e['fail_zugestellt'], 'bestand', 'bestanden')} DMARC nicht und "
+                f"{texte.wort(e['fail_zugestellt'], 'wurde', 'wurden')} trotzdem zugestellt.",
                 "Gehört die Quelle zu dir (Newsletter, CRM, Drucker, Fremddienst)? Dann SPF bzw. "
                 "DKIM dort einrichten. Sonst ist es eine Fälschung — die Richtlinie auf "
                 "quarantine oder reject anheben.")
@@ -681,20 +719,20 @@ def befunde(berichte: dict, jetzt: float | None = None) -> list[dict]:
                 "Weiterleitungen. Die Kopfzeilen einer betroffenen Mail zeigen den Weg.")
         if e["nur_spf"]:
             neu("mittel", "nur_spf", dom, ip, e["nur_spf"],
-                f"{_mails(e['nur_spf'])} von {ip} {_n(e['nur_spf'], 'bestand', 'bestanden')} DMARC "
+                f"{_mails(e['nur_spf'])} von {ip} {texte.wort(e['nur_spf'], 'bestand', 'bestanden')} DMARC "
                 f"nur über SPF; DKIM fehlte oder passte nicht zu {dom}.",
                 "DKIM für diesen Versender einrichten. Ohne DKIM fällt DMARC bei jeder "
                 "Weiterleitung durch.")
         if e["dkim_zusatz_kaputt"]:
             neu("mittel", "dkim_zusatz_kaputt", dom, ip, e["dkim_zusatz_kaputt"],
-                f"{_mails(e['dkim_zusatz_kaputt'])} von {ip} {_n(e['dkim_zusatz_kaputt'], 'trug', 'trugen')} "
+                f"{_mails(e['dkim_zusatz_kaputt'])} von {ip} {texte.wort(e['dkim_zusatz_kaputt'], 'trug', 'trugen')} "
                 f"neben einer gültigen auch eine ungültige DKIM-Signatur von {dom}.",
                 "Ein Weg reicht eine veraltete Signatur weiter. Das Gateway entfernt sie seit "
                 "v1.12.137 auf allen Rückwegen; bleibt der Befund, liegt die Quelle woanders.")
         if fail and not e["bestanden"] and not e["fail_zugestellt"]:
             neu("info", "abgewiesen", dom, ip, fail,
-                f"{_mails(fail)} von {ip} im Namen von {dom} {_n(fail, 'bestand', 'bestanden')} DMARC "
-                f"nicht und {_n(fail, 'wurde', 'wurden')} abgewiesen oder isoliert.",
+                f"{_mails(fail)} von {ip} im Namen von {dom} {texte.wort(fail, 'bestand', 'bestanden')} DMARC "
+                f"nicht und {texte.wort(fail, 'wurde', 'wurden')} abgewiesen oder isoliert.",
                 "Die Richtlinie wirkt. Nur handeln, wenn die Quelle doch zu dir gehört.")
     for dom, r in sorted(_richtlinien(berichte).items()):
         if r.get("p") == "none":

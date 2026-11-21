@@ -72,7 +72,7 @@
         <div id="aufgaben" style="position:relative;flex-shrink:0">
           <button id="aufgaben-btn" type="button" onclick="aufgabenUmschalten(event)"
                   aria-haspopup="true" aria-expanded="false"
-                  title="{{ _aufgaben|length }} offene Aufgabe{{ '' if _aufgaben|length == 1 else 'n' }}"
+                  title="{{ _aufgaben|length }} offene {{ wort(_aufgaben|length, 'Aufgabe', 'Aufgaben') }}"
                   aria-label="Offene Aufgaben: {{ _aufgaben|length }}"
                   style="background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:4px;
                          color:rgba(255,255,255,{{ '0.95' if _aufgaben else '0.6' }});display:flex;align-items:center;gap:3px;line-height:1">
@@ -174,6 +174,17 @@
         relay_abgelehnt:    ['Abgewiesen',     'fehler'],
         smime_encrypt_fehler: ['Verschl. fehlgeschl.', 'fehler'],
         regel_probe:        ['Regelprobe',     'neutral'],
+        // seit v1.12.148 getrennt (Übersicht: Zahl und Klickliste decken sich)
+        smime_signiert_verschluesselt: ['S/MIME sign.+enc.', 'verschluesselt'],
+        smime_decrypt_fehler: ['Entschl. fehlgeschl.', 'fehler'],
+        tenant_fehler:      ['Weiterl. fehlgeschl.', 'fehler'],
+        ohne_zertifikat:    ['Ohne Zertifikat', 'warnung'],
+        zustellfehler:      ['Zustellfehler',  'warnung'],
+        // Gruppen (mail_audit.AKTIONSGRUPPEN) — nur als Titel der Klickliste
+        '@verarbeitet':     ['Verarbeitet',    'neutral'],
+        '@smime_signiert':  ['S/MIME signiert', 'smime'],
+        '@smime_verschluesselt': ['S/MIME verschlüsselt', 'verschluesselt'],
+        '@fehler':          ['Fehler (Gateway)', 'fehler'],
       };
       function aktionText(aktion) { return (AKTIONEN[aktion] || [aktion || ''])[0]; }
       function aktionMarke(aktion) {
@@ -535,6 +546,10 @@
       // Zwei Ebenen: erst für den JS-String (\ und '), dann fürs Attribut — der
       // Browser dekodiert das Attribut (&#39; → ') BEVOR er das Skript liest;
       // esc() allein ließe den String dort aufbrechen.
+      // „1 Regel“ / „3 Regeln“ statt „Regel(n)“ — Gegenstück zu texte.zahl (Python).
+      // Hängt ein Verb an der Zahl, gehört es mit in die Wörter („Zertifikat wird“).
+      // Die Klammerform und eigene `=== 1 ?`-Weichen verbietet tests/test_mehrzahl.py.
+      function anzahlText(n, einzahl, mehrzahl) { return n + ' ' + (n === 1 ? einzahl : mehrzahl); }
       function escJsAttr(wert) {
         return escAttr(String(wert == null ? '' : wert).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
       }

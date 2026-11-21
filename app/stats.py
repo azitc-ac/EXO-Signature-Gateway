@@ -140,6 +140,19 @@ KEYS = (
     # jünger oder weg), Fehler je Weg. Tagesbericht „Rückweg nach Exchange“.
     "dauer_gesendet", "dauer_zurueckgespielt", "dauer_zurueck_fehler",
     "dauer_geschrieben", "dauer_verworfen", "dauer_schreib_fehler",
+    # Ausgehend UNSIGNIERT, weil das Signaturzertifikat abgelaufen/noch nicht
+    # gültig ist (smime_signer.nur_abgelaufen, seit v1.12.145). Tagesbericht + Übersicht.
+    "smime_unsigniert_abgelaufen",
+    # Bis v1.12.145 gezählt, aber nicht in KEYS — _load verwarf sie beim Neustart,
+    # angezeigt wurden sie nirgends: Zustellfehler in die Warteschlange
+    # (reinject._fail_delivery), Graph-Rücklauf (graph_reinject), intern
+    # verschlüsselt normal zugestellt (handler). test_stats_keys verlangt jetzt,
+    # dass jeder increment()-Schlüssel hier steht.
+    "delivery_queued", "graph_ruecklauf", "enc_intern_normal",
+    # Seit v1.12.148 getrennt gezählt (Übersicht „Fehler (Gateway)“ bzw. „ohne
+    # Zertifikat abgewiesen“): Entschlüsselung gescheitert, Tenant-Weiterleitung
+    # gescheitert, #enc ohne Empfängerzertifikat abgewiesen (zählte vorher in errors).
+    "smime_decrypt_fehler", "tenant_fehler", "ohne_zertifikat",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}
@@ -175,10 +188,22 @@ def _persist_total() -> None:
         log.warning("stats: could not persist total: %s", exc)
 
 
+def heute():
+    """Heutiges Datum in der ANZEIGE-Zeitzone (LOG_TIMEZONE).
+
+    Bis v1.12.148 `datetime.now()` ohne Zone — der Container läuft in UTC, also
+    zählte „Heute“ bis 01:00/02:00 Uhr Ortszeit noch den Vortag, während Peak,
+    Stundenansicht und App-Pool schon lokal rechneten. Tage davor bleiben, wie
+    sie gezählt wurden (UTC-Tage); der Unterschied betrifft je Tag nur die
+    Stunden um Mitternacht."""
+    import settings_store
+    return datetime.now(settings_store.anzeige_zone()).date()
+
+
 def _increment_daily(key: str) -> None:
     """Add 1 to today's entry in stats_daily.json."""
     try:
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = heute().strftime("%Y-%m-%d")
         with _daily_lock:
             _DAILY_FILE.parent.mkdir(parents=True, exist_ok=True)
             data: dict = {}
@@ -230,7 +255,7 @@ def get_last_n_days(n: int) -> dict:
         if not _DAILY_FILE.exists():
             return result
         data = json.loads(_DAILY_FILE.read_text())
-        today = date.today()
+        today = heute()
         for i in range(n):
             counts = data.get((today - timedelta(days=i)).strftime("%Y-%m-%d"), {})
             for k in KEYS:
@@ -275,15 +300,29 @@ def increment(key: str) -> None:
 
 
 def take_daily_snapshot() -> dict:
-    """Snapshot current totals (for daily report). Returns daily delta."""
+    """Snapshot current totals (for daily report). Returns daily delta.
+
+    Ganz unter der Sperre (bis v1.12.148 nicht): Zwischen Schnappschuss und
+    Schreiben konnte increment() laufen; `_save_snapshot` schrieb dann
+    `total = snapshot` und verlor diese Zählungen in stats.json — der nächste
+    Bericht rechnete gegen einen zu niedrigen Stand."""
     with _lock:
         daily = {k: max(0, _stats[k] - _snapshot.get(k, 0)) for k in KEYS}
         new_snap = dict(_stats)
-    _save_snapshot(new_snap)
+        try:
+            seit = json.loads(_STATS_FILE.read_text()).get("snapshot_at", "")
+        except Exception:
+            seit = ""
+        _save_snapshot(new_snap)
+    # Ab wann diese Zahlen gelten — der Bericht beschriftet sie damit
+    # („seit dem letzten Bericht“), nicht als Kalendertag.
+    daily["_seit"] = seit
     return daily
 
 
 def _save_snapshot(snapshot: dict) -> None:
+    """Nur unter `_lock` aufrufen (take_daily_snapshot). `total` ist der
+    aktuelle Stand, nicht der Schnappschuss."""
     global _snapshot
     _snapshot = snapshot
     try:
@@ -296,7 +335,7 @@ def _save_snapshot(snapshot: dict) -> None:
                 pass
         data["snapshot"] = snapshot
         data["snapshot_at"] = datetime.now(timezone.utc).isoformat()
-        data["total"] = snapshot
+        data["total"] = dict(_stats)
         data["total_saved_at"] = datetime.now(timezone.utc).isoformat()
         _STATS_FILE.write_text(json.dumps(data, indent=2))
     except Exception as exc:

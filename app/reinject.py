@@ -167,6 +167,14 @@ WEG_GRAPH_MIT_KOPIE = "graph_mit_kopie"
 # zugestellt — dafür trägt held_mails gleiche, noch wartende Kopien aus.
 _eingereiht: contextvars.ContextVar[set | None] = contextvars.ContextVar(
     "reinject_eingereiht", default=None)
+_zuletzt: contextvars.ContextVar[bool] = contextvars.ContextVar("reinject_zuletzt", default=False)
+
+
+def zuletzt_eingereiht() -> bool:
+    """Hat der letzte `send()` in diesem Kontext (Task) Empfänger in die
+    Warteschlange gelegt? Der Handler protokolliert die Mail dann als
+    „zustellfehler“ statt als zugestellt."""
+    return _zuletzt.get()
 
 
 WEG_NOTBETRIEB = "notbetrieb"
@@ -228,6 +236,7 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         weg = _senden(mail_from, rcpt_tos, content_bytes, force_mime, queue_on_failure)
     finally:
         _eingereiht.reset(marke)
+    _zuletzt.set(bool(eingereiht))
     zugestellt = [r for r in rcpt_tos if r.strip().lower() not in eingereiht]
     if zugestellt:
         try:
@@ -640,7 +649,11 @@ def _an_postfix(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     Postfix (siehe `direktversand.py`)."""
     import direktversand
     import dkim_signatur
-    inhalt, ergebnis = dkim_signatur.signieren(direktversand.kopf_bereinigen(content_bytes))
+    # Alte DKIM/ARC von vor dem Gateway entfernen (wie _send_smtp und der
+    # 587-Weg): Der Rumpf ist verändert, sie bestünden beim Empfänger nicht
+    # („dkim=fail“ neben der eigenen, ARC cv=fail). Fehlte hier bis v1.12.146.
+    inhalt, ergebnis = dkim_signatur.signieren(
+        _strip_stale_signatures(direktversand.kopf_bereinigen(content_bytes)))
     with smtplib.SMTP(host, port, timeout=30,
                       local_hostname="exo-signature-gateway") as smtp:
         smtp.ehlo()

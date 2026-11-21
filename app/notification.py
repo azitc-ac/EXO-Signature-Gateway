@@ -1,4 +1,5 @@
 """Build and send HTML notification/report emails via Graph API sendMail."""
+import texte
 import logging
 from datetime import datetime, timezone
 
@@ -391,7 +392,7 @@ def send_dmarc_befunde(neue: list[dict]) -> bool:
         for b in neue[:30])
     rest = f"<p>… und {len(neue) - 30} weitere.</p>" if len(neue) > 30 else ""
     body = (f"<p>Die Auswertung der DMARC-Sammelberichte hat {len(neue)} neue "
-            f"{'Befund' if len(neue) == 1 else 'Befunde'} ergeben:</p><ul>{zeilen}</ul>{rest}"
+            f"{texte.wort(len(neue), 'Befund', 'Befunde')} ergeben:</p><ul>{zeilen}</ul>{rest}"
             f"<p>Alle Quellen und Befunde: <em>Einstellungen → DMARC</em>.</p>")
     return _graph_send(to, f"DMARC: {len(neue)} neue Befunde" + (f" ({hoch} hoch)" if hoch else ""),
                        _html_wrap("Neue DMARC-Befunde", "#c2410c" if hoch else "#b45309", body))
@@ -416,6 +417,23 @@ def _eingang_rows(dval) -> str:
     return zeilen
 
 
+_MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
+           "September", "Oktober", "November", "Dezember")
+
+
+def _ortszeit_text(iso: str | None) -> str:
+    """ISO (UTC) → „20.11.2026 08:00“ in der Anzeige-Zeitzone; "" ohne Wert."""
+    if not iso:
+        return ""
+    try:
+        t = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return "seit " + t.astimezone(settings_store.anzeige_zone()).strftime("%d.%m.%Y %H:%M")
+    except ValueError:
+        return ""
+
+
 def send_daily_report(daily: dict, total: dict) -> bool:
     to = _get_notify_to()
     if not to:
@@ -427,8 +445,9 @@ def send_daily_report(daily: dict, total: dict) -> bool:
     import config
     from pathlib import Path
 
-    now = datetime.now(timezone.utc)
-    date_str = now.strftime("%d.%m.%Y")
+    # Ortszeit wie die Übersicht (stats.heute) — Monat und Datum der Überschrift.
+    now = datetime.now(settings_store.anzeige_zone())
+    date_str = now.strftime("%d.%m.%Y %H:%M")
     monthly = _stats_mod.get_period(now.year, now.month)
 
     # Abgewiesene/gedrosselte Anmeldungen (Web-UI, 587) und Quell-IP-Ablehnungen
@@ -502,6 +521,24 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         (_row("Verschlüsselung fehlgeschlagen (nicht versandt)",
               str(dval("smime_encrypt_fehler")), "#e74c3c")
          if dval("smime_encrypt_fehler") else ""),
+        (_row("Entschlüsselung fehlgeschlagen (verschlüsselt zugestellt)",
+              str(dval("smime_decrypt_fehler")), "#e74c3c")
+         if dval("smime_decrypt_fehler") else ""),
+        (_row("Tenant-Weiterleitung fehlgeschlagen", str(dval("tenant_fehler")), "#e74c3c")
+         if dval("tenant_fehler") else ""),
+        (_row("Ohne Empfängerzertifikat abgewiesen", str(dval("ohne_zertifikat")), "#e67e22")
+         if dval("ohne_zertifikat") else ""),
+        # Signaturzertifikat abgelaufen → unsigniert versandt (seit v1.12.145).
+        (_row("Unsigniert versandt (Zertifikat abgelaufen/widerrufen)",
+              str(dval("smime_unsigniert_abgelaufen")), "#e74c3c")
+         if dval("smime_unsigniert_abgelaufen") else ""),
+        # Bis v1.12.145 gezählt, aber verworfen (nicht in stats.KEYS).
+        (_row("Zustellfehler, in die Warteschlange gelegt", str(dval("delivery_queued")), "#e67e22")
+         if dval("delivery_queued") else ""),
+        (_row("Graph-Rücklauf, in die Warteschlange gelegt", str(dval("graph_ruecklauf")), "#e67e22")
+         if dval("graph_ruecklauf") else ""),
+        (_row("#enc an rein interne Empfänger normal zugestellt", str(dval("enc_intern_normal")))
+         if dval("enc_intern_normal") else ""),
         (_row("Ohne Tenant-Kennung angenommen",
               f"{dval('tenant_ohne_kopf')} von "
               f"{dval('tenant_geprueft') + dval('tenant_ohne_kopf')}", "#e67e22")
@@ -514,7 +551,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
     ])
 
     # ── Diesen Monat ──
-    month_label = now.strftime("%B %Y")
+    month_label = f"{_MONATE[now.month - 1]} {now.year}"   # %B wäre ohne deutsche Locale englisch
     rows_month = "".join([
         _row("Mails verarbeitet",      mval("processed")),
         _row("S/MIME signiert",        mval("smime_signed")),
@@ -647,8 +684,10 @@ def send_daily_report(daily: dict, total: dict) -> bool:
             f'Warteschlange. Keine automatische Wiederholung — sie nähme denselben Weg.</p>'
         )
 
+    _seit = _ortszeit_text(daily.get("_seit"))
     body = (
-        f'<h3 style="margin-top:4px">Statistiken heute – {date_str}</h3>'
+        f'<h3 style="margin-top:4px">Seit dem letzten Bericht'
+        f'{(" (" + _seit + ")") if _seit else ""} – bis {date_str}</h3>'
         f'<table>{rows_today}</table>'
         f'<h3 style="margin-top:20px">Statistiken {month_label}</h3>'
         f'<table>{rows_month}</table>'
@@ -688,12 +727,18 @@ def send_cert_expiry_alert(cert_info: dict) -> bool:
     addr = cert_info.get("email", "?")
     expired = cert_info.get("expired", False)
     color = "#e74c3c" if expired else "#e67e22"
-    status = "ABGELAUFEN" if expired else f"läuft in {days} Tagen ab"
+    status = "ABGELAUFEN" if expired else f"läuft in {texte.zahl(days, 'Tag', 'Tagen')} ab"
     body = (f'<table>'
             f'{_row("Zertifikat", addr)}'
             f'{_row("Ablaufdatum", expiry)}'
             f'{_row("Status", status, color)}'
             f'</table>')
+    if expired:
+        # Seit v1.12.145 signiert das Gateway nicht mehr mit abgelaufenen
+        # Zertifikaten (smime_signer.nur_abgelaufen) — das muss hier stehen.
+        body += (f'<p><strong>Ausgehende Mails von {_esc(addr)} gehen unsigniert hinaus</strong>, '
+                 'bis ein gültiges Zertifikat hinterlegt ist. Diese Erinnerung kommt einmal '
+                 'pro Woche.</p>')
     html = _html_wrap(f"⚠ S/MIME Zertifikat {status}", color, body)
     subj = f"⚠ S/MIME Zertifikat {'abgelaufen' if expired else 'läuft ab'} – {addr}"
     return _graph_send(to, subj, html)
@@ -752,7 +797,12 @@ def send_renewal_notification_to_user(
     backend_name: str = "assisted_manual",
     user_config: dict | None = None,
 ) -> bool:
-    """Send renewal instructions directly to the affected user's mailbox."""
+    """Send renewal instructions directly to the affected user's mailbox.
+
+    Folgt NOTIFY_USER_CERT wie alle Mails an Postfachinhaber (bis v1.12.145
+    nicht: Der Schalter „keine Mails an Postfachinhaber“ wirkte hier nicht)."""
+    if not _should_notify("NOTIFY_USER_CERT"):
+        return False
     from ca_backends import get_backend
     backend = get_backend(backend_name)
     days = cert_info.get("days_left", 0)
@@ -853,10 +903,10 @@ def send_license_expiry_warning(st: dict, days_left: int) -> bool:
         subject = "✗ Fair-Use-Lizenz abgelaufen"
     else:
         title, color = "⏰ Lizenz läuft bald ab", "#d97706"
-        lead = (f'<p>Die Fair-Use-Lizenz läuft in <strong>{days_left} Tag'
-                f'{"" if days_left == 1 else "en"}</strong> ab '
+        tage = texte.zahl(days_left, "Tag", "Tagen")
+        lead = (f'<p>Die Fair-Use-Lizenz läuft in <strong>{tage}</strong> ab '
                 f'(am {st.get("expires", "?")}).</p>')
-        subject = f"⏰ Fair-Use-Lizenz läuft in {days_left} Tagen ab"
+        subject = f"⏰ Fair-Use-Lizenz läuft in {tage} ab"
     body = (
         lead
         + f'<table>{_row("Lizenz", lic)}{_row("Umfang", mb_str)}'

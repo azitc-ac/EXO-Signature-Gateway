@@ -856,7 +856,7 @@ function backupAuswahlGezaehlt() {
   const gesamt   = baum.querySelectorAll('.bk-eintrag').length;
   const dateien  = backupGewaehlteDateien().length;
   document.getElementById('backup-auswahl-zahl').textContent =
-    `${gewaehlt} von ${gesamt} Elementen (${dateien} Datei(en))`;
+    `${gewaehlt} von ${gesamt} Elementen (${anzahlText(dateien, 'Datei', 'Dateien')})`;
   document.getElementById('backup-restore-btn').disabled = gewaehlt === 0;
 }
 

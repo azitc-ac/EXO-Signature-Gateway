@@ -1668,7 +1668,7 @@ async function licAboLaden() {
 
   let h = '<table class="kv-table">';
   h += _zeile('Postfächer', '<strong>' + a.postfaecher + '</strong>',
-              frei + ' frei + ' + a.lizenzen + ' ' + (a.lizenzen === 1 ? 'Lizenz' : 'Lizenzen'));
+              frei + ' frei + ' + anzahlText(a.lizenzen, 'Lizenz', 'Lizenzen'));
   h += _zeile('Bezahlt bis', '<strong>' + _datumTs(a.laufzeit_ende) + '</strong>',
               a.laeuft_aus ? 'Danach endet das Abo — es wird nicht verlängert.'
                            : 'Verlängert sich an diesem Tag automatisch.');
@@ -1763,7 +1763,7 @@ function _preisText(lizenzen, zw) {
   const netto = einzel * lizenzen;
   const brutto = _brutto(netto, _licPreise.vat_percent);
   const zeitraum = zw === 'jaehrlich' ? 'Jahr' : 'Monat';
-  return lizenzen + ' ' + (lizenzen === 1 ? 'Lizenz' : 'Lizenzen') + ' × '
+  return anzahlText(lizenzen, 'Lizenz', 'Lizenzen') + ' × '
        + eur(einzel) + ' = ' + eur(netto) + ' netto je ' + zeitraum
        + ' (' + eur(brutto) + ' brutto inkl. ' + _licPreise.vat_percent + ' % MwSt.)';
 }

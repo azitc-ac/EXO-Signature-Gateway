@@ -127,50 +127,66 @@ def log_event(
         log.warning("mail_audit: write failed: %s", exc)
 
 
-def _add_date_condition(date: str, conditions: list, params: list) -> None:
-    """Fügt Zeitbereichs-Bedingung für YYYY-MM-DD, YYYY-MM oder YYYY hinzu."""
-    if len(date) == 10:  # Tag
-        conditions.append("ts >= ? AND ts <= ?")
-        params += [f"{date}T00:00:00Z", f"{date}T23:59:59Z"]
-    elif len(date) == 7:  # Monat YYYY-MM
+def _utc(lokal: datetime, zone) -> str:
+    return lokal.replace(tzinfo=zone).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def zeitraum_utc(date: str, zone=None, stunde: int | None = None) -> tuple[str, str]:
+    """UTC-Grenzen [start, ende) von Tag/Monat/Jahr (YYYY-MM-DD | YYYY-MM | YYYY)
+    in der ANZEIGE-Zeitzone, wahlweise nur einer lokalen Stunde des Tags.
+
+    Bis v1.12.147 galten hier UTC-Grenzen, während Peak und Stundenansicht
+    lokal rechneten — der Klick auf „Mail-Peak 10 Uhr“ zeigte den ganzen
+    UTC-Tag. Die Tageszahlen (stats) zählen seit v1.12.148 ebenfalls lokal."""
+    if zone is None:
+        import settings_store
+        zone = settings_store.anzeige_zone()
+    if len(date) == 10:
+        beginn = datetime.strptime(date, "%Y-%m-%d")
+        if stunde is not None:
+            beginn = beginn.replace(hour=stunde)
+            ende = beginn + timedelta(hours=1)
+        else:
+            ende = beginn + timedelta(days=1)
+    elif len(date) == 7:
         y, m = int(date[:4]), int(date[5:])
-        ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
-        conditions.append("ts >= ? AND ts < ?")
-        params += [f"{date}-01T00:00:00Z", f"{ny:04d}-{nm:02d}-01T00:00:00Z"]
-    elif len(date) == 4:  # Jahr YYYY
-        conditions.append("ts >= ? AND ts < ?")
-        params += [f"{date}-01-01T00:00:00Z", f"{int(date)+1:04d}-01-01T00:00:00Z"]
+        beginn = datetime(y, m, 1)
+        ende = datetime(y + 1, 1, 1) if m == 12 else datetime(y, m + 1, 1)
+    else:
+        beginn, ende = datetime(int(date), 1, 1), datetime(int(date) + 1, 1, 1)
+    return _utc(beginn, zone), _utc(ende, zone)
 
 
-def query_events(
-    *,
-    date: str | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    action: str | None = None,
-    sender: str | None = None,
-    nur_relay: bool = False,
-    relay_ip: str | None = None,
-    limit: int = 200,
-    offset: int = 0,
-) -> list[dict]:
-    """Return events as a list of dicts, newest first."""
-    if not _initialised:
-        return []
+def _add_date_condition(date: str, conditions: list, params: list,
+                        stunde: int | None = None) -> None:
+    """Zeitbereich (lokal, siehe zeitraum_utc) als Bedingung auf mail_log.ts (UTC)."""
+    if len(date) not in (4, 7, 10):
+        return
+    start, ende = zeitraum_utc(date, stunde=stunde)
+    conditions.append("ts >= ? AND ts < ?")
+    params += [start, ende]
+
+
+def _filter(date, date_from, date_to, action, sender, nur_relay, relay_ip,
+            stunde=None) -> tuple[str, list]:
     conditions: list[str] = []
     params: list = []
     if date:
-        _add_date_condition(date, conditions, params)
+        _add_date_condition(date, conditions, params, stunde)
     elif date_from or date_to:
         if date_from:
             conditions.append("ts >= ?")
-            params.append(f"{date_from}T00:00:00Z")
+            params.append(zeitraum_utc(date_from)[0])
         if date_to:
-            conditions.append("ts <= ?")
-            params.append(f"{date_to}T23:59:59Z")
-    if action:
+            conditions.append("ts < ?")
+            params.append(zeitraum_utc(date_to)[1])
+    liste = aktionen(action)
+    if len(liste) == 1:
         conditions.append("action = ?")
-        params.append(action)
+        params.append(liste[0])
+    elif liste:
+        conditions.append("action IN (" + ",".join("?" * len(liste)) + ")")
+        params += list(liste)
     if sender:
         conditions.append("sender = ?")
         params.append(sender)
@@ -182,7 +198,28 @@ def query_events(
         # Submission (relay_id). Der relay-fokussierte Filter erfasst beide.
         conditions.append("((relay_ip IS NOT NULL AND relay_ip != '') "
                           "OR (relay_id IS NOT NULL AND relay_id != ''))")
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    return ("WHERE " + " AND ".join(conditions)) if conditions else "", params
+
+
+def query_events(
+    *,
+    date: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    action: str | None = None,
+    sender: str | None = None,
+    nur_relay: bool = False,
+    relay_ip: str | None = None,
+    stunde: int | None = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> list[dict]:
+    """Return events as a list of dicts, newest first. `action` darf eine
+    Gruppe („@verarbeitet“) oder Liste („a,b“) sein; `stunde` (lokal) grenzt
+    einen Tag auf eine Stunde ein."""
+    if not _initialised:
+        return []
+    where, params = _filter(date, date_from, date_to, action, sender, nur_relay, relay_ip, stunde)
     params += [limit, offset]
     try:
         with _conn() as conn:
@@ -205,35 +242,11 @@ def count_events(
     sender: str | None = None,
     nur_relay: bool = False,
     relay_ip: str | None = None,
+    stunde: int | None = None,
 ) -> int:
     if not _initialised:
         return 0
-    conditions: list[str] = []
-    params: list = []
-    if date:
-        _add_date_condition(date, conditions, params)
-    elif date_from or date_to:
-        if date_from:
-            conditions.append("ts >= ?")
-            params.append(f"{date_from}T00:00:00Z")
-        if date_to:
-            conditions.append("ts <= ?")
-            params.append(f"{date_to}T23:59:59Z")
-    if action:
-        conditions.append("action = ?")
-        params.append(action)
-    if sender:
-        conditions.append("sender = ?")
-        params.append(sender)
-    if relay_ip:
-        conditions.append("relay_ip = ?")
-        params.append(relay_ip)
-    elif nur_relay:
-        # Relay-Post ist beides: IP-Relay (relay_ip) UND authentifizierte
-        # Submission (relay_id). Der relay-fokussierte Filter erfasst beide.
-        conditions.append("((relay_ip IS NOT NULL AND relay_ip != '') "
-                          "OR (relay_id IS NOT NULL AND relay_id != ''))")
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    where, params = _filter(date, date_from, date_to, action, sender, nur_relay, relay_ip, stunde)
     try:
         with _conn() as conn:
             return conn.execute(
@@ -390,11 +403,40 @@ def get_mail_hourly(date: str, zone=None) -> list[dict]:
 # fast nichts (grobe Schaetzung: 100 Krypto-Mails/Tag * ~200 B * 730 Tage ~= 15 MB).
 LANGZEIT_ACTIONS = (
     "smime_encrypted", "smime_signed", "smime_decrypted",     # Krypto
-    "smime_signiert_empfangen",
+    "smime_signiert_empfangen", "smime_signiert_verschluesselt",
     "error", "fallback", "tenant_fremd", "relay_abgelehnt",   # Fehler/Abweisung
-    "smime_encrypt_fehler",
+    "smime_encrypt_fehler", "smime_decrypt_fehler", "tenant_fehler", "ohne_zertifikat",
+    "zustellfehler",
     "held",                                                    # Warteschlange
 )
+
+
+# Gruppen von Aktionen hinter je EINER Zahl der Übersicht (seit v1.12.148).
+# Zahl und Klickliste meinen damit dieselben Mails — bis dahin öffnete
+# „Verarbeitet“ ALLE Aktionen, „S/MIME signiert“ ließ signiert+verschlüsselte
+# aus, „Fehler“ zeigte Zeilen, die nicht gezählt waren. Die Zähler dazu stehen
+# in stats (siehe test_uebersicht_zahlen.py: je Gruppe Zähler ↔ Aktionen).
+AKTIONSGRUPPEN: dict[str, tuple[str, ...]] = {
+    # bearbeitet oder geprüft: Signatur, S/MIME, Portal, eingehende Prüfung
+    "@verarbeitet": ("signed", "smime_signed", "smime_encrypted", "smime_signiert_verschluesselt",
+                     "smime_decrypted", "smime_signiert_empfangen", "portal", "zustellfehler"),
+    "@smime_signiert": ("smime_signed", "smime_signiert_verschluesselt"),
+    "@smime_verschluesselt": ("smime_encrypted", "smime_signiert_verschluesselt"),
+    # echte Ausfälle des Gateways (nicht: Bedienfälle wie fehlendes Zertifikat)
+    # „fallback“ NICHT: ein Fallback-Fall schreibt zuerst „error“, dann
+    # „fallback“ — die Mail stünde doppelt in der Liste.
+    "@fehler": ("error", "smime_encrypt_fehler", "smime_decrypt_fehler",
+                "tenant_fehler", "zustellfehler"),
+}
+
+
+def aktionen(action: str | None) -> tuple[str, ...]:
+    """„@gruppe“ → ihre Aktionen; „a,b“ → (a, b); einzelne Aktion → (a,)."""
+    if not action:
+        return ()
+    if action in AKTIONSGRUPPEN:
+        return AKTIONSGRUPPEN[action]
+    return tuple(a for a in action.split(",") if a)
 
 
 def _cutoff_iso(days: int) -> str:
@@ -469,7 +511,11 @@ def zeitraum_hat_detail(fenster: dict, action: str, date_str: str) -> bool:
     Vergleiche auf ISO-Zeitstempeln — lexikografisch = chronologisch."""
     if not action:
         return False
-    w = fenster.get("*" if action == "*" else action)
+    if action == "*":
+        w = fenster.get("*")
+    else:
+        teile = [fenster[a] for a in aktionen(action) if a in fenster]
+        w = (min(t[0] for t in teile), max(t[1] for t in teile)) if teile else None
     if not w:
         return False
     mn, mx = w

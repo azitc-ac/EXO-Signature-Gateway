@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 _NIE = float("-inf")
 
 _cert_alerts_sent: set[str] = set()   # admin alert dedup
+ABGELAUFEN_TAKT = 7                     # Tage zwischen zwei Mails über ein ABGELAUFENES Zertifikat
 _user_notif_sent: set[str] = set()    # user renewal notification dedup
 _le_renewed_date: str = ""
 _last_mailbox_refresh: float = _NIE     # monotonic; _NIE = nie gelaufen (triggers warm-up on first tick)
@@ -398,16 +399,38 @@ def _check_smime_lifecycle() -> None:
     today = datetime.now().strftime("%Y-%m-%d")
 
     # ── Admin alerts (eigene Signatur-Zertifikate) ─────────────────────────
+    # Vor dem Ablauf täglich. NACH dem Ablauf nur noch alle ABGELAUFEN_TAKT
+    # Tage (Entscheidung 21.11.2026): Bis v1.12.145 kam die Mail jeden Tag ohne
+    # Ende — wie früher bei den Lizenzen. Gemerkt in den Einstellungen, nicht im
+    # Speicher: Ein täglich neu startendes Gateway mahnte sonst täglich weiter.
+    gemeldet_alt = settings_store.get("_ZERT_ABGELAUFEN_GEMELDET") or {}
+    gemeldet = {}
     for c in smime_store.list_certs():
         if c.get("error"):
             continue
         email = c.get("email", "")
         days = c.get("days_left", 999)
+        if days < 0:
+            letzt = gemeldet_alt.get(email, "")
+            gemeldet[email] = letzt
+            try:
+                frisch = bool(letzt) and (datetime.strptime(today, "%Y-%m-%d")
+                                          - datetime.strptime(letzt, "%Y-%m-%d")).days < ABGELAUFEN_TAKT
+            except ValueError:
+                frisch = False
+            if frisch:
+                continue
+            if settings_store.get("NOTIFY_SMIME_EXPIRY") is not False:
+                if notification.send_cert_expiry_alert(c):
+                    gemeldet[email] = today
+            continue
         admin_key = f"admin:{email}:{today}"
         if days <= warn_days and admin_key not in _cert_alerts_sent:
             _cert_alerts_sent.add(admin_key)
             if settings_store.get("NOTIFY_SMIME_EXPIRY") is not False:
                 notification.send_cert_expiry_alert(c)
+    if gemeldet != gemeldet_alt:
+        settings_store.force_update({"_ZERT_ABGELAUFEN_GEMELDET": gemeldet})
 
     # ── User renewal notifications (signing certs only) ────────────────────
     for c in smime_store.list_certs():

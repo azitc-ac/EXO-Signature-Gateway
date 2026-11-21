@@ -838,7 +838,8 @@ class SignatureHandler:
                                 _tziel, len(raw), ok=False, absender=sender,
                                 empfaenger=recipients, inhalt=raw,
                                 fehler_text=f"{type(exc).__name__}: {exc}")
-                            _audit("error", error=f"Tenant-Weiterleitung→{_tziel}: {exc}")
+                            stats.increment("tenant_fehler")
+                            _audit("tenant_fehler", error=f"Tenant-Weiterleitung→{_tziel}: {exc}")
                             return "451 4.4.0 Weiterleitung voruebergehend nicht moeglich"
                         domain_routing.merke_weiterleitung(_fremd_tenant, _mid, recipients)
                         relay_stats.merke_routing(_tziel, len(raw), ok=True,
@@ -1087,7 +1088,8 @@ class SignatureHandler:
                                  "+stripped" if signer_name else "", decrypt_rcpt)
                         return "250 OK"
                     log.error("S/MIME decrypt failed for %s — forwarding encrypted", decrypt_rcpt)
-                    _audit("error", error="Entschlüsselung fehlgeschlagen, verschlüsselt zugestellt")
+                    stats.increment("smime_decrypt_fehler")
+                    _audit("smime_decrypt_fehler", error="Entschlüsselung fehlgeschlagen, verschlüsselt zugestellt")
                 else:
                     log.warning("Encrypted inbound — no private key for %s, forwarding as-is",
                                 recipients)
@@ -1172,6 +1174,10 @@ class SignatureHandler:
                         reinject.send(sender, recipients, _smtp_bytes(msg))
                         # Auch ohne Entfernen ist es eine signiert empfangene Mail:
                         # Zähler und Protokoll zeigen jede, nicht nur die bearbeiteten.
+                        # „Verarbeitet“ = jede Mail, die das Gateway bearbeitet ODER
+                        # geprüft hat (mail_audit.AKTIONSGRUPPEN). Mit abgenommener
+                        # Hülle zählte sie schon, ohne bis v1.12.147 nicht.
+                        stats.increment("processed")
                         stats.increment("smime_signiert_empfangen")
                         _audit("smime_signiert_empfangen", error=_fehler)
                         return "250 OK"
@@ -1402,7 +1408,10 @@ class SignatureHandler:
                         _send_ndr(sender, missing_early)
                         log.warning("Encryption blocked: no cert for %s — NDR sent to %s",
                                     missing_early, sender)
-                        stats.increment("errors")
+                        # Bedienfall, kein Gateway-Fehler (bis v1.12.147 in „errors“
+                        # gezählt — und ohne Protokollzeile, die Klickliste blieb leer).
+                        stats.increment("ohne_zertifikat")
+                        _audit("ohne_zertifikat", error=f"kein Zertifikat für {', '.join(missing_early)[:200]}")
                         return "250 OK"
 
             # ── Normal outbound: inject signature ─────────────────────────────
@@ -1806,9 +1815,11 @@ class SignatureHandler:
                                     _portal_url, _retention)
                                 log.info("Portal message created for %s (%s)", _rcpt,
                                          "encryption failed" if _enc_fehler else "no cert")
-                                _audit("portal")
                             except Exception as _exc:
                                 log.error("Portal creation failed for %s: %s", _rcpt, _exc)
+                        # EINE Protokollzeile je Mail (bis v1.12.147 je Empfänger —
+                        # die Klickliste zeigte mehr Zeilen als die Zahl „Verarbeitet“).
+                        _audit("portal")
                         # All missing recipients handled via portal — no cert_rcpts since
                         # smime_encrypt returns (None, all_rcpts) when ANY cert is missing.
                         stats.increment("processed")
@@ -1827,7 +1838,8 @@ class SignatureHandler:
                         _send_ndr(sender, missing)
                         log.warning("Encryption blocked: no cert for %s — NDR sent to %s",
                                     missing, sender)
-                        stats.increment("errors")
+                        stats.increment("ohne_zertifikat")
+                        _audit("ohne_zertifikat", error=f"kein Zertifikat für {', '.join(missing)[:200]}")
                         return "250 OK"
                 if encrypted:
                     log.debug(
@@ -1889,8 +1901,18 @@ class SignatureHandler:
             stats.increment("processed")
             log.info("Mail processed OK: from=%s to=%s", sender, recipients)
 
-            _action = "smime_encrypted" if _verschluesselt else ("smime_signed" if _smime_signed else "signed")
-            _audit(_action)
+            # Signiert UND verschlüsselt bekommt eine eigene Aktion: Unter
+            # „smime_encrypted“ allein fehlte die Mail in der Klickliste von
+            # „S/MIME signiert“, obwohl sie dort gezählt war.
+            if _verschluesselt:
+                _action = "smime_signiert_verschluesselt" if _smime_signed else "smime_encrypted"
+            else:
+                _action = "smime_signed" if _smime_signed else "signed"
+            if reinject.zuletzt_eingereiht():
+                # Bearbeitet, aber nicht zugestellt: in der Warteschlange.
+                _audit("zustellfehler", error=f"Zustellung gescheitert, in der Warteschlange ({_action})")
+            else:
+                _audit(_action)
 
             # Diese Kennung merken, damit eine spätere Antwort in derselben
             # Kette erkannt wird. NUR wenn wirklich eine HTML-Signatur gesetzt

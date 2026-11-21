@@ -132,13 +132,14 @@ def test_entschluesselung_gescheitert_ist_ein_fehler(anlage):
     anlage["mp"].setattr(smime_decrypt, "decrypt", _nichts)
     assert _lauf(VERSCHLUESSELT).startswith("250")
     (aktion, grund), = _aktionen(anlage)
-    assert aktion == "error" and "Entschlüsselung" in grund
+    # Seit v1.12.149 eigene Aktion (Teil von „Fehler (Gateway)“, mail_audit.AKTIONSGRUPPEN)
+    assert aktion == "smime_decrypt_fehler" and "Entschlüsselung" in grund
 
 
 def test_dashboard_und_tagesbericht_zeigen_die_zeile():
     wurzel = Path(__file__).resolve().parent.parent
     dash = (wurzel / "app/webui/templates/dashboard.html").read_text(encoding="utf-8")
-    assert 'stat_row("S/MIME signiert empfangen"' in dash and '"smime_signiert_empfangen") }}' in dash
+    assert 'kz("S/MIME signiert empfangen", "smime_signiert_empfangen"' in dash
     bericht = (wurzel / "app/notification.py").read_text(encoding="utf-8")
     assert bericht.count('("smime_signiert_empfangen")') == 2      # heute + Monat
     import stats

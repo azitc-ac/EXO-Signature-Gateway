@@ -98,6 +98,10 @@ AUFGABEN: tuple[Aufgabe, ...] = (
     # Sammel-/Auto-Bestellung setzte „Automatisch erneuern“ bis v1.12.114 nie.
     Aufgabe("erneuerung-entscheiden", "Automatische Erneuerung bestellter Postfächer entscheiden",
             abnahme._erneuerung_unentschieden, "/smime", seit="1.12.115"),
+    # Bewusst abgewählte Erneuerung, Zertifikat in der Warnfrist (v1.12.145).
+    # Dauerzustand wie „postfaecher“, kein Nachholschritt nach einem Update → ohne `seit`.
+    Aufgabe("ablauf-ohne-erneuerung", "Ablaufendes Zertifikat ohne automatische Erneuerung",
+            abnahme._ablauf_ohne_erneuerung, "/smime"),
     Aufgabe("tls-rueckweg", "Zertifikatsprüfung am TLS-Rückweg einschalten",
             abnahme._tls_rueckweg, "/settings/routing#weiterleitungsziele",
             seit="1.10.112"),

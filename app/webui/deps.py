@@ -57,6 +57,10 @@ _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 templates = Jinja2Templates(directory=str(_TEMPLATE_DIR))
 templates.env.globals["version"] = config.VERSION
+# Einzahl/Mehrzahl in Vorlagen: {{ wort(n, 'Postfach', 'Postfächer') }} — eine Quelle (texte.py).
+import texte as _texte  # noqa: E402
+templates.env.globals["wort"] = _texte.wort
+templates.env.globals["anzahl"] = _texte.zahl
 # {{ name|vorlage }}: Anzeigename („default“ → „Standard“), signature_engine.anzeigename
 templates.env.filters["vorlage"] = signature_engine.anzeigename
 
