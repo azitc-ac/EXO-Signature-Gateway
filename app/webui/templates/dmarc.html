@@ -49,12 +49,13 @@
       </div>
       <span class="hint">Die Adresse aus <code>rua=mailto:…</code>. Ein Postfach (auch ein geteiltes)
         liest das Gateway mit seinen vorhandenen Rechten. Für eine Microsoft-365-Gruppe braucht es
-        zusätzlich <code>Group-Conversation.Read.All</code>. Leer = Auswertung aus.</span>
+        zusätzlich <code>Group-Conversation.Read.All</code> — bei aktiver Postfach-Eingrenzung an einer
+        eigenen DMARC-Lese-App, die „Fehlende Berechtigungen erteilen“ anlegt. Leer = Auswertung aus.</span>
     </div>
   </div>
   <div id="dmarc-ziel" class="hint" style="margin:4px 0 0"></div>
   <div id="dmarc-gruppe-rechte" hidden>
-    {{ berechtigungen("dmarc", "Group-Conversation.Read.All") }}
+    {{ berechtigungen("dmarc", "Group-Conversation.Read.All,DMARC-Lese-App") }}
   </div>
   <div id="dmarc-stand" class="dmarc-ampel" data-ampel="" style="margin:8px 0 0">Wird geladen …</div>
   <div id="dmarc-abruf" class="hint" style="margin:4px 0 0"></div>

@@ -5,6 +5,44 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.141 — 2026-11-21 — DMARC aus einer M365-Gruppe trotz Postfach-Eingrenzung
+
+### Neu: DMARC-Lese-App
+
+Mit aktiver Postfach-Eingrenzung (ApplicationAccessPolicy) ließ sich eine
+Microsoft-365-Gruppe als DMARC-Ziel nicht lesen: Exchange nimmt Gruppen in die
+Eingrenzung nicht auf, und die Eingrenzung gilt für die ganze Gateway-App. Das
+Gateway liest die Gruppe in diesem Fall jetzt über eine eigene, kleine App
+„… - DMARC-Leser“. Sie hat nur `Group-Conversation.Read.All`, meldet sich mit
+demselben Zertifikat an wie die Gateway-App (kein zusätzliches Geheimnis) und
+fällt nicht unter die Eingrenzung. Die Gateway-App bleibt eingegrenzt und
+bekommt die Gruppenrolle in diesem Fall nicht.
+
+* **Anlegen und Löschen:** Einstellungen → DMARC → „Fehlende Berechtigungen
+  erteilen“. Dieselbe Admin-Anmeldung legt die Lese-App an, wenn sie gebraucht
+  wird, und löscht sie, sobald sie es nicht mehr wird (anderes Ziel, Eingrenzung
+  aus).
+* **Prüfung:** Die Tabelle der Berechtigungen zeigt die Zeile „DMARC-Lese-App“,
+  gelesen aus einem frischen Token der Lese-App.
+* **Zertifikat erneuern:** Das neue Zertifikat geht an die Gateway-App, die
+  Pool-Apps und die Lese-App.
+* Nach dem Anlegen braucht Entra einige Minuten, bis die Lese-App Tokens
+  bekommt; der Abruf sagt das so.
+
+### Berichtigung zu v1.12.139
+
+Der Eintrag zu v1.12.139 beschreibt einen Fehler, den es nicht gab: „Fehlende
+Berechtigungen erteilen“ verwarf die zwischengespeicherten App-Tokens schon
+vorher selbst, gleich nach der Rollenzuweisung. Die mit v1.12.139 hinzugefügte
+zweite Stelle tat dasselbe noch einmal und ist wieder entfernt. Das Verhalten
+ändert sich nicht. Der Test dazu prüft jetzt den vollständigen Ablauf.
+
+**Zu tun:** nichts. Liest du DMARC-Berichte aus einer Microsoft-365-Gruppe und
+ist die Postfach-Eingrenzung aktiv, klicke unter Einstellungen → DMARC auf
+„Fehlende Berechtigungen erteilen“.
+
+---
+
 ## v1.12.140 — 2026-11-21 — DMARC-Berichte mit aktiver Postfach-Eingrenzung
 
 Ist die Postfach-Eingrenzung der Gateway-App eingeschaltet (ApplicationAccessPolicy
@@ -30,6 +68,8 @@ eingetragen, speichere es unter Einstellungen → DMARC einmal neu.
 ---
 
 ## v1.12.139 — 2026-11-21 — Erteilte Berechtigungen wirken sofort
+
+> **Berichtigt in v1.12.141:** Der hier beschriebene Fehler bestand nicht; das Verwerfen der Tokens gab es bereits.
 
 „Fehlende Berechtigungen erteilen“ (und die Ersteinrichtung) wiesen die Rollen
 der Gateway-App zwar zu, der laufende Gateway-Prozess arbeitete aber weiter mit
