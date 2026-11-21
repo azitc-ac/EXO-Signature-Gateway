@@ -109,9 +109,25 @@ def adresse() -> str:
 
 
 def ziel() -> dict:
-    """Zuletzt aufgelöstes Ziel — nur gültig, wenn es zur eingetragenen Adresse passt."""
+    """Zuletzt aufgelöstes Ziel — nur gültig, wenn es zur eingetragenen Adresse passt.
+
+    Den Hinweis zur Eingrenzung bildet es beim LESEN aus dem aktuellen Zustand:
+    Gespeichert beim Auflösen, hätte er nach dem Anlegen der Lese-App weiter
+    „… legt sie an“ gesagt (oder nach dem Abschalten der Eingrenzung weiter von ihr)."""
     z = dict(settings_store.get(ZIEL_KEY) or {})
-    return z if z.get("adresse") == adresse() and adresse() else {}
+    if not (z.get("adresse") == adresse() and adresse()):
+        return {}
+    if z.get("art") == "gruppe":
+        z["meldung"] = gruppen_hinweis()
+    return z
+
+
+def gruppen_hinweis() -> str:
+    """Hinweis zu einer Gruppe als Ziel, je nach Eingrenzung und Lese-App."""
+    if not eingrenzung_aktiv():
+        return ""
+    import dmarc_lese_app
+    return GRUPPE_UEBER_LESE_APP if dmarc_lese_app.gespeichert() else GRUPPE_GESPERRT
 
 
 def _get(client, url: str, token: str, params: dict | None = None):
@@ -149,8 +165,7 @@ def ziel_aufloesen(client=None, token: str | None = None) -> dict:
             treffer = (g.json().get("value") or []) if g.status_code == 200 else []
             if treffer and "Unified" in (treffer[0].get("groupTypes") or []):
                 z.update(art="gruppe", id=treffer[0]["id"])
-                if eingrenzung_aktiv():
-                    z["meldung"] = GRUPPE_GESPERRT
+                z["meldung"] = gruppen_hinweis()
             elif treffer:
                 z["meldung"] = ("Die Adresse gehört einer Verteiler- oder Sicherheitsgruppe ohne "
                                 "eigenes Postfach. Berichte lassen sich nur aus einem Postfach "
@@ -384,17 +399,27 @@ GRUPPE_GESPERRT = ("Die Postfach-Eingrenzung der Gateway-App (ApplicationAccessP
                    "Gruppe deshalb über eine eigene DMARC-Lese-App (nur Group-Conversation.Read.All): "
                    "„Fehlende Berechtigungen erteilen“ legt sie an. Alternativ: ein geteiltes Postfach "
                    "als zweite rua-Adresse (rua=mailto:…,mailto:…) eintragen.")
+GRUPPE_UEBER_LESE_APP = ("Die Postfach-Eingrenzung der Gateway-App ist aktiv; das Gateway liest die "
+                         "Gruppe über die eigene DMARC-Lese-App.")
+
+
+def _dateianhang(a: dict) -> bool:
+    return a.get("@odata.type", "#microsoft.graph.fileAttachment") == "#microsoft.graph.fileAttachment"
+
+
+def _zu_gross(a: dict) -> bool:
+    return (a.get("size") or 0) > MAX_ANHANG + 64 * 1024
 
 
 def _anhaenge(client, basis: str, token: str) -> list[tuple[str, bytes]]:
-    """[(name, bytes)] der Dateianhänge unter `basis` (…/messages/{id} oder …/posts/{id}).
+    """[(name, bytes)] der Dateianhänge einer Postfach-Nachricht (…/messages/{id}).
     Größe vor dem Herunterladen geprüft."""
     aus = []
     for a in _seiten(client, f"{basis}/attachments", token,
                      {"$select": "id,name,size,contentType"}):
-        if a.get("@odata.type", "#microsoft.graph.fileAttachment") != "#microsoft.graph.fileAttachment":
+        if not _dateianhang(a):
             continue
-        if (a.get("size") or 0) > MAX_ANHANG + 64 * 1024:
+        if _zu_gross(a):
             aus.append((a.get("name") or "?", b""))       # zu groß: als Fehler zählen
             continue
         r = _get(client, f"{basis}/attachments/{a['id']}", token)
@@ -403,34 +428,46 @@ def _anhaenge(client, basis: str, token: str) -> list[tuple[str, bytes]]:
     return aus
 
 
+def _anhaenge_mitgeliefert(post: dict) -> list[tuple[str, bytes]]:
+    """[(name, bytes)] aus einem Gruppenbeitrag, der per $expand=attachments kam.
+    …/posts/{id}/attachments ist mit Anwendungsberechtigung NICHT unterstützt
+    (Graph v1.0 „List attachments“: Application „Not supported“, live 403
+    ErrorAccessDenied); $expand nennt dieselbe Seite als Weg."""
+    aus = []
+    for a in post.get("attachments") or []:
+        if not _dateianhang(a):
+            continue
+        if _zu_gross(a) or not a.get("contentBytes"):
+            aus.append((a.get("name") or "?", b""))       # zu groß/leer: als Fehler zählen
+            continue
+        aus.append((a.get("name") or "?", base64.b64decode(a["contentBytes"])))
+    return aus
+
+
 def _quellen(client, z: dict, token: str, seit: datetime):
-    """Je Bericht-Mail ein Basis-Pfad für die Anhänge — Postfach oder Gruppe."""
+    """Je Bericht-Mail (Betreff, Anhänge holen) — Postfach oder Gruppe. Der zweite
+    Wert ist eine Funktion ohne Argumente: erst holen, wenn der Betreff passt."""
     seit_iso = seit.strftime("%Y-%m-%dT%H:%M:%SZ")
     if z["art"] == "postfach":
         for m in _seiten(client, f"{GRAPH}/users/{z['id']}/messages", token, {
                 "$filter": f"receivedDateTime ge {seit_iso} and hasAttachments eq true",
                 "$select": "id,subject,receivedDateTime", "$top": "50",
                 "$orderby": "receivedDateTime desc"}):
-            yield m.get("subject") or "", f"{GRAPH}/users/{z['id']}/messages/{m['id']}"
+            basis = f"{GRAPH}/users/{z['id']}/messages/{m['id']}"
+            yield m.get("subject") or "", (lambda b=basis: _anhaenge(client, b, token))
         return
     gid = z["id"]
-    try:
-        threads = list(_seiten(client, f"{GRAPH}/groups/{gid}/threads", token, {
-            "$filter": f"lastDeliveredDateTime gt {seit_iso}",
-            "$select": "id,topic,lastDeliveredDateTime,hasAttachments", "$top": "50"}))
-    except _GraphFehler as exc:
-        if exc.status != 400:
-            raise
-        # Filter nicht angenommen → ohne Filter, Zeit selbst prüfen.
-        threads = list(_seiten(client, f"{GRAPH}/groups/{gid}/threads", token,
-                               {"$select": "id,topic,lastDeliveredDateTime,hasAttachments", "$top": "50"}))
+    # Ohne $filter: /threads nimmt nur „IsLocked eq true“ an, alles andere
+    # beantwortet Exchange mit 501 ConversationFilterOther. Zeit selbst prüfen.
+    threads = list(_seiten(client, f"{GRAPH}/groups/{gid}/threads", token,
+                           {"$select": "id,topic,lastDeliveredDateTime,hasAttachments", "$top": "50"}))
     for t in threads:
         if (t.get("lastDeliveredDateTime") or "") < seit_iso or t.get("hasAttachments") is False:
             continue
         for p in _seiten(client, f"{GRAPH}/groups/{gid}/threads/{t['id']}/posts", token,
-                         {"$select": "id,receivedDateTime,hasAttachments"}):
+                         {"$expand": "attachments"}):
             if p.get("hasAttachments") and (p.get("receivedDateTime") or "") >= seit_iso:
-                yield t.get("topic") or "", f"{GRAPH}/groups/{gid}/threads/{t['id']}/posts/{p['id']}"
+                yield t.get("topic") or "", (lambda p=p: _anhaenge_mitgeliefert(p))
 
 
 _RUF = re.compile(r"(forensic|failure|ruf)", re.IGNORECASE)
@@ -476,13 +513,13 @@ def abrufen() -> dict:
                                     "braucht Entra einige Minuten. Später erneut abrufen.")
                 return _abruf_merken(abruf)
         try:
-            for betreff, basis in _quellen(client, z, token, seit):
+            for betreff, holen in _quellen(client, z, token, seit):
                 abruf["mails"] += 1
                 if _RUF.search(betreff) and "report domain" not in betreff.lower():
                     # Einzelfallbericht (ruf): nur zählen — er enthält die Mail selbst.
                     abruf["ruf"] = abruf.get("ruf", 0) + 1
                     continue
-                for name, daten in _anhaenge(client, basis, token):
+                for name, daten in holen():
                     try:
                         if not daten:
                             raise BerichtFehler("Anhang zu groß")
@@ -607,6 +644,15 @@ def _richtlinien(berichte: dict) -> dict[str, dict]:
     return {d: v[1] for d, v in r.items()}
 
 
+
+def _n(n: int, eins: str, mehr: str) -> str:
+    return eins if n == 1 else mehr
+
+
+def _mails(n: int) -> str:
+    """„1 Mail“, „4 Mails“ — Befundtexte stehen so in Oberfläche und Tagesbericht."""
+    return f"{n} {_n(n, 'Mail', 'Mails')}"
+
 def befunde(berichte: dict, jetzt: float | None = None) -> list[dict]:
     """[{kennung, stufe, art, domain, ip, mails, text, empfehlung}] — hoch zuerst."""
     aus = []
@@ -621,8 +667,9 @@ def befunde(berichte: dict, jetzt: float | None = None) -> list[dict]:
         fail = e["fail_zugestellt"] + e["fail_abgewiesen"]
         if e["fail_zugestellt"]:
             neu("hoch", "fail_zugestellt", dom, ip, e["fail_zugestellt"],
-                f"{e['fail_zugestellt']} Mails von {ip} im Namen von {dom} bestanden DMARC nicht "
-                "und wurden trotzdem zugestellt.",
+                f"{_mails(e['fail_zugestellt'])} von {ip} im Namen von {dom} "
+                f"{_n(e['fail_zugestellt'], 'bestand', 'bestanden')} DMARC nicht und "
+                f"{_n(e['fail_zugestellt'], 'wurde', 'wurden')} trotzdem zugestellt.",
                 "Gehört die Quelle zu dir (Newsletter, CRM, Drucker, Fremddienst)? Dann SPF bzw. "
                 "DKIM dort einrichten. Sonst ist es eine Fälschung — die Richtlinie auf "
                 "quarantine oder reject anheben.")
@@ -634,20 +681,20 @@ def befunde(berichte: dict, jetzt: float | None = None) -> list[dict]:
                 "Weiterleitungen. Die Kopfzeilen einer betroffenen Mail zeigen den Weg.")
         if e["nur_spf"]:
             neu("mittel", "nur_spf", dom, ip, e["nur_spf"],
-                f"{e['nur_spf']} Mails von {ip} bestanden DMARC nur über SPF; DKIM fehlte oder "
-                f"passte nicht zu {dom}.",
+                f"{_mails(e['nur_spf'])} von {ip} {_n(e['nur_spf'], 'bestand', 'bestanden')} DMARC "
+                f"nur über SPF; DKIM fehlte oder passte nicht zu {dom}.",
                 "DKIM für diesen Versender einrichten. Ohne DKIM fällt DMARC bei jeder "
                 "Weiterleitung durch.")
         if e["dkim_zusatz_kaputt"]:
             neu("mittel", "dkim_zusatz_kaputt", dom, ip, e["dkim_zusatz_kaputt"],
-                f"{e['dkim_zusatz_kaputt']} Mails von {ip} trugen neben einer gültigen auch eine "
-                f"ungültige DKIM-Signatur von {dom}.",
+                f"{_mails(e['dkim_zusatz_kaputt'])} von {ip} {_n(e['dkim_zusatz_kaputt'], 'trug', 'trugen')} "
+                f"neben einer gültigen auch eine ungültige DKIM-Signatur von {dom}.",
                 "Ein Weg reicht eine veraltete Signatur weiter. Das Gateway entfernt sie seit "
                 "v1.12.137 auf allen Rückwegen; bleibt der Befund, liegt die Quelle woanders.")
         if fail and not e["bestanden"] and not e["fail_zugestellt"]:
             neu("info", "abgewiesen", dom, ip, fail,
-                f"{fail} Mails von {ip} im Namen von {dom} bestanden DMARC nicht und wurden "
-                "abgewiesen oder isoliert.",
+                f"{_mails(fail)} von {ip} im Namen von {dom} {_n(fail, 'bestand', 'bestanden')} DMARC "
+                f"nicht und {_n(fail, 'wurde', 'wurden')} abgewiesen oder isoliert.",
                 "Die Richtlinie wirkt. Nur handeln, wenn die Quelle doch zu dir gehört.")
     for dom, r in sorted(_richtlinien(berichte).items()):
         if r.get("p") == "none":

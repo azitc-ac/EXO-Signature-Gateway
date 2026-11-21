@@ -5,6 +5,64 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.144 — 2026-11-21 — Nachträglich gefüllte Hinweise lassen sich aufklappen
+
+Lange Erklärtexte werden auf zwei Zeilen gekürzt und bekommen einen Schalter
+„mehr“. Hinweise, deren Text ein Skript erst nach dem Seitenaufbau einsetzt
+(etwa unter Einstellungen → DMARC das erkannte Ziel und „Letzter Abruf …“),
+waren beim Aufbau noch leer und bekamen deshalb keinen Schalter. Wurde die
+Fenstergröße danach neu bewertet (am Telefon schon beim Ein- und Ausblenden
+der Adressleiste), kürzte das Gateway sie trotzdem auf zwei Zeilen. Der Text
+war dann abgeschnitten und ließ sich nicht aufklappen.
+
+Jetzt bekommt ein Hinweis, der bei der Neubewertung überläuft, seinen Schalter
+dazu, und ein Hinweis wird auch neu bewertet, wenn sich sein Text ändert.
+Hinweise, die ausdrücklich nie gekürzt werden sollen (`data-clamp="nie"`),
+bleiben auch nach einer Größenänderung vollständig.
+
+Außerdem stehen die DMARC-Befunde jetzt in richtiger Einzahl („1 Mail von …
+trug …“ statt „1 Mails von … trugen …“), in der Oberfläche wie im Tagesbericht.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.143 — 2026-11-21 — DMARC: Hinweis zur Gruppe folgt dem aktuellen Stand
+
+Der Hinweis unter dem DMARC-Ziel („Erkannt als Microsoft-365-Gruppe …“) wurde
+beim Erkennen des Ziels gespeichert und danach nicht mehr angepasst. Nach dem
+Anlegen der DMARC-Lese-App stand dort deshalb weiter „… legt sie an“, und nach
+dem Abschalten der Postfach-Eingrenzung weiter der Hinweis auf sie. Er wird
+jetzt bei jedem Seitenaufbau aus dem aktuellen Zustand gebildet: ohne
+Eingrenzung kein Hinweis, mit Eingrenzung und Lese-App „liest die Gruppe über
+die eigene DMARC-Lese-App“, ohne Lese-App wie bisher der Weg dorthin.
+
+**Zu tun:** nichts.
+
+---
+
+## v1.12.142 — 2026-11-21 — DMARC aus einer M365-Gruppe: Abruf funktioniert
+
+Der Abruf aus einer Microsoft-365-Gruppe (seit v1.12.138) scheiterte an zwei
+Stellen, die erst mit echtem Zugriff auf eine Gruppe sichtbar wurden:
+
+* **Unterhaltungen:** Die Abfrage `…/threads` filterte nach Zustelldatum.
+  Exchange nimmt dort nur einen Filter auf `IsLocked` an und antwortet sonst mit
+  `501 ConversationFilterOther`. Der vorgesehene Ausweichweg griff nur bei 400.
+  Das Gateway fragt jetzt ohne Filter ab und prüft das Datum selbst.
+* **Anhänge:** `…/posts/{id}/attachments` unterstützt Microsoft mit
+  Anwendungsberechtigung nicht (Graph v1.0 „List attachments“, Antwort 403
+  `ErrorAccessDenied`). Das Gateway holt die Anhänge jetzt mit
+  `$expand=attachments` zusammen mit den Beiträgen, also eine Abfrage je
+  Unterhaltung statt einer je Anhang.
+
+Der Abruf aus einem Postfach ist unverändert.
+
+**Zu tun:** nichts. Nach dem Update unter Einstellungen → DMARC „Jetzt abrufen“
+klicken, oder auf den nächsten Abruf warten.
+
+---
+
 ## v1.12.141 — 2026-11-21 — DMARC aus einer M365-Gruppe trotz Postfach-Eingrenzung
 
 ### Neu: DMARC-Lese-App

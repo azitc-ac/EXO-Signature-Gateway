@@ -161,6 +161,16 @@ def test_befunde_je_fall():
     assert bf[0]["stufe"] == "hoch"                                   # hoch zuerst
 
 
+def test_befundtexte_in_einzahl_und_mehrzahl():
+    """„1 Mails … trugen“ stand so in Oberfläche und Tagesbericht."""
+    x = _xml(_rec("192.0.2.7", 1, "fail", "pass") + _rec("192.0.2.8", 4, "fail", "pass")
+             + _rec("192.0.2.9", 1, "fail", "fail", "none"))
+    t = {f["ip"]: f["text"] for f in dm.befunde(_berichte(x))}
+    assert t["192.0.2.7"].startswith("1 Mail von ") and " bestand DMARC" in t["192.0.2.7"]
+    assert t["192.0.2.8"].startswith("4 Mails von ") and " bestanden DMARC" in t["192.0.2.8"]
+    assert "1 Mail von" in t["192.0.2.9"] and " wurde trotzdem" in t["192.0.2.9"]
+
+
 def test_richtlinie_none_ist_mittel_und_alte_berichte_zaehlen_nicht():
     alt = int(time.time()) - (dm.AUSWERTUNG_TAGE + 5) * 86400
     a = _arten(dm.befunde(_berichte(_xml(_rec("192.0.2.2", 7, "fail", "fail"), p="none", ende=alt))))
@@ -211,10 +221,24 @@ class _Graph:
         if url.endswith("/groups/g1/threads"):
             if self.threads_status != 200:
                 return _Resp(self.threads_status, text=self.fehlertext)
+            if "$filter" in (params or {}):           # wie Exchange: nur IsLocked erlaubt
+                return _Resp(501, text='{"error":{"code":"ConversationFilterOther"}}')
+            # t0 ist älter als das Abruffenster — seine Beiträge gibt es hier nicht (404).
             return _Resp(200, {"value": [{"id": "t1", "topic": "Report Domain: firma.at",
-                                          "lastDeliveredDateTime": jetzt, "hasAttachments": True}]})
+                                          "lastDeliveredDateTime": jetzt, "hasAttachments": True},
+                                         {"id": "t0", "topic": "Report Domain: firma.at",
+                                          "lastDeliveredDateTime": "2020-01-01T00:00:00Z",
+                                          "hasAttachments": True}]})
         if url.endswith("/threads/t1/posts"):
-            return _Resp(200, {"value": [{"id": "p1", "receivedDateTime": jetzt, "hasAttachments": True}]})
+            # Wie Graph: Gruppenanhänge nur über $expand, nie über …/posts/{id}/attachments.
+            p = {"id": "p1", "receivedDateTime": jetzt, "hasAttachments": True}
+            if (params or {}).get("$expand") == "attachments":
+                p["attachments"] = [{"@odata.type": "#microsoft.graph.fileAttachment", "id": "a1",
+                                     "name": "r.xml.gz", "size": len(self.anhang),
+                                     "contentBytes": base64.b64encode(self.anhang).decode()}]
+            return _Resp(200, {"value": [p]})
+        if "/posts/" in url and url.endswith("/attachments"):
+            return _Resp(403, text='{"error":{"code":"ErrorAccessDenied"}}')
         if url.endswith("/attachments"):
             return _Resp(200, {"value": [{"id": "a1", "name": "r.xml.gz", "size": len(self.anhang)}]})
         if url.endswith("/attachments/a1"):
@@ -252,7 +276,7 @@ def test_abruf_postfach_und_gruppe(umgebung, monkeypatch, art):
     assert a["ok"] and a["neu"] == 1 and a["mails"] == 1
     assert dm.ziel()["art"] == art
     if art == "gruppe":
-        assert any("/groups/g1/threads/t1/posts/p1/attachments" in u for u in g.urls)
+        assert any(u.endswith("/groups/g1/threads/t1/posts") for u in g.urls)
         assert not any("/messages" in u for u in g.urls)
         assert _rolle_benoetigt()
     else:
@@ -316,6 +340,21 @@ def test_gruppe_bei_aktiver_eingrenzung_meldet_das_schon_beim_erkennen(umgebung,
     assert "Eingrenzung" not in dm.ziel_aufloesen().get("meldung", "")
     nb["APP_ACCESS_POLICY_ENABLED"] = True
     assert "Eingrenzung" in dm.ziel_aufloesen()["meldung"]
+
+
+def test_gruppenhinweis_folgt_dem_aktuellen_zustand(umgebung, monkeypatch):
+    """Der Hinweis am Ziel kommt nicht aus dem Speicher: Nach dem Anlegen der
+    Lese-App darf er nicht mehr „legt sie an“ sagen, ohne Eingrenzung gar nichts."""
+    nb, _ = umgebung
+    import dmarc_lese_app
+    monkeypatch.setattr(dm.httpx, "Client", _Graph("gruppe", b""))
+    nb["APP_ACCESS_POLICY_ENABLED"] = True
+    dm.ziel_aufloesen()
+    assert dm.ziel()["meldung"] == dm.GRUPPE_GESPERRT
+    nb[dmarc_lese_app.KEY] = {"client_id": "cid1", "objekt_id": "obj1"}   # Knopf gedrückt
+    assert dm.ziel()["meldung"] == dm.GRUPPE_UEBER_LESE_APP
+    nb["APP_ACCESS_POLICY_ENABLED"] = False
+    assert dm.ziel()["meldung"] == ""
 
 
 @pytest.mark.parametrize("art,drin", [("postfach", True), ("gruppe", False)])
