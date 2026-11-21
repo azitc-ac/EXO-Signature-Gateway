@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.151 — 2026-11-21 — Entwurf der Release-Notizen für 1.12
+
+Neu: `docs/release-1.12-entwurf.md` fasst zusammen, was seit dem letzten
+Stabil-Release v1.11.29 neu ist, was sich ohne Zutun ändert, was beim Update zu
+tun ist und welche Punkte offen sind. Am Produkt ändert sich nichts.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.150 — 2026-11-21 — Prüfgrundlage der Codeprüfung ergänzt
 
 Die Prüfung auf kopierten Oberflächen-Code kennt jetzt die neuen Zeilen der
