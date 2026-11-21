@@ -149,6 +149,8 @@ def ziel_aufloesen(client=None, token: str | None = None) -> dict:
             treffer = (g.json().get("value") or []) if g.status_code == 200 else []
             if treffer and "Unified" in (treffer[0].get("groupTypes") or []):
                 z.update(art="gruppe", id=treffer[0]["id"])
+                if eingrenzung_aktiv():
+                    z["meldung"] = GRUPPE_GESPERRT
             elif treffer:
                 z["meldung"] = ("Die Adresse gehört einer Verteiler- oder Sicherheitsgruppe ohne "
                                 "eigenes Postfach. Berichte lassen sich nur aus einem Postfach "
@@ -362,6 +364,22 @@ class _GraphFehler(RuntimeError):
     def __init__(self, status: int, text: str):
         super().__init__(f"HTTP {status}: {text}")
         self.status = status
+        # Exchange: „[RAOP] : Blocked by tenant configured AppOnly AccessPolicy
+        # settings“ — die ApplicationAccessPolicy sperrt, nicht die Graph-Rolle.
+        self.eingrenzung = status == 403 and "AccessPolicy" in text
+
+
+def eingrenzung_aktiv() -> bool:
+    """Ist die Postfach-Eingrenzung (ApplicationAccessPolicy, RestrictAccess) an?
+    Microsoft-365-Gruppen lassen sich darin NICHT freigeben (GroupMailbox ist kein
+    gültiger PolicyScopeGroupId-Empfänger) — eine Gruppe ist dann unlesbar."""
+    return settings_store.get("APP_ACCESS_POLICY_ENABLED") is True
+
+
+GRUPPE_GESPERRT = ("Die Postfach-Eingrenzung der Gateway-App (ApplicationAccessPolicy) ist aktiv, "
+                   "und Microsoft-365-Gruppen lassen sich darin nicht freigeben. Nimm im DMARC-Eintrag "
+                   "zusätzlich ein geteiltes Postfach als rua-Adresse auf (rua=mailto:…,mailto:…) "
+                   "und trag hier dieses Postfach ein.")
 
 
 def _anhaenge(client, basis: str, token: str) -> list[tuple[str, bytes]]:
@@ -461,7 +479,14 @@ def abrufen() -> dict:
                         if len(abruf["fehlertexte"]) < 5:
                             abruf["fehlertexte"].append(f"{name[:80]}: {exc}")
         except _GraphFehler as exc:
-            if exc.status == 403 and z["art"] == "gruppe":
+            if exc.eingrenzung and z["art"] == "gruppe":
+                abruf["meldung"] = "Kein Zugriff auf die Gruppe. " + GRUPPE_GESPERRT
+            elif exc.eingrenzung:
+                abruf["meldung"] = ("Kein Zugriff auf das Postfach: Es liegt außerhalb der "
+                                    "Postfach-Eingrenzung der Gateway-App. Das Gateway nimmt es beim "
+                                    "Speichern des Ziels in die Gruppe „App Scope“ auf; Exchange "
+                                    "braucht danach einige Zeit, bis das wirkt.")
+            elif exc.status == 403 and z["art"] == "gruppe":
                 abruf["meldung"] = (f"Kein Zugriff auf die Gruppe — die Berechtigung {GRUPPEN_ROLLE} "
                                     "fehlt oder ist noch nicht wirksam.")
             elif exc.status == 403:

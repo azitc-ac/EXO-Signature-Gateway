@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.140 — 2026-11-21 — DMARC-Berichte mit aktiver Postfach-Eingrenzung
+
+Ist die Postfach-Eingrenzung der Gateway-App eingeschaltet (ApplicationAccessPolicy
+mit RestrictAccess auf die Gruppe „… - App Scope“), liest die App per Graph nur
+Postfächer dieser Gruppe. Mit v1.12.138 fehlte das DMARC-Postfach in der Liste,
+aus der das Gateway die Gruppe pflegt; der Abruf scheiterte mit HTTP 403, und die
+Meldung nannte fälschlich eine fehlende Berechtigung.
+
+* Ein als **Postfach** erkanntes DMARC-Ziel gehört jetzt zur Gruppe „App Scope“.
+  Beim Speichern des Ziels zieht das Gateway die Gruppe sofort nach; Exchange
+  braucht danach einige Zeit, bis der Zugriff wirkt.
+* Eine **Microsoft-365-Gruppe** lässt sich in die Eingrenzung nicht aufnehmen
+  (Exchange nimmt GroupMailbox dort nicht an). Die DMARC-Seite sagt das schon
+  beim Erkennen des Ziels und nennt den Weg: Nimm im DMARC-Eintrag zusätzlich
+  ein geteiltes Postfach als `rua`-Adresse auf (`rua=mailto:…,mailto:…`, DMARC
+  erlaubt mehrere) und trag dieses Postfach ein.
+* Ein 403 durch die Eingrenzung wird als solcher gemeldet, nicht mehr als
+  fehlende Graph-Rolle.
+
+**Zu tun:** nichts. Nutzt du die Eingrenzung und hast schon ein DMARC-Postfach
+eingetragen, speichere es unter Einstellungen → DMARC einmal neu.
+
+---
+
 ## v1.12.139 — 2026-11-21 — Erteilte Berechtigungen wirken sofort
 
 „Fehlende Berechtigungen erteilen“ (und die Ersteinrichtung) wiesen die Rollen

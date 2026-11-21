@@ -180,8 +180,9 @@ class _Resp:
 class _Graph:
     """Graph-Attrappe: `art` = postfach | gruppe; Anhänge je Element."""
 
-    def __init__(self, art, anhang: bytes, threads_status=200):
+    def __init__(self, art, anhang: bytes, threads_status=200, fehlertext="Forbidden"):
         self.art, self.anhang, self.threads_status, self.urls = art, anhang, threads_status, []
+        self.fehlertext = fehlertext
 
     def __call__(self, **kw):
         return self
@@ -203,10 +204,12 @@ class _Graph:
         if url.endswith("/groups"):
             return _Resp(200, {"value": [{"id": "g1", "groupTypes": ["Unified"]}]})
         if url.endswith("/users/u1/messages"):
+            if self.threads_status != 200:
+                return _Resp(self.threads_status, text=self.fehlertext)
             return _Resp(200, {"value": [{"id": "m1", "subject": "Report Domain: firma.at"}]})
         if url.endswith("/groups/g1/threads"):
             if self.threads_status != 200:
-                return _Resp(self.threads_status, text="Forbidden")
+                return _Resp(self.threads_status, text=self.fehlertext)
             return _Resp(200, {"value": [{"id": "t1", "topic": "Report Domain: firma.at",
                                           "lastDeliveredDateTime": jetzt, "hasAttachments": True}]})
         if url.endswith("/threads/t1/posts"):
@@ -287,3 +290,41 @@ def test_seite_maskiert_fremdtexte():
     for zuweisung in re.findall(r"innerHTML = (.+?);\n", seite, re.S):
         for feld in re.findall(r"\b[bde]\.(\w+)", zuweisung):
             assert re.search(r"esc(Attr)?\([^)]*\b[bde]\." + feld, zuweisung) or feld in ("richtlinie",), feld
+
+
+_RAOP = ('{"error":{"code":"ErrorAccessDenied","message":"Access to OData is disabled: [RAOP] : '
+         'Blocked by tenant configured AppOnly AccessPolicy settings."}}')
+
+
+@pytest.mark.parametrize("art", ["postfach", "gruppe"])
+def test_eingrenzung_wird_als_grund_genannt_nicht_die_rolle(umgebung, monkeypatch, art):
+    """403 durch die ApplicationAccessPolicy ist KEINE fehlende Rolle — die Meldung
+    darf nicht zum (wirkungslosen) Erteilen der Berechtigung schicken."""
+    monkeypatch.setattr(dm.httpx, "Client", _Graph(art, b"", threads_status=403, fehlertext=_RAOP))
+    a = dm.abrufen()
+    assert not a["ok"] and "Eingrenzung" in a["meldung"]
+    assert dm.GRUPPEN_ROLLE not in a["meldung"]
+    if art == "gruppe":
+        assert "rua=" in a["meldung"]
+
+
+def test_gruppe_bei_aktiver_eingrenzung_meldet_das_schon_beim_erkennen(umgebung, monkeypatch):
+    nb, _ = umgebung
+    monkeypatch.setattr(dm.httpx, "Client", _Graph("gruppe", b""))
+    assert "Eingrenzung" not in dm.ziel_aufloesen().get("meldung", "")
+    nb["APP_ACCESS_POLICY_ENABLED"] = True
+    assert "Eingrenzung" in dm.ziel_aufloesen()["meldung"]
+
+
+@pytest.mark.parametrize("art,drin", [("postfach", True), ("gruppe", False)])
+def test_dmarc_postfach_steht_im_app_scope(monkeypatch, art, drin):
+    """Bei aktiver Eingrenzung liest das Gateway nur Postfächer der Gruppe
+    „App Scope“ — das DMARC-Postfach muss in deren Soll-Liste. Eine M365-Gruppe
+    nicht: Die Policy nimmt GroupMailbox nicht an."""
+    import setup_wizard
+    nb = {"MAILBOX_CONFIG": {}, "DMARC_POSTFACH": "dmarc@firma.at",
+          "_DMARC_ZIEL": {"adresse": "dmarc@firma.at", "art": art}}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: nb.get(k, d))
+    assert ("dmarc@firma.at" in setup_wizard._app_scope_adressen()) is drin
+    nb["DMARC_POSTFACH"] = ""                      # Ziel entfernt → nicht mehr im Scope
+    assert "dmarc@firma.at" not in setup_wizard._app_scope_adressen()

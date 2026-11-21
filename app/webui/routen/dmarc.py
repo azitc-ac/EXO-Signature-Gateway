@@ -34,7 +34,11 @@ async def api_dmarc_stand(aufloesen: int = 0, user: str = Depends(_require_admin
     Gruppe neu bestimmen — davon hängt ab, ob Group-Conversation.Read.All nötig ist."""
     import dmarc_berichte
     if aufloesen and dmarc_berichte.adresse():
-        await asyncio.to_thread(dmarc_berichte.ziel_aufloesen)
+        z = await asyncio.to_thread(dmarc_berichte.ziel_aufloesen)
+        if z.get("art") == "postfach" and dmarc_berichte.eingrenzung_aktiv():
+            # Postfach in die Gruppe „App Scope“ — sonst sperrt die Eingrenzung.
+            import setup_wizard
+            await asyncio.to_thread(setup_wizard.app_scope_nachziehen)
     daten = await asyncio.to_thread(dmarc_berichte.uebersicht)
     ampel, text = dmarc_berichte.bewertung()
     return JSONResponse({"ok": True, "ampel": ampel, "text": text, **daten})

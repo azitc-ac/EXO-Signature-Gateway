@@ -1424,6 +1424,12 @@ def _app_scope_adressen() -> list[str]:
     notif = (settings_store.get("NOTIFICATION_MAILBOX") or "").strip().lower()
     if notif and "@" in notif:
         adr.add(notif)
+    # DMARC-Berichte werden aus diesem Postfach gelesen. Nur bei erkanntem
+    # POSTFACH — eine Microsoft-365-Gruppe nimmt die Policy nicht an.
+    dz = settings_store.get("_DMARC_ZIEL") or {}
+    da = (dz.get("adresse") or "").strip().lower() if isinstance(dz, dict) else ""
+    if dz.get("art") == "postfach" and da and da == (settings_store.get("DMARC_POSTFACH") or "").strip().lower():
+        adr.add(da)
     # Sende-Identitäten: ihre Shared-Mailbox-Adressen brauchen ebenfalls
     # App-Zugriff — Graph `sendMail` „als" die Shared Mailbox scheitert sonst an
     # der ApplicationAccessPolicy (RAOP-403). Lazy importiert (kein Ringschluss).
@@ -1471,6 +1477,16 @@ def run_app_access_policy_sync(app_id: str, tenant_domain: str) -> dict:
     except Exception as exc:
         log.error("App-Access-Policy-Sync Fehler: %s", exc)
         return {"ok": False, "output": str(exc)}
+
+
+def app_scope_nachziehen() -> dict:
+    """run_app_access_policy_sync mit der eigenen App und dem eigenen Tenant —
+    für Stellen, die nur „Scope könnte sich geändert haben“ wissen."""
+    app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    tenant = settings_store.get("TENANT_DOMAIN") or ""
+    if not (app_id and tenant):
+        return {"ok": False, "output": "App-ID oder Tenant fehlt"}
+    return run_app_access_policy_sync(app_id, tenant)
 
 
 def run_fetch_bookings_urls(app_id: str, tenant_domain: str, emails: list[str]) -> dict:

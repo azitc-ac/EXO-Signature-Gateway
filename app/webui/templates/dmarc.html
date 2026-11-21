@@ -116,7 +116,8 @@ function dmarcZeigen(r) {
   const z = r.ziel || {};
   const art = { postfach: 'Postfach', gruppe: 'Microsoft-365-Gruppe' }[z.art];
   document.getElementById('dmarc-ziel').textContent = !r.adresse ? ''
-    : art ? 'Erkannt als ' + art + '.' : (z.meldung || 'Noch nicht geprüft — wird beim nächsten Abruf bestimmt.');
+    : art ? 'Erkannt als ' + art + '.' + (z.meldung ? ' ' + z.meldung : '')
+    : (z.meldung || 'Noch nicht geprüft — wird beim nächsten Abruf bestimmt.');
   document.getElementById('dmarc-gruppe-rechte').hidden = z.art !== 'gruppe';
 
   const a = r.abruf || {};
