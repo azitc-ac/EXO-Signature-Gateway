@@ -412,7 +412,9 @@ async def complete_order_after_challenge(order: dict) -> None:
     )
 
     try:
-        if order.get("status") != "validating":
+        # validating/finalizing (nach Neustart wieder aufgenommen): Die Challenge
+        # ist schon ausgelöst — nicht erneut warten und auslösen.
+        if order.get("status") not in ("validating", "finalizing"):
             # Wait for CASTLE's MX (Cloudflare Email Routing) to deliver our reply.
             # We send direct SMTP to castle.cloud MX — typically <5s delivery.
             # 30s buffer is conservative; triggering too early → CASTLE marks "invalid".
@@ -426,50 +428,22 @@ async def complete_order_after_challenge(order: dict) -> None:
         log.info("[acme:%s] polling order status for %s (timeout 1800s)", fid, email)
         order_data = await client.poll_order_status(order["order_url"], timeout_sec=1800)
         status = order_data.get("status")
-        if status != "ready":
+        if status not in ("ready", "valid"):
             log.error("[acme:%s] order for %s ended with status=%s", fid, email, status)
             save_order(email, {**order, "status": "error", "error": f"order status={status}"})
             return
-
-        log.info("[acme:%s] order ready for %s — submitting CSR", fid, email)
-        # (Existing-cert revocation for the CASTLE renewal bug happens at order
-        # creation time in initiate_acme_order — it must precede new-order, not
-        # finalize.) Small grace period before finalize (eventual-consistency).
-        await asyncio.sleep(5)
-        # Finalize: submit CSR
-        save_order(email, {**order, "status": "finalizing"})
-        csr_der = b64url_decode_csr(order["csr_der_b64"])
-        await client.finalize(order_data["finalize"], csr_der)
-
-        # Poll until "valid"
-        for _ in range(60):
-            await asyncio.sleep(10)
-            r = await client._post(order["order_url"], None)
-            r.raise_for_status()
-            od = r.json()
-            if od.get("status") == "valid":
-                cert_url = od.get("certificate")
-                break
+        if status == "valid":
+            # Finalize lief schon vor einem Neustart durch (Zustand „finalizing“):
+            # nicht noch einmal einreichen, nur das Zertifikat abholen.
+            cert_url = order_data.get("certificate")
+            log.info("[acme:%s] order for %s already valid — downloading certificate", fid, email)
         else:
-            raise TimeoutError("Order did not reach 'valid' after finalize")
+            cert_url = await _finalisieren(client, order, order_data, email, fid)
 
         log.info("[acme:%s] order valid for %s — downloading certificate", fid, email)
         # Download cert
         cert_pem = await client.download_certificate(cert_url)
-
-        # Import into smime_store
-        import smime_store
-        key_pem = order["cert_key_pem"].encode()
-        info = smime_store.store_pem_slot(email, cert_pem, key_pem)
-        log.info("[acme:%s] cert imported for %s: expiry=%s slot=%s", fid, email, info.get("expiry"), info.get("slot_id"))
-
-        # Success notification to admin
-        if settings_store.get("NOTIFY_CERT_RENEWAL") is not False:
-            import notification
-            notification.send_cert_renewal_success(email, info)
-
-        clear_order(email)
-        log.info("[acme:%s] ENROLLMENT COMPLETE for %s", fid, email)
+        await _zertifikat_uebernehmen(order, cert_pem, email, fid)
 
     except Exception as exc:
         log.error("[acme:%s] order completion failed for %s: %s", fid, email, exc)
@@ -477,6 +451,46 @@ async def complete_order_after_challenge(order: dict) -> None:
         if settings_store.get("NOTIFY_CERT_RENEWAL") is not False:
             import notification
             notification.send_cert_renewal_failure(email, f"ACME-Fehler: {exc}")
+
+
+async def _finalisieren(client, order: dict, order_data: dict, email: str, fid: str) -> str:
+    """CSR einreichen und auf „valid“ warten. Liefert die Zertifikats-URL."""
+    log.info("[acme:%s] order ready for %s — submitting CSR", fid, email)
+    # (Existing-cert revocation for the CASTLE renewal bug happens at order
+    # creation time in initiate_acme_order — it must precede new-order, not
+    # finalize.) Small grace period before finalize (eventual-consistency).
+    await asyncio.sleep(5)
+    # Finalize: submit CSR
+    save_order(email, {**order, "status": "finalizing"})
+    csr_der = b64url_decode_csr(order["csr_der_b64"])
+    await client.finalize(order_data["finalize"], csr_der)
+
+    # Poll until "valid"
+    for _ in range(60):
+        await asyncio.sleep(10)
+        r = await client._post(order["order_url"], None)
+        r.raise_for_status()
+        od = r.json()
+        if od.get("status") == "valid":
+            return od.get("certificate")
+    raise TimeoutError("Order did not reach 'valid' after finalize")
+
+
+async def _zertifikat_uebernehmen(order: dict, cert_pem, email: str, fid: str) -> None:
+    """Zertifikat ablegen, Erfolg melden, Bestellung abschließen."""
+    # Import into smime_store
+    import smime_store
+    key_pem = order["cert_key_pem"].encode()
+    info = smime_store.store_pem_slot(email, cert_pem, key_pem)
+    log.info("[acme:%s] cert imported for %s: expiry=%s slot=%s", fid, email, info.get("expiry"), info.get("slot_id"))
+
+    # Success notification to admin
+    if settings_store.get("NOTIFY_CERT_RENEWAL") is not False:
+        import notification
+        notification.send_cert_renewal_success(email, info)
+
+    clear_order(email)
+    log.info("[acme:%s] ENROLLMENT COMPLETE for %s", fid, email)
 
 
 def b64url_decode_csr(s: str) -> bytes:
@@ -632,8 +646,38 @@ async def zertifikat_widerrufen(email: str, slot_id: str, grund: str, wer: str) 
                                       f"speichern ({exc}) — das Gateway signiert sonst weiter damit. "
                                       "Bitte Zugriffsrechte auf data/smime prüfen und erneut widerrufen."}
     if erfolg:
-        return {"ok": True}
+        return {"ok": True, "erneuerung_aus": _erneuerung_nach_widerruf(email, slot_id, grund, fid)}
     return {"ok": False, "error": f"CASTLE hat den Widerruf abgelehnt — Protokoll [acme:{fid}]"}
+
+
+# Gründe, bei denen nach dem Widerruf weiter (sofort) neu bestellt werden soll.
+WIDERRUF_MIT_NEUBESTELLUNG = ("ersetzt", "schluessel_kompromittiert")
+
+
+def _erneuerung_nach_widerruf(email: str, slot_id: str, grund: str, fid: str) -> bool:
+    """Nach dem Widerruf des STANDARD-Zertifikats „Automatisch erneuern“
+    abschalten — außer bei „ersetzt“/„kompromittiert“ (Entscheidung 21.11.2026).
+
+    Warum: Der Scheduler behandelt ein widerrufenes Standardzertifikat wie
+    abgelaufen (days=0) und bestellte am Folgetag ohne Ankündigung neu — auch
+    beim Grund „nicht mehr benötigt“, beim Hub-Bezug womöglich kostenpflichtig.
+    Ein älterer, nicht mehr benutzter Slot lässt die Einstellung unberührt.
+    Liefert True, wenn abgeschaltet wurde."""
+    import smime_store
+    if grund in WIDERRUF_MIT_NEUBESTELLUNG:
+        return False
+    standard = smime_store.SMIME_DIR / email.lower().strip() / "default"
+    if not (standard.exists() and standard.read_text().strip() == slot_id):
+        return False
+    alle = dict(settings_store.get("CA_USER_CONFIG") or {})
+    cfg = dict(alle.get(email) or {})
+    if cfg.get("auto_renew") is False:
+        return False
+    cfg["auto_renew"] = False
+    alle[email] = cfg
+    settings_store.force_update({"CA_USER_CONFIG": alle})
+    log.info("[acme:%s] Widerruf (%s) für %s: automatische Erneuerung abgeschaltet", fid, grund, email)
+    return True
 
 
 # ── Entry point: handle intercepted challenge email ───────────────────────────
@@ -1001,7 +1045,9 @@ def resume_pending_polls() -> None:
     """
     On startup: restart any in-flight ACME tasks that were killed by a container restart.
     - waiting_challenge → restart mailbox poller
+    - challenge_replied → restart completion (wait + trigger challenge)
     - validating        → restart post-challenge completion (skip sleep+trigger)
+    - finalizing        → poll; already „valid“ → only download (no second finalize)
     """
     with _lock:
         _load_orders()
@@ -1013,6 +1059,11 @@ def resume_pending_polls() -> None:
         if status == "waiting_challenge":
             log.info("[acme:%s] resuming mailbox poll for %s after restart", fid, email)
             _register_task(email, asyncio.create_task(_poll_mailbox_for_challenge(email)))
-        elif status == "validating":
-            log.info("[acme:%s] resuming validating order for %s after restart", fid, email)
+        elif status in ("validating", "challenge_replied", "finalizing"):
+            # challenge_replied/finalizing blieben bis v1.12.146 nach einem Neustart
+            # liegen (Review 21.11.): keine Aufgabe, keine Fehlermail, eine
+            # Neubestellung einen Tag gesperrt — und das alte Zertifikat war vor
+            # der Bestellung schon widerrufen. complete_order_after_challenge
+            # kennt alle drei Einstiege (auslösen / nur warten / nur abholen).
+            log.info("[acme:%s] resuming %s order for %s after restart", fid, status, email)
             _register_task(email, asyncio.create_task(complete_order_after_challenge(order)))

@@ -190,3 +190,31 @@ def test_kaputter_zip_eintrag_ist_ein_paketfehler():
     roh[i + 30 + len("Signatur.html"):i + 60 + len("Signatur.html")] = b"\xff" * 30   # Daten zerstören
     with pytest.raises(vp.PaketFehler):
         vp.eingaben_aus_upload([("paket.zip", bytes(roh))])
+
+
+# ── Review 21.11.: Probe-Rendern und Art beim Überschreiben ─────────────────
+
+@pytest.mark.parametrize("html", ['<p>{{ user.displayName|gibtsnicht }}</p>',
+                                  '<p>{% include "fehlt.html" %}</p>'])
+def test_import_rendert_probe_mit_der_echten_sandbox(verz, html):
+    """parse() allein ließ unbekannte Filter/Includes durch; render() lieferte
+    danach still "" — die Mail ging ohne Signatur hinaus."""
+    v = vp.lesen(_eingaben({"Kaputt.html": html.encode()}))["vorlagen"][0]
+    assert "nicht darstellen" in v["fehler"], v
+
+
+def test_gueltige_vorlage_rendert_probe(verz):
+    v = vp.lesen(_eingaben({"Gut.html": b"<p>{{ user.displayName }}</p>"}))["vorlagen"][0]
+    assert not v["fehler"], v
+
+
+def test_ueberschreiben_ohne_meta_aendert_die_art_nicht(verz):
+    (verz / "Hinweis.html").write_text("<p>Banner</p>")
+    (verz / "Hinweis.meta.json").write_text(json.dumps({"kind": "banner", "blocks": [{"type": "text"}]}))
+    eing = _eingaben({"Hinweis.html": b"<p>neu</p>"})
+    v = vp.lesen(eing)["vorlagen"][0]
+    assert v["art_vorhanden"] == "banner" and v["art"] == "signatur"
+    r = vp.importieren(eing, {"Hinweis": {"aktion": "ueberschreiben"}}, "admin")["ergebnis"][0]
+    assert not r["ok"] and "banner" in r["meldung"]
+    assert json.loads((verz / "Hinweis.meta.json").read_text())["kind"] == "banner"
+    assert (verz / "Hinweis.html").read_text() == "<p>Banner</p>"

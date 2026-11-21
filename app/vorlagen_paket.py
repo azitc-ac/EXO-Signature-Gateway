@@ -225,6 +225,18 @@ def _pruefen(basis: str, teile: dict[str, bytes]) -> dict:
         e["art"] = art
     if e["art"] not in ARTEN_IMPORT:
         e["fehler"] = "Nachrichten an Postfachinhaber lassen sich nicht importieren"
+        return e
+    fehler = signature_engine.quelle_rendert_nicht(html, e["art"])
+    if fehler:
+        e["fehler"] = f"Vorlage lässt sich nicht darstellen: {fehler}"[:300]
+        return e
+    # Überschreiben ohne Baukasten-Daten machte aus einem Banner/Disclaimer/
+    # einer Abwesenheitsvorlage still eine Signatur (vorlagen_art fällt ohne
+    # .meta.json auf „signatur“) — sie verschwand aus ihrer Auswahl. Die Art
+    # der vorhandenen Vorlage zeigt der Dialog; importieren() verweigert dann
+    # das Überschreiben (Umbenennen geht).
+    if e["vorhanden"] and not e["reserviert"] and not e["baukasten"]:
+        e["art_vorhanden"] = signature_engine.vorlagen_art(_datei_von_name(name))
     return e
 
 
@@ -329,6 +341,13 @@ def importieren(eingaben: list[tuple[str, bytes]], entscheidungen: dict[str, dic
                 continue
         elif aktion == "ueberschreiben":
             ziel = name
+            alt = e.get("art_vorhanden")
+            if alt and alt != e["art"]:
+                ergebnis.append({"name": name, "ok": False, "meldung":
+                                 f"die vorhandene Vorlage ist ein(e) {alt}, das Paket enthält "
+                                 f"keine Baukasten-Daten (würde zur {e['art']}) — umbenennen "
+                                 "oder die Vorlage mit Baukasten-Daten exportieren"})
+                continue
         else:
             ergebnis.append({"name": name, "ok": False, "meldung": f"unbekannte Aktion {aktion!r}"})
             continue

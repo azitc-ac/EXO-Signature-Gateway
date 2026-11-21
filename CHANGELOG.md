@@ -5,6 +5,50 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.147 — 2026-11-21 — Widerruf ohne stille Neubestellung, Bestellungen überstehen Neustarts, Direktversand ohne alte DKIM, sichererer Vorlagenimport
+
+### S/MIME
+
+* **Widerruf bestellt nicht mehr still neu.** Das Gateway behandelte ein
+  widerrufenes Standardzertifikat wie ein abgelaufenes und bestellte am Folgetag
+  ohne Ankündigung ein neues, auch beim Grund „nicht mehr benötigt“. Beim
+  Bezug über den Hub konnte das Kosten verursachen. Jetzt schaltet der Widerruf
+  des Standardzertifikats „Automatisch erneuern“ für das Postfach ab. Ausnahmen
+  sind die Gründe „ersetzt“ und „Schlüssel kompromittiert“: Dann wird wie
+  bisher gleich neu bestellt. Der Widerruf eines älteren, nicht mehr benutzten
+  Zertifikats lässt die Einstellung unberührt. Dialog und Rückmeldung sagen,
+  was passiert.
+* **CASTLE-Bestellungen überstehen einen Neustart.** Startete das Gateway neu,
+  während eine Bestellung nach der Antwort auf die Challenge oder beim
+  Abschließen war, blieb sie liegen. Es kam keine Fehlermail, und eine neue
+  Bestellung war einen Tag gesperrt; das alte Zertifikat war zu diesem Zeitpunkt
+  schon widerrufen. Jetzt nimmt das Gateway sie nach dem Neustart wieder auf.
+  War sie bei CASTLE schon fertig, holt es nur noch das Zertifikat ab.
+
+### Direktversand
+
+* **Alte DKIM-/ARC-Signaturen werden entfernt.** Post, die das Gateway über den
+  eigenen Postfix direkt zustellt, trug neben der eigenen DKIM-Signatur noch
+  die Signatur von vor dem Gateway. Weil das Gateway den Inhalt verändert,
+  stand beim Empfänger „dkim=fail“ daneben, und die ARC-Kette war gebrochen.
+  Die Rückwege über Port 25 und 587 entfernen sie schon; jetzt auch dieser Weg.
+
+### Vorlagen importieren
+
+* **Probe-Darstellung beim Prüfen.** Bisher prüfte der Import nur die Syntax.
+  Eine Vorlage mit unbekanntem Filter oder fehlender eingebundener Datei galt
+  als importierbar, und beim Versand fiel die Signatur dann still weg. Jetzt
+  stellt der Import jede Vorlage probeweise mit derselben abgesicherten
+  Umgebung dar wie der Versand und lehnt sie mit Grund ab, wenn das scheitert.
+* **Die Art einer Vorlage ändert sich nicht still.** Ein Paket ohne
+  Baukasten-Daten machte beim Überschreiben aus einem Banner, Disclaimer oder
+  einer Abwesenheitsvorlage eine Signatur; sie verschwand aus ihrer Auswahl.
+  Jetzt bietet der Dialog in diesem Fall nur Umbenennen an und sagt, warum.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.146 — 2026-11-21 — Korrekturen aus der Durchsicht von v1.12.113–144
 
 ### DMARC-Auswertung

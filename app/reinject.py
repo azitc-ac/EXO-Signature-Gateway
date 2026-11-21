@@ -591,7 +591,11 @@ def _an_postfix(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     Postfix (siehe `direktversand.py`)."""
     import direktversand
     import dkim_signatur
-    inhalt, ergebnis = dkim_signatur.signieren(direktversand.kopf_bereinigen(content_bytes))
+    # Alte DKIM/ARC von vor dem Gateway entfernen (wie _send_smtp und der
+    # 587-Weg): Der Rumpf ist verändert, sie bestünden beim Empfänger nicht
+    # („dkim=fail“ neben der eigenen, ARC cv=fail). Fehlte hier bis v1.12.146.
+    inhalt, ergebnis = dkim_signatur.signieren(
+        _strip_stale_signatures(direktversand.kopf_bereinigen(content_bytes)))
     with smtplib.SMTP(host, port, timeout=30,
                       local_hostname="exo-signature-gateway") as smtp:
         smtp.ehlo()

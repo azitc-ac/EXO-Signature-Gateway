@@ -197,3 +197,82 @@ def test_sammelbestellung_zaehlt_widerrufene_nicht(ablage):
     assert sammelbestellung._gueltige_zertifikate(EMAIL) == 1
     (basis / EMAIL / "certs" / slot / "widerrufen.json").write_text(json.dumps({"grund": "x"}))
     assert sammelbestellung._gueltige_zertifikate(EMAIL) == 0
+
+
+# ── S1 (Review 21.11.): Widerruf bestellt nicht still neu ───────────────────
+
+@pytest.mark.parametrize("grund,standard,aus", [
+    ("nicht_mehr_benoetigt", True, True),
+    ("ersetzt", True, False),
+    ("schluessel_kompromittiert", True, False),
+    ("nicht_mehr_benoetigt", False, False),          # alter Slot: Einstellung bleibt
+])
+def test_widerruf_schaltet_erneuerung_ab(ablage, monkeypatch, grund, standard, aus):
+    from test_zertifikat_widerruf import _Client, _knopf
+    basis, werte, _ = ablage
+    aktuell = _slot(basis, tage=300)
+    slot = aktuell if standard else _slot(basis, standard=False, tage=100)
+    werte["CA_USER_CONFIG"] = {EMAIL: {"backend": "castle_acme", "auto_renew": True}}
+    r = _knopf(monkeypatch, _Client(), slot, grund)
+    assert r["ok"] and r["erneuerung_aus"] is aus
+    assert werte["CA_USER_CONFIG"][EMAIL]["auto_renew"] is (not aus)
+
+
+# ── S2 (Review 21.11.): Bestellungen nach einem Neustart wieder aufnehmen ───
+
+@pytest.mark.parametrize("status", ["challenge_replied", "validating", "finalizing"])
+def test_neustart_nimmt_bestellung_wieder_auf(monkeypatch, status):
+    import acme_state
+    order = {"email": EMAIL, "status": status, "flow_id": "f1"}
+    monkeypatch.setattr(acme_state, "_load_orders", lambda: None)
+    monkeypatch.setattr(acme_state, "_orders", {EMAIL: order})
+    aufgenommen = []
+
+    async def _fertig(o):
+        aufgenommen.append(o["status"])
+    monkeypatch.setattr(acme_state, "complete_order_after_challenge", _fertig)
+    monkeypatch.setattr(acme_state, "_register_task", lambda e, t: None)
+
+    async def _lauf():
+        acme_state.resume_pending_polls()
+        await asyncio.sleep(0)
+    asyncio.run(_lauf())
+    assert aufgenommen == [status]
+
+
+class _AcmeClient:
+    """ACME-Attrappe: Bestellung ist schon „valid“ (Finalize lief vor dem Neustart)."""
+    def __init__(self, *a, **k):
+        self.aufrufe = []
+
+    async def trigger_challenge(self, url):
+        self.aufrufe.append("trigger")
+
+    async def poll_order_status(self, url, timeout_sec=0):
+        self.aufrufe.append("poll")
+        return {"status": "valid", "certificate": "https://zert"}
+
+    async def finalize(self, *a):
+        self.aufrufe.append("finalize")
+
+    async def download_certificate(self, url):
+        self.aufrufe.append("download")
+        return "PEM"
+
+
+def test_finalizing_holt_nur_ab_ohne_zweites_finalize(monkeypatch):
+    import acme_state
+    client = _AcmeClient()
+    monkeypatch.setattr(acme_state, "AcmeClient", lambda *a, **k: client)
+    monkeypatch.setattr(acme_state, "get_or_create_account_key", lambda e: None)
+    monkeypatch.setattr(acme_state, "get_account_url", lambda e, staging=False: "u")
+    uebernommen = []
+
+    async def _uebernehmen(order, pem, email, fid):
+        uebernommen.append(pem)
+    monkeypatch.setattr(acme_state, "_zertifikat_uebernehmen", _uebernehmen)
+    monkeypatch.setattr(acme_state, "save_order", lambda e, s: None)
+    order = {"email": EMAIL, "status": "finalizing", "flow_id": "f1", "order_url": "o",
+             "challenge_url": "c"}
+    asyncio.run(acme_state.complete_order_after_challenge(order))
+    assert client.aufrufe == ["poll", "download"] and uebernommen == ["PEM"]
