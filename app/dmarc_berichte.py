@@ -644,6 +644,15 @@ def _richtlinien(berichte: dict) -> dict[str, dict]:
     return {d: v[1] for d, v in r.items()}
 
 
+
+def _n(n: int, eins: str, mehr: str) -> str:
+    return eins if n == 1 else mehr
+
+
+def _mails(n: int) -> str:
+    """„1 Mail“, „4 Mails“ — Befundtexte stehen so in Oberfläche und Tagesbericht."""
+    return f"{n} {_n(n, 'Mail', 'Mails')}"
+
 def befunde(berichte: dict, jetzt: float | None = None) -> list[dict]:
     """[{kennung, stufe, art, domain, ip, mails, text, empfehlung}] — hoch zuerst."""
     aus = []
@@ -658,8 +667,9 @@ def befunde(berichte: dict, jetzt: float | None = None) -> list[dict]:
         fail = e["fail_zugestellt"] + e["fail_abgewiesen"]
         if e["fail_zugestellt"]:
             neu("hoch", "fail_zugestellt", dom, ip, e["fail_zugestellt"],
-                f"{e['fail_zugestellt']} Mails von {ip} im Namen von {dom} bestanden DMARC nicht "
-                "und wurden trotzdem zugestellt.",
+                f"{_mails(e['fail_zugestellt'])} von {ip} im Namen von {dom} "
+                f"{_n(e['fail_zugestellt'], 'bestand', 'bestanden')} DMARC nicht und "
+                f"{_n(e['fail_zugestellt'], 'wurde', 'wurden')} trotzdem zugestellt.",
                 "Gehört die Quelle zu dir (Newsletter, CRM, Drucker, Fremddienst)? Dann SPF bzw. "
                 "DKIM dort einrichten. Sonst ist es eine Fälschung — die Richtlinie auf "
                 "quarantine oder reject anheben.")
@@ -671,20 +681,20 @@ def befunde(berichte: dict, jetzt: float | None = None) -> list[dict]:
                 "Weiterleitungen. Die Kopfzeilen einer betroffenen Mail zeigen den Weg.")
         if e["nur_spf"]:
             neu("mittel", "nur_spf", dom, ip, e["nur_spf"],
-                f"{e['nur_spf']} Mails von {ip} bestanden DMARC nur über SPF; DKIM fehlte oder "
-                f"passte nicht zu {dom}.",
+                f"{_mails(e['nur_spf'])} von {ip} {_n(e['nur_spf'], 'bestand', 'bestanden')} DMARC "
+                f"nur über SPF; DKIM fehlte oder passte nicht zu {dom}.",
                 "DKIM für diesen Versender einrichten. Ohne DKIM fällt DMARC bei jeder "
                 "Weiterleitung durch.")
         if e["dkim_zusatz_kaputt"]:
             neu("mittel", "dkim_zusatz_kaputt", dom, ip, e["dkim_zusatz_kaputt"],
-                f"{e['dkim_zusatz_kaputt']} Mails von {ip} trugen neben einer gültigen auch eine "
-                f"ungültige DKIM-Signatur von {dom}.",
+                f"{_mails(e['dkim_zusatz_kaputt'])} von {ip} {_n(e['dkim_zusatz_kaputt'], 'trug', 'trugen')} "
+                f"neben einer gültigen auch eine ungültige DKIM-Signatur von {dom}.",
                 "Ein Weg reicht eine veraltete Signatur weiter. Das Gateway entfernt sie seit "
                 "v1.12.137 auf allen Rückwegen; bleibt der Befund, liegt die Quelle woanders.")
         if fail and not e["bestanden"] and not e["fail_zugestellt"]:
             neu("info", "abgewiesen", dom, ip, fail,
-                f"{fail} Mails von {ip} im Namen von {dom} bestanden DMARC nicht und wurden "
-                "abgewiesen oder isoliert.",
+                f"{_mails(fail)} von {ip} im Namen von {dom} {_n(fail, 'bestand', 'bestanden')} DMARC "
+                f"nicht und {_n(fail, 'wurde', 'wurden')} abgewiesen oder isoliert.",
                 "Die Richtlinie wirkt. Nur handeln, wenn die Quelle doch zu dir gehört.")
     for dom, r in sorted(_richtlinien(berichte).items()):
         if r.get("p") == "none":

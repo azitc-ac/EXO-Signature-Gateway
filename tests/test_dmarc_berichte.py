@@ -161,6 +161,16 @@ def test_befunde_je_fall():
     assert bf[0]["stufe"] == "hoch"                                   # hoch zuerst
 
 
+def test_befundtexte_in_einzahl_und_mehrzahl():
+    """„1 Mails … trugen“ stand so in Oberfläche und Tagesbericht."""
+    x = _xml(_rec("192.0.2.7", 1, "fail", "pass") + _rec("192.0.2.8", 4, "fail", "pass")
+             + _rec("192.0.2.9", 1, "fail", "fail", "none"))
+    t = {f["ip"]: f["text"] for f in dm.befunde(_berichte(x))}
+    assert t["192.0.2.7"].startswith("1 Mail von ") and " bestand DMARC" in t["192.0.2.7"]
+    assert t["192.0.2.8"].startswith("4 Mails von ") and " bestanden DMARC" in t["192.0.2.8"]
+    assert "1 Mail von" in t["192.0.2.9"] and " wurde trotzdem" in t["192.0.2.9"]
+
+
 def test_richtlinie_none_ist_mittel_und_alte_berichte_zaehlen_nicht():
     alt = int(time.time()) - (dm.AUSWERTUNG_TAGE + 5) * 86400
     a = _arten(dm.befunde(_berichte(_xml(_rec("192.0.2.2", 7, "fail", "fail"), p="none", ende=alt))))

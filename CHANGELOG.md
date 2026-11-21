@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.144 — 2026-11-21 — Nachträglich gefüllte Hinweise lassen sich aufklappen
+
+Lange Erklärtexte werden auf zwei Zeilen gekürzt und bekommen einen Schalter
+„mehr“. Hinweise, deren Text ein Skript erst nach dem Seitenaufbau einsetzt
+(etwa unter Einstellungen → DMARC das erkannte Ziel und „Letzter Abruf …“),
+waren beim Aufbau noch leer und bekamen deshalb keinen Schalter. Wurde die
+Fenstergröße danach neu bewertet (am Telefon schon beim Ein- und Ausblenden
+der Adressleiste), kürzte das Gateway sie trotzdem auf zwei Zeilen. Der Text
+war dann abgeschnitten und ließ sich nicht aufklappen.
+
+Jetzt bekommt ein Hinweis, der bei der Neubewertung überläuft, seinen Schalter
+dazu, und ein Hinweis wird auch neu bewertet, wenn sich sein Text ändert.
+Hinweise, die ausdrücklich nie gekürzt werden sollen (`data-clamp="nie"`),
+bleiben auch nach einer Größenänderung vollständig.
+
+Außerdem stehen die DMARC-Befunde jetzt in richtiger Einzahl („1 Mail von …
+trug …“ statt „1 Mails von … trugen …“), in der Oberfläche wie im Tagesbericht.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.143 — 2026-11-21 — DMARC: Hinweis zur Gruppe folgt dem aktuellen Stand
 
 Der Hinweis unter dem DMARC-Ziel („Erkannt als Microsoft-365-Gruppe …“) wurde

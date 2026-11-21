@@ -199,6 +199,43 @@ def test_lange_erklaertexte_bekommen_einen_schalter_der_wirkt(seite):
             f"Schalter klappt nichts auf: {hat}")
 
 
+def test_nachtraeglich_gesetzter_hinweis_bekommt_einen_schalter(seite):
+    """Ein Hinweis, der beim Seitenaufbau leer ist und dessen Text ein Skript
+    erst danach setzt (DMARC-Ziel, „Letzter Abruf …“), wurde bis 2026-11-21 beim
+    nächsten resize auf zwei Zeilen gekürzt — OHNE Schalter: abgeschnitten, nicht
+    aufklappbar. `data-clamp="nie"` aus der Vorlage muss dabei ungekürzt bleiben."""
+    pg = seite("/settings/dmarc")
+    pg.evaluate("""() => {
+      const karte = document.querySelector('.settings-card') || document.body;
+      for (const [id, nie] of [['t-leer', false], ['t-nie', true]]) {
+        const d = document.createElement('div');
+        d.id = id; d.className = 'hint';
+        if (nie) d.dataset.clamp = 'nie';
+        karte.appendChild(d);
+      }
+    }""")
+    pg.wait_for_timeout(400)                                # leer bewertet: „passt“
+    lang = "Ein langer Hinweis, der nachträglich gesetzt wird. " * 12
+    pg.evaluate("t => { for (const id of ['t-leer', 't-nie']) "
+                "document.getElementById(id).textContent = t; }", lang)
+    pg.wait_for_timeout(400)
+    pg.set_viewport_size({"width": 380, "height": 850})    # Adressleiste o. ä.
+    pg.wait_for_timeout(500)
+    stand = pg.evaluate("""() => {
+      const h = id => document.getElementById(id);
+      const s = h('t-leer').nextElementSibling;
+      const schalter = !!(s && s.classList.contains('hint-toggle') && s.style.display !== 'none');
+      const zu = h('t-leer').getBoundingClientRect().height;
+      if (schalter) s.click();
+      return {schalter, zu, auf: h('t-leer').getBoundingClientRect().height,
+              nie: h('t-nie').dataset.clamp,
+              nieZeilen: h('t-nie').scrollHeight > h('t-nie').clientHeight + 4};
+    }""")
+    assert stand["schalter"], f"gekürzt ohne Schalter: {stand}"
+    assert stand["auf"] > stand["zu"] + 4, f"Schalter klappt nichts auf: {stand}"
+    assert stand["nie"] == "nie" and not stand["nieZeilen"], f"„nie“ wurde gekürzt: {stand}"
+
+
 # ── Speicherwache und Leiste ─────────────────────────────────────────────────
 
 def test_speicherknopf_ist_erst_nach_einer_aenderung_bedienbar(seite):
