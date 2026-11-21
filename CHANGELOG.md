@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.150 — 2026-11-21 — Prüfgrundlage der Codeprüfung ergänzt
+
+Die Prüfung auf kopierten Oberflächen-Code kennt jetzt die neuen Zeilen der
+Aktionstabelle des Mailprotokolls aus v1.12.149 als gewollt. Am Produkt ändert
+sich nichts gegenüber v1.12.149.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.149 — 2026-11-21 — Übersicht: jede Zahl sagt, was sie misst
 
 ### Heute heißt heute, in deiner Zeitzone

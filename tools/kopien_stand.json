@@ -26,6 +26,12 @@
    "von": 144,
    "auf": 152,
    "grund": "Neue Zeile regel_probe in der Datentabelle AKTIONEN (Aktionsname → Text/Marke fürs Mailprotokoll, v1.12.64). Tabellenzeilen ähneln sich zwangsläufig; keine Code-Kopie."
+  },
+  {
+   "datei": "app/webui/templates/base.html",
+   "von": 152,
+   "auf": 192,
+   "grund": "Neun neue Zeilen in der Datentabelle AKTIONEN (v1.12.149): fünf neue Protokollaktionen (smime_signiert_verschluesselt, smime_decrypt_fehler, tenant_fehler, ohne_zertifikat, zustellfehler) und vier Gruppen-Titel (@verarbeitet …) für die Klicklisten der Übersicht. Tabellenzeilen ähneln sich zwangsläufig; keine Code-Kopie."
   }
  ]
 }
