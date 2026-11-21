@@ -171,6 +171,17 @@
         relay_abgelehnt:    ['Abgewiesen',     'fehler'],
         smime_encrypt_fehler: ['Verschl. fehlgeschl.', 'fehler'],
         regel_probe:        ['Regelprobe',     'neutral'],
+        // seit v1.12.148 getrennt (Übersicht: Zahl und Klickliste decken sich)
+        smime_signiert_verschluesselt: ['S/MIME sign.+enc.', 'verschluesselt'],
+        smime_decrypt_fehler: ['Entschl. fehlgeschl.', 'fehler'],
+        tenant_fehler:      ['Weiterl. fehlgeschl.', 'fehler'],
+        ohne_zertifikat:    ['Ohne Zertifikat', 'warnung'],
+        zustellfehler:      ['Zustellfehler',  'warnung'],
+        // Gruppen (mail_audit.AKTIONSGRUPPEN) — nur als Titel der Klickliste
+        '@verarbeitet':     ['Verarbeitet',    'neutral'],
+        '@smime_signiert':  ['S/MIME signiert', 'smime'],
+        '@smime_verschluesselt': ['S/MIME verschlüsselt', 'verschluesselt'],
+        '@fehler':          ['Fehler (Gateway)', 'fehler'],
       };
       function aktionText(aktion) { return (AKTIONEN[aktion] || [aktion || ''])[0]; }
       function aktionMarke(aktion) {

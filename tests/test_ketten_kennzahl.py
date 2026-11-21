@@ -32,6 +32,8 @@ Wirkung messen — sonst verlässt man sich auf sie und sie zählt etwas anderes
 """
 from __future__ import annotations
 
+import re
+
 from pathlib import Path
 
 import pytest
@@ -113,10 +115,13 @@ def test_tagesbericht_fuehrt_beide_zeitraeume():
 def test_uebersicht_zeigt_beide_kennzahlen(kennzahl):
     """Die Übersicht ist der Ort, an den der Betreiber ohnehin sieht."""
     dashboard = (VORLAGEN / "dashboard.html").read_text()
-    assert f"stats_daily.{kennzahl}" in dashboard, \
+    # Seit v1.12.149 je Zeile über das Makro kz(label, schlüssel, …), das alle
+    # Spalten (heute, 3 Tage, Monate, Jahr) aus demselben Schlüssel füllt.
+    assert re.search(rf'kz\("[^"]+", "{kennzahl}"', dashboard), \
         f"{kennzahl} fehlt auf der Übersicht"
-    assert f"stats_monthly.{kennzahl}" in dashboard, \
-        f"{kennzahl} fehlt in der Monatsspalte der Übersicht"
+    makro = dashboard[dashboard.index("{% macro kz("):dashboard.index("{% endmacro %}", dashboard.index("{% macro kz("))]
+    assert "stats_daily[k]" in makro and "stats_monthly[k]" in makro, \
+        "kz füllt die Tages- oder Monatsspalte nicht"
 
 
 def test_handler_zaehlt_beide_und_nur_bei_antworten():

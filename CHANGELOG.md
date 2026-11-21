@@ -5,6 +5,68 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.149 — 2026-11-21 — Übersicht: jede Zahl sagt, was sie misst
+
+### Heute heißt heute, in deiner Zeitzone
+
+„Heute“, die Monate und das Jahr zählen jetzt nach dem Tag in der eingestellten
+Zeitzone (Erweitert → Protokoll-Zeitzone), wie schon Peak und Stundenansicht.
+Bisher galt für die Zahlen der UTC-Tag; Post zwischen Mitternacht und 1 bzw.
+2 Uhr erschien unter dem Vortag. Die Klicklisten grenzen genauso ab. Ältere
+Tage bleiben, wie sie gezählt wurden.
+
+Der Tagesbericht nennt seine Zahlen jetzt „Seit dem letzten Bericht“ mit
+Zeitpunkt, denn das misst er. Bisher stand dort „Statistiken heute“. Der
+Monatsname steht auf Deutsch.
+
+### Zahl und Klickliste zeigen dieselben Mails
+
+* **Verarbeitet:** Das ist jede Mail, die das Gateway bearbeitet oder geprüft
+  hat: Signatur, S/MIME, Portal, Entschlüsselung und Prüfung eingehender
+  Signaturen. Eingehend signierte Post zählte bisher nur, wenn die Hülle
+  abgenommen wurde. Der Klick zeigte bisher alle Protokollzeilen, auch
+  durchgereichte; jetzt nur die gezählten. Das Portal schreibt eine Zeile je
+  Mail statt je Empfänger.
+* **S/MIME signiert / verschlüsselt:** Signiert und verschlüsselte Mails stehen
+  jetzt in beiden Klicklisten. Bisher fehlten sie unter „signiert“.
+* **Mail-Peak:** Der Klick zeigt nur die Mails dieser Stunde, nicht den ganzen
+  Tag.
+
+### Fehler aufgeteilt
+
+* **Fehler (Gateway)** zählt echte Ausfälle: abgebrochene Verarbeitung,
+  gescheiterte Ver- oder Entschlüsselung, gescheiterte Tenant-Weiterleitung und
+  Zustellfehler, die in die Warteschlange gingen. Die ersten zwei Ausfälle
+  zählten bisher teils nicht oder gar nicht. Darunter stehen die einzelnen Teile,
+  sobald sie vorkommen, auch „davon Fallback“.
+* **Ohne Empfängerzertifikat abgewiesen** ist eine eigene Zeile. Das ist ein
+  Bedienfall und zählte bisher als Fehler.
+* Fehlerzähler, die bisher nur im Tagesbericht standen, erscheinen in der
+  Übersicht, sobald sie vorkommen.
+
+### Anzeige
+
+* **Add-in-Signatur ersetzt** erscheint nur, wenn das Gateway bei Antworten das
+  letzte Wort hat; sonst bleibt die Zahl immer 0.
+* **Zustellung über Microsoft Graph** erscheint nur in den Graph-Modi.
+* **Key Vault** steht als „davon über Key Vault“ unter „S/MIME signiert“ und
+  nur, wenn ein Key Vault eingetragen ist.
+* **Graph App-Pool:** Die Zahlen heißen jetzt „Token-Abrufe“. Gezählt werden
+  Token-Anforderungen, nicht einzelne Graph-Aufrufe.
+* **Zertifikate:** „läuft bald ab“ nutzt dieselbe Schwelle wie das Band oben
+  (Warnfrist für Zertifikate) statt fest 30 Tagen.
+* **Zentrale Abwesenheit** nennt den Zeitpunkt des letzten Abgleichs.
+* **Kachel Warteschlange:** Sie trennt Wartungsmodus, Graph-Rücklauf und
+  Zustellfehler. Bisher lief alles außer den Zustellfehlern unter
+  „Wartungsmodus“.
+
+Außerdem konnte das Schreiben des Tagesbericht-Stands Zählungen verlieren, die
+genau in diesem Moment eingingen. Das ist behoben.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.148 — 2026-11-21 — Tests: neutrale Beispielwerte
 
 Ein Test der Sammelbestellung verwendet als Anbieterpreis jetzt einen frei

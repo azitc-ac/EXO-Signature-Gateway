@@ -439,6 +439,20 @@ def _prev_month(year: int, month: int, delta: int = 1) -> tuple[int, int]:
     return year, m
 
 
+def _ortszeit_kurz(iso: str | None) -> str:
+    """ISO-Zeitstempel (UTC) → „21.11. 10:37“ in der Anzeige-Zeitzone, "" ohne Wert."""
+    from datetime import datetime as _dt, timezone as _tz
+    if not iso:
+        return ""
+    try:
+        t = _dt.fromisoformat(str(iso).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=_tz.utc)
+        return t.astimezone(settings_store.anzeige_zone()).strftime("%d.%m. %H:%M")
+    except ValueError:
+        return ""
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, user: str = Depends(_check_auth)):
     # Solange das Setup nicht abgeschlossen ist, immer im Wizard landen (statt Dashboard) —
@@ -472,7 +486,8 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
         return _audit_mod.zeitraum_hat_detail(_detail_fenster, action or "", date_str or "")
     total = get_stats()
     daily = _stats_mod2.get_today()
-    now = _dt.now()
+    # Ortszeit (LOG_TIMEZONE) — wie die Tageszahlen (stats.heute) und der Peak.
+    now = _dt.now(settings_store.anzeige_zone()).replace(tzinfo=None)
     monthly = _stats_mod2.get_period(now.year, now.month)
     yearly  = _stats_mod2.get_period(now.year)
     prev_year = now.year - 1
@@ -489,6 +504,9 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "aktiv": _ol.get("gesetzt", 0) + _ol.get("unveraendert", 0),
             "gesamt": _ol.get("gesamt", 0),
             "kein_zugriff": _ol.get("kein_zugriff", 0),
+            # Stand des letzten Abgleichs — „X von N“ ist dessen Ergebnis, die
+            # Ursachen darunter dagegen live (Übersicht-Prüfung 21.11.).
+            "stand": _ortszeit_kurz(_ol.get("ts")),
         }
         _zs = _abw.zugriff_stand()
         ooo_status.update({
@@ -516,8 +534,25 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
     zeilen_zeigen = {
         "smime": any(isinstance(v, dict) and v.get("smime") for v in _mc.values()) or bool(signing_certs),
         "addin": bool(settings_store.get("ADDIN_ENABLED")),
+        # „Add-in-Signatur ersetzt“ zählt nur bei ANTWORT_LETZTES_WORT=gateway
+        # (handler) — sonst stand die Zeile dauerhaft auf 0.
+        "addin_ersetzt": settings_store.get("ANTWORT_LETZTES_WORT") == "gateway",
         "ablage": settings_store.reinject_mode() == "graph_plus",
+        # Graph sendMail gibt es nur in den Graph-Modi, Key Vault nur mit Vault.
+        "graph": settings_store.reinject_mode() in ("graph", "graph_plus"),
+        "keyvault": __import__("keyvault").is_configured(),
     }
+    # „Fehler (Gateway)“ = echte Ausfälle (mail_audit.AKTIONSGRUPPEN["@fehler"]):
+    # Ausnahmen, Fallback-Fälle, Ver-/Entschlüsselung gescheitert, Tenant-
+    # Weiterleitung gescheitert, Zustellfehler in die Warteschlange. NICHT:
+    # fehlendes Empfängerzertifikat (eigene Zeile, Bedienfall).
+    _FEHLER = ("errors", "smime_encrypt_fehler", "smime_decrypt_fehler", "tenant_fehler",
+               "delivery_queued")
+
+    def _mit_fehler(d: dict) -> dict:
+        d = dict(d or {})
+        d["fehler_gateway"] = sum(int(d.get(k) or 0) for k in _FEHLER)
+        return d
     vorjahr_zeigen = any(isinstance(v, (int, float)) and v for v in (prev_yearly or {}).values())
     return templates.TemplateResponse(
         request=request, name="dashboard.html",
@@ -525,14 +560,14 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "zeilen_zeigen": zeilen_zeigen,
             "vorjahr_zeigen": vorjahr_zeigen,
             "stats": total,
-            "stats_daily": daily,
-            "stats_3d": _stats_mod2.get_last_n_days(3),
+            "stats_daily": _mit_fehler(daily),
+            "stats_3d": _mit_fehler(_stats_mod2.get_last_n_days(3)),
             "date_3d_from": (now - __import__("datetime").timedelta(days=2)).strftime("%Y-%m-%d"),
-            "stats_monthly": monthly,
-            "stats_monthly_m1": _stats_mod2.get_period(m1y, m1m),
-            "stats_monthly_m2": _stats_mod2.get_period(m2y, m2m),
-            "stats_yearly": yearly,
-            "stats_prev_yearly": prev_yearly,
+            "stats_monthly": _mit_fehler(monthly),
+            "stats_monthly_m1": _mit_fehler(_stats_mod2.get_period(m1y, m1m)),
+            "stats_monthly_m2": _mit_fehler(_stats_mod2.get_period(m2y, m2m)),
+            "stats_yearly": _mit_fehler(yearly),
+            "stats_prev_yearly": _mit_fehler(prev_yearly),
             "stats_month_label": f"{_DE_MONTHS[now.month - 1]} {now.year}",
             "stats_month_m1_label": f"{_DE_MONTHS[m1m - 1]} {m1y}",
             "stats_month_m2_label": f"{_DE_MONTHS[m2m - 1]} {m2y}",
@@ -547,6 +582,7 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "cert_expiry": _cert_expiry(),
             "signing_certs": signing_certs,
             "expiring_certs": expiring_certs,
+            "warn_days": warn_days,
             "ooo_status": ooo_status,
             "active": "dashboard",
             "gateway_name": _gateway_name(),

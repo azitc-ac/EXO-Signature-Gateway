@@ -48,8 +48,8 @@ def _schreibe(f, eintraege: dict):
 
 
 def test_heute_zaehlt_nur_den_heutigen_tag(tagesdatei):
-    heute = date.today().strftime("%Y-%m-%d")
-    gestern = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    heute = stats.heute().strftime("%Y-%m-%d")
+    gestern = (stats.heute() - timedelta(days=1)).strftime("%Y-%m-%d")
     _schreibe(tagesdatei, {
         heute:   {"processed": 5, "errors": 1},
         gestern: {"processed": 99, "errors": 42},

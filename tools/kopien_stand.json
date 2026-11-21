@@ -3,7 +3,7 @@
  "tokens_in_kopien": {
   "app/webui/templates/_testmail.html": 60,
   "app/webui/templates/abwesenheit.html": 275,
-  "app/webui/templates/base.html": 152,
+  "app/webui/templates/base.html": 192,
   "app/webui/templates/relay.html": 186,
   "app/webui/templates/self.html": 275,
   "app/webui/templates/settings.html": 71,

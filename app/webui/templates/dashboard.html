@@ -47,7 +47,7 @@ function dismissWelcome() {
    Zwischenspeicher bei Microsoft) — kein Warnzustand. #}
 <div class="alert {{ 'warn' if (ooo_status.richtlinie_lange or ooo_status.zustimmung) else '' }}" style="margin-bottom:20px">
   <strong>Zentrale Abwesenheit:</strong>
-  {{ ooo_status.aktiv }} von {{ ooo_status.gesamt }} Postfächern mit zentralem Text hinterlegt.
+  {{ ooo_status.aktiv }} von {{ ooo_status.gesamt }} Postfächern mit zentralem Text hinterlegt{% if ooo_status.stand %} (Abgleich {{ ooo_status.stand }}){% endif %}.
   {% if ooo_status.richtlinie_neu %}
   {{ ooo_status.richtlinie_neu }} {{ wort(ooo_status.richtlinie_neu, 'Postfach', 'Postfächer') }}
   neu freigegeben: Microsoft übernimmt die Freigabe für die Gateway-App innerhalb von bis zu
@@ -85,11 +85,20 @@ function dismissWelcome() {
 {% else %}{{ val or 0 }}{% endif %}
 {% endmacro %}
 
-{% macro stat_row(label, d, d3, m2, m1, m, py, y, action) %}
+{# Eine Kennzahl-Zeile aus ihrem stats-Schlüssel. `action` = Aktion oder Gruppe
+   (mail_audit.AKTIONSGRUPPEN, „@verarbeitet“) — Zahl und Klickliste meinen
+   dieselben Mails (tests/test_uebersicht_zahlen.py). `art`: "" | "warn" | "fehler". #}
+{% macro kz(label, k, action, art="") %}
+{{ stat_row(label, stats_daily[k], stats_3d[k], stats_monthly_m2[k], stats_monthly_m1[k],
+            stats_monthly[k], stats_prev_yearly[k], stats_yearly[k], action, art) }}
+{% endmacro %}
+
+{% macro stat_row(label, d, d3, m2, m1, m, py, y, action, art="") %}
+{% set _f = {"fehler": "#dc2626", "warn": "#d97706"}.get(art, "") %}
 <tr style="border-bottom:1px solid #f0f0f0">
-  <td style="padding:7px 0;font-size:13px;color:#44403c;font-weight:500">{{ label }}</td>
-  <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#1c1917">{{ stat_cell(d, action, today) }}</td>
-  <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#44403c">{{ stat_cell_3d(d3, action) }}</td>
+  <td style="padding:7px 0;font-size:13px;color:{{ _f or '#44403c' }};font-weight:500">{{ label }}</td>
+  <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:{{ _f or '#1c1917' }}">{{ stat_cell(d, action, today) }}</td>
+  <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:{{ _f or '#44403c' }}">{{ stat_cell_3d(d3, action) }}</td>
   <td class="col-m2" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(m2, action, prev_month_2) }}</td>
   <td class="col-m1" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(m1, action, prev_month_1) }}</td>
   <td style="padding:7px 10px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(m, action, today_month) }}</td>
@@ -128,15 +137,19 @@ function dismissWelcome() {
       </tr>
     </thead>
     <tbody>
-      {{ stat_row("Verarbeitet", stats_daily.processed, stats_3d.processed, stats_monthly_m2.processed, stats_monthly_m1.processed, stats_monthly.processed, stats_prev_yearly.processed, stats_yearly.processed, "*") }}
+      {#- Verarbeitet = jede Mail, die das Gateway bearbeitet oder geprüft hat
+          (Signatur, S/MIME, Portal, Prüfung eingehender Signaturen), je
+          SMTP-Übergabe — eine von Exchange aufgeteilte Mail zählt je Teil. -#}
+      {{ kz("Verarbeitet", "processed", "@verarbeitet") }}
       {#- S/MIME-Zeilen nur, wenn S/MIME hier genutzt wird (oder im Jahr gezählt). -#}
       {% if zeilen_zeigen.smime or stats_yearly.smime_signed or stats_yearly.smime_encrypted or stats_yearly.smime_decrypted or stats_yearly.smime_signiert_empfangen or stats_yearly.certs_harvested %}
-      {{ stat_row("S/MIME signiert", stats_daily.smime_signed, stats_3d.smime_signed, stats_monthly_m2.smime_signed, stats_monthly_m1.smime_signed, stats_monthly.smime_signed, stats_prev_yearly.smime_signed, stats_yearly.smime_signed, "smime_signed") }}
-      {{ stat_row("S/MIME verschlüsselt", stats_daily.smime_encrypted, stats_3d.smime_encrypted, stats_monthly_m2.smime_encrypted, stats_monthly_m1.smime_encrypted, stats_monthly.smime_encrypted, stats_prev_yearly.smime_encrypted, stats_yearly.smime_encrypted, "smime_encrypted") }}
-      {{ stat_row("S/MIME entschlüsselt", stats_daily.smime_decrypted, stats_3d.smime_decrypted, stats_monthly_m2.smime_decrypted, stats_monthly_m1.smime_decrypted, stats_monthly.smime_decrypted, stats_prev_yearly.smime_decrypted, stats_yearly.smime_decrypted, "smime_decrypted") }}
-      {{ stat_row("S/MIME signiert empfangen", stats_daily.smime_signiert_empfangen, stats_3d.smime_signiert_empfangen, stats_monthly_m2.smime_signiert_empfangen, stats_monthly_m1.smime_signiert_empfangen, stats_monthly.smime_signiert_empfangen, stats_prev_yearly.smime_signiert_empfangen, stats_yearly.smime_signiert_empfangen, "smime_signiert_empfangen") }}
-      {% if stats_yearly.smime_unsigniert_abgelaufen or stats_prev_yearly.smime_unsigniert_abgelaufen %}{{ stat_row("Unsigniert versandt (Zertifikat abgelaufen/widerrufen)", stats_daily.smime_unsigniert_abgelaufen, stats_3d.smime_unsigniert_abgelaufen, stats_monthly_m2.smime_unsigniert_abgelaufen, stats_monthly_m1.smime_unsigniert_abgelaufen, stats_monthly.smime_unsigniert_abgelaufen, stats_prev_yearly.smime_unsigniert_abgelaufen, stats_yearly.smime_unsigniert_abgelaufen, "") }}{% endif %}
-      {{ stat_row("Zertifikate gesammelt", stats_daily.certs_harvested, stats_3d.certs_harvested, stats_monthly_m2.certs_harvested, stats_monthly_m1.certs_harvested, stats_monthly.certs_harvested, stats_prev_yearly.certs_harvested, stats_yearly.certs_harvested, "") }}
+      {{ kz("S/MIME signiert", "smime_signed", "@smime_signiert") }}
+      {% if zeilen_zeigen.keyvault or stats_yearly.kv_sign_calls or stats_prev_yearly.kv_sign_calls %}{{ kz("davon über Key Vault", "kv_sign_calls", "") }}{% endif %}
+      {{ kz("S/MIME verschlüsselt", "smime_encrypted", "@smime_verschluesselt") }}
+      {{ kz("S/MIME entschlüsselt", "smime_decrypted", "smime_decrypted") }}
+      {{ kz("S/MIME signiert empfangen", "smime_signiert_empfangen", "smime_signiert_empfangen") }}
+      {% if stats_yearly.smime_unsigniert_abgelaufen or stats_prev_yearly.smime_unsigniert_abgelaufen %}{{ kz("Unsigniert versandt (Zertifikat abgelaufen/widerrufen)", "smime_unsigniert_abgelaufen", "", "warn") }}{% endif %}
+      {{ kz("Empfängerzertifikate gesammelt", "certs_harvested", "") }}
       {% endif %}
       {#- Antworten auf bestehende Ketten, und wie oft dabei erkannt wurde, dass
           bereits signiert ist. BEIDE Zeilen: Die zweite allein waere nicht zu
@@ -145,50 +158,45 @@ function dismissWelcome() {
           (normal). Erst im Verhaeltnis wird daraus eine Aussage.
           Anlass: Genau diese Erkennung lief vom 29.07. bis 10.08.2026 zwoelf
           Tage wirkungslos mit, ohne dass es irgendwo sichtbar wurde. -#}
-      {{ stat_row("Antworten in Ketten", stats_daily.antworten, stats_3d.antworten, stats_monthly_m2.antworten, stats_monthly_m1.antworten, stats_monthly.antworten, stats_prev_yearly.antworten, stats_yearly.antworten, "") }}
-      {{ stat_row("davon Stapel verhindert", stats_daily.stapel_verhindert, stats_3d.stapel_verhindert, stats_monthly_m2.stapel_verhindert, stats_monthly_m1.stapel_verhindert, stats_monthly.stapel_verhindert, stats_prev_yearly.stapel_verhindert, stats_yearly.stapel_verhindert, "") }}
-      {#- Korrekturen von Add-in-Signaturen: Schutzzeilen, sobald das Add-in an ist. -#}
+      {{ kz("Antworten in Ketten", "antworten", "") }}
+      {{ kz("davon Stapel verhindert", "stapel_verhindert", "") }}
+      {#- Korrekturen von Add-in-Signaturen: Schutzzeilen, sobald das Add-in an ist.
+          „Add-in-Signatur ersetzt“ zählt nur bei ANTWORT_LETZTES_WORT=gateway. -#}
       {% if zeilen_zeigen.addin or stats_yearly.addin_korrigiert or stats_yearly.intern_korrigiert or stats_yearly.geteilt_entwurf %}
-      {{ stat_row("Add-in-Signatur ersetzt", stats_daily.addin_korrigiert, stats_3d.addin_korrigiert, stats_monthly_m2.addin_korrigiert, stats_monthly_m1.addin_korrigiert, stats_monthly.addin_korrigiert, stats_prev_yearly.addin_korrigiert, stats_yearly.addin_korrigiert, "") }}
-      {{ stat_row("Interne Signatur nach außen ersetzt", stats_daily.intern_korrigiert, stats_3d.intern_korrigiert, stats_monthly_m2.intern_korrigiert, stats_monthly_m1.intern_korrigiert, stats_monthly.intern_korrigiert, stats_prev_yearly.intern_korrigiert, stats_yearly.intern_korrigiert, "") }}
-      {{ stat_row("Geteiltes Postfach mit Add-in-Signatur", stats_daily.geteilt_entwurf, stats_3d.geteilt_entwurf, stats_monthly_m2.geteilt_entwurf, stats_monthly_m1.geteilt_entwurf, stats_monthly.geteilt_entwurf, stats_prev_yearly.geteilt_entwurf, stats_yearly.geteilt_entwurf, "") }}
-      {{ stat_row("davon Signatur der Person ersetzt", stats_daily.geteilt_korrigiert, stats_3d.geteilt_korrigiert, stats_monthly_m2.geteilt_korrigiert, stats_monthly_m1.geteilt_korrigiert, stats_monthly.geteilt_korrigiert, stats_prev_yearly.geteilt_korrigiert, stats_yearly.geteilt_korrigiert, "") }}
+      {% if zeilen_zeigen.addin_ersetzt or stats_yearly.addin_korrigiert or stats_prev_yearly.addin_korrigiert %}{{ kz("Add-in-Signatur ersetzt", "addin_korrigiert", "") }}{% endif %}
+      {{ kz("Interne Signatur nach außen ersetzt", "intern_korrigiert", "") }}
+      {{ kz("Geteiltes Postfach mit Add-in-Signatur", "geteilt_entwurf", "") }}
+      {{ kz("davon Signatur der Person ersetzt", "geteilt_korrigiert", "") }}
       {% endif %}
       {#- Abwesenheitsantworten, die das Gateway selbst schickt: für Post, die per
           Ablage statt per Zustellung ins Postfach kommt (eingehende S/MIME-Post
           von außen). Exchange schickt dort keine. -#}
       {% if zeilen_zeigen.ablage or stats_yearly.oof_ablage_antwort %}
-      {{ stat_row("Abwesenheitsantworten (Gateway)", stats_daily.oof_ablage_antwort, stats_3d.oof_ablage_antwort, stats_monthly_m2.oof_ablage_antwort, stats_monthly_m1.oof_ablage_antwort, stats_monthly.oof_ablage_antwort, stats_prev_yearly.oof_ablage_antwort, stats_yearly.oof_ablage_antwort, "") }}
+      {{ kz("Abwesenheitsantworten (Gateway)", "oof_ablage_antwort", "") }}
       {% endif %}
-      {% if stats_yearly.delivery_queued or stats_prev_yearly.delivery_queued %}{{ stat_row("Zustellfehler → Warteschlange", stats_daily.delivery_queued, stats_3d.delivery_queued, stats_monthly_m2.delivery_queued, stats_monthly_m1.delivery_queued, stats_monthly.delivery_queued, stats_prev_yearly.delivery_queued, stats_yearly.delivery_queued, "") }}{% endif %}
-      {% if stats_yearly.graph_ruecklauf or stats_prev_yearly.graph_ruecklauf %}{{ stat_row("Graph-Rücklauf → Warteschlange", stats_daily.graph_ruecklauf, stats_3d.graph_ruecklauf, stats_monthly_m2.graph_ruecklauf, stats_monthly_m1.graph_ruecklauf, stats_monthly.graph_ruecklauf, stats_prev_yearly.graph_ruecklauf, stats_yearly.graph_ruecklauf, "") }}{% endif %}
-      <tr style="border-bottom:1px solid #f0f0f0">
-        <td style="padding:7px 0;font-size:13px;color:#d97706;font-weight:500">Fallback</td>
-        <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stat_cell(stats_daily.fallback, "fallback", today) }}</td>
-        <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#d97706">{{ stat_cell_3d(stats_3d.fallback, "fallback") }}</td>
-        <td class="col-m2" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m2.fallback, "fallback", prev_month_2) }}</td>
-        <td class="col-m1" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m1.fallback, "fallback", prev_month_1) }}</td>
-        <td style="padding:7px 10px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(stats_monthly.fallback, "fallback", today_month) }}</td>
-        <td class="col-py" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_prev_yearly.fallback, "fallback", prev_year_str) }}</td>
-        <td class="col-y" style="padding:7px 0 7px 8px;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(stats_yearly.fallback, "fallback", today_year) }}</td>
-      </tr>
-      <tr>
-        <td style="padding:7px 0;font-size:13px;color:#dc2626;font-weight:500">Fehler</td>
-        <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#dc2626">{{ stat_cell(stats_daily.errors, "error", today) }}</td>
-        <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#dc2626">{{ stat_cell_3d(stats_3d.errors, "error") }}</td>
-        <td class="col-m2" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m2.errors, "error", prev_month_2) }}</td>
-        <td class="col-m1" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m1.errors, "error", prev_month_1) }}</td>
-        <td style="padding:7px 10px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(stats_monthly.errors, "error", today_month) }}</td>
-        <td class="col-py" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_prev_yearly.errors, "error", prev_year_str) }}</td>
-        <td class="col-y" style="padding:7px 0 7px 8px;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(stats_yearly.errors, "error", today_year) }}</td>
-      </tr>
+      {#- Bedienfall, kein Gateway-Fehler: #enc ohne Empfängerzertifikat und ohne Portal. -#}
+      {% if stats_yearly.ohne_zertifikat or stats_prev_yearly.ohne_zertifikat %}{{ kz("Ohne Empfängerzertifikat abgewiesen", "ohne_zertifikat", "ohne_zertifikat", "warn") }}{% endif %}
+      {% if stats_yearly.graph_ruecklauf or stats_prev_yearly.graph_ruecklauf %}{{ kz("Graph-Rücklauf → Warteschlange", "graph_ruecklauf", "", "warn") }}{% endif %}
+      {#- Fehlerzähler aus dem Tagesbericht — hier nur, wenn sie vorkamen. -#}
+      {% for _k, _label in [("exo_eigene_abgewiesen", "Eigene Exchange-Post abgewiesen"), ("lexware_unbekannt", "Lexware-Beleg nicht erkannt"), ("tenant_ohne_kopf", "Ohne Tenant-Kennung angenommen")] %}
+      {% if stats_yearly[_k] or stats_prev_yearly[_k] %}{{ kz(_label, _k, "", "warn") }}{% endif %}
+      {% endfor %}
+      {#- Fehler (Gateway) = echte Ausfälle: Verarbeitung abgebrochen,
+          Ver-/Entschlüsselung gescheitert, Tenant-Weiterleitung gescheitert,
+          Zustellfehler (in der Warteschlange). Die Teile darunter, wenn sie vorkamen. -#}
+      {{ kz("Fehler (Gateway)", "fehler_gateway", "@fehler", "fehler") }}
+      {% for _k, _label, _a in [("fallback", "davon Fallback (Original zugestellt)", "fallback"), ("smime_encrypt_fehler", "davon Verschlüsselung gescheitert", "smime_encrypt_fehler"), ("smime_decrypt_fehler", "davon Entschlüsselung gescheitert", "smime_decrypt_fehler"), ("tenant_fehler", "davon Tenant-Weiterleitung gescheitert", "tenant_fehler"), ("delivery_queued", "davon Zustellfehler → Warteschlange", "zustellfehler")] %}
+      {% if stats_yearly[_k] or stats_prev_yearly[_k] %}{{ kz(_label, _k, _a, "warn") }}{% endif %}
+      {% endfor %}
     </tbody>
   </table>
 </div>
 
-<!-- Cloud-Aufrufe (Graph sendMail, Key Vault) -->
+<!-- Graph-Zustellung — nur in den Graph-Modi (im SMTP-Modus immer 0).
+     Key Vault steht als „davon über Key Vault“ unter „S/MIME signiert“. -->
+{% if zeilen_zeigen.graph or stats_yearly.graph_api_calls or stats_prev_yearly.graph_api_calls %}
 <div style="display:flex;align-items:baseline;gap:16px;margin:24px 0 10px">
-  <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0">Cloud-Aufrufe (Microsoft Graph, Azure Key Vault)</h3>
+  <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0">Zustellung über Microsoft Graph</h3>
   <span style="font-size:12px;color:#aaa">Heute · 3 Tage · {{ stats_month_m2_label }} bis {{ stats_month_label }} · {{ stats_year_label }} ab 1. Januar{% if vorjahr_zeigen %} · Vorjahr{% endif %}</span>
 </div>
 <div class="settings-card" style="padding:0 16px;overflow-x:auto">
@@ -206,12 +214,12 @@ function dismissWelcome() {
       </tr>
     </thead>
     <tbody>
-      {{ stat_row("Graph sendMail", stats_daily.graph_api_calls, stats_3d.graph_api_calls, stats_monthly_m2.graph_api_calls, stats_monthly_m1.graph_api_calls, stats_monthly.graph_api_calls, stats_prev_yearly.graph_api_calls, stats_yearly.graph_api_calls, "") }}
-      {{ stat_row("Key Vault Sign", stats_daily.kv_sign_calls, stats_3d.kv_sign_calls, stats_monthly_m2.kv_sign_calls, stats_monthly_m1.kv_sign_calls, stats_monthly.kv_sign_calls, stats_prev_yearly.kv_sign_calls, stats_yearly.kv_sign_calls, "") }}
+      {% if zeilen_zeigen.graph or stats_yearly.graph_api_calls or stats_prev_yearly.graph_api_calls %}{{ kz("Graph sendMail (zugestellt)", "graph_api_calls", "") }}{% endif %}
     </tbody>
   </table>
 </div>
-<p class="hint" style="margin-top:6px">Graph sendMail = Mails, die das Gateway über die Graph-API zugestellt hat. Key Vault Sign = S/MIME-Signaturen über Azure Key Vault. Der Graph App-Pool weiter unten zählt dagegen <em>alle</em> Graph-Aufrufe, auch Lese-Abfragen (Postfächer, Abwesenheit, Prüfungen) — deshalb ist die Zahl dort höher.</p>
+<p class="hint" style="margin-top:6px">Mails, die das Gateway über Graph sendMail zugestellt hat. Der Graph App-Pool weiter unten zählt dagegen <em>Token-Abrufe</em> aller Graph-Zugriffe, auch der lesenden (Postfächer, Abwesenheit, Prüfungen) — ein Token deckt oft mehrere Aufrufe.</p>
+{% endif %}
 
 <!-- TLS + S/MIME Zertifikate -->
 <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 10px">Zertifikate</h3>
@@ -234,13 +242,15 @@ function dismissWelcome() {
   </table></div>
   {% if signing_certs %}
   {% set _abg = signing_certs | selectattr("expired") | list %}
-  {% set _bald = signing_certs | rejectattr("expired") | selectattr("warning") | list %}
+  {# Eine Schwelle für Band oben und Liste hier: CERT_WARN_DAYS (bis v1.12.148
+     galt hier fest „unter 30 Tagen“ aus smime_store, oben die Einstellung). #}
+  {% set _bald = signing_certs | rejectattr("expired") | selectattr("days_left", "le", warn_days) | list %}
   {% set _naechst = signing_certs | rejectattr("expired") | sort(attribute="days_left") | first %}
   {# Zusammengefasst statt einer Zeile je Postfach: Bei hunderten Nutzern war die
      Übersicht sonst eine endlose Liste. Aufgeklappt sortiert nach Restlaufzeit. #}
   <details style="margin-top:10px"{% if _abg %} open{% endif %}>
     <summary style="cursor:pointer;font-size:13px">
-      <strong>S/MIME signieren:</strong> {{ signing_certs | length }} {{ wort(signing_certs | length, 'Postfach', 'Postfächer') }}
+      <strong>S/MIME signieren:</strong> {{ signing_certs | length }} {{ wort(signing_certs | length, 'Postfach', 'Postfächer') }} mit Signaturzertifikat
       {%- if _abg %} · <span style="color:#dc2626;font-weight:700">{{ _abg | length }} abgelaufen</span>{% endif %}
       {%- if _bald %} · <span style="color:#b45309;font-weight:700">{{ _bald | length }} laufen bald ab</span>{% endif %}
       {%- if not _abg and not _bald %} · <span style="color:#15803d">alle gültig</span>{% endif %}
@@ -253,7 +263,7 @@ function dismissWelcome() {
         <td style="padding:6px 12px 6px 0;word-break:break-all">{{ c.email }}</td>
         <td style="padding:6px 0">
           {% if c.expired %}<span style="color:#dc2626;font-weight:700">ABGELAUFEN</span>
-          {% elif c.warning %}<span style="color:#b45309;font-weight:700">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>
+          {% elif c.days_left <= warn_days %}<span style="color:#b45309;font-weight:700">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>
           {% else %}<span style="color:#15803d">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>{% endif %}
         </td>
       </tr>
@@ -322,16 +332,16 @@ function openPoolModal(idx) {
   var thisH = p.calls_this_hour != null ? p.calls_this_hour : 0;
   var today = p.calls_today != null ? p.calls_today : 0;
   var peakTxt = (p.peak_hour != null && p.peak_hour >= 0)
-    ? p.peak_count + ' Aufrufe zwischen ' + p.peak_hour + ' und ' + (p.peak_hour + 1) + ' Uhr'
+    ? p.peak_count + ' Token-Abrufe zwischen ' + p.peak_hour + ' und ' + (p.peak_hour + 1) + ' Uhr'
     : '— (noch keine Daten)';
   var statusHtml = throttled
     ? '<span style="color:#dc2626">● gedrosselt (noch ' + remS + 's)</span>'
     : '<span style="color:#16a34a">● verfügbar</span>';
-  document.getElementById('poolModalTitle').textContent = label + ' — Graph API Aufrufe';
+  document.getElementById('poolModalTitle').textContent = label + ' — Token-Abrufe (Graph)';
   document.getElementById('poolModalContent').innerHTML =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">' +
-      '<div class="sys-tile"><div class="sys-val">' + thisH + '</div><div class="sys-label">Aufrufe diese Stunde</div></div>' +
-      '<div class="sys-tile"><div class="sys-val">' + today + '</div><div class="sys-label">Aufrufe heute gesamt</div></div>' +
+      '<div class="sys-tile"><div class="sys-val">' + thisH + '</div><div class="sys-label">Token-Abrufe diese Stunde</div></div>' +
+      '<div class="sys-tile"><div class="sys-val">' + today + '</div><div class="sys-label">Token-Abrufe heute</div></div>' +
     '</div>' +
     '<div style="margin-bottom:6px;font-size:12px;color:#44403c">Peak heute: <strong>' + peakTxt + '</strong></div>' +
     '<div style="margin-bottom:14px;font-size:12px;color:#44403c">Status: ' + statusHtml + '</div>' +
@@ -356,7 +366,7 @@ function _poolRender24hBars(hours, throttled) {
                         : (isNow ? '#2563eb' : '#93c5fd');
     bars += '<div style="flex:1;background:' + (cnt > 0 ? col : 'transparent') + ';height:' + (cnt > 0 ? Math.max(pct, 3) : 0) + '%;' +
       'border-radius:2px 2px 0 0;min-height:' + (cnt>0?'3':'0') + 'px" ' +
-      'title="' + h + ':00 — ' + cnt + ' Aufrufe"></div>';
+      'title="' + h + ':00 — ' + cnt + ' Token-Abrufe"></div>';
   });
   bars += '</div>';
   var lbl = '<div style="display:flex;font-size:10px;color:#a8a29e;margin-top:3px">' +
@@ -366,7 +376,7 @@ function _poolRender24hBars(hours, throttled) {
     '<div style="flex:6;text-align:center">18h</div>' +
     '<div style="flex:0;white-space:nowrap">24h</div>' +
     '</div>';
-  return '<div style="font-size:10px;color:#a8a29e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Aufrufe pro Stunde</div>' +
+  return '<div style="font-size:10px;color:#a8a29e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Token-Abrufe pro Stunde</div>' +
     '<div style="background:#f8f7f6;border-radius:6px;padding:10px 10px 6px">' + bars + lbl + '</div>' +
     '<div style="margin-top:10px;font-size:10px;color:#a8a29e">Aktuell aktive Stunde blau · Historische Daten aus DB geladen</div>';
 }
@@ -418,7 +428,7 @@ function showPoolTab(tabName, appIdx) {
         var pct = Math.round(dr.total / maxT * 100);
         bars += '<div style="flex:1;background:#93c5fd;height:' + (dr.total > 0 ? Math.max(pct, 3) : 0) + '%;' +
           'border-radius:2px 2px 0 0;min-height:' + (dr.total>0?'3':'0') + 'px;cursor:pointer" ' +
-          'title="' + dr.date + ' — ' + dr.total + ' Aufrufe" ' +
+          'title="' + dr.date + ' — ' + dr.total + ' Token-Abrufe" ' +
           'onclick="showPoolDayDrill(' + appIdx + ',\'' + escJsAttr(dr.date) + '\')">' +
           '</div>';
       });
@@ -428,7 +438,7 @@ function showPoolTab(tabName, appIdx) {
         '<span>' + dayRows[dayRows.length-1].date.slice(5) + '</span>' +
         '</div>';
       area.innerHTML =
-        '<div style="font-size:10px;color:#a8a29e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Aufrufe pro Tag</div>' +
+        '<div style="font-size:10px;color:#a8a29e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Token-Abrufe pro Tag</div>' +
         '<div style="background:#f8f7f6;border-radius:6px;padding:10px 10px 6px">' + bars + labelHtml + '</div>' +
         '<div style="margin-top:10px;font-size:10px;color:#a8a29e">Auf einen Balken klicken → Stundenansicht des Tages</div>';
     })
@@ -469,7 +479,8 @@ function closePoolModal() {
   document.getElementById('poolModal').style.display = 'none';
 }
 
-var _sysToday = new Date().toISOString().slice(0,10);
+// Der Tag des SERVERS in der Anzeige-Zeitzone — nicht das UTC-Datum des Browsers.
+var _sysToday = '{{ today }}';
 
 // Speichergrösse lesbar: ab 1 GB in GB mit einer Nachkommastelle (de-DE).
 // Vorher „15151.6 MB“ (Übersicht-Prüfung 20.11.2026).
@@ -538,7 +549,11 @@ function openInFlightInfo(active, maintHeld, dfCount) {
       const diskClass = d.disk_pct >= 90 ? 'sys-disk-crit' : d.disk_pct >= 75 ? 'sys-disk-warn' : '';
       const heldCount = d.held_mail_count || 0;
       const dfCount   = d.delivery_failed_count || 0;   // Zustellfehler-Teilmenge
-      const maintHeld = Math.max(0, heldCount - dfCount); // Rest = wegen Wartungsmodus
+      // Je Grund — der Rest war bis v1.12.148 pauschal „Wartungsmodus“, enthielt
+      // aber auch den Graph-Rücklauf.
+      const maintHeld = d.maintenance_count != null ? d.maintenance_count : Math.max(0, heldCount - dfCount);
+      const rueckHeld = d.ruecklauf_count || 0;
+      const sonstHeld = Math.max(0, heldCount - dfCount - maintHeld - rueckHeld);
       const inFlightTotal = d.in_flight + heldCount;
       const infClass  = inFlightTotal > 0 ? 'sys-inflight-pos' : 'sys-inflight-0';
       const grid = document.getElementById('sysGrid');
@@ -547,6 +562,8 @@ function openInFlightInfo(active, maintHeld, dfCount) {
       var subParts = [];
       if (d.in_flight > 0) subParts.push(d.in_flight + ' in Verarbeitung');
       if (maintHeld > 0)   subParts.push(maintHeld + ' im Wartungsmodus zurückgehalten');
+      if (rueckHeld > 0)   subParts.push(rueckHeld + ' aus dem Graph-Rücklauf');
+      if (sonstHeld > 0)   subParts.push(sonstHeld + ' aus anderem Grund');
       const dfAufgegeben = d.delivery_failed_aufgegeben || 0;
       if (dfCount > 0)     subParts.push(dfCount + ' wegen Zustellfehler in der Warteschlange'
                                          + (dfAufgegeben ? ' (' + dfAufgegeben + ' aufgegeben — zustellen oder löschen)' : ''));
@@ -592,9 +609,9 @@ function openInFlightInfo(active, maintHeld, dfCount) {
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:13px;font-weight:600;color:#1c1917">' + esc(label) + '</div>' +
             '<div style="font-size:11px;color:#78716c;margin-top:2px">' +
-              '<span title="Aufrufe in dieser Stunde">' + thisH + ' / h</span>' +
+              '<span title="Token-Abrufe in dieser Stunde">' + thisH + ' / h</span>' +
               ' &nbsp;·&nbsp; <span title="Peak heute">Peak: ' + peakStr + '</span>' +
-              ' &nbsp;·&nbsp; <span title="Alle Graph-Aufrufe heute, auch Lese-Abfragen">heute ' + today + ' Aufrufe</span>' +
+              ' &nbsp;·&nbsp; <span title="Token-Abrufe heute für alle Graph-Zugriffe, auch lesende — ein Token deckt oft mehrere Aufrufe">heute ' + today + ' Token-Abrufe</span>' +
               ' &nbsp;·&nbsp; ' + statusStr +
             '</div>' +
           '</div>' +
@@ -701,7 +718,9 @@ function _fmtPeriod(date) {
 }
 
 function openAuditModal(date, action, hour) {
-  _auditParams = {date: date || '', date_from: '', date_to: '', action: action || '', offset: 0, limit: 100};
+  const stunde = (hour != null && hour !== 'null' && hour !== '') ? String(Number(hour)) : '';
+  // Die Stunde FILTERT (bis v1.12.148 stand sie nur im Titel — der Peak-Klick zeigte den ganzen Tag).
+  _auditParams = {date: date || '', date_from: '', date_to: '', action: action || '', stunde, offset: 0, limit: 100};
   document.getElementById('auditModal').style.display = 'block';
   document.body.style.overflow = 'hidden';
   const actionLabel = action ? (' — ' + aktionText(action)) : '';
@@ -730,6 +749,7 @@ async function loadAuditPage() {
   if (p.date_from) qs.set('date_from', p.date_from);
   if (p.date_to)   qs.set('date_to',   p.date_to);
   if (p.action)    qs.set('action',    p.action);
+  if (p.stunde)    qs.set('stunde',    p.stunde);
   qs.set('limit',  p.limit);
   qs.set('offset', p.offset);
   try {

@@ -351,6 +351,23 @@ def _eingang_rows(dval) -> str:
     return zeilen
 
 
+_MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
+           "September", "Oktober", "November", "Dezember")
+
+
+def _ortszeit_text(iso: str | None) -> str:
+    """ISO (UTC) → „20.11.2026 08:00“ in der Anzeige-Zeitzone; "" ohne Wert."""
+    if not iso:
+        return ""
+    try:
+        t = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return "seit " + t.astimezone(settings_store.anzeige_zone()).strftime("%d.%m.%Y %H:%M")
+    except ValueError:
+        return ""
+
+
 def send_daily_report(daily: dict, total: dict) -> bool:
     to = _get_notify_to()
     if not to:
@@ -362,8 +379,9 @@ def send_daily_report(daily: dict, total: dict) -> bool:
     import config
     from pathlib import Path
 
-    now = datetime.now(timezone.utc)
-    date_str = now.strftime("%d.%m.%Y")
+    # Ortszeit wie die Übersicht (stats.heute) — Monat und Datum der Überschrift.
+    now = datetime.now(settings_store.anzeige_zone())
+    date_str = now.strftime("%d.%m.%Y %H:%M")
     monthly = _stats_mod.get_period(now.year, now.month)
 
     # Abgewiesene/gedrosselte Anmeldungen (Web-UI, 587) und Quell-IP-Ablehnungen
@@ -437,6 +455,13 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         (_row("Verschlüsselung fehlgeschlagen (nicht versandt)",
               str(dval("smime_encrypt_fehler")), "#e74c3c")
          if dval("smime_encrypt_fehler") else ""),
+        (_row("Entschlüsselung fehlgeschlagen (verschlüsselt zugestellt)",
+              str(dval("smime_decrypt_fehler")), "#e74c3c")
+         if dval("smime_decrypt_fehler") else ""),
+        (_row("Tenant-Weiterleitung fehlgeschlagen", str(dval("tenant_fehler")), "#e74c3c")
+         if dval("tenant_fehler") else ""),
+        (_row("Ohne Empfängerzertifikat abgewiesen", str(dval("ohne_zertifikat")), "#e67e22")
+         if dval("ohne_zertifikat") else ""),
         # Signaturzertifikat abgelaufen → unsigniert versandt (seit v1.12.145).
         (_row("Unsigniert versandt (Zertifikat abgelaufen/widerrufen)",
               str(dval("smime_unsigniert_abgelaufen")), "#e74c3c")
@@ -459,7 +484,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
     ])
 
     # ── Diesen Monat ──
-    month_label = now.strftime("%B %Y")
+    month_label = f"{_MONATE[now.month - 1]} {now.year}"   # %B wäre ohne deutsche Locale englisch
     rows_month = "".join([
         _row("Mails verarbeitet",      mval("processed")),
         _row("S/MIME signiert",        mval("smime_signed")),
@@ -592,8 +617,10 @@ def send_daily_report(daily: dict, total: dict) -> bool:
             f'Warteschlange. Keine automatische Wiederholung — sie nähme denselben Weg.</p>'
         )
 
+    _seit = _ortszeit_text(daily.get("_seit"))
     body = (
-        f'<h3 style="margin-top:4px">Statistiken heute – {date_str}</h3>'
+        f'<h3 style="margin-top:4px">Seit dem letzten Bericht'
+        f'{(" (" + _seit + ")") if _seit else ""} – bis {date_str}</h3>'
         f'<table>{rows_today}</table>'
         f'<h3 style="margin-top:20px">Statistiken {month_label}</h3>'
         f'<table>{rows_month}</table>'
