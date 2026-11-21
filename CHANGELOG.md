@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.148 — 2026-11-21 — Tests: neutrale Beispielwerte
+
+Ein Test der Sammelbestellung verwendet als Anbieterpreis jetzt einen frei
+gewählten Beispielwert. Am Produkt ändert sich nichts.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.12.147 — 2026-11-21 — Widerruf ohne stille Neubestellung, Bestellungen überstehen Neustarts, Direktversand ohne alte DKIM, sichererer Vorlagenimport
 
 ### S/MIME
