@@ -425,10 +425,10 @@ function zeichneRoutingStand(r) {
   if (!el) return;
   const teile = [];
   const n = (r.ziele || []).length;
-  teile.push(n + ' Weiterleitungsziel' + (n === 1 ? '' : 'e'));
+  teile.push(anzahlText(n, 'Weiterleitungsziel', 'Weiterleitungsziele'));
   const routen = Object.keys(r.routen || {}).length + Object.keys(r.tenant_routen || {}).length
     + (r.extern_route ? 1 : 0);
-  teile.push(routen + ' Route' + (routen === 1 ? '' : 'n'));
+  teile.push(anzahlText(routen, 'Route', 'Routen'));
   teile.push('Direktversand ' + ((r.direkt && r.direkt.aktiv) ? 'an' : 'aus'));
   el.textContent = teile.join(' · ');
 }
@@ -654,7 +654,7 @@ function zeichneLernmodus(l) {
   form.style.display = 'none';
   const min = Math.max(1, Math.round(l.rest_sek / 60));
   document.getElementById('lern-restzeit').textContent =
-    'Läuft noch ' + min + ' Minute' + (min === 1 ? '' : 'n');
+    'Läuft noch ' + anzahlText(min, 'Minute', 'Minuten');
   document.getElementById('lern-bereiche-aktiv').textContent =
     'Bereich: ' + (l.bereiche || []).join(', ')
     + (l.extern_vorgabe ? ' · neue Geräte dürfen auch nach aussen'
@@ -861,8 +861,8 @@ async function statsLaden() {
   const r = await getJSON('/api/relay/stats?tage=' + encodeURIComponent(tage));
   if (!r.ok) return;
   document.getElementById('stats-gesamt').textContent =
-    r.gesamt_anzahl + ' Mails · ' + volumenText(r.gesamt_bytes) + ' · '
-    + r.geraete + ' Gerät(e) im Zeitraum';
+    anzahlText(r.gesamt_anzahl, 'Mail', 'Mails') + ' · ' + volumenText(r.gesamt_bytes) + ' · '
+    + anzahlText(r.geraete, 'Gerät', 'Geräte') + ' im Zeitraum';
   // Vorgabe: die ersten 10 zeigen, den Rest hinter „weitere anzeigen" verstecken —
   // damit lange Listen die Seite nicht sprengen.
   const STATS_TOP = 10;

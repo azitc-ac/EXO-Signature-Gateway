@@ -482,8 +482,8 @@ async function loopKennungPruefen(btn) {
   const falsch = (d.regeln || []).filter(r => !r.ok);
   document.getElementById('loop-kennung-angleichen').hidden = !falsch.length;
   showMsg(el, falsch.length
-    ? '✗ ' + falsch.length + ' von ' + d.regeln.length + ' Regel(n) abweichend: ' + falsch.map(r => r.name).join(', ')
-    : '✓ ' + d.regeln.length + ' Regel(n) in Ordnung', !falsch.length);
+    ? '✗ ' + falsch.length + ' von ' + anzahlText(d.regeln.length, 'Regel', 'Regeln') + ' abweichend: ' + falsch.map(r => r.name).join(', ')
+    : '✓ ' + anzahlText(d.regeln.length, 'Regel', 'Regeln') + ' in Ordnung', !falsch.length);
 }
 
 async function loopKennungAngleichen(btn) {
@@ -494,7 +494,7 @@ async function loopKennungAngleichen(btn) {
     + 'Wirksam nach 5–15 Minuten.', 'wird angeglichen …');
   if (!d) return;
   document.getElementById('loop-kennung-angleichen').hidden = true;
-  showMsg(el, '✓ ' + (d.regeln || []).length + ' Regel(n) angeglichen — wirkt nach 5–15 Minuten', true);
+  showMsg(el, '✓ ' + anzahlText((d.regeln || []).length, 'Regel', 'Regeln') + ' angeglichen — wirkt nach 5–15 Minuten', true);
 }
 
 function _regelBedingungZeigen(scope) {

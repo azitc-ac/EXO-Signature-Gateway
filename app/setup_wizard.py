@@ -6,6 +6,7 @@ Microsoft Graph CLI App.  The token has delegated permissions that allow
 creating app registrations and granting admin consent.
 """
 
+import texte
 import asyncio
 import base64
 import logging
@@ -1021,7 +1022,7 @@ async def secrets_abbauen(token: str, warten_s: int = 900, takt_s: int = 30) -> 
                     await _gh("post", f"{GRAPH}/applications/{obj}/removePassword", token,
                               json={"keyId": pw["keyId"]})
                 n = len(d.get('passwordCredentials') or [])
-                ergebnis[cid] = f"{n} {'Secret' if n == 1 else 'Secrets'} gelöscht"
+                ergebnis[cid] = f"{texte.zahl(n, 'Secret', 'Secrets')} gelöscht"
                 _secret_aus_einstellungen(cid)
                 log.info("App %s: Zertifikat trägt, %s", cid[:8], ergebnis[cid])
             except Exception as exc:                            # noqa: BLE001

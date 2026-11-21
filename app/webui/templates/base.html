@@ -69,7 +69,7 @@
         <div id="aufgaben" style="position:relative;flex-shrink:0">
           <button id="aufgaben-btn" type="button" onclick="aufgabenUmschalten(event)"
                   aria-haspopup="true" aria-expanded="false"
-                  title="{{ _aufgaben|length }} offene Aufgabe{{ '' if _aufgaben|length == 1 else 'n' }}"
+                  title="{{ _aufgaben|length }} offene {{ wort(_aufgaben|length, 'Aufgabe', 'Aufgaben') }}"
                   aria-label="Offene Aufgaben: {{ _aufgaben|length }}"
                   style="background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:4px;
                          color:rgba(255,255,255,{{ '0.95' if _aufgaben else '0.6' }});display:flex;align-items:center;gap:3px;line-height:1">
@@ -487,6 +487,10 @@
       // Zwei Ebenen: erst für den JS-String (\ und '), dann fürs Attribut — der
       // Browser dekodiert das Attribut (&#39; → ') BEVOR er das Skript liest;
       // esc() allein ließe den String dort aufbrechen.
+      // „1 Regel“ / „3 Regeln“ statt „Regel(n)“ — Gegenstück zu texte.zahl (Python).
+      // Hängt ein Verb an der Zahl, gehört es mit in die Wörter („Zertifikat wird“).
+      // Die Klammerform und eigene `=== 1 ?`-Weichen verbietet tests/test_mehrzahl.py.
+      function anzahlText(n, einzahl, mehrzahl) { return n + ' ' + (n === 1 ? einzahl : mehrzahl); }
       function escJsAttr(wert) {
         return escAttr(String(wert == null ? '' : wert).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
       }

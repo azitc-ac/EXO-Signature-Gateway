@@ -58,6 +58,7 @@ vorab berechtigter Client, requestedAccessTokenVersion = 2.
 """
 from __future__ import annotations
 
+import texte
 import asyncio
 import json as _json
 import uuid as _uuid
@@ -630,7 +631,7 @@ async def verfassen_signatur(request: Request):
                             headers=_CORS)
     log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s%s%s)", vorlage, ident, plattform,
              ", alle Empfänger intern" if art == "intern" else "",
-             f", {len(bilder)} Bild(er) als Inline-Anhang" if bilder else "")
+             f", {texte.zahl(len(bilder), 'Bild', 'Bilder')} als Inline-Anhang" if bilder else "")
     antwort = {"html": marked, "kette": kette, "art": art, "vorlage": vorlage if sig_html else ""}
     if bilder:
         antwort["bilder"] = bilder

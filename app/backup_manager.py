@@ -23,6 +23,7 @@ wertlos ist; das Passwort ist deshalb ein Angebot, keine Pflicht.
 Wiederherstellen erkennt die Art am Dateianfang (`MAGIE`), nicht am Namen.
 """
 
+import texte
 import io
 import json
 import logging
@@ -415,7 +416,7 @@ def restore_backup(zip_bytes: bytes, auswahl: list[str] | None = None) -> dict:
                                 backup_settings["USER_BOOKINGS"] = merged
                                 backup_settings_bytes = json.dumps(backup_settings, ensure_ascii=False, indent=2).encode()
                                 warnings.append(
-                                    f"USER_BOOKINGS: {len(live_bookings)} {'Bookings-URL' if len(live_bookings) == 1 else 'Bookings-URLs'} aus dem "
+                                    f"USER_BOOKINGS: {texte.zahl(len(live_bookings), 'Bookings-URL', 'Bookings-URLs')} aus dem "
                                     "laufenden System in die wiederhergestellten Einstellungen übernommen."
                                 )
                     except Exception as merge_exc:

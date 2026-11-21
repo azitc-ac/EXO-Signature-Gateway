@@ -130,6 +130,15 @@ KEYS = (
     # #enc verlangt, Verschlüsselung gescheitert (handler) — die Mail ging ins
     # Portal oder als Unzustellbarkeit zurück, nie im Klartext. Tagesbericht.
     "smime_encrypt_fehler",
+    # Ausgehend UNSIGNIERT, weil das Signaturzertifikat abgelaufen/noch nicht
+    # gültig ist (smime_signer.nur_abgelaufen, seit v1.12.145). Tagesbericht + Übersicht.
+    "smime_unsigniert_abgelaufen",
+    # Bis v1.12.145 gezählt, aber nicht in KEYS — _load verwarf sie beim Neustart,
+    # angezeigt wurden sie nirgends: Zustellfehler in die Warteschlange
+    # (reinject._fail_delivery), Graph-Rücklauf (graph_reinject), intern
+    # verschlüsselt normal zugestellt (handler). test_stats_keys verlangt jetzt,
+    # dass jeder increment()-Schlüssel hier steht.
+    "delivery_queued", "graph_ruecklauf", "enc_intern_normal",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}

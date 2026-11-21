@@ -4,6 +4,7 @@ When MAINTENANCE_MODE is enabled, outbound mails are held here instead of
 being delivered.  Each held mail is persisted to disk so it survives a
 container restart.
 """
+import texte
 import base64
 import email as _email_mod
 import json
@@ -171,10 +172,11 @@ def hold(sender: str, recipients: list[str], raw_bytes: bytes,
     if reason == "delivery_failed":
         offen, vorhanden = _schon_erfasst(raw_bytes, list(recipients))
         if len(offen) < len(recipients):
-            log.info("held_mails: erneute Einlieferung (Message-ID %s) — %d von %d "
-                     "Empfänger(n) bereits zugestellt oder schon in der Warteschlange%s",
+            log.info("held_mails: erneute Einlieferung (Message-ID %s) — %d von %s "
+                     "bereits zugestellt oder schon in der Warteschlange%s",
                      (_kennung(raw_bytes) or ("?",))[0], len(recipients) - len(offen),
-                     len(recipients), f" ({vorhanden})" if vorhanden else "")
+                     texte.zahl(len(recipients), "Empfänger", "Empfängern"),
+                     f" ({vorhanden})" if vorhanden else "")
         if not offen:
             return vorhanden or "bereits-zugestellt"
         recipients = offen

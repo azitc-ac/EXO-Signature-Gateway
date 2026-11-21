@@ -5,6 +5,62 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.145 — 2026-11-21 — Abgelaufene Signaturzertifikate, Erneuerungs-Hinweise, verlorene Zähler, Mehrzahl
+
+### Kein Signieren mehr mit abgelaufenen Zertifikaten
+
+Das Gateway signierte ausgehende Mails mit dem Standardzertifikat des Postfachs,
+solange es nicht widerrufen war, auch wenn es abgelaufen war. Die Empfänger sahen
+dann eine ungültige Signatur. Das betraf auch den Weg über den Key Vault.
+
+Jetzt signiert das Gateway nur mit einem zeitlich gültigen Zertifikat. Ist das
+Standardzertifikat abgelaufen, aber ein anderes gültiges vorhanden, nimmt es
+dieses. Gibt es keines, geht die Mail **unsigniert** hinaus:
+
+* Die Zahl steht als „Unsigniert versandt (Zertifikat abgelaufen)“ in Übersicht
+  und Tagesbericht.
+* Die Ablaufmail an die Verwaltung sagt ausdrücklich, dass Mails dieses
+  Postfachs unsigniert hinausgehen.
+
+Entschlüsseln eingehender Post mit dem abgelaufenen Schlüssel geht weiter.
+
+### Erneuerung
+
+* **Ablaufmail an die Verwaltung:** Nach dem Ablauf kam sie jeden Tag, ohne
+  Ende. Jetzt kommt sie vor dem Ablauf weiter täglich (Warnfrist
+  `CERT_WARN_DAYS`), danach einmal pro Woche. Gemerkt wird das in den
+  Einstellungen, also auch über Neustarts hinweg.
+* **Bewusst abgewählte automatische Erneuerung:** Bisher galt das als
+  „entschieden“, und ein ablaufendes Zertifikat war nur am Ablauf-Band zu sehen.
+  Jetzt erscheint die Aufgabe „Ablaufendes Zertifikat ohne automatische
+  Erneuerung“, sobald es in der Warnfrist liegt. Ab 30 Tagen nach dem Ablauf
+  gilt das Weglassen als gewollt, und die Aufgabe entfällt.
+* **Erneuerungsmail an den Postfachinhaber:** Sie richtet sich jetzt nach dem
+  Schalter „Mails an Postfachinhaber“ (`NOTIFY_USER_CERT`), wie alle anderen
+  Mails an Inhaber. Bisher ging sie auch bei ausgeschaltetem Schalter hinaus.
+
+### Zähler, die verloren gingen
+
+Drei Zähler wurden hochgezählt, standen aber nicht in der Liste der bekannten
+Kennzahlen: Zustellfehler in die Warteschlange, Graph-Rücklauf in die
+Warteschlange und „#enc an rein interne Empfänger normal zugestellt“. Beim
+Neustart wurden sie verworfen, angezeigt wurden sie nirgends. Jetzt bleiben sie
+erhalten und erscheinen in Tagesbericht und Übersicht, sobald sie vorkommen. Ein
+Test verlangt, dass jeder gezählte Schlüssel bekannt ist.
+
+### Einzahl und Mehrzahl
+
+Texte wie „Regel(n)“, „Gerät(e)“, „Secret(s)“ oder „1 Mails“ stehen jetzt in
+richtiger Einzahl oder Mehrzahl, in der Oberfläche, in Mails und in Meldungen.
+Der Betreff der Lizenz-Erinnerung lautete bei einem Tag „läuft in 1 Tagen ab“.
+Alle Stellen nutzen einen gemeinsamen Baustein; ein Test verbietet die
+Klammerform. Protokollzeilen sind davon ausgenommen.
+
+**Zu tun:** nichts. Läuft ein Signaturzertifikat mit abgewählter Erneuerung ab,
+erscheint die neue Aufgabe von selbst.
+
+---
+
 ## v1.12.144 — 2026-11-21 — Nachträglich gefüllte Hinweise lassen sich aufklappen
 
 Lange Erklärtexte werden auf zwei Zeilen gekürzt und bekommen einen Schalter

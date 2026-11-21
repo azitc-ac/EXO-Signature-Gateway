@@ -19,15 +19,41 @@ import smime_store
 log = logging.getLogger(__name__)
 
 
+def nur_abgelaufen(sender: str) -> bool:
+    """Hat *sender* ein (unwiderrufenes) Signaturzertifikat, aber kein zeitlich
+    gültiges? Dann geht die Mail unsigniert (Entscheidung 21.11.2026) — und das
+    wird hier sichtbar gemacht: Kennzahl `smime_unsigniert_abgelaufen` (Übersicht,
+    Tagesbericht) und Protokoll. Die Verwaltung erfährt es zusätzlich aus der
+    Ablaufmail (notification.send_cert_expiry_alert), die das so benennt.
+
+    Vorher signierte das Gateway stillschweigend mit dem abgelaufenen Zertifikat
+    weiter; jeder Empfänger sah eine ungültige Signatur."""
+    gueltig = (smime_store.get_signing_paths(sender, allow_backup=True, nur_unwiderrufen=True,
+                                             nur_gueltig=True)
+               or smime_store.get_signing_cert_path(sender, nur_unwiderrufen=True, nur_gueltig=True))
+    if gueltig:
+        return False
+    vorhanden = (smime_store.get_signing_paths(sender, allow_backup=True, nur_unwiderrufen=True)
+                 or smime_store.get_signing_cert_path(sender, nur_unwiderrufen=True))
+    if not vorhanden:
+        return False
+    import stats
+    stats.increment("smime_unsigniert_abgelaufen")
+    log.warning("S/MIME: Zertifikat von %s nicht zeitlich gültig — Mail geht UNSIGNIERT", sender)
+    return True
+
+
 def sign(message_bytes: bytes, sender: str, use_backup: bool = False) -> bytes | None:
     """
     Sign message_bytes with the sender's S/MIME certificate.
     Returns signed message bytes or None if no cert is available / signing fails.
     If use_backup=True, falls back to key.pem.bak when no key.pem is present.
     """
-    # Widerrufene Zertifikate signieren nicht mehr (v1.12.124).
-    paths = smime_store.get_signing_paths(sender, allow_backup=use_backup, nur_unwiderrufen=True)
+    # Widerrufene (v1.12.124) und abgelaufene (v1.12.145) Zertifikate signieren nicht.
+    paths = smime_store.get_signing_paths(sender, allow_backup=use_backup, nur_unwiderrufen=True,
+                                          nur_gueltig=True)
     if not paths:
+        nur_abgelaufen(sender)
         return None
 
     cert_path, key_path = paths
@@ -95,6 +121,8 @@ async def sign_async(message_bytes: bytes, sender: str) -> bytes | None:
     Falls back to local openssl subprocess signing.
     Returns signed bytes or None if signing fails / no cert available.
     """
+    if nur_abgelaufen(sender):
+        return None                         # weder Key Vault noch lokal (Standard abgelaufen)
     try:
         import keyvault
         zustand = await keyvault.key_zustand(sender) if keyvault.is_configured() else keyvault.KEY_FEHLT
@@ -104,7 +132,8 @@ async def sign_async(message_bytes: bytes, sender: str) -> bytes | None:
             raise RuntimeError(f"Schlüssel im Key Vault nicht lesbar ({zustand})")
         if zustand == keyvault.KEY_VORHANDEN:
             log.debug("S/MIME sign_async: trying Key Vault for %s", sender)
-            cert_path = smime_store.get_signing_cert_path(sender, nur_unwiderrufen=True)
+            cert_path = smime_store.get_signing_cert_path(sender, nur_unwiderrufen=True,
+                                                          nur_gueltig=True)
             if cert_path and cert_path.exists():
                 import cms_sign
                 result = await cms_sign.sign_smime_keyvault(

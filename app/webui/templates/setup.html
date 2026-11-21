@@ -1763,7 +1763,7 @@ async function loadKvSubscriptions() {
     _kvSubsLoaded = true;
     _kvSetArmBoxOk(true);
     if (data.delegated) {
-      armKasten('kv-arm', 'ok', 'Azure-Verbindung aktiv (' + data.subscriptions.length + ' Subscription(s) geladen).', '✓');
+      armKasten('kv-arm', 'ok', 'Azure-Verbindung aktiv (' + anzahlText(data.subscriptions.length, 'Subscription', 'Subscriptions') + ' geladen).', '✓');
     }
     onKvSubscriptionChange();
   } catch(e) {
@@ -2622,7 +2622,7 @@ async function autoAusnahmePruefen(btn) {
 async function autoAusnahmeErgaenzen(btn) {
   var d = await knopfAktion(btn, 'Ergänze…', () => postJSON('/api/setup/regel/auto-ausnahme-ergaenzen', {}));
   if (!d.ok) { showMsg('auto-ausnahme-result', '✗ ' + (d.error || errText(d) || 'nicht ergänzt'), false); return; }
-  showMsg('auto-ausnahme-result', '✓ Ergänzt an ' + (d.regeln || []).length + ' Regel(n) — die Seite lädt neu', true);
+  showMsg('auto-ausnahme-result', '✓ Ergänzt an ' + anzahlText((d.regeln || []).length, 'Regel', 'Regeln') + ' — die Seite lädt neu', true);
   location.hash = 'exo-auto-ausnahme';
   setTimeout(function () { location.reload(); }, 1200);
 }

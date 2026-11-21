@@ -49,17 +49,17 @@ function dismissWelcome() {
   <strong>Zentrale Abwesenheit:</strong>
   {{ ooo_status.aktiv }} von {{ ooo_status.gesamt }} Postfächern mit zentralem Text hinterlegt.
   {% if ooo_status.richtlinie_neu %}
-  {{ ooo_status.richtlinie_neu }} {{ 'Postfach' if ooo_status.richtlinie_neu == 1 else 'Postfächer' }}
+  {{ ooo_status.richtlinie_neu }} {{ wort(ooo_status.richtlinie_neu, 'Postfach', 'Postfächer') }}
   neu freigegeben: Microsoft übernimmt die Freigabe für die Gateway-App innerhalb von bis zu
   {{ ooo_status.geduld_h }} Stunden, bis dahin bleibt die Notiz dort unverändert.
   {% endif %}
   {% if ooo_status.richtlinie_lange %}
-  Auf {{ ooo_status.richtlinie_lange }} {{ 'Postfach' if ooo_status.richtlinie_lange == 1 else 'Postfächer' }}
+  Auf {{ ooo_status.richtlinie_lange }} {{ wort(ooo_status.richtlinie_lange, 'Postfach', 'Postfächer') }}
   sperrt die Zugriffsrichtlinie der Gateway-App seit über {{ ooo_status.geduld_h }} Stunden den Zugriff.
   <a href="/abwesenheit">Prüfen</a>
   {% endif %}
   {% if ooo_status.zustimmung %}
-  Kein Zugriff auf {{ ooo_status.zustimmung }} {{ 'Postfach' if ooo_status.zustimmung == 1 else 'Postfächer' }}:
+  Kein Zugriff auf {{ ooo_status.zustimmung }} {{ wort(ooo_status.zustimmung, 'Postfach', 'Postfächer') }}:
   Die Berechtigung <code>MailboxSettings.ReadWrite</code> fehlt (Admin-Zustimmung).
   <a href="/abwesenheit#ooo-einstellungen">Prüfen und beheben</a>
   {% endif %}
@@ -135,6 +135,7 @@ function dismissWelcome() {
       {{ stat_row("S/MIME verschlüsselt", stats_daily.smime_encrypted, stats_3d.smime_encrypted, stats_monthly_m2.smime_encrypted, stats_monthly_m1.smime_encrypted, stats_monthly.smime_encrypted, stats_prev_yearly.smime_encrypted, stats_yearly.smime_encrypted, "smime_encrypted") }}
       {{ stat_row("S/MIME entschlüsselt", stats_daily.smime_decrypted, stats_3d.smime_decrypted, stats_monthly_m2.smime_decrypted, stats_monthly_m1.smime_decrypted, stats_monthly.smime_decrypted, stats_prev_yearly.smime_decrypted, stats_yearly.smime_decrypted, "smime_decrypted") }}
       {{ stat_row("S/MIME signiert empfangen", stats_daily.smime_signiert_empfangen, stats_3d.smime_signiert_empfangen, stats_monthly_m2.smime_signiert_empfangen, stats_monthly_m1.smime_signiert_empfangen, stats_monthly.smime_signiert_empfangen, stats_prev_yearly.smime_signiert_empfangen, stats_yearly.smime_signiert_empfangen, "smime_signiert_empfangen") }}
+      {% if stats_yearly.smime_unsigniert_abgelaufen or stats_prev_yearly.smime_unsigniert_abgelaufen %}{{ stat_row("Unsigniert versandt (Zertifikat abgelaufen)", stats_daily.smime_unsigniert_abgelaufen, stats_3d.smime_unsigniert_abgelaufen, stats_monthly_m2.smime_unsigniert_abgelaufen, stats_monthly_m1.smime_unsigniert_abgelaufen, stats_monthly.smime_unsigniert_abgelaufen, stats_prev_yearly.smime_unsigniert_abgelaufen, stats_yearly.smime_unsigniert_abgelaufen, "") }}{% endif %}
       {{ stat_row("Zertifikate gesammelt", stats_daily.certs_harvested, stats_3d.certs_harvested, stats_monthly_m2.certs_harvested, stats_monthly_m1.certs_harvested, stats_monthly.certs_harvested, stats_prev_yearly.certs_harvested, stats_yearly.certs_harvested, "") }}
       {% endif %}
       {#- Antworten auf bestehende Ketten, und wie oft dabei erkannt wurde, dass
@@ -159,6 +160,8 @@ function dismissWelcome() {
       {% if zeilen_zeigen.ablage or stats_yearly.oof_ablage_antwort %}
       {{ stat_row("Abwesenheitsantworten (Gateway)", stats_daily.oof_ablage_antwort, stats_3d.oof_ablage_antwort, stats_monthly_m2.oof_ablage_antwort, stats_monthly_m1.oof_ablage_antwort, stats_monthly.oof_ablage_antwort, stats_prev_yearly.oof_ablage_antwort, stats_yearly.oof_ablage_antwort, "") }}
       {% endif %}
+      {% if stats_yearly.delivery_queued or stats_prev_yearly.delivery_queued %}{{ stat_row("Zustellfehler → Warteschlange", stats_daily.delivery_queued, stats_3d.delivery_queued, stats_monthly_m2.delivery_queued, stats_monthly_m1.delivery_queued, stats_monthly.delivery_queued, stats_prev_yearly.delivery_queued, stats_yearly.delivery_queued, "") }}{% endif %}
+      {% if stats_yearly.graph_ruecklauf or stats_prev_yearly.graph_ruecklauf %}{{ stat_row("Graph-Rücklauf → Warteschlange", stats_daily.graph_ruecklauf, stats_3d.graph_ruecklauf, stats_monthly_m2.graph_ruecklauf, stats_monthly_m1.graph_ruecklauf, stats_monthly.graph_ruecklauf, stats_prev_yearly.graph_ruecklauf, stats_yearly.graph_ruecklauf, "") }}{% endif %}
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:7px 0;font-size:13px;color:#d97706;font-weight:500">Fallback</td>
         <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stat_cell(stats_daily.fallback, "fallback", today) }}</td>
@@ -237,7 +240,7 @@ function dismissWelcome() {
      Übersicht sonst eine endlose Liste. Aufgeklappt sortiert nach Restlaufzeit. #}
   <details style="margin-top:10px"{% if _abg %} open{% endif %}>
     <summary style="cursor:pointer;font-size:13px">
-      <strong>S/MIME signieren:</strong> {{ signing_certs | length }} {{ 'Postfach' if signing_certs | length == 1 else 'Postfächer' }}
+      <strong>S/MIME signieren:</strong> {{ signing_certs | length }} {{ wort(signing_certs | length, 'Postfach', 'Postfächer') }}
       {%- if _abg %} · <span style="color:#dc2626;font-weight:700">{{ _abg | length }} abgelaufen</span>{% endif %}
       {%- if _bald %} · <span style="color:#b45309;font-weight:700">{{ _bald | length }} laufen bald ab</span>{% endif %}
       {%- if not _abg and not _bald %} · <span style="color:#15803d">alle gültig</span>{% endif %}
@@ -482,9 +485,9 @@ function openInFlightInfo(active, maintHeld, dfCount) {
   dfCount = dfCount || 0;
   var total = active + maintHeld + dfCount;
   var lines = [];
-  if (active > 0) lines.push(active + ' Mail' + (active > 1 ? 's werden' : ' wird') + ' gerade verarbeitet.');
-  if (maintHeld > 0) lines.push(maintHeld + ' Mail' + (maintHeld > 1 ? 's sind' : ' ist') + ' im Wartungsmodus zurückgehalten (Erweitert → Wartungsmodus).');
-  if (dfCount > 0) lines.push(dfCount + ' Mail' + (dfCount > 1 ? 's warten' : ' wartet') + ' wegen Zustellfehler in der Warteschlange (Erweitert → Wartungsmodus).');
+  if (active > 0) lines.push(anzahlText(active, 'Mail wird', 'Mails werden') + ' gerade verarbeitet.');
+  if (maintHeld > 0) lines.push(anzahlText(maintHeld, 'Mail ist', 'Mails sind') + ' im Wartungsmodus zurückgehalten (Erweitert → Wartungsmodus).');
+  if (dfCount > 0) lines.push(anzahlText(dfCount, 'Mail wartet', 'Mails warten') + ' wegen Zustellfehler in der Warteschlange (Erweitert → Wartungsmodus).');
   var msg = lines.length ? lines.join('<br>') : 'Keine Mails in Verarbeitung — System idle.';
   var col = total > 0 ? '#d97706' : '#16a34a';
   document.getElementById('poolModalTitle').textContent = 'Warteschlange — Live-Status';

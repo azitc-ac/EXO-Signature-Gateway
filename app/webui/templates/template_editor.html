@@ -2085,9 +2085,9 @@ async function umwandlungAnbieten() {
   zeigeUmwandlungsHinweis(
     (QUELLTEXT_NEUER
       ? `Der Quelltext wurde nach dem letzten Speichern im Baukasten geändert. `
-        + `Die ${d.blocks} Baustein(e) unten stammen aus dem AKTUELLEN Quelltext. `
+        + `Die ${anzahlText(d.blocks, 'Baustein', 'Bausteine')} unten stammen aus dem AKTUELLEN Quelltext. `
         + `Einmal „Speichern“, dann sind sie übernommen.`
-      : `Aus dem HTML wurden ${d.blocks} Baustein(e) gebildet. Prüfe die Vorschau — `
+      : `Aus dem HTML gebildet: ${anzahlText(d.blocks, 'Baustein', 'Bausteine')}. Prüfe die Vorschau — `
         + `erst mit „Speichern“ wird daraus die neue Vorlage. Ohne Speichern bleibt `
         + `alles beim bisherigen HTML.`),
     d.hinweise || [], true);
@@ -2310,7 +2310,7 @@ window.exportAusfuehren = async function(btn) {
   const d = await knopfAktion(btn, 'ZIP wird erstellt …',
     () => dateiHerunterladen('/api/templates/export?namen=' + encodeURIComponent(namen.join(',')), 'vorlagen.zip'),
     {anzeige: 'export-stand'});
-  showMsg('export-stand', d.ok ? '✓ ' + namen.length + (namen.length === 1 ? ' Vorlage' : ' Vorlagen') + ' heruntergeladen (' + d.name + ').' : '✗ ' + errText(d), d.ok);
+  showMsg('export-stand', d.ok ? '✓ ' + anzahlText(namen.length, 'Vorlage', 'Vorlagen') + ' heruntergeladen (' + d.name + ').' : '✗ ' + errText(d), d.ok);
 };
 // Kopieren ueber die Schnittstelle, nicht ueber den Quelltext: der HTML-Code
 // ist das ERZEUGNIS des Baukastens, die Blockliste (.meta.json) ist die Quelle.

@@ -1129,8 +1129,8 @@ async function sammelVorschau() {
     (hind ? '<ul style="margin:8px 0 0;padding-left:18px">' + hind + '</ul>' : '') +
     (d.startbereit && d.bestellbar
        ? '<div style="margin-top:10px"><button class="btn primary btn-sm" ' +
-         'onclick="sammelStarten()">' + d.bestellbar + ' Zertifikat' +
-         (d.bestellbar === 1 ? '' : 'e') + ' jetzt bestellen</button></div>'
+         'onclick="sammelStarten()">' + anzahlText(d.bestellbar, 'Zertifikat', 'Zertifikate') +
+         ' jetzt bestellen</button></div>'
        : '');
 }
 
@@ -1165,7 +1165,7 @@ async function sammelStarten() {
   // ⚠️ Rückfrage ist Pflicht, nicht Höflichkeit: Was bei der Zertifizierungs-
   // stelle liegt, lässt sich nicht zurückholen. Der Betrag steht deshalb IM
   // Dialog, nicht nur darüber auf der Seite.
-  const stueck = d.bestellbar + ' Zertifikat' + (d.bestellbar === 1 ? '' : 'e');
+  const stueck = anzahlText(d.bestellbar, 'Zertifikat', 'Zertifikate');
   let frage;
   if (d.abrechnung === 'kostenlos') {
     frage = stueck + ' bestellen?\n\nDieser Bezugsweg ist kostenlos, es wird nichts abgebucht.';
@@ -1196,7 +1196,7 @@ async function sammelStarten() {
   const wegInfo = (_BACKEND_CAPS || []).find(b => b.name === wegName) || {};
   let zustimmung = '';
   if (wegInfo.terms_url) {
-    const anzahl = d.bestellbar + (d.bestellbar === 1 ? ' Postfach' : ' Postfächer');
+    const anzahl = anzahlText(d.bestellbar, 'Postfach', 'Postfächer');
     const ok = await caBedingungenZeigen(anzahl, wegInfo.label || wegName,
                                          wegInfo.terms_url, wegInfo.docs || [],
                                          'Bestellungen aufgeben');

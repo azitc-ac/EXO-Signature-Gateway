@@ -49,10 +49,7 @@ ENTFAELLT = "entfaellt"          # in dieser Betriebsart ohne Bedeutung
 # Dauerfloskel („zeigt erst der Betrieb“). Am 09.11.2026 standen elf davon da,
 # drei längst behoben; die Abnahme las sich wie eine Mängelliste ohne Aussicht.
 # tests/test_abnahme_ton.py.
-def _zahl(n: int, einzahl: str, mehrzahl: str) -> str:
-    """„1 Postfach“ / „6 Postfächer“ statt „6 Postfach/Postfächer“. Ein Verb, das
-    an der Zahl hängt, gehört mit in die Wörter („Schlüsseldatei liegt“)."""
-    return f"{n} {einzahl if n == 1 else mehrzahl}"
+from texte import zahl as _zahl, wort as _wort   # noqa: E402  (gemeinsam, siehe texte.py)
 
 
 def _punkt(name: str, zustand: str, befund: str = "", zu_tun: str = "",
@@ -418,9 +415,9 @@ def _tls_rueckweg() -> dict:
     uebernommen = sorted(zid for zid, t in domain_routing.ziele().items()
                          if isinstance(t, dict) and t.get("tls_uebernommen"))
     if uebernommen:
-        offen.append(("Weiterleitungsziel " if len(uebernommen) == 1 else "Weiterleitungsziele ")
+        offen.append((_wort(len(uebernommen), "Weiterleitungsziel ", "Weiterleitungsziele "))
                      + ", ".join(uebernommen)
-                     + (" läuft" if len(uebernommen) == 1 else " laufen")
+                     + _wort(len(uebernommen), " läuft", " laufen")
                      + " noch ohne Zertifikatsprüfung, wie vor dem Update")
     if not offen:
         return _punkt(name, OK, "Ausgehende TLS-Verbindungen prüfen das Zertifikat, "
@@ -551,6 +548,37 @@ def _erneuerung_unentschieden() -> dict:
                   "lassen und speichern.")
 
 
+def _ablauf_ohne_erneuerung() -> dict:
+    """Läuft ein eigenes Signaturzertifikat ab (Warnfrist CERT_WARN_DAYS), dessen
+    automatische Erneuerung BEWUSST abgewählt ist (auto_renew False)? Bis
+    v1.12.145 galt das als „entschieden“ (_erneuerung_unentschieden) und war nur
+    am Ablauf-Band zu sehen. Nach dem Ablauf geht die Post unsigniert
+    (smime_signer.nur_abgelaufen). Ab 30 Tagen nach dem Ablauf nicht mehr
+    gemeldet — dann ist das Weglassen offenkundig gewollt. Nur lokal."""
+    import settings_store
+    import smime_store
+    name = "Kein abgewähltes Zertifikat läuft unbemerkt ab"
+    warn = int(settings_store.get("CERT_WARN_DAYS") or 14)
+    cfg_alle = settings_store.get("CA_USER_CONFIG") or {}
+    offen = []
+    for c in smime_store.list_certs():
+        cfg = cfg_alle.get(c.get("email", "")) or {}
+        tage = c.get("days_left", 999)
+        if c.get("error") or not isinstance(cfg, dict) or cfg.get("auto_renew") is not False:
+            continue
+        if -30 <= tage <= warn:
+            offen.append(f"{c['email']} ({'abgelaufen' if tage < 0 else _zahl(tage, 'Tag', 'Tage')})")
+    if not offen:
+        return _punkt(name, OK, "Kein Zertifikat mit abgewählter Erneuerung läuft in der Warnfrist ab.")
+    return _punkt(name, OFFEN,
+                  f"{_zahl(len(offen), 'Zertifikat läuft', 'Zertifikate laufen')} ab und "
+                  f"{_wort(len(offen), 'wird', 'werden')} nicht automatisch erneuert: "
+                  + ", ".join(offen[:5]) + (" …" if len(offen) > 5 else "")
+                  + ". Nach dem Ablauf gehen Mails dieser Postfächer unsigniert hinaus.",
+                  "S/MIME → beim Postfach „Jetzt erneuern“ oder „Automatisch erneuern“ setzen. "
+                  "Ist das Weglassen gewollt, erledigt sich der Punkt 30 Tage nach dem Ablauf.")
+
+
 def _bestand_durchsicht() -> dict:
     """Liegen Empfängerzertifikate von vor v1.10.115 ohne bekannten Aussteller
     im Bestand? Sie konnten ungeprüft hineingekommen sein; die Nachprüfung
@@ -561,7 +589,7 @@ def _bestand_durchsicht() -> dict:
     if not offen:
         return _punkt(name, OK, "Kein Bestandszertifikat wartet auf Durchsicht.")
     return _punkt(name, OFFEN,
-                  f"{_zahl(len(offen), 'Empfängerzertifikat', 'Empfängerzertifikate')} im Bestand {'führt' if len(offen) == 1 else 'führen'} auf keinen bekannten "
+                  f"{_zahl(len(offen), 'Empfängerzertifikat', 'Empfängerzertifikate')} im Bestand {_wort(len(offen), 'führt', 'führen')} auf keinen bekannten "
                   "Aussteller und stammen aus der Zeit vor der Signaturprüfung; an diese "
                   "Partner wird weiterhin damit verschlüsselt.",
                   "S/MIME → „Zertifikate zur Durchsicht“: je Zeile behalten oder entfernen, "
@@ -1207,6 +1235,7 @@ PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _regel_auto_ausnahme, _implicit_anmeldung,
               _addin_rollen, _addin_fassung, _addin_knopf_fassung, _ews_bereich, _ews_gruppe, _ews_kontowechsel, _dynamische_gruppen_stand, _richtlinien_ruhend, _waechter_code, _key_vault_zugriff, _benachrichtigung, _anmeldenachweis,
               _smime_schluessel, _vertragsbedingungen, _erneuerung_unentschieden,
+              _ablauf_ohne_erneuerung,
               _admin_passwort, _fair_use, _wartende_zertifikate, _tls_rueckweg, _direktversand_probe, _dmarc_berichte,
               _smime_regeln_stand,
               _bestand_durchsicht, _tenant_herkunft, _quell_ip_liste, _exo_erkennung,

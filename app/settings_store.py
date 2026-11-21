@@ -523,6 +523,7 @@ INTERNAL_KEYS = frozenset({
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
     "_DIREKTVERSAND_PROBE",       # direktversand_probe.py — Stand der letzten Probe
     "_DMARC_ZIEL",                # dmarc_berichte.py — aufgelöstes Ziel {adresse, art, id}
+    "_ZERT_ABGELAUFEN_GEMELDET",  # scheduler._check_cert_expiry — {email: Tag der letzten Ablaufmail}
     "_DMARC_LESE_APP",            # dmarc_lese_app.py — {client_id, objekt_id} der eigenen Lese-App
     "_DMARC_GRUPPE",              # dmarc_berichte.py — Ziel ist M365-Gruppe → Group-Conversation.Read.All nötig
     "_SMIME_REGELN_STAND",        # setup_wizard.py — angewendeter Stand des S/MIME-Regel-Solls
