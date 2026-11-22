@@ -5,13 +5,6 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.12.156 — 2026-11-22 — Changelog-Form
-
-Die „Zu tun“-Angabe der Einträge v1.12.154 und v1.12.155 steht jetzt als eigener
-Absatz, wie es die Prüfung der Einträge verlangt. Keine Änderung am Programm.
-
-**Zu tun:** nichts.
-
 ## v1.12.155 — 2026-11-22 — Pre-push-Hook, Sperrliste ergänzt
 
 `tools/hooks/pre-push` reicht an einen gemeinsamen pre-push-Check weiter, falls
