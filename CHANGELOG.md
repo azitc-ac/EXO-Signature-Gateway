@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.155 — 2026-11-22 — Pre-push-Hook, Sperrliste ergänzt
+
+`tools/hooks/pre-push` reicht an einen gemeinsamen pre-push-Check weiter, falls
+einer eingerichtet ist (`claude-tools/general/git-hooks/pre-push`). Weil dieses
+Repository `core.hooksPath` lokal setzt, griffe ein global eingerichteter Hook
+hier sonst nicht. Fehlt der Check, warnt der Hook nur. Die geschlüsselte
+Sperrliste der CI (`tests/vertraulich_sperrliste.json`) ist um weitere Begriffe
+ergänzt. Kein Einfluss auf den Betrieb. **Zu tun:** nichts.
+
 ## v1.12.154 — 2026-11-22 — Testdaten und Changelog ohne reale Namen
 
 Tests und ältere Changelog-Einträge enthielten reale Adressen, Namen und
