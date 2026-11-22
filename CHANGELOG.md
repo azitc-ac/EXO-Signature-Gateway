@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.156 — 2026-11-22 — Changelog-Form
+
+Die „Zu tun“-Angabe der Einträge v1.12.154 und v1.12.155 steht jetzt als eigener
+Absatz, wie es die Prüfung der Einträge verlangt. Keine Änderung am Programm.
+
+**Zu tun:** nichts.
+
 ## v1.12.155 — 2026-11-22 — Pre-push-Hook, Sperrliste ergänzt
 
 `tools/hooks/pre-push` reicht an einen gemeinsamen pre-push-Check weiter, falls
@@ -12,14 +19,18 @@ einer eingerichtet ist (`claude-tools/general/git-hooks/pre-push`). Weil dieses
 Repository `core.hooksPath` lokal setzt, griffe ein global eingerichteter Hook
 hier sonst nicht. Fehlt der Check, warnt der Hook nur. Die geschlüsselte
 Sperrliste der CI (`tests/vertraulich_sperrliste.json`) ist um weitere Begriffe
-ergänzt. Kein Einfluss auf den Betrieb. **Zu tun:** nichts.
+ergänzt. Kein Einfluss auf den Betrieb.
+
+**Zu tun:** nichts.
 
 ## v1.12.154 — 2026-11-22 — Testdaten und Changelog ohne reale Namen
 
 Tests und ältere Changelog-Einträge enthielten reale Adressen, Namen und
 Rechnungsnummern als Beispielwerte. Sie sind durch erfundene Platzhalter
 ersetzt (`kunde.example`, `RE209901-0001`), die Einträge neutral formuliert.
-Kein Einfluss auf den Betrieb. **Zu tun:** nichts.
+Kein Einfluss auf den Betrieb.
+
+**Zu tun:** nichts.
 
 ## v1.12.153 — 2026-11-21 — „#enc“ an eigene Postfächer bleibt lesbar
 
