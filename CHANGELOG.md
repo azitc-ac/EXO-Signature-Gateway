@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.154 — 2026-11-22 — Testdaten und Changelog ohne reale Namen
+
+Tests und ältere Changelog-Einträge enthielten reale Adressen, Namen und
+Rechnungsnummern als Beispielwerte. Sie sind durch erfundene Platzhalter
+ersetzt (`kunde.example`, `RE209901-0001`), die Einträge neutral formuliert.
+Kein Einfluss auf den Betrieb. **Zu tun:** nichts.
+
 ## v1.12.153 — 2026-11-21 — „#enc“ an eigene Postfächer bleibt lesbar
 
 Das Gateway entschlüsselt eingehende Post nur, wenn sie von außen kommt. Lag für
@@ -17758,12 +17765,12 @@ Nachtest von v1.6.6 deckte auf: Bei leerem `font-family:` im style-Attribut
 lief `_FONT_FAMILY_RE` (`[^;]+;`) über das Attribut-Ende hinaus bis zum
 Semikolon der nächsten HTML-Entity (z.B. `&uuml;` in „Verfügung") — und
 ersetzte dabei den halben Nachrichtentext durch `font-family:Calibri…`.
-Die echte Orbit-Mail blieb nur intakt, weil Lexware UTF-8 direkt kodiert
+Die echte Kundenmail blieb nur intakt, weil Lexware UTF-8 direkt kodiert
 (kein `;` im Textbereich). Fix: Wertezeichen auf `[^;<>"]` eingeschränkt
 (Match kann Attributgrenzen nicht mehr überlaufen), Leer-Fall läuft jetzt
 VOR dem Wert-Regex, `_EMPTY_FONT_FAMILY_RE` mit `(?<![\w-])` verankert
 (matcht nicht mehr das Ende von `mso-…-font-family`). Verifiziert mit
-4 Unit-Fällen + echtem Orbit-Mail-Body durch die komplette Pipeline.
+4 Unit-Fällen + echtem Kundenmail-Body durch die komplette Pipeline.
 
 ---
 
@@ -17782,7 +17789,7 @@ Fix: neues `_EMPTY_FONT_FAMILY_RE` setzt bei leerem `font-family:` direkt
 ## v1.6.4 — 2026-07-13 — fix: Lexware `<center>`-Tags werden jetzt korrekt auf linksbündig korrigiert
 
 `_fix_lexware_centering` (mail_processor.py) behandelte bisher nur
-`<div align=center>` — neuere Lexware-Vorlagen (z.B. RE202607-0060 an Orbit)
+`<div align=center>` — neuere Lexware-Vorlagen (z.B. bei einer Rechnung an einen Kunden)
 wickeln den gesamten Body in `<center>…</center>` statt in `<div>`.
 Neues Regex `_CENTER_TAG_RE` ersetzt `<center>` → `<div>` / `</center>` → `</div>`,
 sodass der Inhalt linksbündig bleibt. Auch `_EMPTY_P_BEFORE_CENTER_DIV_RE`
@@ -21599,7 +21606,7 @@ Manifest-URL eingeben: `https://<deine-domain>:8080/addin/manifest.xml`
 ### Kritische Verbesserung: `_strip_wordsection_sig` entfernt nur noch echte Signaturen (`mail_processor.py`)
 Bisherige Heuristik: „letzter unbenannter top-level `<div>` in `WordSection1`" — kein
 Inhaltscheck. Konsequenz: wenn kein Outlook-Desktop-Sig-Div existiert oder user content
-in einem namenlosen Div steht (wie die Dirk-Theisen-Mail), wurde user-Inhalt gelöscht.
+in einem namenlosen Div steht (wie in einer Kundenmail), wurde user-Inhalt gelöscht.
 
 **Neuer Ansatz: Template-Fingerprint-Vergleich**
 - `_sig_fingerprint(sig_html)` extrahiert markante Tokens (≥4 Zeichen) aus dem gerenderten
@@ -21612,7 +21619,7 @@ in einem namenlosen Div steht (wie die Dirk-Theisen-Mail), wurde user-Inhalt gel
 - `_strip_wordsection_sig(html, sig_fingerprint)` prüft den Fingerprint direkt vor dem
   Entfernen; loggt Token-Treffer-Quote für Debugging.
 
-**Warum die Dirk-Mail jetzt überleben würde:**
+**Warum diese Mail jetzt überleben würde:**
 Der letzte Div hatte „Zusatzvereinbarung", „A12", Vertragstext — 0% Übereinstimmung
 mit den Zarenko-Signatur-Tokens → KEEP → kein Inhaltsverlust.
 
@@ -21652,7 +21659,7 @@ falsche Div-Identifikation.
 Outlook schreibt die Signatur immer als **letzten** top-level `<div>` in `WordSection1`.
 Bisher wurde der **erste** unbenannte `<div>` entfernt — wenn Outlook Inhalt nach einer
 `---`-Linie in einen namenlosen `<div>` wickelte, wurde dieser Inhalt fälschlich als
-Signatur gestripped und gelöscht. Betroffen: Mail an Dirk Theisen 11:00 (Zusatzvereinbarung A12).
+Signatur gestripped und gelöscht. Betroffen: eine Kundenmail mit Zusatzvereinbarung.
 Fix: Scanner sammelt jetzt ALLE top-level divs, entfernt nur den **letzten** unbenannten.
 
 ### Feature: Per-Mail Audit-Log (`mail_audit.py`)

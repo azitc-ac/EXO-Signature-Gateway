@@ -214,10 +214,10 @@ def _m(mid, von, zeit, entwurf=False):
             "from": {"emailAddress": {"address": von}}}
 
 
-# Die Unterhaltung vom 19.10.2026: Karsten → Stocker → eigene Antwort (signiert).
+# Die Unterhaltung vom 19.10.2026: Anna → Bernd → eigene Antwort (signiert).
 VERLAUF = [
-    _m("<karsten@d>", "karsten@daad.de", "2026-10-19T10:35:00Z"),
-    _m("<stocker@d>", "stocker@daad.de", "2026-10-19T15:50:00Z"),
+    _m("<anna@d>", "anna@kunde.example", "2026-10-19T10:35:00Z"),
+    _m("<bernd@d>", "bernd@kunde.example", "2026-10-19T15:50:00Z"),
     _m("<ich@z>", "alexander@zarenko.net", "2026-10-19T17:55:00Z"),
     _m("<entwurf@z>", "alexander@zarenko.net", "2026-10-19T21:32:00Z", entwurf=True),
 ]
@@ -227,19 +227,19 @@ def test_allen_antworten_auf_die_mail_vor_der_eigenen_antwort():
     """Nicht die jüngste Nachricht der Konversation (die eigene Antwort),
     sondern die des Absenders, dem geantwortet wird."""
     m = graph_client._beantwortete(VERLAUF, "alexander@zarenko.net", "reply",
-                                   ["stocker@daad.de", "karsten@daad.de", "edalati@daad.de"])
-    assert m["internetMessageId"] == "<stocker@d>"
+                                   ["bernd@kunde.example", "anna@kunde.example", "clara@kunde.example"])
+    assert m["internetMessageId"] == "<bernd@d>"
 
 
 def test_erster_empfaenger_entscheidet_vor_den_uebrigen():
     m = graph_client._beantwortete(VERLAUF, "alexander@zarenko.net", "reply",
-                                   ["karsten@daad.de", "stocker@daad.de"])
-    assert m["internetMessageId"] == "<karsten@d>"
+                                   ["anna@kunde.example", "bernd@kunde.example"])
+    assert m["internetMessageId"] == "<anna@d>"
 
 
 def test_weiterleitung_nimmt_die_juengste_fremde():
     m = graph_client._beantwortete(VERLAUF, "alexander@zarenko.net", "forward", [])
-    assert m["internetMessageId"] == "<stocker@d>"
+    assert m["internetMessageId"] == "<bernd@d>"
 
 
 def test_nur_eigene_nachrichten_nimmt_die_juengste():
@@ -463,34 +463,34 @@ def _mk(mid, von, zeit, an, cc=()):
 
 
 ICH = "alexander@zarenko.net"
-DAAD = [  # wie auf der VM am 19.10.2026
-    _mk("<k@d>", "karsten@daad.de", "2026-10-19T10:35:00Z", ["edalati@daad.de", "Alexander@zarenko.net", "stocker@daad.de"]),
-    _mk("<s@d>", "stocker@daad.de", "2026-10-19T15:50:00Z", ["karsten@daad.de", "edalati@daad.de", "Alexander@zarenko.net"]),
-    _mk("<ich@z>", ICH, "2026-10-19T17:55:00Z", ["stocker@daad.de"], ["karsten@daad.de", "edalati@daad.de"]),
+KUNDE = [  # Verlauf wie im Betrieb beobachtet
+    _mk("<k@d>", "anna@kunde.example", "2026-10-19T10:35:00Z", ["clara@kunde.example", "Alexander@zarenko.net", "bernd@kunde.example"]),
+    _mk("<s@d>", "bernd@kunde.example", "2026-10-19T15:50:00Z", ["anna@kunde.example", "clara@kunde.example", "Alexander@zarenko.net"]),
+    _mk("<ich@z>", ICH, "2026-10-19T17:55:00Z", ["bernd@kunde.example"], ["anna@kunde.example", "clara@kunde.example"]),
 ]
 
 
 def test_cc_trennt_die_eigene_mail_von_einer_juengeren_fremden():
-    """Stocker schreibt später nur an mich; ich antworte allen auf MEINE Mail
-    von 17:55 (An Stocker, Cc Karsten+Edalati). Stockers jüngere Mail ergäbe
-    An Stocker ohne Cc — nur der Cc-Vergleich schliesst sie aus."""
-    verlauf = DAAD + [_mk("<s2@d>", "stocker@daad.de", "2026-10-19T18:30:00Z", [ICH])]
-    m = graph_client._beantwortete(verlauf, ICH, "reply", ["stocker@daad.de"],
-                                   ["karsten@daad.de", "edalati@daad.de"])
+    """Bernd schreibt später nur an mich; ich antworte allen auf MEINE Mail
+    von 17:55 (An Bernd, Cc Anna+Clara). Bernds jüngere Mail ergäbe
+    An Bernd ohne Cc — nur der Cc-Vergleich schliesst sie aus."""
+    verlauf = KUNDE + [_mk("<s2@d>", "bernd@kunde.example", "2026-10-19T18:30:00Z", [ICH])]
+    m = graph_client._beantwortete(verlauf, ICH, "reply", ["bernd@kunde.example"],
+                                   ["anna@kunde.example", "clara@kunde.example"])
     assert m["internetMessageId"] == "<ich@z>"
 
 
 @pytest.mark.parametrize("an, cc, erwartet", [
-    (["stocker@daad.de", "karsten@daad.de", "edalati@daad.de"], [], "<s@d>"),   # Allen antworten auf Stocker
-    (["stocker@daad.de"], ["karsten@daad.de", "edalati@daad.de"], "<ich@z>"),   # Allen antworten auf die eigene
-    (["stocker@daad.de"], None, "<ich@z>"),          # Cc unbekannt: jüngste passende
-    # „Allen antworten“ auf Karsten ergibt dieselben Empfänger wie auf Stocker —
+    (["bernd@kunde.example", "anna@kunde.example", "clara@kunde.example"], [], "<s@d>"),   # Allen antworten auf Bernd
+    (["bernd@kunde.example"], ["anna@kunde.example", "clara@kunde.example"], "<ich@z>"),   # Allen antworten auf die eigene
+    (["bernd@kunde.example"], None, "<ich@z>"),          # Cc unbekannt: jüngste passende
+    # „Allen antworten“ auf Anna ergibt dieselben Empfänger wie auf Bernd —
     # nicht unterscheidbar, die jüngere gewinnt (beide ohne eigene Signatur).
-    (["karsten@daad.de", "edalati@daad.de", "stocker@daad.de"], [], "<s@d>"),
+    (["anna@kunde.example", "clara@kunde.example", "bernd@kunde.example"], [], "<s@d>"),
     (["jemand@neu.de"], [], "<s@d>"),                # nichts passt: Rückfall jüngste fremde
 ])
 def test_schaetzung_ueber_an_und_cc(an, cc, erwartet):
-    m = graph_client._beantwortete(DAAD, ICH, "reply", an, cc)
+    m = graph_client._beantwortete(KUNDE, ICH, "reply", an, cc)
     assert m["internetMessageId"] == erwartet
 
 

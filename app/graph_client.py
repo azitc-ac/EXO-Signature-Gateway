@@ -553,7 +553,7 @@ def _beantwortete(nachrichten: list[dict], postfach: str, art: str, an: list[str
     An = Absender (+ ihr An), Cc = ihr Cc — jeweils ohne einen selbst.
     Passt keine (Empfänger geändert), die jüngste des ersten Empfängers, dann
     die jüngste fremde, zuletzt die jüngste (VM 20.10.2026: Antwort auf die
-    eigene Mail an Stocker wurde als Antwort auf Stockers ältere Mail
+    eigene Mail an Bernd wurde als Antwort auf Bernds ältere Mail
     geschätzt)."""
     selbst = postfach.lower()
     echt = [m for m in nachrichten if not m.get("isDraft") and m.get("internetMessageId")]
