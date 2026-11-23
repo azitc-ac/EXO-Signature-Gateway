@@ -1301,8 +1301,8 @@ function buildBlockForm(b) {
     let ein = '';
     ein += row('Abstand (px)', txt('gap', b.gap, '12'));
     ein += row('Linke Breite', txt('left_width', b.left_width, 'auto oder z.B. 60%'));
-    ein += row('Links ausrichten', `<select name="left_valign" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)"><option value="top"${(b.left_valign||'top')==='top'?' selected':''}>Oben</option><option value="middle"${b.left_valign==='middle'?' selected':''}>Mitte</option></select>`);
-    ein += row('Rechts ausrichten', `<select name="right_valign" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)"><option value="middle"${(b.right_valign||'middle')==='middle'?' selected':''}>Mitte</option><option value="top"${b.right_valign==='top'?' selected':''}>Oben</option></select>`);
+    ein += row('Links ausrichten', `<select name="left_valign" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)"><option value="top"${(b.left_valign||'top')==='top'?' selected':''}>Oben</option><option value="middle"${b.left_valign==='middle'?' selected':''}>Mitte</option><option value="bottom"${b.left_valign==='bottom'?' selected':''}>Unten</option></select>`);
+    ein += row('Rechts ausrichten', `<select name="right_valign" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)"><option value="middle"${(b.right_valign||'middle')==='middle'?' selected':''}>Mitte</option><option value="top"${b.right_valign==='top'?' selected':''}>Oben</option><option value="bottom"${b.right_valign==='bottom'?' selected':''}>Unten</option></select>`);
     ein += row('Trennlinie', chk('divider', b.divider));
     rows += behaelterEinstellungen(b.id, 'Aufteilung & Ausrichtung', ein);
     // Spalten UNTEREINANDER stapeln, nicht nebeneinander: der Editor-Bereich ist

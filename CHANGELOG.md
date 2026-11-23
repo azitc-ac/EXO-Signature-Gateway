@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.156 — 2026-11-23 — Zwei Spalten „unten“ ausrichten, DMARC als Vorschau
+
+**Baukasten:** Im Baustein „Zwei Spalten“ lassen sich beide Spalten jetzt auch
+unten ausrichten (bisher nur oben und Mitte). Aus importiertem HTML wurde
+`vertical-align:bottom` schon übernommen, war im Editor aber nicht einstellbar.
+Beim Erzeugen gelten nur noch die drei Werte oben, Mitte und unten; ein anderer
+Wert (etwa aus importiertem HTML) fällt auf die Vorgabe zurück.
+
+**DMARC:** Reiter und Seite tragen die Kennzeichnung PREVIEW — Befunde und
+Empfehlungen werden noch abgestimmt. Die Funktion selbst ist unverändert.
+
+**Zu tun:** nichts.
+
 ## v1.12.155 — 2026-11-22 — Pre-push-Hook, Sperrliste ergänzt
 
 `tools/hooks/pre-push` reicht an einen gemeinsamen pre-push-Check weiter, falls

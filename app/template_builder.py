@@ -653,14 +653,19 @@ def _erbstil(g: dict) -> str:
             f'color:{g["base_color"]}')
 
 
+_SENKRECHT = ("top", "middle", "bottom")
+
+
 def _two_col(b, g, pad, indent):
     left_blocks = b.get("left") or []
     right_blocks = b.get("right") or []
     divider = b.get("divider", False)
     left_w = b.get("left_width") or "auto"
     gap = max(4, _ganzzahl(b.get("gap"), 12))
-    left_valign = b.get("left_valign") or "top"
-    right_valign = b.get("right_valign") or "middle"
+    # Nur die drei Werte, die der Editor anbietet — der Wert landet roh im
+    # style-Attribut, und der Parser übernimmt ihn aus importiertem HTML.
+    left_valign = b.get("left_valign") if b.get("left_valign") in _SENKRECHT else "top"
+    right_valign = b.get("right_valign") if b.get("right_valign") in _SENKRECHT else "middle"
 
     ni = indent + 4
     left_inner = _render_blocks(left_blocks, g, ni + 2)

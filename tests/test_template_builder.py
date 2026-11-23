@@ -529,3 +529,16 @@ def test_leerzeile_MITTENDRIN_bleibt_erhalten():
     src = tb.render_html(_meta({"id": "1", "type": "text",
                                 "text": "Oben\n\nUnten"}))
     assert "Oben<br><br>Unten" in src
+
+
+@pytest.mark.parametrize("wert, erwartet", [
+    ("bottom", "vertical-align:bottom"),
+    ("top", "vertical-align:top"),
+    ("middle;color:red", "vertical-align:middle"),   # fremder Wert → Vorgabe
+])
+def test_zweispalter_senkrechte_ausrichtung(wert, erwartet):
+    """„Unten“ gehört zu den Werten des Editors; alles andere fällt auf die Vorgabe."""
+    src = tb.render_html(_meta({"id": "1", "type": "two_col", "right_valign": wert,
+        "left": [], "right": [{"id": "2", "type": "field", "field": "companyName"}]}))
+    assert erwartet + ";padding-left" in src
+    assert "color:red" not in src
