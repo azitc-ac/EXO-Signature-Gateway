@@ -256,7 +256,15 @@
           if (name === def) opt.selected = true;
           sel.appendChild(opt);
         });
-        document.getElementById('tpl-row').style.display = list.length > 1 ? 'flex' : 'none';
+        // Private Signatur (Einstellungen → Signatur → Private Mails): ohne
+        // Banner und Disclaimer — das Gateway erkennt die Wahl am Kopf.
+        if (d.privat) {
+          var p = document.createElement('option');
+          p.value = PRIVAT_WAHL;
+          p.textContent = 'Privat (ohne Banner und Disclaimer)';
+          sel.appendChild(p);
+        }
+        document.getElementById('tpl-row').style.display = sel.options.length > 1 ? 'flex' : 'none';
       } catch(_) { console.error('[addin_compose:159]', _); }
     }
 
@@ -265,7 +273,9 @@
       var email = emailOverride || _email || (Office.context.mailbox.userProfile || {}).emailAddress || '';
       if (!email) { showStatus('E-Mail-Adresse konnte nicht ermittelt werden.', 'err'); return; }
       var tplSel = document.getElementById('tpl-select');
-      var tpl = tplSel && tplSel.value ? '&template=' + encodeURIComponent(tplSel.value) : '';
+      var tpl = !tplSel || !tplSel.value ? ''
+        : tplSel.value === PRIVAT_WAHL ? '&privat=1'
+        : '&template=' + encodeURIComponent(tplSel.value);
 
       document.getElementById('preview').innerHTML = '<span class="loading">Signatur wird geladen…</span>';
       document.getElementById('btn-insert').disabled = true;
@@ -521,7 +531,38 @@
       _sigSetzen();
     }
 
+    // Wahl „Privat“: Kopf für das Gateway (keine Banner/Disclaimer, Signatur
+    // bleibt) und Merker, damit das Verfassen-Ereignis sie bei Empfänger-
+    // wechsel nicht ersetzt. Jede andere Wahl nimmt beides zurück.
+    var PRIVAT_WAHL = '__privat__';
+    function _privatMelden() {
+      var item = Office.context.mailbox.item;
+      var sel = document.getElementById('tpl-select');
+      var privat = !!(sel && sel.value === PRIVAT_WAHL);
+      var leer = function() {};
+      if (item.internetHeaders) {
+        if (privat && typeof item.internetHeaders.setAsync === 'function') {
+          item.internetHeaders.setAsync({ '{{ privat_kopf }}': '1' }, leer);
+        } else if (!privat && typeof item.internetHeaders.removeAsync === 'function') {
+          item.internetHeaders.removeAsync(['{{ privat_kopf }}'], leer);
+        }
+      }
+      if (item.sessionData && typeof item.sessionData.setAsync === 'function') {
+        if (privat) item.sessionData.setAsync('exoSignatur', PRIVAT_WAHL, leer);
+        // Nur den eigenen Merker zurücknehmen — den des Verfassen-Ereignisses
+        // braucht es, um bei Empfängerwechsel nicht unnötig neu zu setzen.
+        else if (typeof item.sessionData.getAsync === 'function' && typeof item.sessionData.removeAsync === 'function') {
+          item.sessionData.getAsync('exoSignatur', function(r) {
+            if (r.status === Office.AsyncResultStatus.Succeeded && r.value === PRIVAT_WAHL) {
+              item.sessionData.removeAsync('exoSignatur', leer);
+            }
+          });
+        }
+      }
+    }
+
     function _sigSetzen() {
+      _privatMelden();
       // Mailbox 1.10: nur den Signaturbereich setzen bzw. ersetzen — der Text
       // der Mail bleibt unberührt, der Cursor auch. Ganzen Text neu zu schreiben
       // (unten) ist nur der Weg für Clients ohne diese Schnittstelle.

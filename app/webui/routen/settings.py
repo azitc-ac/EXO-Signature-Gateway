@@ -35,6 +35,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 import graph_client
 import gruppen
 import settings_store
+import signature_engine
 
 from webui.deps import (
     templates, log, _gateway_name, _check_auth, _require_admin,
@@ -266,6 +267,8 @@ async def settings_signature_page(request: Request, user: str = Depends(_require
             "gateway_name": _gateway_name(),
             "sender_mailboxes": sender_mailboxes,
             "custom_var_entra_fields": graph_client.CUSTOM_VAR_ENTRA_FIELDS,
+            # Auswahl für „Private Mails“ (PRIVAT_SIGNATUREN).
+            "signatur_vorlagen": signature_engine.list_templates("signatur"),
             # Feldliste für „Alle Variablen“ — dieselbe, die der Baukasten prüft.
             "user_felder": __import__("template_builder").USER_FELDER,
             "regel_stand": _regel_stand(),

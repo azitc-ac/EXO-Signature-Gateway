@@ -102,6 +102,8 @@ def _schluessel(postfach: str, message_id: str) -> bytes:
 # volle. handler.py vergleicht das mit seiner eigenen Entscheidung aus
 # References und Zitat (ANTWORT_LETZTES_WORT) und zählt die Wirkung.
 ADDIN_KOPF = "X-Exo-Sig-Kette"
+# Wahl „Privat“ im Aufgabenbereich des Verfassen-Add-ins (seit v1.12.157).
+PRIVAT_KOPF = "X-Exo-Sig-Privat"
 
 
 def addin_wahl(msg) -> bool | None:

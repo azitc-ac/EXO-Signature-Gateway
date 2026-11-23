@@ -1348,17 +1348,31 @@ class SignatureHandler:
             _nodigsig_kw = (settings_store.get("NODIGSIG_TRIGGER") or "#nodigsig").lower()
             suppress_html_sig = bool(_nosig_kw and _nosig_kw in subject.lower())
             suppress_smime_sig = bool(_nodigsig_kw and _nodigsig_kw in subject.lower())
-            if suppress_html_sig or suppress_smime_sig:
+            # Private Mail (#privat oder Wahl im Verfassen-Add-in): nur bei
+            # eingeschalteter Funktion; ob das Postfach eine private Signatur
+            # hat, entscheidet policies.entscheiden. Der Kopf des Add-ins geht
+            # nicht mit hinaus.
+            _privat_kw = ""
+            _privat_kopf = False
+            if settings_store.get("PRIVAT_SIG_AKTIV") is True:
+                _privat_kw = (settings_store.get("PRIVAT_TRIGGER") or "#privat").strip().lower()
+                _privat_kopf = (msg.get(sig_thread.PRIVAT_KOPF) or "").strip() == "1"
+            if sig_thread.PRIVAT_KOPF in msg:
+                del msg[sig_thread.PRIVAT_KOPF]
+            _privat_betreff = bool(_privat_kw and _privat_kw in subject.lower())
+            _privat = _privat_kopf or _privat_betreff
+            if suppress_html_sig or suppress_smime_sig or _privat_betreff:
                 cleaned = subject
-                for _kw in (_nodigsig_kw, _nosig_kw):   # längeren Token zuerst entfernen
+                for _kw in sorted({_nodigsig_kw, _nosig_kw, _privat_kw} - {""},
+                                  key=len, reverse=True):   # längeren Token zuerst entfernen
                     if _kw:
                         cleaned = re.sub(r"\s*" + re.escape(_kw) + r"\s*", " ",
                                          cleaned, flags=re.IGNORECASE)
                 cleaned = cleaned.strip()
                 subject = cleaned
                 _betreff_setzen(msg, cleaned)
-                log.info("Betreff-Trigger für %s: HTML-Sig unterdrücken=%s, S/MIME unterdrücken=%s",
-                         sender, suppress_html_sig, suppress_smime_sig)
+                log.info("Betreff-Trigger für %s: HTML-Sig unterdrücken=%s, S/MIME unterdrücken=%s, "
+                         "privat=%s", sender, suppress_html_sig, suppress_smime_sig, _privat_betreff)
 
             # ── Automatische S/MIME-Regeln (Absender/Empfänger) ──────────────
             # Priorität: Betreff-Trigger (#nodigsig) > Regel "nosign" >
@@ -1540,8 +1554,28 @@ class SignatureHandler:
             # was nur der Mailweg weiss: Signatur des Add-ins im Entwurf (oben).
             _entscheid = _policies_mod.entscheiden(
                 _sig_absender, in_kette=_in_kette, alle_intern=_empf_alle_intern,
-                per_nosig=_per_nosig, mailbox_cfg=_mailbox_cfg, sender_cfg=_sender_cfg)
-            if _im_entwurf:
+                per_nosig=_per_nosig, privat=_privat, mailbox_cfg=_mailbox_cfg,
+                sender_cfg=_sender_cfg)
+            if _privat:
+                if _entscheid["art"] != "privat":
+                    log.info("PRIVAT: angefordert von %s, aber keine private Signatur hinterlegt "
+                             "— normal behandelt", _sig_absender)
+                elif _im_entwurf and not _privat_kopf and mail_processor.addin_signatur_entfernen(msg):
+                    # Kürzel im Betreff, das Add-in hatte aber die geschäftliche
+                    # Signatur gesetzt: ersetzen. Mit dem Kopf hat das Add-in die
+                    # private selbst eingefügt — die bleibt.
+                    _im_entwurf = False
+                    log.info("PRIVAT: Signatur des Add-ins durch die private ersetzt für %s",
+                             _sig_absender)
+            if _entscheid["art"] == "privat":
+                suppress_html_sig = _im_entwurf
+                if not _im_entwurf:
+                    template_name = _entscheid["signatur"]["vorlage"]
+                    _force_sig = True
+                log.info("PRIVAT: private Mail von %s — %s, ohne Banner und Disclaimer",
+                         _sig_absender, "Signatur des Add-ins bleibt" if _im_entwurf
+                         else f"Vorlage {template_name!r}")
+            elif _im_entwurf:
                 suppress_html_sig = True
                 log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)
                 if _addin_wahl is True:

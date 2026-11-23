@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.157 — 2026-11-23 — Private Mails: eigene Signatur ohne Banner und Disclaimer
+
+Für Postfächer, die geschäftlich und privat genutzt werden, gibt es unter
+*Einstellungen → Signatur → Erweitert → Private Mails* (ab Werk aus) eine
+private Signatur je Postfach. Eine Mail gilt als privat, wenn
+
+* das Kürzel im Betreff steht (Vorgabe `#privat`, wird vor dem Versand
+  entfernt), oder
+* im Aufgabenbereich des Verfassen-Add-ins „Privat (ohne Banner und
+  Disclaimer)“ gewählt und eingefügt ist. Das Add-in markiert den Entwurf mit
+  einem Kopf, den das Gateway auswertet und vor dem Versand entfernt.
+
+Eine private Mail bekommt die private Signatur und weder Banner noch
+Disclaimer, auch in einer Antwortkette. Hatte das Add-in schon die
+geschäftliche Signatur eingefügt und steht nur das Kürzel im Betreff, ersetzt
+das Gateway sie durch die private. Ein Empfängerwechsel im Entwurf setzt nach
+der Wahl „Privat“ nicht wieder die geschäftliche Signatur.
+
+Kürzel und Kopf wirken nur für Postfächer mit einer hinterlegten privaten
+Signatur. Für alle anderen bleibt alles wie bisher, Banner und Disclaimer
+eingeschlossen. Rein interne Post, die das Gateway nicht signiert, geht
+weiterhin unverändert durch.
+
+**Zu tun:** nichts.
+
 ## v1.12.156 — 2026-11-23 — Zwei Spalten „unten“ ausrichten, DMARC als Vorschau
 
 **Baukasten:** Im Baustein „Zwei Spalten“ lassen sich beide Spalten jetzt auch
