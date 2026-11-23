@@ -233,6 +233,28 @@ def query_events(
         return []
 
 
+def von_domaene_im_zeitraum(domain: str, von_iso: str, bis_iso: str,
+                            limit: int = 200) -> tuple[list[dict], int]:
+    """Mails mit Absender @*domain* zwischen *von_iso* und *bis_iso* (UTC, ISO),
+    neueste zuerst, höchstens *limit* — und die Gesamtzahl. Für den Abgleich der
+    DMARC-Befunde mit dem eigenen Protokoll (dmarc_berichte.protokoll_abgleich)."""
+    if not _initialised or not domain:
+        return [], 0
+    muster = "%@" + domain.lower().replace("\\", "").replace("%", "").replace("_", "\\_")
+    bed = "lower(sender) LIKE ? ESCAPE '\\' AND ts >= ? AND ts < ?"
+    try:
+        with _conn() as conn:
+            n = conn.execute(f"SELECT COUNT(*) FROM mail_log WHERE {bed}",
+                             (muster, von_iso, bis_iso)).fetchone()[0]
+            rows = conn.execute(
+                f"SELECT ts, sender, recipients, subject, action FROM mail_log WHERE {bed} "
+                "ORDER BY ts DESC LIMIT ?", (muster, von_iso, bis_iso, limit)).fetchall()
+        return [dict(r) for r in rows], n
+    except Exception as exc:                                  # noqa: BLE001
+        log.warning("mail_audit: Abgleich fehlgeschlagen: %s", exc)
+        return [], 0
+
+
 def count_events(
     *,
     date: str | None = None,

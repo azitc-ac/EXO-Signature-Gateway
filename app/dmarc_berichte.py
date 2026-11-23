@@ -354,6 +354,12 @@ def bericht_lesen(xml: bytes) -> dict:
             "dkim": _text(rec, "row/policy_evaluated/dkim", 10).lower(),
             "spf": _text(rec, "row/policy_evaluated/spf", 10).lower(),
             "header_from": _domaene(_text(rec, "identifiers/header_from")) or domain,
+            # Freiwillige Angaben (RFC 7489 Anhang C): Wer füllt sie, verrät „wohin“
+            # (envelope_to) und „welches System“ (envelope_from = Return-Path-Domäne).
+            "envelope_from": _domaene(_text(rec, "identifiers/envelope_from")),
+            "envelope_to": _domaene(_text(rec, "identifiers/envelope_to")),
+            "gruende": [{"typ": _text(g, "type", 30).lower(), "text": _text(g, "comment", 200)}
+                        for g in rec.findall("row/policy_evaluated/reason")][:3],
             "dkim_auth": [{"d": _domaene(_text(d, "domain")), "s": _text(d, "selector", 63),
                            "r": _text(d, "result", 20).lower()}
                           for d in (auth.findall("dkim") if auth is not None else [])][:10],
@@ -784,14 +790,227 @@ def rdns(ips: list[str], frist_s: float = 3.0) -> dict[str, str]:
     return {ip: _rdns_cache.get(ip, (0, ""))[1] for ip in ips}
 
 
+# ── Einzelheiten, Quelle, Abgleich mit dem eigenen Protokoll ────────────────
+#
+# Ein Sammelbericht nennt je Zeile: Zeitraum (meist ein Tag), Melder (der
+# empfangende Anbieter), Quell-IP, SPF-/DKIM-Ergebnis mit Domäne und Selektor,
+# freiwillig envelope_to/envelope_from und einen Grund. Uhrzeit, Empfänger-
+# adresse und Betreff stehen NIE darin. Was sich daraus über „wann, wohin,
+# welches System“ sagen lässt, legen die drei Funktionen offen; die genaue Mail
+# findet nur das eigene Protokoll — und nur, wenn die Quelle dieses Gateway ist.
+
+MAX_EINZELHEITEN = 30
+MAX_ABGLEICH = 20
+EIGENE_IPS_FRIST_S = 6 * 3600
+
+_eigene_ips_cache: tuple[float, frozenset] = (0.0, frozenset())
+
+# Melder → Empfängerdomänen. „Enterprise Outlook“ (Microsoft 365) fehlt bewusst:
+# Das kann jede Domäne eines Tenants sein.
+_MELDER_DOMAENEN = (
+    ("google", ("gmail.com", "googlemail.com")),
+    ("outlook.com", ("outlook.com", "outlook.de", "hotmail.com", "hotmail.de",
+                     "live.com", "live.de", "msn.com")),
+    ("yahoo", ("yahoo.com", "yahoo.de", "ymail.com", "aol.com", "aol.de")),
+)
+
+# Bekannte Versanddienste am Rückwärtsnamen (PTR). Klein gehalten: Was hier
+# nicht steht, zeigt die Oberfläche mit dem nackten Namen.
+_DIENSTE = (
+    (".outbound.protection.outlook.com", "Exchange Online"),
+    (".protection.outlook.com", "Exchange Online"),
+    (".google.com", "Google"),
+    (".amazonses.com", "Amazon SES"),
+    (".sendgrid.net", "SendGrid"),
+    (".mcsv.net", "Mailchimp"), (".rsgsv.net", "Mailchimp"), (".mcdlv.net", "Mailchimp"),
+    (".mailgun.net", "Mailgun"), (".mailgun.org", "Mailgun"),
+    (".sparkpostmail.com", "SparkPost"),
+)
+
+
+def _adressen_von(name: str) -> set[str]:
+    try:
+        return {i[4][0] for i in socket.getaddrinfo(name, None)}
+    except (OSError, UnicodeError):
+        return set()
+
+
+def eigene_ips() -> frozenset:
+    """Öffentliche Adressen dieses Gateways: DIREKT_AUSSEN_IP, die Adressen von
+    PUBLIC_HOSTNAME und DIREKT_HELO, und die über einen Echo-Dienst gemessene
+    Ausgangsadresse (wie die Abnahme). Sechs Stunden zwischengespeichert —
+    die Seite ruft das bei jedem Laden."""
+    global _eigene_ips_cache
+    jetzt = time.time()
+    if jetzt - _eigene_ips_cache[0] < EIGENE_IPS_FRIST_S:
+        return _eigene_ips_cache[1]
+    ips: set[str] = set()
+    for roh in str(settings_store.get("DIREKT_AUSSEN_IP") or "").replace(";", ",").split(","):
+        if roh.strip():
+            ips.add(roh.strip())
+    namen = {str(settings_store.get(k) or "").strip().lower() for k in ("PUBLIC_HOSTNAME", "DIREKT_HELO")}
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futs = [pool.submit(_adressen_von, n) for n in namen if n]
+        import abnahme
+        echo = pool.submit(abnahme._oeffentliche_ip_extern)
+        for f in futs:
+            try:
+                ips |= f.result(timeout=4)
+            except Exception:                                       # noqa: BLE001
+                pass
+        try:
+            if e := echo.result(timeout=10):
+                ips.add(e)
+        except Exception:                                           # noqa: BLE001
+            pass
+    sauber = set()
+    for ip in ips:
+        try:
+            sauber.add(str(ipaddress.ip_address(ip)))
+        except ValueError:
+            continue
+    _eigene_ips_cache = (jetzt, frozenset(sauber))
+    return _eigene_ips_cache[1]
+
+
+def quelle_benennen(ip: str, name: str, selektoren=(), eigene: frozenset = frozenset()) -> str:
+    """Wer hinter der Quell-IP steht, soweit erkennbar — sonst ""."""
+    if ip in eigene:
+        return "dieses Gateway"
+    n = (name or "").lower().rstrip(".")
+    import smtp_acl
+    if smtp_acl.ist_exchange(ip):
+        return "Exchange Online"
+    for endung, dienst in _DIENSTE:
+        if n.endswith(endung):
+            return dienst
+    if "google" in {s.lower() for s in selektoren}:
+        return "Google"
+    return ""
+
+
+def _passt_zum_befund(art: str, z: dict) -> bool:
+    best = _bestanden(z)
+    abgewiesen = z.get("disposition") in ("quarantine", "reject")
+    if art == "fail_zugestellt":
+        return not best and not abgewiesen
+    if art == "abgewiesen":
+        return not best and abgewiesen
+    if art == "teilweise":
+        return not best
+    if art == "nur_spf":
+        return best and z.get("dkim") != "pass"
+    if art == "dkim_zusatz_kaputt":
+        dom = z.get("header_from") or ""
+        eig = [a for a in z.get("dkim_auth") or [] if a.get("d") == dom]
+        return any(a["r"] == "pass" for a in eig) and any(a["r"] not in ("pass", "") for a in eig)
+    return False
+
+
+def _iso(ts: float) -> str:
+    return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def einzelheiten(berichte: dict, befund: dict, jetzt: float | None = None) -> list[dict]:
+    """Die Berichtszeilen hinter einem Befund: wann (Berichtszeitraum), wer meldet,
+    wohin (envelope_to, falls angegeben), wie (SPF-/DKIM-Domäne, Selektor, Grund).
+    Neueste zuerst, höchstens MAX_EINZELHEITEN."""
+    if not befund.get("ip"):
+        return []
+    grenze = (jetzt or time.time()) - AUSWERTUNG_TAGE * 86400
+    aus = []
+    for b in berichte.values():
+        if (b.get("ende") or 0) < grenze:
+            continue
+        for z in b.get("zeilen") or []:
+            if z.get("ip") != befund["ip"] or (z.get("header_from") or b["domain"]) != befund["domain"]:
+                continue
+            if not _passt_zum_befund(befund["art"], z):
+                continue
+            aus.append({"von": _iso(b.get("beginn") or 0), "bis": _iso(b.get("ende") or 0),
+                        "melder": b["org"], "anzahl": z.get("anzahl") or 0,
+                        "disposition": z.get("disposition") or "", "dkim": z.get("dkim") or "",
+                        "spf": z.get("spf") or "", "envelope_to": z.get("envelope_to") or "",
+                        "envelope_from": z.get("envelope_from") or "",
+                        "dkim_auth": z.get("dkim_auth") or [], "spf_auth": z.get("spf_auth") or [],
+                        "gruende": z.get("gruende") or []})
+    aus.sort(key=lambda e: (e["von"], e["melder"]), reverse=True)
+    return aus[:MAX_EINZELHEITEN]
+
+
+def _domaene_von(adresse: str) -> str:
+    return adresse.rsplit("@", 1)[-1].strip().strip(">").lower() if "@" in adresse else ""
+
+
+def _empfaenger_passt(domaene: str, ziele: set[str]) -> bool:
+    return any(domaene == d or domaene.endswith("." + d) for d in ziele)
+
+
+def _melder_ziele(org: str) -> set[str] | None:
+    """Empfängerdomänen, die zu einem Melder gehören — None = nicht eingrenzbar."""
+    o = (org or "").strip().lower()
+    for kennwort, doms in _MELDER_DOMAENEN:
+        if kennwort in o:
+            return set(doms)
+    d = _domaene(o)
+    return {d} if d and "." in d and " " not in o else None
+
+
+def protokoll_abgleich(domain: str, zeilen: list[dict]) -> dict:
+    """Mails im eigenen Protokoll, die hinter den Zeilen stecken können: Absender
+    @domain im Berichtszeitraum. Die zum Ziel passenden (envelope_to, sonst die
+    Domänen des Melders) zuerst. Sammelberichte nennen keine einzelne Mail —
+    das ist eine Kandidatenliste, kein Nachweis."""
+    if not zeilen:
+        return {"anzahl": 0, "mails": []}
+    import mail_audit
+    von, bis = min(z["von"] for z in zeilen), max(z["bis"] for z in zeilen)
+    roh, gesamt = mail_audit.von_domaene_im_zeitraum(domain, von, bis, limit=500)
+    ziele: set[str] = set()
+    offen = False
+    for z in zeilen:
+        if z.get("envelope_to"):
+            ziele.add(z["envelope_to"])
+            continue
+        m = _melder_ziele(z.get("melder") or "")
+        if m is None:
+            offen = True
+        else:
+            ziele |= m
+    mails = []
+    for r in roh:
+        try:
+            empf = json.loads(r.get("recipients") or "[]")
+        except (TypeError, ValueError):
+            empf = []
+        empf = [str(e) for e in empf if isinstance(e, str)][:20]
+        passt = any(_empfaenger_passt(_domaene_von(e), ziele) for e in empf) if ziele else False
+        mails.append({"ts": r.get("ts") or "", "absender": r.get("sender") or "", "empfaenger": empf,
+                      "betreff": (r.get("subject") or "")[:200], "aktion": r.get("action") or "",
+                      "passt": passt})
+    mails.sort(key=lambda m: (m["passt"], m["ts"]), reverse=True)
+    return {"anzahl": gesamt, "passend": sum(m["passt"] for m in mails),
+            "eingrenzbar": bool(ziele) and not offen, "mails": mails[:MAX_ABGLEICH]}
+
+
 def uebersicht() -> dict:
     """Alles für die Oberfläche: Ziel, Abruf, Domänen, Quellen, Befunde."""
     d = stand()
     berichte = d.get("berichte") or {}
     q = quellen(berichte)
     namen = rdns([e["ip"] for e in q[:100]])
+    eigene = eigene_ips()
     for e in q:
         e["rdns"] = namen.get(e["ip"], "")
+        e["quelle"] = quelle_benennen(e["ip"], e["rdns"], e["selektoren"], eigene)
+    je_quelle = {(e["domain"], e["ip"]): e for e in q}
+    bf = befunde(berichte)
+    for b in bf:
+        e = je_quelle.get((b["domain"], b["ip"])) or {}
+        b["quelle"], b["rdns"] = e.get("quelle", ""), e.get("rdns", "")
+        b["einzelheiten"] = einzelheiten(berichte, b)
+        b["abgleich"] = (protokoll_abgleich(b["domain"], b["einzelheiten"])
+                         if b["quelle"] == "dieses Gateway" else None)
     grenze = time.time() - AUSWERTUNG_TAGE * 86400
     aktuell = [b for b in berichte.values() if (b.get("ende") or 0) >= grenze]
     domaenen = []
@@ -803,7 +1022,7 @@ def uebersicht() -> dict:
                          "melder": len({m for e in es for m in e["melder"]})})
     return {"adresse": adresse(), "ziel": ziel(), "abruf": d.get("abruf") or {},
             "berichte": len(aktuell), "berichte_gesamt": len(berichte), "tage": AUSWERTUNG_TAGE,
-            "domaenen": domaenen, "quellen": q[:300], "befunde": befunde(berichte)}
+            "domaenen": domaenen, "quellen": q[:300], "befunde": bf}
 
 
 def bewertung() -> tuple[str, str]:

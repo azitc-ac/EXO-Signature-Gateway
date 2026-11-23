@@ -93,7 +93,7 @@
     „Nur SPF“: DMARC bestanden, aber ohne passende DKIM-Signatur.</p>
   <div class="tabellen-rollbereich">
     <table class="config-table" style="min-width:720px">
-      <thead><tr><th>IP-Adresse</th><th>Name</th><th>Domäne</th><th style="text-align:right">Mails</th>
+      <thead><tr><th>IP-Adresse</th><th>Quelle</th><th>Domäne</th><th style="text-align:right">Mails</th>
         <th style="text-align:right">bestanden</th><th style="text-align:right">nur SPF</th>
         <th style="text-align:right">nicht bestanden</th><th>Melder</th></tr></thead>
       <tbody id="dmarc-quellen-body"><tr><td colspan="8" class="muted">Wird geladen …</td></tr></tbody>
@@ -146,7 +146,8 @@ function dmarcZeigen(r) {
   else bBody.innerHTML = bf.map(b =>
     '<tr><td><span class="dmarc-stufe" data-stufe="' + escAttr(DMARC_STUFEN[b.stufe] ? b.stufe : '') + '">'
     + esc(DMARC_STUFEN[b.stufe] || b.stufe) + '</span></td>'
-    + '<td>' + esc(b.text) + '</td><td class="muted">' + esc(b.empfehlung) + '</td></tr>').join('');
+    + '<td>' + esc(b.text) + dmarcHerkunft(b) + dmarcEinzelheiten(b) + '</td>'
+    + '<td class="muted">' + esc(b.empfehlung) + '</td></tr>').join('');
 
   const dm = r.domaenen || [];
   const dBody = document.getElementById('dmarc-domaenen-body');
@@ -164,12 +165,66 @@ function dmarcZeigen(r) {
   const qBody = document.getElementById('dmarc-quellen-body');
   if (!q.length) tabelleHinweis(qBody, 8, 'Noch keine Berichte ausgewertet.');
   else qBody.innerHTML = q.map(e =>
-    '<tr><td><code>' + esc(e.ip) + '</code></td><td class="muted">' + esc(e.rdns || '–') + '</td>'
+    '<tr><td><code>' + esc(e.ip) + '</code></td><td>' + (e.quelle ? esc(e.quelle) + '<br>' : '')
+    + '<span class="muted">' + esc(e.rdns || (e.quelle ? '' : '–')) + '</span></td>'
     + '<td>' + esc(e.domain) + '</td><td style="text-align:right">' + esc(e.mails) + '</td>'
     + '<td style="text-align:right">' + esc(dmarcProzent(e.bestanden, e.mails)) + '</td>'
     + '<td style="text-align:right">' + esc(e.nur_spf) + '</td>'
     + '<td style="text-align:right">' + esc(e.fail_zugestellt + e.fail_abgewiesen) + '</td>'
     + '<td class="muted">' + esc((e.melder || []).join(', ')) + '</td></tr>').join('');
+}
+
+// Einzelheiten eines Befunds — alles darin ist Fremdtext aus Berichten bzw.
+// aus dem Mailprotokoll und geht durch esc().
+function dmarcHerkunft(b) {
+  if (!b.ip) return '';
+  const wer = [b.quelle, b.rdns].filter(Boolean).join(' · ');
+  return wer ? '<div class="hint" style="margin:4px 0 0">Quelle: ' + esc(wer) + '</div>' : '';
+}
+
+function dmarcTag(iso) {
+  const d = iso ? new Date(iso) : null;
+  return d && !isNaN(d) ? d.toLocaleDateString('de-DE', { timeZone: 'UTC' }) : '';
+}
+
+function dmarcZeile(z) {
+  const dkim = (z.dkim_auth || []).map(a => a.d + (a.s ? ' (' + a.s + ')' : '') + ' ' + a.r).join(', ') || 'keine Signatur';
+  const spf = (z.spf_auth || []).map(a => a.d + ' ' + a.r).join(', ') || '–';
+  const teile = [
+    dmarcTag(z.von) + (dmarcTag(z.bis) && dmarcTag(z.bis) !== dmarcTag(z.von) ? '–' + dmarcTag(z.bis) : ''),
+    z.melder, anzahlText(z.anzahl, 'Mail', 'Mails'),
+    'an ' + (z.envelope_to || 'unbekannt'), 'SPF ' + spf, 'DKIM ' + dkim];
+  if (z.envelope_from) teile.push('Return-Path ' + z.envelope_from);
+  if (z.disposition && z.disposition !== 'none') teile.push(z.disposition);
+  (z.gruende || []).forEach(g => teile.push('Grund ' + g.typ + (g.text ? ': ' + g.text : '')));
+  return '<li>' + esc(teile.filter(Boolean).join(' · ')) + '</li>';
+}
+
+function dmarcMail(m) {
+  const wann = m.ts ? new Date(m.ts).toLocaleString('de-DE') : '';
+  return '<li' + (m.passt ? '' : ' class="muted"') + '>' + esc(wann + ' · ' + m.absender + ' → '
+    + (m.empfaenger || []).join(', ') + ' · „' + m.betreff + '“ · ' + aktionText(m.aktion)) + '</li>';
+}
+
+function dmarcEinzelheiten(b) {
+  const zl = b.einzelheiten || [];
+  if (!zl.length) return '';
+  let h = '<details style="margin:6px 0 0"><summary>Einzelheiten aus den Berichten (' + zl.length + ')</summary>'
+    + '<p class="hint" style="margin:6px 0 4px">Ein Sammelbericht umfasst meist einen Tag (UTC) und nennt den '
+    + 'empfangenden Anbieter, aber weder Uhrzeit noch Empfängeradresse noch Betreff. „an“ ist die '
+    + 'Empfängerdomäne, sofern der Melder sie angibt.</p>'
+    + '<ul style="margin:0;padding-left:18px">' + zl.map(dmarcZeile).join('') + '</ul>';
+  const a = b.abgleich;
+  if (a) {
+    h += '<p class="hint" style="margin:8px 0 4px">Mailprotokoll dieses Gateways, gleicher Zeitraum: '
+      + esc(anzahlText(a.anzahl, 'Mail', 'Mails')) + ' von @' + esc(b.domain)
+      + (a.eingrenzbar ? ', davon ' + esc(a.passend) + ' an den Melder passend (oben, die übrigen grau)'
+                       : ' — der Melder lässt sich keiner Empfängerdomäne zuordnen')
+      + '. Kandidaten, kein Nachweis.</p>';
+    if ((a.mails || []).length)
+      h += '<ul style="margin:0;padding-left:18px">' + a.mails.map(dmarcMail).join('') + '</ul>';
+  }
+  return h + '</details>';
 }
 
 async function dmarcLaden(aufloesen) {

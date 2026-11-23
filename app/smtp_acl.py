@@ -167,6 +167,20 @@ def is_allowed(ip: str) -> bool:
     return any(addr in n for n in nets)
 
 
+def ist_exchange(ip: str) -> bool:
+    """Liegt *ip* in einem Adressbereich von Exchange Online? Streng: ohne
+    geladene Liste oder bei ungültiger Adresse False — anders als `is_allowed`,
+    das im Zweifel durchlässt. Für Anzeigen (DMARC-Quellen), nicht für den Zugang."""
+    _load_cache()
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    with _lock:
+        nets = _networks
+    return any(addr in n for n in nets)
+
+
 def range_count() -> int:
     _load_cache()
     with _lock:

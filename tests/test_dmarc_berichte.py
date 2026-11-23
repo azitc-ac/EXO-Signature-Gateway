@@ -450,3 +450,118 @@ def test_bericht_aus_der_zukunft_wird_abgewiesen():
         b"<end>", b"<end>9").replace(b"</end>", b"0</end>")   # Ende weit in der Zukunft
     with pytest.raises(dm.BerichtFehler):
         dm.anhang_verarbeiten(x, {})
+
+
+# ── Einzelheiten, Quelle, Abgleich mit dem eigenen Protokoll ─────────────────
+# Zusage: Ein Befund nennt, was die Berichte über „wann, wohin, welches System“
+# hergeben (Zeitraum, Melder, envelope_to, SPF-/DKIM-Domäne, Selektor, Grund) —
+# nur die Zeilen, die den Befund tragen. Ist die Quelle dieses Gateway, stehen
+# die passenden Mails aus dem eigenen Protokoll dabei.
+
+def _rec_voll(ip, n, dkim, spf, env_to="", env_from="", grund="", disp="none", auth_dkim=None):
+    ad = auth_dkim if auth_dkim is not None else \
+        f"<dkim><domain>{DOM}</domain><selector>selector1</selector><result>{dkim}</result></dkim>"
+    ident = f"<header_from>{DOM}</header_from>"
+    ident += f"<envelope_to>{env_to}</envelope_to>" if env_to else ""
+    ident += f"<envelope_from>{env_from}</envelope_from>" if env_from else ""
+    g = f"<reason><type>{grund}</type><comment>weitergeleitet</comment></reason>" if grund else ""
+    return f"""<record><row><source_ip>{ip}</source_ip><count>{n}</count>
+      <policy_evaluated><disposition>{disp}</disposition><dkim>{dkim}</dkim><spf>{spf}</spf>{g}</policy_evaluated></row>
+      <identifiers>{ident}</identifiers>
+      <auth_results>{ad}<spf><domain>{DOM}</domain><result>{spf}</result></spf></auth_results></record>"""
+
+
+def test_freiwillige_angaben_werden_gelesen():
+    b = dm.bericht_lesen(_xml(_rec_voll("192.0.2.20", 3, "fail", "pass", env_to="gmail.com",
+                                        env_from="bounce.firma.at", grund="forwarded")))
+    z = b["zeilen"][0]
+    assert z["envelope_to"] == "gmail.com" and z["envelope_from"] == "bounce.firma.at"
+    assert z["gruende"] == [{"typ": "forwarded", "text": "weitergeleitet"}]
+
+
+def _befund(bf, art, ip):
+    return next(f for f in bf if f["art"] == art and f["ip"] == ip)
+
+
+def test_einzelheiten_nennen_nur_die_tragenden_zeilen():
+    ende = int(time.time()) - 3600
+    berichte = _berichte(
+        _xml(_rec_voll("192.0.2.21", 5, "pass", "pass") + _rec_voll("192.0.2.21", 2, "fail", "fail", env_to="gmail.com"),
+             rid="a", org="google.com", ende=ende),
+        _xml(_rec_voll("192.0.2.21", 4, "fail", "fail", disp="none", auth_dkim=""), rid="b", org="Enterprise Outlook",
+             ende=ende - 86400))
+    bf = dm.befunde(berichte)
+    zl = dm.einzelheiten(berichte, _befund(bf, "teilweise", "192.0.2.21"))
+    assert [z["anzahl"] for z in zl] == [2, 4], "nur die nicht bestandenen Zeilen, neueste zuerst"
+    assert zl[0]["melder"] == "google.com" and zl[0]["envelope_to"] == "gmail.com"
+    assert zl[1]["melder"] == "Enterprise Outlook" and zl[1]["dkim_auth"] == []
+    assert zl[0]["von"].endswith("Z") and zl[0]["von"] < zl[0]["bis"]
+    nur = _berichte(_xml(_rec_voll("192.0.2.22", 4, "fail", "pass", auth_dkim="")
+                         + _rec_voll("192.0.2.22", 9, "pass", "pass")))
+    z2 = dm.einzelheiten(nur, _befund(dm.befunde(nur), "nur_spf", "192.0.2.22"))
+    assert [z["anzahl"] for z in z2] == [4], "bestanden mit DKIM gehört nicht zu „nur SPF“"
+
+
+def test_quelle_wird_benannt(monkeypatch):
+    import ipaddress
+    import smtp_acl
+    monkeypatch.setattr(smtp_acl, "_loaded", True)
+    monkeypatch.setattr(smtp_acl, "_networks", [ipaddress.ip_network("40.92.0.0/15")])
+    eig = frozenset({"198.51.100.7"})
+    assert dm.quelle_benennen("198.51.100.7", "", (), eig) == "dieses Gateway"
+    assert dm.quelle_benennen("40.92.1.2", "", (), eig) == "Exchange Online"
+    assert dm.quelle_benennen("192.0.2.30", "o1.ptr.sendgrid.net", (), eig) == "SendGrid"
+    assert dm.quelle_benennen("192.0.2.31", "mail-x.google.com", (), eig) == "Google"
+    assert dm.quelle_benennen("192.0.2.32", "host.example.net", (), eig) == ""
+    monkeypatch.setattr(smtp_acl, "_networks", [])
+    assert not smtp_acl.ist_exchange("40.92.1.2"), "ohne Liste streng: nicht Exchange"
+
+
+@pytest.fixture
+def protokoll(monkeypatch, tmp_path):
+    import mail_audit
+    monkeypatch.setattr(mail_audit, "DB_PATH", tmp_path / "mail_audit.db")
+    mail_audit.init_db()
+
+    def eintrag(ts, sender, an, betreff):
+        mail_audit.log_event(sender=sender, recipients=an, subject=betreff, message_id="<x>", action="signed")
+        with mail_audit._conn() as c:
+            c.execute("UPDATE mail_log SET ts=? WHERE id=(SELECT max(id) FROM mail_log)", (ts,))
+    return eintrag
+
+
+def test_abgleich_findet_die_mails_im_zeitraum(protokoll):
+    protokoll("2026-11-16T10:00:00Z", "Max@firma.at", ["a@gmail.com"], "an Gmail")
+    protokoll("2026-11-16T11:00:00Z", "erika@FIRMA.AT", ["b@kunde.de"], "an Kunde")
+    protokoll("2026-11-16T12:00:00Z", "x@andere.de", ["c@gmail.com"], "fremder Absender")
+    protokoll("2026-11-18T09:00:00Z", "max@firma.at", ["d@gmail.com"], "ausserhalb")
+    zl = [{"von": "2026-11-16T00:00:00Z", "bis": "2026-11-17T00:00:00Z", "melder": "google.com",
+           "envelope_to": ""}]
+    a = dm.protokoll_abgleich(DOM, zl)
+    assert a["anzahl"] == 2 and a["passend"] == 1 and a["eingrenzbar"]
+    assert [m["betreff"] for m in a["mails"]] == ["an Gmail", "an Kunde"], "passende zuerst"
+    zl[0]["melder"] = "Enterprise Outlook"
+    a = dm.protokoll_abgleich(DOM, zl)
+    assert a["anzahl"] == 2 and not a["eingrenzbar"] and a["passend"] == 0
+    zl[0]["envelope_to"] = "kunde.de"
+    assert dm.protokoll_abgleich(DOM, zl)["mails"][0]["betreff"] == "an Kunde"
+
+
+def test_abgleich_nur_wenn_die_quelle_dieses_gateway_ist(umgebung, monkeypatch, protokoll):
+    x = _xml(_rec_voll("198.51.100.7", 4, "fail", "pass", auth_dkim="")
+             + _rec_voll("192.0.2.40", 3, "fail", "pass", auth_dkim=""))
+    d = {"berichte": _berichte(x)}
+    monkeypatch.setattr(dm, "stand", lambda: d)
+    monkeypatch.setattr(dm, "rdns", lambda ips, frist_s=3.0: {ip: "" for ip in ips})
+    monkeypatch.setattr(dm, "eigene_ips", lambda: frozenset({"198.51.100.7"}))
+    bf = {b["ip"]: b for b in dm.uebersicht()["befunde"] if b["art"] == "nur_spf"}
+    assert bf["198.51.100.7"]["quelle"] == "dieses Gateway" and bf["198.51.100.7"]["abgleich"] is not None
+    assert bf["192.0.2.40"]["abgleich"] is None
+    assert bf["198.51.100.7"]["einzelheiten"][0]["anzahl"] == 4
+
+
+def test_einzelheiten_auf_der_seite_maskiert():
+    from pathlib import Path
+    seite = (Path(__file__).resolve().parent.parent / "app/webui/templates/dmarc.html").read_text()
+    for stelle in ("esc(teile.filter", "esc(wann + ", "esc(wer)", "dmarcEinzelheiten(b)"):
+        assert stelle in seite, stelle

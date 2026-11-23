@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.158 — 2026-11-24 — DMARC: Einzelheiten je Befund, Quelle und Abgleich mit dem Mailprotokoll
+
+Ein Befund wie „besteht DMARC nur über SPF“ nannte bisher nur IP-Adresse und
+Anzahl. Wann das war, wer es gemeldet hat und welches System dahintersteckt,
+blieb offen. Die Auswertung fasste alle Berichte je Domäne und IP zusammen,
+dabei gingen genau diese Angaben verloren.
+
+* **Einzelheiten aus den Berichten.** Jeder Befund lässt sich aufklappen und
+  zeigt die Berichtszeilen, die ihn tragen: Berichtstag, Melder (der
+  empfangende Anbieter), Anzahl, Empfängerdomäne (sofern der Melder sie
+  angibt), SPF-Domäne, DKIM-Domäne mit Selektor bzw. „keine Signatur“,
+  Return-Path-Domäne, Disposition und Grund (etwa „forwarded“). Die
+  freiwilligen Angaben `envelope_to`, `envelope_from` und `reason` werden ab
+  dieser Fassung eingelesen; bei schon gespeicherten Berichten fehlen sie.
+* **Quelle benannt.** In Befunden und in der Tabelle „Absendende Quellen“
+  steht neben der IP, wer dahintersteht, soweit erkennbar: dieses Gateway
+  (öffentliche Adresse aus DIREKT_AUSSEN_IP, dem öffentlichen Namen, dem
+  HELO-Namen und einer Messung der Ausgangsadresse), Exchange Online (nach
+  der Adressliste von Microsoft), Google und einige Versanddienste nach dem
+  Rückwärtsnamen.
+* **Abgleich mit dem Mailprotokoll.** Ist die Quelle dieses Gateway, listet der
+  Befund die Mails der Domäne aus dem eigenen Protokoll im selben Zeitraum mit
+  Zeit, Absender, Empfänger und Betreff. Mails an Empfänger, die zum Melder
+  passen (Empfängerdomäne aus dem Bericht, sonst die Domänen des Anbieters,
+  etwa gmail.com für Google), stehen zuerst. Das ist eine Kandidatenliste:
+  Sammelberichte nennen weder Uhrzeit noch Empfängeradresse noch Betreff,
+  und „Enterprise Outlook“ (Microsoft 365) lässt sich keiner Domäne zuordnen.
+
+**Zu tun:** nichts.
+
 ## v1.12.157 — 2026-11-23 — Private Mails: eigene Signatur ohne Banner und Disclaimer
 
 Für Postfächer, die geschäftlich und privat genutzt werden, gibt es unter
