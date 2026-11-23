@@ -574,14 +574,29 @@ def gateway_signiert_intern(vorlagen: dict) -> bool:
             or (settings_store.get("INTERN_OHNE_ADDIN") is True and bool(vorlagen.get("intern"))))
 
 
+def privat_vorlage(sender: str) -> str:
+    """Private Signatur von `sender` — "" wenn private Mails ausgeschaltet sind
+    oder das Postfach keine hat. Nur Postfächer mit Eintrag dürfen privat senden:
+    ohne ihn bleibt ein Kürzel oder Add-in-Kopf wirkungslos (Banner und
+    Disclaimer bleiben dann dran)."""
+    if settings_store.get("PRIVAT_SIG_AKTIV") is not True:
+        return ""
+    tab = settings_store.get("PRIVAT_SIGNATUREN")
+    if not isinstance(tab, dict):
+        return ""
+    vorlage = tab.get((sender or "").strip().lower())
+    return vorlage.strip() if isinstance(vorlage, str) else ""
+
+
 def entscheiden(sender: str, *, in_kette: bool, alle_intern: bool, per_nosig: bool = False,
+                privat: bool = False,
                 mailbox_cfg: dict | None = None, sender_cfg: dict | None = None,
                 jetzt=None) -> dict:
     """Was das Gateway an eine Mail von `sender` hängt — ohne zu rendern.
 
     Liefert::
 
-        {"art": "standard" | "antwort" | "intern" | "",
+        {"art": "standard" | "antwort" | "intern" | "privat" | "",
          "signatur": {"slot", "vorlage", "ebene", "gruppe", "fest"} | None,
          "signatur_unterdrueckt": bool, "grund": GRUND_… | "",
          "zusatz": frozenset({"banner", "disclaimer"} ⊇ …),
@@ -627,6 +642,15 @@ def entscheiden(sender: str, *, in_kette: bool, alle_intern: bool, per_nosig: bo
         return erg
     if ohne_signatur(sender_cfg):
         erg["grund"] = GRUND_POSTFACH_OHNE_SIGNATUR
+        return erg
+    # Private Mail (Kürzel im Betreff oder Wahl im Add-in): private Signatur,
+    # kein Banner, kein Disclaimer — `zusatz` bleibt leer. Vor #nosig und der
+    # Kette, weil die Absicht ausdrücklich für DIESE Mail erklärt ist.
+    privat_tpl = privat_vorlage(sender) if privat else ""
+    if privat_tpl:
+        erg.update(art="privat", signatur_unterdrueckt=False,
+                   signatur={"slot": "privat", "vorlage": privat_tpl, "ebene": EBENE_POSTFACH,
+                             "gruppe": "", "fest": False})
         return erg
 
     vorlage, art = vorlage_waehlen(vorlagen, in_kette, alle_intern)

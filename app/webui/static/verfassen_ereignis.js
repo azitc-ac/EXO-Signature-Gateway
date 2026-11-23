@@ -197,6 +197,7 @@
   // Outlook mobil) — bei Empfänger- oder Absenderwechsel nur neu setzen, wenn
   // sich die Wahl ändert. Fehlt die API, wird jedes Mal gesetzt.
   var MERKER = 'exoSignatur';
+  var PRIVAT_MERKER = '__privat__';   // gesetzt vom Aufgabenbereich (addin_compose.html)
   function gemerkt(item) {
     if (!item.sessionData || typeof item.sessionData.getAsync !== 'function') return Promise.resolve(null);
     return asynk(function (cb) { item.sessionData.getAsync(MERKER, cb); })
@@ -267,6 +268,8 @@
           if (!sig.html) return null;
           return gemerkt(item).then(function (alt) {
             if (!start && alt === sig.vorlage) return null;   // Wahl unverändert
+            // Im Aufgabenbereich „Privat“ gewählt: Empfängerwechsel ändert daran nichts.
+            if (anlass === 'empfaenger' && alt === PRIVAT_MERKER) return null;
             return asynk(function (cb) { item.disableClientSignatureAsync(cb); })
               .catch(function () { /* ohne Client-Signatur weiter */ })
               .then(function () { return bilderAnhaengen(item, sig.bilder); })

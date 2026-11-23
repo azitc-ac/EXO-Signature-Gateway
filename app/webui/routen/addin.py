@@ -30,6 +30,7 @@ import graph_client
 import mail_processor
 import mailbox_match
 import settings_store
+import sig_thread
 import pkce as pkce_mod
 import signature_engine
 import sso as sso_mod
@@ -196,7 +197,8 @@ async def addin_compose(request: Request):
     # Das Exchange-Identitätstoken trägt hier ohnehin KNOPF_FORM_PFAD als `aud`.
     from webui.routen.addin_verfassen import naa_seitenangaben
     resp = templates.TemplateResponse(request=request, name="addin_compose.html",
-                                      context=naa_seitenangaben())
+                                      context={**naa_seitenangaben(),
+                                               "privat_kopf": sig_thread.PRIVAT_KOPF})
     resp.headers["Cache-Control"] = _NO_STORE
     return resp
 
@@ -942,7 +944,7 @@ async def addin_function(request: Request):
 
 @router.get("/api/addin/signature")
 async def api_addin_signature(request: Request, email: str, template: str = "",
-                              user: str = Depends(_require_self)):
+                              privat: str = "", user: str = Depends(_require_self)):
     """Return the rendered (marked) signature HTML for the add-in taskpane."""
     email = _addin_postfach(request, email, user)
     if not email:
@@ -961,6 +963,8 @@ async def api_addin_signature(request: Request, email: str, template: str = "",
     allowed = _addin_allowed_templates(email, mailbox_cfg)
     req = (template or "").strip()
     template_name = req if (req and req in allowed) else default_template
+    if privat == "1" and policies.privat_vorlage(email):
+        template_name = policies.privat_vorlage(email)
 
     try:
         user_data = await graph_client.get_user(email)
@@ -1015,7 +1019,10 @@ async def api_addin_templates(request: Request, email: str,
     mailbox_cfg = _addin_cfg(email)
     allowed = _addin_allowed_templates(email, mailbox_cfg)
     default_template = mailbox_cfg["template"]
-    return JSONResponse({"templates": allowed, "default": default_template})
+    # Private Signatur (policies.privat_vorlage): eigener Eintrag, den der
+    # Aufgabenbereich als „Privat“ zeigt; nur wenn das Postfach eine hat.
+    return JSONResponse({"templates": allowed, "default": default_template,
+                         "privat": bool(policies.privat_vorlage(email))})
 
 
 @router.get("/api/addin/update-redirect-uri")

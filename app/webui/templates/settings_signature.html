@@ -427,6 +427,41 @@
   </div>
 </div>
 
+<!-- Private Mails (policies.privat_vorlage): bewusst unter „Erweitert“ und
+     ab Werk aus — eine Ausnahme für gemischt genutzte Postfächer. -->
+<div class="settings-card" data-adv="sig" style="display:none" id="privat-mails">
+  <h3 style="margin-top:0;margin-bottom:8px">Private Mails</h3>
+  <div id="privat-bereich">
+    <div class="settings-row">
+      <label class="checkbox-label">
+        <input type="checkbox" id="privat-aktiv" onchange="_privatZeigen()"{% if s.PRIVAT_SIG_AKTIV %} checked{% endif %}>
+        Private Signaturen erlauben
+      </label>
+    </div>
+    <div id="privat-teil">
+      <p class="hint" style="margin:0 0 10px">
+        Für Postfächer, die auch privat genutzt werden: Steht das Kürzel im Betreff oder wählt man im
+        Verfassen-Add-in „Privat“, bekommt die Mail die private Signatur des Postfachs, ohne Banner und
+        Disclaimer. Das Kürzel wird aus dem Betreff entfernt. Postfächer ohne Eintrag sind davon nicht betroffen.
+      </p>
+      <div class="settings-row">
+        <label for="privat-trigger">Kürzel im Betreff</label>
+        <div class="settings-control">
+          <input type="text" id="privat-trigger" value="{{ s.PRIVAT_TRIGGER or '#privat' }}"
+                 placeholder="#privat" style="width:160px">
+        </div>
+      </div>
+      <div id="privat-liste" style="display:flex;flex-direction:column;gap:6px;margin:6px 0 10px"></div>
+      <button type="button" class="btn secondary btn-sm" onclick="privatZeile()" style="margin-bottom:12px">+ Postfach hinzufügen</button>
+    </div>
+  </div>
+  <div class="actions" style="margin-top:0">
+    <button class="btn secondary" id="privat-btn" data-wache-container="#privat-bereich"
+            data-wache-hinweis="privat-result" onclick="savePrivat()">Speichern</button>
+    <span id="privat-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+</div>
+
 <script>
 
 // savePartial() steht in common.js — eine Fassung fuer alle Seiten.
@@ -590,9 +625,57 @@ async function saveCustomVars() {
     { CUSTOM_TEMPLATE_VARS: vars }, 'custom-vars-result'));
 }
 
+// ── Private Mails ───────────────────────────────────────────────────────────
+const _privatVorlagen = {{ signatur_vorlagen | tojson }};
+const _privatPostfaecher = {{ sender_mailboxes | map(attribute='email') | list | tojson }};
+function _privatZeigen() {
+  document.getElementById('privat-teil').style.display =
+    document.getElementById('privat-aktiv').checked ? '' : 'none';
+}
+function privatZeile(postfach, vorlage) {
+  postfach = postfach || ''; vorlage = vorlage || '';
+  const postfaecher = _privatPostfaecher.slice();
+  if (postfach && !postfaecher.includes(postfach)) postfaecher.unshift(postfach);
+  const row = document.createElement('div');
+  row.className = 'privat-zeile';
+  row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+  row.innerHTML = `
+    <select class="pv-postfach" aria-label="Postfach" style="min-width:220px;max-width:100%">
+      <option value="">— Postfach —</option>
+      ${postfaecher.map(e => `<option value="${escAttr(e)}"${e === postfach ? ' selected' : ''}>${esc(e)}</option>`).join('')}
+    </select>
+    <select class="pv-vorlage" aria-label="Private Signatur" style="min-width:180px;max-width:100%">
+      <option value="">— Vorlage —</option>
+      ${_privatVorlagen.map(n => `<option value="${escAttr(n)}"${n === vorlage ? ' selected' : ''}>${esc(vorlageAnzeige(n))}</option>`).join('')}
+    </select>
+    <button type="button" onclick="this.closest('.privat-zeile').remove()"
+            style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;line-height:1;padding:2px 4px"
+            title="Entfernen">✕</button>`;
+  document.getElementById('privat-liste').appendChild(row);
+}
+async function savePrivat() {
+  const tab = {};
+  for (const row of document.querySelectorAll('.privat-zeile')) {
+    const pf = row.querySelector('.pv-postfach').value.trim().toLowerCase();
+    const vl = row.querySelector('.pv-vorlage').value;
+    if (pf && vl) tab[pf] = vl;
+  }
+  wacheFertig('privat-btn', await savePartial({
+    PRIVAT_SIG_AKTIV: document.getElementById('privat-aktiv').checked,
+    PRIVAT_TRIGGER: feldWert('privat-trigger') || '#privat',
+    PRIVAT_SIGNATUREN: tab,
+  }, 'privat-result'));
+}
+
 (function initCustomVars() {
   const saved = {{ (s.CUSTOM_TEMPLATE_VARS or []) | tojson }};
   for (const cv of saved) addCustomVar(cv.name, cv.entra_field);
+})();
+
+(function initPrivat() {
+  const tab = {{ (s.PRIVAT_SIGNATUREN or {}) | tojson }};
+  for (const [pf, vl] of Object.entries(tab)) privatZeile(pf, vl);
+  _privatZeigen();
 })();
 
 const _orMailboxes = {{ sender_mailboxes | tojson }};

@@ -161,6 +161,12 @@ DEFAULTS: dict = {
     "NOSIG_BEHAELT": "",              # was bei #nosig bleibt: "" | banner | disclaimer | beide
     "KETTE_BEHAELT": "",              # dasselbe für Antworten in einer schon signierten Kette
     "INTERN_BEHAELT": "",             # dasselbe für rein interne Post, die das Gateway signiert
+    # Private Mails (seit v1.12.157): Kürzel im Betreff oder Wahl im Verfassen-
+    # Add-in → private Signatur des Postfachs, ohne Banner und Disclaimer.
+    # Nur für Postfächer mit Eintrag in PRIVAT_SIGNATUREN {adresse: vorlage}.
+    "PRIVAT_SIG_AKTIV": False,
+    "PRIVAT_TRIGGER": "#privat",
+    "PRIVAT_SIGNATUREN": {},
     # Antworten: Weicht die Wahl des Verfassen-Add-ins (geschätzt, Outlook nennt
     # dem Add-in die beantwortete Mail nicht immer) von der Entscheidung des
     # Gateways an der echten Mail ab — wer gilt? "gateway" ersetzt die Signatur
