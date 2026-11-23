@@ -763,6 +763,30 @@ def get_recipient_cert_path(email: str) -> Path | None:
     return p if p.exists() else None
 
 
+def hat_eigenes_zertifikat(email: str) -> bool:
+    """Hält DIESES Gateway für die Adresse selbst ein Signaturzertifikat (samt
+    Schlüssel)? Dann ist es ein eigenes Postfach, dessen Schlüssel nur hier liegt."""
+    d = SMIME_DIR / email.lower().strip()
+    return (d / "certs").is_dir() and any((s / "cert.pem").exists() for s in (d / "certs").iterdir()) \
+        or (d / "cert.pem").exists()
+
+
+def verschluesselungs_cert_path(email: str) -> Path | None:
+    """Empfängerzertifikat für das VERSCHLÜSSELN — oder None (dann Portal bzw.
+    normale Zustellung, wie ohne Zertifikat).
+
+    Für eigene Postfächer, deren Signaturschlüssel dieses Gateway hält, gibt es
+    hier KEIN Zertifikat, auch wenn eines im Empfängerbestand liegt (eingesammelt,
+    freigegeben, importiert). Grund (Release-Gate 21.11.2026): Die Eingangsregel
+    entschlüsselt nur Post von AUSSEN (FromScope NotInOrganization), und den
+    Schlüssel hat der Nutzer auf keinem Gerät — eine intern verschlüsselte Mail
+    war für ihn nirgends lesbar. Nur hier gebraucht: handler (frühe Prüfung) und
+    smime_encrypt; Anzeige und Pflege nutzen get_recipient_cert_path."""
+    if hat_eigenes_zertifikat(email):
+        return None
+    return get_recipient_cert_path(email)
+
+
 def alle_empfaenger_cert_pfade() -> list[Path]:
     """Pfade aller hinterlegten Empfängerzertifikate.
 

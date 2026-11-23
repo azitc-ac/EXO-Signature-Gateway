@@ -54,11 +54,11 @@ def _sichtbar(html: str) -> str:
 def test_table_align_center_august_2026():
     """Die Fassung, die den Fehler wieder auftreten liess."""
     roh = (f'<html><body><div><table align="center" border="0">'
-           f'<tr>{MARKER}Rechnung RE202608-0061</td></tr></table></div></body></html>')
+           f'<tr>{MARKER}Rechnung RE209901-0001</td></tr></table></div></body></html>')
     neu = mp._fix_lexware_centering(roh)
     assert not _zentrierung_uebrig(neu), f"noch zentriert: {_zentrierung_uebrig(neu)}\n{neu}"
     assert 'align="left"' in neu
-    assert "RE202608-0061" in neu
+    assert "RE209901-0001" in neu
 
 
 def test_div_align_center_altbestand():
@@ -122,12 +122,12 @@ def test_echte_rechnung_wird_linksbuendig(tmp_path):
         '<table align="center" border="0" cellpadding="0" cellspacing="0" '
         'class="templateContainer"><tbody><tr>'
         f'{MARKER}<p>Sehr geehrte Damen und Herren,</p>'
-        '<p>anbei die Rechnung RE202608-0061 über 1.234,56 &euro;.</p></td>'
+        '<p>anbei die Rechnung RE209901-0001 über 1.234,56 &euro;.</p></td>'
         '</tr></tbody></table></div></body></html>')
     neu = mp._fix_lexware_centering(roh)
     assert not _zentrierung_uebrig(neu), _zentrierung_uebrig(neu)
     assert _sichtbar(neu) == _sichtbar(roh), "Inhalt verändert"
-    assert "RE202608-0061" in neu and "1.234,56" in neu
+    assert "RE209901-0001" in neu and "1.234,56" in neu
 
 
 def test_unbekannte_zentrierung_wird_gemeldet(caplog):

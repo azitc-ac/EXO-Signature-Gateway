@@ -1,0 +1,29 @@
+#!/bin/bash
+# Pre-push-Hook — VERSIONIERT, aktiv über `git config core.hooksPath tools/hooks`.
+#
+# Dieses Repository setzt core.hooksPath lokal; ein global eingerichteter
+# Hook-Pfad greift hier deshalb nicht. Dieser Hook reicht an den gemeinsamen,
+# projektübergreifenden pre-push-Check weiter (geschützte Begriffe), mit
+# denselben Argumenten und demselben stdin. Die Begriffe stehen nicht hier.
+#
+# Fehlt der gemeinsame Check (frischer Klon, Fremdbeitrag), warnt der Hook nur
+# und lässt den Push durch — wie commit-msg. Die CI prüft danach
+# (tests/test_keine_kundendaten.py).
+
+for kandidat in \
+    "${EXO_PRE_PUSH:-}" \
+    "$HOME/claude-tools/general/git-hooks/pre-push" \
+    "$HOME/.claude/repos/claude-tools/general/git-hooks/pre-push"; do
+    if [ -n "$kandidat" ] && [ -x "$kandidat" ]; then
+        exec "$kandidat" "$@"
+    fi
+done
+
+{
+    echo "════════════════════════════════════════════════════════════════════"
+    echo "⚠  KEIN PRE-PUSH-CHECK — gemeinsamer Check nicht gefunden"
+    echo "   (claude-tools/general/git-hooks/pre-push). Push ungeprüft;"
+    echo "   die CI prüft danach (tests/test_keine_kundendaten.py)."
+    echo "════════════════════════════════════════════════════════════════════"
+} >&2
+exit 0

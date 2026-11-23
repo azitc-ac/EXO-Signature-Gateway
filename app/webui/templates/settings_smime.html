@@ -341,11 +341,11 @@
       <code>{{ s.ENC_TRIGGER or '#enc' }}</code> an ausschließlich interne Empfänger normal zustellen
     </label>
     <div class="settings-control" style="flex-basis:100%">
-      <span class="hint">Eigene Postfächer haben meist kein Empfängerzertifikat; ohne diesen Schalter
-        gehen solche Mails ins Portal (oder werden abgewiesen). Eingeschaltet stellt das Gateway sie
-        S/MIME-signiert, aber unverschlüsselt zu — sie verlassen die eigene Organisation nicht.
-        Gilt nur, wenn ALLE Empfänger intern sind; Mails mit auch externen Empfängern laufen
-        unverändert über Verschlüsselung bzw. Portal. Standard: aus.</span>
+      <span class="hint">Eingeschaltet stellt das Gateway solche Mails S/MIME-signiert, aber
+        unverschlüsselt zu — sie verlassen die eigene Organisation nicht. Ausgeschaltet gehen sie
+        ins Portal (oder werden abgewiesen). Gilt nur, wenn ALLE Empfänger intern sind. Bei auch
+        externen Empfängern wird verschlüsselt — ist ein eigenes Postfach dabei (dessen Schlüssel
+        nur im Gateway liegt), geht die Mail an alle über das Portal. Standard: an.</span>
     </div>
   </div>
   <!-- Die folgenden Angaben wirken nur bei eingeschaltetem Portal. Sie
