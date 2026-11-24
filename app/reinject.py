@@ -1,6 +1,7 @@
 import smtplib
 import ssl
 import logging
+import contextlib
 import contextvars
 import threading
 import time as _time
@@ -176,11 +177,59 @@ def zuletzt_eingereiht() -> bool:
     return _zuletzt.get()
 
 
+WEG_NOTBETRIEB = "notbetrieb"
+
+# Notbetrieb: Das Webmail lässt seine Post durch den Handler laufen (Signatur,
+# Banner, Disclaimer, S/MIME wie im Normalbetrieb). Exchange ist dann nicht
+# erreichbar — die fertige Nachricht geht stattdessen an `ziel(mail_from,
+# rcpt_tos, content_bytes)`. Gesetzt NUR für die Dauer dieses einen Aufrufs
+# (notbetrieb_senden); der reguläre Mailfluss sieht die Variable nie.
+_umleitung: contextvars.ContextVar = contextvars.ContextVar("reinject_umleitung", default=None)
+
+
+@contextlib.contextmanager
+def umleiten(ziel):
+    marke = _umleitung.set(ziel)
+    try:
+        yield
+    finally:
+        _umleitung.reset(marke)
+
+
+def umgeleitet() -> bool:
+    return _umleitung.get() is not None
+
+
+def _notfall_ausgerufen() -> bool:
+    try:
+        import notbetrieb
+        return notbetrieb.ausgerufen()
+    except Exception:                                               # noqa: BLE001
+        return False
+
+
 def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
          force_mime: bool = False, queue_on_failure: bool = True) -> str | None:
     """Zustellen (siehe `_senden`) und danach festhalten, wer die Nachricht
     bekommen hat. Eine Kopie, die wegen eines früheren Zustellfehlers noch in
     der Warteschlange liegt, würde sonst ein zweites Mal zugestellt."""
+    ziel = _umleitung.get()
+    if ziel is not None:
+        ziel(mail_from, list(rcpt_tos), content_bytes)
+        return WEG_NOTBETRIEB
+    if _notfall_ausgerufen():
+        # Exchange ist ausgefallen: nicht zurück an Exchange, sondern in die
+        # Kopie bzw. in den Direktversand. Scheitert das, geht die Mail in die
+        # Warteschlange wie jeder Zustellfehler — nach dem Notfall stellt die
+        # Freigabe sie dann regulär zu.
+        import notbetrieb
+        try:
+            notbetrieb.zustellen(mail_from, list(rcpt_tos), content_bytes, einreihen=queue_on_failure)
+            log.info("NOTFALL: in die Kopie bzw. Direktversand: from=%s to=%s", mail_from, rcpt_tos)
+        except Exception as exc:                                    # noqa: BLE001
+            log.warning("NOTFALL: Zustellung im Notbetrieb fehlgeschlagen: %s", exc)
+            _fail_delivery(mail_from, rcpt_tos, content_bytes, f"notbetrieb: {exc}", queue_on_failure)
+        return WEG_NOTBETRIEB
     eingereiht: set = set()
     marke = _eingereiht.set(eingereiht)
     try:
@@ -630,6 +679,29 @@ def _an_postfix(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
 ANTWORT_NACH_DATEN_S = 240
 
 
+def _ziel_sitzung(ziel_id: str, cfg: dict) -> smtplib.SMTP:
+    """Verbindung zu einem Routing-Ziel bis nach STARTTLS und Anmeldung — EIN
+    Weg für die Weiterleitung und die Probe (notbetrieb.onprem_probe), damit
+    die Probe genau das prüft, was die Zustellung benutzt."""
+    import tls_ausgehend
+    tls_ctx = tls_ausgehend.kontext(pruefen=cfg["tls_pruefen"], client_zert=True)
+    if cfg["starttls"] and not cfg["tls_pruefen"]:
+        log.info("Routing-Ziel %s: TLS ohne Zertifikatsprüfung (so eingestellt)", ziel_id)
+    import aussenadresse
+    smtp = smtplib.SMTP(cfg["host"], cfg["port"], timeout=30, local_hostname=aussenadresse.ehlo_hostname())
+    try:
+        smtp.ehlo()
+        if cfg["starttls"]:
+            smtp.starttls(context=tls_ctx)
+            smtp.ehlo()
+        if cfg["user"] and cfg["pass"]:
+            smtp.login(cfg["user"], cfg["pass"])
+    except Exception:
+        smtp.close()
+        raise
+    return smtp
+
+
 def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
                      content_bytes: bytes, antwort_s: float = 30) -> None:
     """Pass-through-Relay an ein konfiguriertes Next-Hop-Ziel (NICHT EXO).
@@ -664,20 +736,7 @@ def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
     # Das Zertifikat des ZIELS wird geprüft, ausser das Ziel ist ausdrücklich
     # anders eingestellt (tls_pruefen; Bestandsziele vor v1.10.112 übernommen
     # ohne Prüfung, bis sie bewusst gespeichert werden).
-    import tls_ausgehend
-    tls_ctx = tls_ausgehend.kontext(pruefen=cfg["tls_pruefen"], client_zert=True)
-    if cfg["starttls"] and not cfg["tls_pruefen"]:
-        log.info("Routing-Ziel %s: TLS ohne Zertifikatsprüfung (so eingestellt)", ziel_id)
-
-    import aussenadresse
-    with smtplib.SMTP(host, port, timeout=30,
-                      local_hostname=aussenadresse.ehlo_hostname()) as smtp:
-        smtp.ehlo()
-        if cfg["starttls"]:
-            smtp.starttls(context=tls_ctx)
-            smtp.ehlo()
-        if cfg["user"] and cfg["pass"]:
-            smtp.login(cfg["user"], cfg["pass"])
+    with _ziel_sitzung(ziel_id, cfg) as smtp:
         # Ab hier wartet das Ziel ggf. auf seinen eigenen Rückweg (ein zweites
         # Gateway verarbeitet und liefert erst ein, bevor es antwortet). Gibt die
         # äußere Stelle früher auf als die innere, liefert der Absender erneut

@@ -57,6 +57,9 @@
                 {% if smtp_relay_aktiv() %}
                 <li><a href="/relay" class="{% if active == 'relay' %}active{% endif %}">SMTP-Relay</a></li>
                 {% endif %}
+                {% if notbetrieb_sichtbar() %}
+                <li><a href="/notbetrieb" class="{% if active == 'notbetrieb' %}active{% endif %}">EXO-Ausfallschutz <span style="display:inline-block;font-size:10px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:4px;vertical-align:middle">PREVIEW</span></a></li>
+                {% endif %}
                 <li><a href="/settings" class="{% if active in ('settings', 'settings-signature', 'settings-smime', 'settings-connect', 'settings-routing', 'settings-dmarc', 'setup', 'advanced', 'debug', 'backup') %}active{% endif %}">Einstellungen</a></li>
                 <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Protokolle</a></li>
                 {% endif %}
@@ -412,6 +415,16 @@
       // Eine Zeile über die ganze Tabellenbreite statt Inhalt: „Noch keine …“,
       // „Wird geladen …“ oder ein Fehler. `html` ist HTML — Werte darin maskiert
       // der Aufrufer (esc). Gedämpft über .muted, Fehler im Palettenrot.
+      // Byte-Angabe für Menschen (deutsches Komma). EINE Fassung — bis zum
+      // Notbetrieb gab es zwei abweichende (relay.html, backup.html).
+      function groesseText(bytes) {
+        var b = Number(bytes) || 0;
+        if (b < 1024) return b + ' B';
+        var einheiten = ['KB', 'MB', 'GB', 'TB'], i = -1;
+        do { b /= 1024; i++; } while (b >= 1024 && i < einheiten.length - 1);
+        return b.toFixed(i >= 2 ? 2 : 1).replace('.', ',') + ' ' + einheiten[i];
+      }
+
       // Rollbereich einer langen Tabelle auf das Fenster begrenzen — EIN Baustein
       // (bis v1.12.86 nur in mailboxes.html, fest auf das erste .tabellen-rollbereich).
       // Kopfzeile bleibt stehen (style.css), die Seite rollt nicht mit.
@@ -494,6 +507,41 @@
                                   : { type: art + '-fail', msg: errText(d) }, window.location.origin);
         });
       }
+      // Neue Fassung einer Teams-App in den Katalog des Tenants — EIN Ablauf für
+      // alle Pakete (addin.TEAMS_PAKETE: Self-Service auf der Einrichtung,
+      // Notfall-Mail auf der Notbetrieb-Seite). Admin-Anmeldung im Fenster
+      // (AppCatalog.ReadWrite.All, delegiert), danach lädt das Gateway das Paket
+      // hoch und liest die Fassung neu; die Seite lädt mit `anker` neu.
+      var _teamsKatalogWartet = null;
+      async function teamsKatalogAktualisieren(btn, app, ergebnis, einfuegenId, anker) {
+        var einfuegen = false;
+        var r = await knopfAktion(btn, 'Öffne Login…', function () { return anmeldeFenster(async function () {
+          var d = await getJSON('/api/setup/teams-katalog/aktualisieren?app=' + encodeURIComponent(app));
+          if (!d.ok) throw new Error(errText(d));
+          einfuegen = !!d.einfuegen;
+          return d.auth_url;
+        }, 'teams-katalog-login', true); });
+        if (!r.ok) { showMsg(ergebnis, '✗ ' + r.fehler, false); return; }
+        _teamsKatalogWartet = {ergebnis: ergebnis, anker: anker};
+        showMsg(ergebnis, 'Admin-Anmeldung im neuen Fenster…', true);
+        if (einfuegen) anmeldeAdresseEinfuegen(einfuegenId, 'teams-katalog');
+      }
+      window.addEventListener('message', function (ev) {
+        var w = _teamsKatalogWartet;
+        if (ev.origin !== window.location.origin || !ev.data || !w) return;
+        if (ev.data.type === 'teams-katalog-done') {
+          _teamsKatalogWartet = null;
+          showMsg(w.ergebnis, '✓ Im Katalog aktualisiert — die Seite lädt neu', true);
+          location.hash = w.anker;
+          setTimeout(function () { location.reload(); }, 1500);
+        } else if (ev.data.type === 'teams-katalog-fail') {
+          _teamsKatalogWartet = null;
+          showMsg(w.ergebnis, '✗ ' + (ev.data.msg || 'Aktualisieren fehlgeschlagen'), false);
+        } else if (ev.data.type === 'anmeldung-abgelaufen') {
+          _teamsKatalogWartet = null;
+          showMsg(w.ergebnis, '✗ Anmeldung abgelaufen, nichts hochgeladen — bitte erneut', false);
+        }
+      });
       // Wert als Zeichenkette in einem Inline-Handler: onclick="f(\'' + escJsAttr(x) + '\')".
       // Zwei Ebenen: erst für den JS-String (\ und '), dann fürs Attribut — der
       // Browser dekodiert das Attribut (&#39; → ') BEVOR er das Skript liest;

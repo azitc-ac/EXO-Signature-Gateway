@@ -987,6 +987,118 @@
     "name": "api_set_maintenance_mode"
   },
   {
+    "pfad": "/api/notbetrieb/abgleich",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_abgleich"
+  },
+  {
+    "pfad": "/api/notbetrieb/anmeldung-test",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_anmeldung_test"
+  },
+  {
+    "pfad": "/api/notbetrieb/bereitschaft",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_bereitschaft"
+  },
+  {
+    "pfad": "/api/notbetrieb/faktoren",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_faktoren"
+  },
+  {
+    "pfad": "/api/notbetrieb/faktoren/zuruecksetzen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_faktor_zuruecksetzen"
+  },
+  {
+    "pfad": "/api/notbetrieb/loeschen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_loeschen"
+  },
+  {
+    "pfad": "/api/notbetrieb/onprem-probe",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_onprem_probe"
+  },
+  {
+    "pfad": "/api/notbetrieb/platz-messen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_platz_messen_stand"
+  },
+  {
+    "pfad": "/api/notbetrieb/platz-messen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_platz_messen"
+  },
+  {
+    "pfad": "/api/notbetrieb/platz-rechnen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_platz_rechnen"
+  },
+  {
+    "pfad": "/api/notbetrieb/postfaecher",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_postfaecher"
+  },
+  {
+    "pfad": "/api/notbetrieb/rechte",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_rechte"
+  },
+  {
+    "pfad": "/api/notbetrieb/rechte",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_rechte_abgleichen"
+  },
+  {
+    "pfad": "/api/notbetrieb/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_status"
+  },
+  {
+    "pfad": "/api/notbetrieb/zugriff",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_notbetrieb_zugriff"
+  },
+  {
+    "pfad": "/api/notbetrieb/zurueckspielen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notbetrieb_zurueckspielen"
+  },
+  {
     "pfad": "/api/notification/test",
     "methoden": [
       "POST"
@@ -2392,6 +2504,272 @@
       "GET"
     ],
     "name": "mailboxes_page"
+  },
+  {
+    "pfad": "/notbetrieb",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notbetrieb_page"
+  },
+  {
+    "pfad": "/notbetrieb/notfall-teams-app.zip",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_teams_app"
+  },
+  {
+    "pfad": "/notfall",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_seite"
+  },
+  {
+    "pfad": "/notfall/abmelden",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_abmelden"
+  },
+  {
+    "pfad": "/notfall/anhang",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_anhang"
+  },
+  {
+    "pfad": "/notfall/anhang/ansehen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_anhang_ansehen"
+  },
+  {
+    "pfad": "/notfall/anmelden",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_anmelden"
+  },
+  {
+    "pfad": "/notfall/anmelden/faktor",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_anmelden_faktor"
+  },
+  {
+    "pfad": "/notfall/anmelden/passkey",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_anmelden_passkey"
+  },
+  {
+    "pfad": "/notfall/anmelden/passkey/optionen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_anmelden_passkey_optionen"
+  },
+  {
+    "pfad": "/notfall/api/adressbuch",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_adressbuch"
+  },
+  {
+    "pfad": "/notfall/api/adressen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_adressen"
+  },
+  {
+    "pfad": "/notfall/api/entwuerfe",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_entwuerfe"
+  },
+  {
+    "pfad": "/notfall/api/entwurf",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_entwurf"
+  },
+  {
+    "pfad": "/notfall/api/entwurf",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_entwurf_speichern"
+  },
+  {
+    "pfad": "/notfall/api/entwurf/loeschen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_entwurf_loeschen"
+  },
+  {
+    "pfad": "/notfall/api/faktor",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_faktor_stand"
+  },
+  {
+    "pfad": "/notfall/api/faktor/beginnen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_faktor_beginnen"
+  },
+  {
+    "pfad": "/notfall/api/faktor/bestaetigen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_faktor_bestaetigen"
+  },
+  {
+    "pfad": "/notfall/api/faktor/codes",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_faktor_codes"
+  },
+  {
+    "pfad": "/notfall/api/faktor/passkey/beginnen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_passkey_beginnen"
+  },
+  {
+    "pfad": "/notfall/api/faktor/passkey/bestaetigen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_passkey_bestaetigen"
+  },
+  {
+    "pfad": "/notfall/api/faktor/passkey/entfernen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_passkey_entfernen"
+  },
+  {
+    "pfad": "/notfall/api/gelesen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_gelesen"
+  },
+  {
+    "pfad": "/notfall/api/ich",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_ich"
+  },
+  {
+    "pfad": "/notfall/api/kalender",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_kalender"
+  },
+  {
+    "pfad": "/notfall/api/kontakte",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_kontakte"
+  },
+  {
+    "pfad": "/notfall/api/liste",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_liste"
+  },
+  {
+    "pfad": "/notfall/api/mail",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_mail"
+  },
+  {
+    "pfad": "/notfall/api/ordner",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_ordner"
+  },
+  {
+    "pfad": "/notfall/api/senden",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_senden"
+  },
+  {
+    "pfad": "/notfall/api/verschieben",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_verschieben"
+  },
+  {
+    "pfad": "/notfall/api/vorlage",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_vorlage"
+  },
+  {
+    "pfad": "/notfall/api/vorschau",
+    "methoden": [
+      "POST"
+    ],
+    "name": "notfall_vorschau"
+  },
+  {
+    "pfad": "/notfall/app.webmanifest",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_manifest"
+  },
+  {
+    "pfad": "/notfall/einrichten",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_einrichten_seite"
+  },
+  {
+    "pfad": "/notfall/inhalt",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_inhalt"
+  },
+  {
+    "pfad": "/notfall/vorschau",
+    "methoden": [
+      "GET"
+    ],
+    "name": "notfall_vorschau_inhalt"
   },
   {
     "pfad": "/outlook-addin",

@@ -36,6 +36,8 @@ _RETRY_INTERVAL = 60                   # jede Minute — feinste Exchange-Retry-
                                        # held_mails.next_retry
 _last_mailuser_run: float = _NIE        # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _MAILUSER_INTERVAL = 24 * 60 * 60      # onprem-MailUser-Liste täglich abgleichen (Per-Empfänger-Routing)
+_last_teams_katalog_run: float = _NIE   # monotonic; _NIE = nie gelaufen (läuft beim ersten Takt)
+_TEAMS_KATALOG_INTERVAL = 24 * 60 * 60  # Fassung der Teams-Apps im Katalog (Aufgabe „veraltet“)
 _last_probe_run: float = _NIE           # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _PROBE_INTERVAL = 15 * 60              # Direktversand-Probe: Ankunft prüfen (jeder Takt), Senden täglich
 _last_owa_run: float = _NIE             # monotonic; _NIE = nie gelaufen
@@ -53,6 +55,9 @@ _last_ooo_run: float = _NIE             # monotonic; _NIE = nie gelaufen (trigge
 _OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisieren; dank
                                        # Idempotenz (nur PATCH bei echter Abweichung) ist
                                        # häufiges Pollen unschädlich für Exchanges Dedup
+_last_notbetrieb_run: float = _NIE      # monotonic; _NIE = nie gelaufen (triggers run on first tick)
+_NOTBETRIEB_INTERVAL = 15 * 60         # Schatten nachführen (Graph-Delta, nur Änderungen)
+_NOTBETRIEB_RECHTE_INTERVAL = 24 * 60 * 60  # Postfachrechte (EXO-PowerShell) täglich
 
 
 # ── TLS / Let's Encrypt ───────────────────────────────────────────────────────
@@ -721,6 +726,20 @@ def _retry_held_deliveries() -> None:
         _last_retry_run = time.monotonic()
 
 
+def _teams_katalog() -> None:
+    """Fassung der Teams-Apps im Katalog lesen und merken — die Aufgabe im
+    Sammelpunkt liest nur das Gemerkte (teams_katalog.pruefung)."""
+    global _last_teams_katalog_run
+    try:
+        import asyncio
+        import teams_katalog
+        asyncio.run(teams_katalog.auffrischen())
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("scheduler: Teams-Katalog nicht gelesen: %s", exc)
+    finally:
+        _last_teams_katalog_run = time.monotonic()
+
+
 def _refresh_onprem_mailusers() -> None:
     """Onprem-MailUser-Liste periodisch abgleichen — NUR bei aktivem
     Per-Empfänger-Routing. Läuft im Hauptprozess (settings_store.update ok).
@@ -742,6 +761,11 @@ def _refresh_onprem_mailusers() -> None:
         _last_mailuser_run = time.monotonic()
 
 
+def _notfall_ausgerufen() -> bool:
+    import notbetrieb
+    return notbetrieb.ausgerufen()
+
+
 def _direktversand_probe() -> None:
     """Tägliche Probe des Direktversands (direktversand_probe.py).
 
@@ -754,7 +778,9 @@ def _direktversand_probe() -> None:
         import direktversand_probe
         if direktversand.aktiv() and direktversand_probe.postfach():
             direktversand_probe.pruefen()
-            if direktversand_probe.faellig():
+            # Im ausgerufenen Notfall nicht: Exchange ist dann weg, die Probe
+            # käme nicht an und meldete einen Fehler, den es nicht gibt.
+            if direktversand_probe.faellig() and not _notfall_ausgerufen():
                 direktversand_probe.senden()
     except Exception as exc:                                        # noqa: BLE001
         log.warning("scheduler: Direktversand-Probe fehlgeschlagen: %s", exc)
@@ -778,6 +804,37 @@ def _sync_ooo() -> None:
         log.warning("scheduler: OOO-Normalisierung fehlgeschlagen: %s", exc)
     finally:
         _last_ooo_run = time.monotonic()
+
+
+def _sync_notbetrieb() -> None:
+    """Notbetrieb-Schatten nachführen (nur wenn eingeschaltet)."""
+    global _last_notbetrieb_run
+    try:
+        import notbetrieb
+        if notbetrieb.funktion_aktiv():
+            # Rechte zuerst: Sie bestimmen, welche geteilten Postfächer mit in
+            # den Schatten kommen. Täglich reicht — im Störfall gilt ohnehin der
+            # zuletzt gesehene Stand.
+            import notbetrieb_rechte
+            ts = notbetrieb_rechte.stand().get("ts") or ""
+            alt = (datetime.now(timezone.utc) - datetime.fromisoformat(ts)).total_seconds() if ts else None
+            if alt is None or alt > _NOTBETRIEB_RECHTE_INTERVAL:
+                notbetrieb_rechte.abgleichen()
+            # Im selben Takt: Profile für die Signatur (falls Graph ausfällt).
+            ps = notbetrieb.status().get("profile_stand") or ""
+            alt = (datetime.now(timezone.utc) - datetime.fromisoformat(ps.replace("Z", "+00:00"))
+                   ).total_seconds() if ps else None
+            if alt is None or alt > _NOTBETRIEB_RECHTE_INTERVAL:
+                notbetrieb.profile_sichern()
+            notbetrieb.abgleich_alle()
+            # Altbestand ohne Kopfdaten im Hintergrund nachtragen, nicht beim
+            # ersten Abruf im Webmail (Lasttest 15.11.: kalt 30–60× teurer).
+            import notbetrieb_lesen
+            notbetrieb_lesen.kopf_auffuellen_offen()
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("scheduler: Notbetrieb-Abgleich fehlgeschlagen: %s", exc)
+    finally:
+        _last_notbetrieb_run = time.monotonic()
 
 
 def _owa_signatur() -> None:
@@ -866,8 +923,12 @@ def _loop() -> None:
                 _retry_held_deliveries()
             if time.monotonic() - _last_mailuser_run > _MAILUSER_INTERVAL:
                 _refresh_onprem_mailusers()
+            if time.monotonic() - _last_teams_katalog_run > _TEAMS_KATALOG_INTERVAL:
+                _teams_katalog()
             if time.monotonic() - _last_ooo_run > _OOO_INTERVAL:
                 _sync_ooo()
+            if time.monotonic() - _last_notbetrieb_run > _NOTBETRIEB_INTERVAL:
+                _sync_notbetrieb()
             if time.monotonic() - _last_probe_run > _PROBE_INTERVAL:
                 _direktversand_probe()
             if time.monotonic() - _last_owa_run > _OWA_INTERVAL:

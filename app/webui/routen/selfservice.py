@@ -15,6 +15,8 @@ gesetzt hat. Ist es aus, ist die Seite reine Anzeige/Vorschau.
 """
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -270,6 +272,10 @@ async def self_context(email: str = Depends(_require_self)):
                      "privat": ank["privat"], "extern": ank["extern"]},
         "zugriff": True,
     }
+    # Notfall-Zugang (Notbetrieb): eingerichtet? Die Karte führt zur Einrichtung
+    # im Browser. Faktor-Datei mit Sperre → im Thread.
+    import notbetrieb_faktor
+    daten["notfall"] = await asyncio.to_thread(notbetrieb_faktor.zugang, email)
     # Aktuellen OOF-Status aus Exchange lesen (nur Anzeige — kein Schreibzugriff).
     try:
         if not abw:

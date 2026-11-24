@@ -5,6 +5,55 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.159 — 2026-11-24 — EXO-Ausfallschutz (Notbetrieb) als PREVIEW, ab Werk aus
+
+Neue Funktion für den Fall, dass Exchange Online ausfällt. Sie ist als
+**PREVIEW** gekennzeichnet und ab Werk **ausgeschaltet**. Solange der Schalter
+aus ist, ändert sich am Verhalten des Gateways nichts.
+
+* **Schalter:** *Einrichtung → Betriebsart → EXO-Ausfallschutz vorbereiten*
+  (Einstellung `NOTBETRIEB_AKTIV`). Erst danach erscheint der Menüpunkt
+  **EXO-Ausfallschutz**.
+* **Was er tut, wenn er an ist:** Das Gateway hält eine Kopie von Posteingang
+  und Gesendeten Elementen der letzten Tage (dazu Kalender und, optional,
+  persönliche Kontakte) und führt sie alle 15 Minuten nach. Wird der Notfall
+  ausgerufen, geht Post, die das Gateway sonst an Exchange übergäbe, in diese
+  Kopie und über den Direktversand hinaus; ein Webmail unter `/notfall`
+  (Anmeldung mit AD-Kennwort und zweitem Faktor, auch als Teams-App) zeigt sie
+  den Postfächern. Post von außen nimmt das Gateway dann selbst an, mit
+  Empfängerprüfung, Greylisting, Grenzen je Absendernetz und SPF/DKIM/DMARC.
+  Nach dem Ausfall spielt es Neues an Exchange zurück.
+* **Ausgeschaltet:** Alle Routen unter `/notfall` und `/api/notbetrieb/`
+  antworten mit 404, der Abgleich läuft nicht, ein liegengebliebenes
+  „ausgerufen“ lenkt nichts um, und die Abnahme führt den Punkt als
+  „entfällt“. Liegt nach dem Ausschalten noch eine Kopie, bleiben
+  Zurückspielen und Löschen erreichbar, damit keine Daten unerreichbar
+  liegen bleiben. Die Sperre gilt je Router, also auch für künftige Routen.
+* **Berechtigungen:** Mit eingeschaltetem Schalter zusätzlich `Contacts.Read`
+  (optional); `Calendars.Read` deckt auch den Kalender im Notbetrieb ab.
+
+Außerdem in dieser Fassung:
+
+* **Teams-Katalog:** Ist im Katalog eine ältere Fassung der Teams-App
+  „Signatur & Abwesenheit“ hinterlegt als das aktuelle Paket, entsteht eine
+  Aufgabe. Das Gateway liest die Fassung einmal täglich
+  (`AppCatalog.Read.All`, nur bei bereitgestellter Teams-App); der
+  Seitenaufbau wartet nicht darauf.
+* **Eigene Hosts-Einträge:** Namen lassen sich im Gateway auf feste Adressen
+  auflösen (etwa ein On-Prem-Ziel, das öffentlich anders auflöst). Ohne
+  Einträge gilt wie bisher das DNS.
+* Technische Eingabefelder (Hostnamen, Adressen) ohne Autokorrektur und
+  automatische Großschreibung.
+* Adressvorschläge: in Adresslisten ausgeblendete Postfächer erscheinen nicht.
+* SMTP: Eine Einlieferung ohne Absenderadresse der Verbindung wird abgewiesen
+  statt ohne Zugangsprüfung angenommen. Über das Netz kommt das nicht vor
+  (PROXY ohne Ursprung schloss die Verbindung schon bisher).
+* SMTP AUTH LOGIN beantwortet die üblichen Rückfragen; auf dem
+  Submission-Listener (587) fordert das Gateway kein Client-Zertifikat an.
+* Direktversand-Probe erkennt Junk über die Kennung des Junk-Ordners.
+
+**Zu tun:** nichts.
+
 ## v1.12.158 — 2026-11-24 — DMARC: Einzelheiten je Befund, Quelle und Abgleich mit dem Mailprotokoll
 
 Ein Befund wie „besteht DMARC nur über SPF“ nannte bisher nur IP-Adresse und

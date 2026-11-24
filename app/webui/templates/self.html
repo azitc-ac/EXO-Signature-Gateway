@@ -128,6 +128,12 @@
   </div>
 
   <div id="inhalt" hidden>
+    {# Notfall-Zugang (Notbetrieb): Einrichten geht nur im Browser — die
+       Microsoft-Anmeldung lässt sich in Teams/Outlook nicht einbetten. #}
+    <div id="notfall-karte" class="hinweis" hidden>
+      <span id="notfall-text"></span>
+      <a href="/notfall/einrichten" target="_blank" rel="noopener" class="link" id="notfall-link"></a>
+    </div>
     <div class="reiter" role="tablist" id="reiter-leiste">
       <button type="button" role="tab" id="r-abw" data-reiter="abw" aria-controls="p-abw">Abwesenheit</button>
       <button type="button" role="tab" id="r-sig" data-reiter="sig" aria-controls="p-sig">Signatur</button>
@@ -437,6 +443,18 @@ function keineSig(text) {
     laden();
   }
 
+  // Notfall-Zugang: eingerichtet → kurz bestätigen, sonst zur Einrichtung führen.
+  function notfallZeigen(n) {
+    var k = el('notfall-karte');
+    k.hidden = !n;
+    if (!n) return;
+    k.className = 'hinweis ' + (n.bereit ? 'ok' : 'warn');
+    el('notfall-text').textContent = n.bereit
+      ? 'Notfall-Zugang eingerichtet ✓' + (n.passkeys ? '' : ' — mit einem Passkey ginge die Anmeldung schneller.') + ' '
+      : (n.gesperrt ? 'Dein Notfall-Zugang ist gesperrt. ' : 'Richte deinen Notfall-Zugang ein — falls Exchange Online einmal ausfällt. ');
+    el('notfall-link').textContent = n.bereit ? 'Verwalten' : 'Jetzt einrichten';
+  }
+
   async function laden() {
     var r;
     try { r = await api('/api/self/context'); }
@@ -449,6 +467,7 @@ function keineSig(text) {
     el('inhalt').hidden = false;
     el('wer').textContent = ctx.email;
     if (!ctx.freigeschaltet) el('nur-anzeige').hidden = false;
+    notfallZeigen(ctx.notfall);
     if (ctx.zugriff === false)
       zeigeFehler('Kein Zugriff auf die Postfacheinstellungen — bitte den Betreiber informieren.');
 

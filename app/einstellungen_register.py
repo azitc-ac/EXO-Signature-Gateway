@@ -193,6 +193,24 @@ REGISTER: dict[str, E] = {
     "OOO_ENABLED": E(art=OPTION, ort="abwesenheit.html"),  # zentrale Abwesenheitsnotiz
     "UPDATE_CHANNEL": E(art=OPTION, ort="backup.html"),  # Update-Kanal release|nightly|main
     "ABWESENHEIT_AKTIV": E(art=OPTION, ort="setup.html"),  # Funktion Abwesenheiten (Menü/Spalte/Abgleich)
+    "NOTBETRIEB_AKTIV": E(art=OPTION, ort="setup.html"),   # Notbetrieb: Schatten-Abgleich
+    "NOTBETRIEB_AUSGERUFEN": E(art=OPTION, ort="notbetrieb.html"),  # Notfall ausgerufen
+    "NOTBETRIEB_PROBEGRUPPE": E(art=STRUKTUR, ort="notbetrieb.html"),  # Inhalte vor dem Notfall
+    "NOTBETRIEB_LESEN_ALLE": E(art=OPTION, ort="notbetrieb.html"),  # Kopie im Normalbetrieb für alle lesbar
+    "NOTBETRIEB_SENDEN_ALLE": E(art=OPTION, ort="notbetrieb.html"),  # … und senden über Exchange
+    "NOTBETRIEB_ZWEITFAKTOR": E(art=OPTION, ort="notbetrieb.html"),  # zweiter Faktor Pflicht
+    "NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE": E(art=OPTION, ort="notbetrieb.html"),
+    "NOTBETRIEB_EINGANG_GREYLIST": E(art=OPTION, ort="notbetrieb.html"),   # Notfall-Eingang
+    "NOTBETRIEB_EINGANG_MAX_EMPF": E(art=OPTION, ort="notbetrieb.html"),
+    "NOTBETRIEB_EINGANG_MAX_MB": E(art=OPTION, ort="notbetrieb.html"),
+    "NOTBETRIEB_EINGANG_JE_STUNDE": E(art=OPTION, ort="notbetrieb.html"),
+    "NOTBETRIEB_ONPREM_ZIEL": E(art=OPTION, ort="notbetrieb.html"),   # Ziel für On-Prem-Postfächer
+    "NOTBETRIEB_FENSTER": E(art=OPTION, ort="notbetrieb.html"),   # Vorgabe-Fenster
+    "NOTBETRIEB_REGELN": E(art=STRUKTUR, ort="notbetrieb.html"),  # Fenster je Gruppe/Postfach
+    "NOTBETRIEB_UMFANG": E(art=OPTION, ort="notbetrieb.html"),       # alle | aktivierte Postfächer
+    "NOTBETRIEB_LDAP_SERVER": E(art=OPTION, ort="notbetrieb.html"),  # Anmeldung: Domänencontroller
+    "NOTBETRIEB_LDAP_BASIS": E(art=OPTION, ort="notbetrieb.html"),   # Anmeldung: Basis-DN
+    "NOTBETRIEB_LDAP_CA": E(art=OPTION, ort="notbetrieb.html"),      # Anmeldung: CA des DC (PEM)
     "OOO_CALENDAR_READ": E(art=OPTION, ort="abwesenheit.html"),   # Hauptschalter Kalender lesen
     "OOO_CALENDAR_AUTO": E(art=OPTION, ort="abwesenheit.html"),   # OOO aus Kalender
     "OOO_CALENDAR_MIN_HOURS": E(art=OPTION, ort="abwesenheit.html"),
@@ -239,6 +257,7 @@ REGISTER: dict[str, E] = {
     "REINJECT_MODE": E(art=OPTION, ort="setup.html"),
     "RELAY_TENANT_STRENG": E(art=OPTION, ort="advanced.html"),
     "SMTP_PROXY_QUELLEN": E(art=OPTION, ort="advanced.html"),
+    "HOSTS_EINTRAEGE": E(art=OPTION, ort="advanced.html"),
     "EXO_ERKENNUNG": E(art=OPTION, ort="advanced.html"),
     "RELAY_TENANT_CHECK": E(
         art=NOTNAGEL,

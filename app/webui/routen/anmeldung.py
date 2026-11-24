@@ -287,15 +287,26 @@ def _teams_katalog_callback_page(ok: bool, msg: str = "", version: str | None = 
 
 
 @router.get("/api/setup/teams-katalog/aktualisieren")
-async def setup_teams_katalog_aktualisieren(request: Request, _: str = Depends(_require_admin)):
+async def setup_teams_katalog_aktualisieren(request: Request, app: str = "signatur",
+                                            _: str = Depends(_require_admin)):
     """Startet die Admin-Anmeldung (Popup) mit AppCatalog.ReadWrite.All; nach der
     Rückkehr lädt nachlauf() das App-Paket als neue Fassung in den Teams-Katalog.
+    `app`: welches Paket (addin.TEAMS_PAKETE) — Self-Service oder Notfall-Mail.
     Liefert die Login-URL."""
     from webui.hilfen import _addin_base_url
+    from webui.routen.addin import TEAMS_PAKETE
+    if app not in TEAMS_PAKETE:
+        raise HTTPException(400, "Unbekannte App.")
+    if app == "notfall":
+        # Dieselbe Adresse wie Edge-Richtlinie und Download (Notbetrieb-Seite).
+        import aussenadresse
+        base = aussenadresse.basis()
+    else:
+        base = _addin_base_url(request)
     redirect_uri = _setup_redirect_uri()
     _state, auth_url = pkce_mod.create_session(
         redirect_uri, flow="teams_katalog", scopes=pkce_mod.TEAMS_KATALOG_SCOPES,
-        extra={"base": _addin_base_url(request)})
+        extra={"base": base, "app": app})
     return JSONResponse({"auth_url": auth_url, "einfuegen": _endet_lokal(redirect_uri)})
 
 
@@ -343,11 +354,14 @@ async def nachlauf(flow: str, session_obj: dict, access_token: str) -> dict:
     if flow == "teams_katalog":
         # Paket aus derselben Quelle wie der Download, mit der Adresse, die die
         # Seite beim Klick hatte (der Rückweg kennt keine Anfrage mehr).
-        from webui.routen.addin import teams_app_paket
-        paket, m = teams_app_paket((session_obj.get("extra") or {}).get("base", ""))
+        from webui.routen.addin import TEAMS_PAKETE
+        extra = session_obj.get("extra") or {}
+        paket, m = TEAMS_PAKETE[extra.get("app") or "signatur"](extra.get("base", ""))
         res = await graph_client.teams_katalog_aktualisieren(access_token, m["id"], paket)
         if res["ok"]:
+            import teams_katalog
             log.info("Teams-Katalog aktualisiert: Fassung %s", res["version"])
+            teams_katalog.merken(extra.get("app") or "signatur", {"zustand": "ok", "version": res["version"]})
         return {"ok": res["ok"], "msg": res["msg"], "app_id": "", "version": res["version"]}
     if flow == "patch_redirect_uri":
         await setup_wizard.patch_bootstrap_redirect_uri(
@@ -565,6 +579,12 @@ async def auth_callback_implicit(request: Request):
     upn = (claims.get("preferred_username") or claims.get("upn")
            or claims.get("email") or "").strip()
     oid = (claims.get("oid") or claims.get("sub") or "").strip()
+    # Notbetrieb: Anmeldung nur als Nachweis fürs Einrichten des zweiten
+    # Faktors — kurze, eigene Bescheinigung (nur /notfall) statt einer Sitzung
+    # des Gateways. So braucht es weder eine Rolle noch Self-Service.
+    if _sicheres_ziel(session_obj.get("next_url", "/")).startswith("/notfall/einrichten"):
+        from webui.routen import notfall as _notfall
+        return _notfall.einrichten_bescheinigen(upn)
     role = (sso_mod.get_role_by_oid(oid) if oid else None) or sso_mod.get_role(upn)
     if not role:
         role = self_service_rolle(upn)   # kein Admin/Editor, aber ggf. Self-Service
@@ -643,16 +663,21 @@ async def auth_login(request: Request, error: str = "", next: str = "/"):
     )
 
 @router.get("/auth/login/microsoft")
-async def auth_login_microsoft(request: Request, next: str = "/"):
+async def auth_login_microsoft(request: Request, next: str = "/", login_hint: str = ""):
     """Start SSO über den Implicit-id_token-Flow (kein Graph-Token → MFA-Step-up
     erscheint am interaktiven Sign-in; siehe pkce.create_implicit_session).
 
     EIGENER Redirect-Pfad `/auth/id-callback` (Web-Plattform, ID-Token-Erteilung) —
     getrennt vom Code-Flow-Callback `/auth/callback` (publicClient), damit sich beide
-    nicht in die Quere kommen."""
+    nicht in die Quere kommen.
+
+    `login_hint`: vorgeschlagenes Konto — aus dem Teams-Reiter das Teams-Konto,
+    damit im Standardbrowser nicht ein anderes angemeldetes Konto greift
+    (Klicktest 17.11.2026). Nur eine Adresse geht weiter (pkce.login_hint_gueltig)."""
     redirect_uri = _build_redirect_uri(sso=True, path="/auth/id-callback")
     _state, auth_url = pkce_mod.create_implicit_session(redirect_uri,
-                                                        next_url=_sicheres_ziel(next))
+                                                        next_url=_sicheres_ziel(next),
+                                                        login_hint=login_hint[:254])
     return RedirectResponse(auth_url)
 
 @router.get("/api/auth/sso-url")

@@ -17,6 +17,7 @@ from pathlib import Path
 
 import mail_processor
 import config
+import probelauf
 
 log = logging.getLogger(__name__)
 
@@ -159,6 +160,7 @@ def _ensure_dir() -> None:
     _HELD_DIR.mkdir(parents=True, exist_ok=True)
 
 
+@probelauf.ohne_wirkung("")
 def hold(sender: str, recipients: list[str], raw_bytes: bytes,
          processed_msg: "_email_mod.message.Message | None" = None,
          reason: str = "maintenance") -> str:

@@ -47,8 +47,9 @@ def gemerkt(monkeypatch):
     """Fängt das next_url ab, mit dem der Microsoft-Login gestartet wird."""
     seen = {}
 
-    def fake(redirect_uri, next_url="/"):
+    def fake(redirect_uri, next_url="/", login_hint=""):
         seen["next_url"] = next_url
+        seen["login_hint"] = login_hint
         return "STATE", "https://login.example/authorize"
     monkeypatch.setattr(anmeldung.pkce_mod, "create_implicit_session", fake)
     return seen

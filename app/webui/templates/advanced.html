@@ -282,6 +282,37 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   <a href="/settings/routing">Einstellungen → Mail-Routing</a> ein.
 </p>
 
+<!-- ── Eigene Hosts-Einträge (namensaufloesung.py) ─────────────────────────── -->
+<div class="wizard-step" id="hosts-eintraege" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-title">Namensauflösung — eigene Hosts-Einträge</span>
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-top:0">
+      Löst Namen im Gateway auf eine feste Adresse auf, vor dem DNS — wie die hosts-Datei. Gedacht für ein
+      Ziel, dessen Name nur öffentlich auflöst (etwa der Exchange-Server on-prem für den Notbetrieb): Mit einem
+      Eintrag geht die Verbindung direkt zur internen Adresse, und die Zertifikatsprüfung bleibt beim Namen.
+      Gilt für alle Verbindungen des Gateways (Weiterleitungsziele, Domänencontroller, Graph …), nicht für den
+      Direktversand. Wirkt sofort; jede erste Nutzung steht im Protokoll.
+    </p>
+    <div class="settings-row">
+      <label for="hosts-text">Einträge</label>
+      <div class="settings-control">
+        <textarea id="hosts-text" rows="4" style="width:100%;font-family:monospace" spellcheck="false"
+                  autocapitalize="none" autocorrect="off" autocomplete="off"
+                  placeholder="10.99.0.25  mail.firma.at">{{ s.HOSTS_EINTRAEGE or '' }}</textarea>
+        <div class="hint" style="margin-top:4px">Je Zeile eine IP-Adresse, dann ein oder mehrere Namen;
+          <code>#</code> leitet einen Kommentar ein.</div>
+      </div>
+    </div>
+    <div class="settings-row">
+      <button class="btn secondary" id="hosts-btn" data-wache="hosts-text" data-wache-hinweis="hosts-result"
+              onclick="saveHosts()">Speichern</button>
+      <span id="hosts-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+  </div>
+</div>
+
 <!-- ── Gemischte Mails: interne + externe Empfänger (Antworten-an-Alle) ────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">
@@ -491,7 +522,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     <div class="settings-row">
       <label for="smtp-submit-host">Server</label>
       <div class="settings-control">
-        <input type="text" id="smtp-submit-host" style="width:260px"
+        <input autocapitalize="none" autocorrect="off" spellcheck="false" type="text" id="smtp-submit-host" style="width:260px"
                placeholder="smtp.office365.com" value="{{ s.SMTP_SUBMIT_HOST or '' }}">
         <span class="hint">Vorgabe <code>smtp.office365.com</code>.</span>
       </div>
@@ -1573,6 +1604,11 @@ async function saveGatewayName() {
 </script>
 
 <script>
+async function saveHosts() {
+  wacheFertig('hosts-btn', await savePartial({HOSTS_EINTRAEGE: document.getElementById('hosts-text').value},
+                                             'hosts-result'));
+}
+
 async function saveMixedFork() {
   const val = document.getElementById('mixed-fork-select').value;
   wacheFertig('mixed-fork-btn',

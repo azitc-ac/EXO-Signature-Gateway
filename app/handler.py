@@ -358,6 +358,12 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
     import mime_policy
     ndr_bytes = msg.as_bytes(policy=mime_policy.SMTP_REINJECT)
 
+    # Notbetrieb-Webmail: Exchange ist nicht erreichbar — die Meldung geht an
+    # die Umleitung, das Webmail zeigt sie der Person an (notbetrieb_senden).
+    if reinject.umgeleitet():
+        reinject.send(original_sender, [original_sender], ndr_bytes)
+        return
+
     # Primär: Graph sendMail — Port 25 outbound ist z.B. in Azure blockiert,
     # der SMTP-Smarthost-Weg schlug dort mit "Network is unreachable" fehl.
     # Hybrid-Nutzer (seit v1.12.62 mit S/MIME): kein EXO-Postfach, Graph sendMail
@@ -498,6 +504,25 @@ class SignatureHandler:
         log.info("SMTP: Verbindung über Proxy %s, Ursprung %s", ueber, quelle[0])
         return True
 
+    async def handle_RCPT(self, server, session, envelope, address, rcpt_options):
+        """Wie aiosmtpd ohne Haken — außer im ausgerufenen Notfall: Dann prüft
+        `notbetrieb_eingang` Post von außen schon hier (Empfänger, Greylisting).
+        Endgültig entscheidet `handle_DATA`; ein Fehler hier lässt durch, weil
+        die Prüfung dort wiederholt wird."""
+        try:
+            import notbetrieb_eingang
+            antwort = notbetrieb_eingang.rcpt_pruefen(
+                (session.peer or ("",))[0], session, envelope.mail_from or "", address,
+                len(envelope.rcpt_tos))
+        except Exception as exc:                                    # noqa: BLE001
+            log.warning("Notfall-Eingang: Empfängerprüfung fehlgeschlagen: %s", exc)
+            antwort = None
+        if antwort:
+            return antwort
+        envelope.rcpt_tos.append(address)
+        envelope.rcpt_options.extend(rcpt_options)
+        return "250 OK"
+
     async def handle_DATA(self, server, session, envelope):
         # Trace-ID: ab hier trägt jede Log-Zeile dieser Transaktion den
         # "[mail:xxxxxxxx]"-Prefix (mail_trace.TraceFilter) — Suche nach der
@@ -512,6 +537,18 @@ class SignatureHandler:
             peer_ip = (session.peer or ("",))[0]
         except Exception:
             pass
+        # Ohne Absenderadresse greift keine der Zugangsprüfungen unten (Quell-IP,
+        # Tenant-Gate, Relay) — sie fragen alle `if peer_ip`. Eine Netz-
+        # verbindung hat immer eine (PROXY ohne Ursprung schließt sie,
+        # handle_PROXY). Der einzige gewollte Fall ohne Adresse ist der Aufruf
+        # aus dem Notbetrieb-Webmail im Prozess; er kennzeichnet sich. Alles
+        # andere wird abgewiesen statt still durchgelassen.
+        import notbetrieb as _nb
+        _nb.eingang_ordner.set("inbox")
+        _nb.eingang_quelle.set(peer_ip)
+        if not peer_ip and not getattr(session, "notbetrieb_intern", False):
+            log.warning("SMTP: Einlieferung ohne Absenderadresse abgewiesen")
+            return "554 5.7.1 Access denied"
         # Kommt die Verbindung aus einem Netz, das ausdruecklich fuer das
         # SMTP-Relay freigegeben ist? Dann gilt die Exchange-Adressliste nicht —
         # ein Drucker steht nun einmal nicht in Microsofts Adressbereichen.
@@ -535,6 +572,56 @@ class SignatureHandler:
         # ein Gerät mit gültigem Login darf einliefern, gleich aus welchem Netz.
         _ident = (getattr(session, "auth_data", None)
                   if getattr(session, "authenticated", False) else None)
+
+        # Notfall ausgerufen: Post von außen (MX zeigt aufs Gateway). Sie gilt
+        # weder als Exchange-Connector noch als Relay — eigene Prüfung in
+        # notbetrieb_eingang, danach der normale Weg für eingehende Post; die
+        # Zustellung lenkt reinject in die Kopie. Eigene Exchange-Post (eigene
+        # Tenant-Kennung) bleibt beim Connector-Weg.
+        _notfall_eingang = None
+        if not _ident:
+            try:
+                import notbetrieb_eingang
+                _notfall_eingang = notbetrieb_eingang.quelle(peer_ip, session)
+                if _notfall_eingang:
+                    import email.parser as _ep
+                    _kopf = _ep.BytesHeaderParser().parsebytes(raw)
+                    _notfall_eingang = notbetrieb_eingang.quelle_nach_kopf(
+                        _notfall_eingang, str(_kopf.get("X-MS-Exchange-CrossTenant-Id") or ""))
+                    if _notfall_eingang == notbetrieb_eingang.CONNECTOR:
+                        _notfall_eingang = None
+            except Exception as exc:                                # noqa: BLE001
+                # Im Zweifel zu: lieber eine Mail später als ein offenes Relay.
+                log.error("Notfall-Eingang: Einordnung fehlgeschlagen: %s", exc)
+                return "451 4.3.0 Vorübergehender Fehler"
+            if _notfall_eingang:
+                _nf_antwort = notbetrieb_eingang.data_pruefen(_notfall_eingang, peer_ip, recipients, len(raw))
+                if _nf_antwort:
+                    log.info("NOTFALL-EINGANG abgewiesen (%s): %s → %s: %s", _notfall_eingang,
+                             sender, recipients[:3], _nf_antwort)
+                    return _nf_antwort
+                log.info("NOTFALL-EINGANG (%s): %s → %s (von %s)", _notfall_eingang,
+                         sender, ", ".join(recipients[:3]), peer_ip)
+                # Echtheit (SPF/DKIM/DMARC) — im Normalbetrieb prüft das Exchange.
+                import notbetrieb_echtheit as _ne
+                try:
+                    _echt = await asyncio.to_thread(
+                        _ne.pruefen, raw, sender or "", peer_ip, str(getattr(session, "host_name", "") or ""))
+                except Exception as exc:                            # noqa: BLE001
+                    log.error("Notfall-Eingang: Echtheitsprüfung fehlgeschlagen: %s", exc)
+                    return "451 4.7.0 Vorübergehender Fehler"
+                if _echt["entscheidung"] == _ne.ABWEISEN:
+                    log.warning("NOTFALL-EINGANG abgewiesen: %s → %s: %s", sender, recipients[:3], _echt["grund"])
+                    notbetrieb_eingang._zaehlen("unecht")
+                    return "550 5.7.1 Absender nicht bestätigt (SPF/DKIM/DMARC)"
+                if _echt["entscheidung"] == _ne.SPAETER:
+                    log.info("NOTFALL-EINGANG später: %s", _echt["grund"])
+                    return "451 4.7.0 Prüfung vorübergehend nicht möglich"
+                raw = _ne.kopf_setzen(raw, _ne.kennung(), _echt["ar"])
+                _nb.eingang_ordner.set(_echt["entscheidung"])
+                if _echt["entscheidung"] == _ne.JUNK:
+                    notbetrieb_eingang._zaehlen("junk")
+                    log.info("NOTFALL-EINGANG in Junk-E-Mail: %s", _echt["grund"])
 
         if _ident:
             import sende_identitaeten
@@ -565,7 +652,7 @@ class SignatureHandler:
                     log.warning("Sende-Identität %s über Tageskontingent (%d/%d) — "
                                 "Einlieferung läuft weiter (weiches Limit)",
                                 _ident.get("login") or "?", _heute_n, _kont)
-        elif peer_ip and not aus_relay_netz and not vorgelagert:
+        elif peer_ip and not aus_relay_netz and not vorgelagert and not _notfall_eingang:
             import exo_erkennung
             import smtp_acl
             # Exchange Online an Adresse und/oder Client-Zertifikat erkennen
@@ -721,7 +808,7 @@ class SignatureHandler:
             # Nur für Post aus dem Exchange-Weg: Relay-Geräte und authentifizierte
             # Einlieferungen (587) sind lokal — dort stammt die Kennung nicht von
             # Exchange, sondern stünde so im Kopf, wie das Gerät sie schreibt.
-            if peer_ip and not aus_relay_netz and not _ident:
+            if peer_ip and not aus_relay_netz and not _ident and not _notfall_eingang:
                 _fremd_tenant = (msg.get("X-MS-Exchange-CrossTenant-Id") or "").strip().lower()
                 _eigen_tenant = (config.TENANT_ID or settings_store.get("TENANT_ID")
                                  or "").strip().lower()
@@ -775,7 +862,7 @@ class SignatureHandler:
             # `not _ident`: Eine angemeldete Einlieferung (587) kommt von einem
             # Gerät, nicht aus Exchange — sie trägt nie eine Tenant-Kennung und
             # gehört weder in die Zählung noch unter die strenge Prüfung.
-            if (peer_ip and not aus_relay_netz and not _ident
+            if (peer_ip and not aus_relay_netz and not _ident and not _notfall_eingang
                     and settings_store.get("RELAY_TENANT_CHECK") is not False):
                 _own_tenant = (config.TENANT_ID or settings_store.get("TENANT_ID")
                                or "").strip().lower()
@@ -1124,6 +1211,15 @@ class SignatureHandler:
                     _sig_absender, _bearbeiter, _sender_cfg = _von_kopf, sender, _von_cfg
                     log.info("Im Auftrag von: %s schreibt für %s — Signatur und S/MIME von %s",
                              sender, _von_kopf, _von_kopf)
+            # „Senden als“ aus dem Notbetrieb-Webmail: Die Person kennt nur das
+            # Webmail (kein Sender-Kopf). Nur im Prozess gesetzt, nie aus der Mail.
+            if not _bearbeiter and getattr(session, "notbetrieb_intern", False):
+                import notbetrieb as _nb_wb
+                _wb = (_nb_wb.webmail_bearbeiter.get() or "").strip().lower()
+                if _wb and not mailbox_match.selbes_postfach(_mailbox_cfg, _wb, _sig_absender):
+                    _bearbeiter = _wb
+                    log.info("Senden als (Webmail): %s schreibt als %s — Bearbeiter %s",
+                             _wb, _sig_absender, _wb)
             if not _mailbox_cfg or not (_sender_cfg.get("sig") or _sender_cfg.get("smime")):
                 log.debug("Sender %s not in active MAILBOX_CONFIG — forwarding as-is", sender)
                 # mark_as_signed_bytes ist PFLICHT wie auf jedem anderen Rückweg:
@@ -1873,8 +1969,12 @@ class SignatureHandler:
             # pre-encryption plaintext body so Sent Items stay readable.
             mid = msg.get("Message-ID", "").strip()
             import exo_mailboxes as _exo_hy
+            # Nicht im Notbetrieb: Die Gesendet-Kopie führt dort die Kopie, ein
+            # Graph-Aufruf ins Postfach ginge ins Leere (oder, solange Exchange
+            # läuft, an ein Postfach, das die Mail nie gesehen hat).
             _do_cleanup = (
-                mid and _is_first_for_mid(sender, mid)
+                not reinject.umgeleitet()
+                and mid and _is_first_for_mid(sender, mid)
                 and (wants_encryption or settings_store.get("SENT_ITEMS_UPDATE"))
                 # Hybrid-Nutzer: „Gesendete Elemente“ liegen in der lokalen
                 # Organisation, Graph erreicht sie nicht.

@@ -1,0 +1,742 @@
+"""Notbetrieb-Webmail unter /notfall — für alle Mitarbeiter, nicht nur Admins.
+
+Anmeldung per LDAP am lokalen AD (notbetrieb_anmeldung), danach ein eigenes,
+signiertes Sitzungs-Cookie (`nb_sitzung`, nur für /notfall, SameSite=Strict).
+Es trägt NUR das eigene Postfach; was jemand sehen darf, wird bei JEDEM Abruf
+neu aus dem Rechte-Abbild bestimmt (notbetrieb_lesen.darf_lesen).
+
+Schreibende Aufrufe sind JSON-POSTs: Ein fremdes Formular kann keinen
+JSON-Rumpf ohne CORS-Vorabfrage senden, und das Cookie geht wegen
+SameSite=Strict nicht mit — das ersetzt hier ein eigenes CSRF-Token.
+
+ALS TEAMS-REITER (Teams-App „Notfall-Mail“, contentUrl `/notfall?host=teams`)
+liegt die Seite in einem fremden Rahmen; ein SameSite=Strict-Cookie geht dort
+nie mit. Wer sich IM RAHMEN anmeldet (`rahmen: true` im Rumpf), bekommt das
+Cookie deshalb als SameSite=None + Partitioned (CHIPS): Es gilt nur, solange
+Teams/Microsoft 365 die oberste Seite ist, und ist für jede andere Seite
+unsichtbar. Gegen CSRF tragen dort weiter der JSON-Rumpf (Vorabfrage, die
+niemand beantwortet) und die Herkunftsprüfung in app.py. Einrahmen dürfen nur
+Microsoft-365-Hosts (frame-ancestors, hilfen.M365_RAHMEN).
+
+DER ROTE FADEN: `/notfall` weiss selbst, was dran ist — im Normalbetrieb die
+Seite „Dein Notfall-Zugang“ (Microsoft-Anmeldung → Faktor einrichten/Stand),
+im ausgerufenen Notfall zuerst die Notfall-Anmeldung. `/notfall/einrichten`
+zeigt immer den Zugang (alte Links, Konto-Menü des Webmails).
+"""
+from __future__ import annotations
+
+import asyncio
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
+import notbetrieb
+import notbetrieb_anmeldung
+import notbetrieb_entwuerfe
+import notbetrieb_faktor
+import notbetrieb_lesen
+import notbetrieb_rechte
+import settings_store
+import notbetrieb_senden
+from webui.deps import templates, log, _gateway_name
+from webui.hilfen import frame_ancestors
+
+def _nur_wenn_an() -> None:
+    """Preview-Schalter NOTBETRIEB_AKTIV aus → das Webmail gibt es nicht (404),
+    für JEDE Route dieses Routers. Die Prüfungen in den einzelnen Routen
+    bleiben; diese hier gilt auch für jede künftige Route
+    (tests/test_notbetrieb_preview.py)."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+
+
+router = APIRouter(dependencies=[Depends(_nur_wenn_an)])
+
+COOKIE = "nb_sitzung"
+TTL_S = 12 * 60 * 60
+
+
+def _signierer() -> URLSafeTimedSerializer:
+    import sso
+    return URLSafeTimedSerializer(sso._get_secret(), salt="notbetrieb-webmail")
+
+
+def _benutzer(request: Request) -> str:
+    """Angemeldetes Postfach oder 401. Bei ausgeschaltetem Notbetrieb 404 —
+    das Webmail existiert dann nicht."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    roh = request.cookies.get(COOKIE) or ""
+    try:
+        daten = _signierer().loads(roh, max_age=TTL_S)
+    except (BadSignature, SignatureExpired):
+        raise HTTPException(401, "Nicht angemeldet.")
+    benutzer = str((daten or {}).get("b") or "")
+    if not benutzer:
+        raise HTTPException(401, "Nicht angemeldet.")
+    return benutzer
+
+
+def inhalte_erlaubt(benutzer: str) -> bool:
+    """So kann der Zugang vorab auf jedem Gerät eingerichtet werden, ohne dass
+    dort jemand mitliest — Regel in `notbetrieb.inhalte_erlaubt`."""
+    return notbetrieb.inhalte_erlaubt(benutzer)
+
+
+def _leser(benutzer: str = Depends(_benutzer)) -> str:
+    """Wache für alle INHALTE des Webmails (Mail, Kalender, Kontakte, Senden,
+    Adresshilfe) — EINE Stelle, damit keine Route den Bereitschaftsmodus vergisst."""
+    if not inhalte_erlaubt(benutzer):
+        raise HTTPException(403, "Bereit — der Notfall ist nicht ausgerufen.")
+    return benutzer
+
+
+def _sender(benutzer: str = Depends(_leser)) -> str:
+    """Wache fürs SENDEN — strenger als Lesen (notbetrieb.senden_erlaubt)."""
+    if not notbetrieb.senden_erlaubt(benutzer):
+        raise HTTPException(403, "Senden geht hier nur im Notfall — im Normalbetrieb nimm Outlook.")
+    return benutzer
+
+
+async def _postfach(benutzer: str, postfach: str) -> str:
+    """Zugriffsprüfung je Anfrage — im Thread: Sie liest das Rechte-Abbild
+    unter der Sperre der Kopie. Direkt in der Event-Loop wartete jede andere
+    Anfrage mit, solange ein Abruf die Sperre hielt (Lasttest 16.11.2026)."""
+    postfach = (postfach or "").strip().lower()
+    if not await asyncio.to_thread(notbetrieb_lesen.darf_lesen, benutzer, postfach):
+        raise HTTPException(403, "Kein Zugriff auf dieses Postfach.")
+    return postfach
+
+
+def _seite(request: Request, einrichten: bool) -> HTMLResponse:
+    """Die EINE Seite der Notfall-Mail — Webmail, Anmeldung und Zugang.
+    `host=teams`: als Reiter der Teams-App (Microsoft-Anmeldung und Passkey-
+    Einrichtung dann im Browser, siehe Modul-Docstring)."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    from webui.routen.addin import TEAMSJS_SRI, TEAMSJS_URL
+    return templates.TemplateResponse(request=request, name="notfall.html", context={
+        "gateway_name": _gateway_name(), "einrichten": einrichten,
+        "eingerichtet": notbetrieb_anmeldung.eingerichtet(),
+        "ausgerufen": notbetrieb.ausgerufen(),
+        "im_teams": request.query_params.get("host") == "teams",
+        "teamsjs_url": TEAMSJS_URL, "teamsjs_sri": TEAMSJS_SRI,
+        "frisch_min": FRISCH_S // 60})
+
+
+@router.get("/notfall", response_class=HTMLResponse)
+async def notfall_seite(request: Request):
+    return _seite(request, einrichten=False)
+
+
+@router.get("/notfall/app.webmanifest")
+async def notfall_manifest():
+    """Homescreen-App („Zum Home-Bildschirm“, Intune-Web-Link): eigenes
+    Fenster ohne Browserleiste, Start und Geltungsbereich nur /notfall."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    return JSONResponse({
+        # Kurz: Windows zeigt `name` im Startmenü und schneidet nach rund 25
+        # Zeichen ab („Notfall-Mail HV1 Signature…“). Der Gateway-Name steht
+        # in der Beschreibung. `id` hält die Installation fest, auch wenn sich
+        # start_url einmal ändert (sonst gälte sie als neue App).
+        "id": "/notfall", "name": "Notfall-Mail", "short_name": "Notfall-Mail",
+        "description": f"Notfall-Zugang zur Post über {_gateway_name()}",
+        "start_url": "/notfall", "scope": "/notfall", "display": "standalone",
+        "background_color": "#f1f5f9", "theme_color": "#0f172a", "lang": "de",
+        # „maskable“: Android schneidet rund/eckig zu; ohne setzt es das
+        # Symbol verkleinert auf eine weiße Scheibe (web.dev „maskable icon“).
+        # Kein SVG: Edge 157 meldete „failed to load“ für favicon.svg (Datei
+        # ohne width/height, sizes „any“), die PNGs decken alle Größen ab.
+        "icons": [{"src": "/static/symbol/192.png", "sizes": "192x192", "type": "image/png"},
+                  {"src": "/static/symbol/512.png", "sizes": "512x512", "type": "image/png"},
+                  {"src": "/static/symbol/maskable-512.png", "sizes": "512x512", "type": "image/png",
+                   "purpose": "maskable"},
+                  {"src": "/static/apple-touch-icon.png", "sizes": "180x180", "type": "image/png"}],
+    }, media_type="application/manifest+json")
+
+
+@router.post("/notfall/anmelden")
+async def notfall_anmelden(request: Request):
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    quelle = request.client.host if request.client else ""
+    erg = await asyncio.to_thread(notbetrieb_anmeldung.anmelden, str(body.get("benutzer") or ""),
+                                  str(body.get("passwort") or ""), quelle)
+    if not erg.get("ok"):
+        return JSONResponse({"ok": False, "error": erg.get("error"), "warten_s": erg.get("warten_s")},
+                            status_code=401)
+    postfach = erg["postfach"]
+    # Zweiter Faktor: erst das Kennwort, dann der Code (sonst verriete die
+    # Antwort ohne Kennwort, wer einen Faktor hat). Das Kennwort ist hier
+    # geprüft; der Vorgang trägt das Postfach für 5 Minuten.
+    # Faktor-Datei mit eigener Sperre: im Thread, nicht in der Event-Loop
+    # (Anmeldewelle am Notfall-Morgen).
+    st = await asyncio.to_thread(notbetrieb_faktor.stand, postfach)
+    if st["aktiv"]:
+        rp = notbetrieb_faktor.passkey_rp(_seiten_host(request))
+        return JSONResponse({"ok": True, "faktor": True, "totp": st["totp"],
+                             "passkey": any(p["rp"] == rp for p in st["passkeys"]),
+                             "vorgang": _vorgang_signierer().dumps({"b": postfach})})
+    if notbetrieb_faktor.pflicht() and not (notbetrieb.ausgerufen() and notbetrieb_faktor.im_notfall_ohne()):
+        log.info("Notbetrieb-Webmail: %s ohne zweiten Faktor abgewiesen (von %s)", postfach, quelle)
+        return JSONResponse({"ok": False, "einrichten": True,
+                             "error": ("Du hast noch keinen zweiten Faktor eingerichtet — ohne ihn ist "
+                                       "die Notfall-Anmeldung gesperrt. Geht die Microsoft-Anmeldung noch, "
+                                       "richte ihn jetzt ein; sonst wende dich an die IT."
+                                       if notbetrieb.ausgerufen() else
+                                       "Für den Notfall-Zugang brauchst du einen zweiten Faktor. Richte ihn "
+                                       "einmalig ein — mit deiner Microsoft-Anmeldung, solange sie geht.")},
+                            status_code=403)
+    return _anmeldung_fertig(postfach, erg.get("benutzer"), quelle, "ohne Faktor", _im_rahmen(body))
+
+
+def _seiten_host(request: Request) -> str:
+    """Hostname, unter dem die Seite im Browser offen ist (rp_id der Passkeys).
+    Aus dem Origin-Kopf, den der Browser bei jedem POST setzt; sonst Host.
+    Fälschen bringt nichts: Der Browser signiert nur für seine echte Seite,
+    und notbetrieb_faktor prüft die Herkunft aus clientDataJSON."""
+    from urllib.parse import urlsplit
+    herkunft = request.headers.get("origin") or ""
+    return (urlsplit(herkunft).hostname if herkunft else request.url.hostname) or ""
+
+
+def _vorgang_postfach(body: dict) -> str | None:
+    try:
+        return str(_vorgang_signierer().loads(str(body.get("vorgang") or ""), max_age=300).get("b") or "") or None
+    except (BadSignature, SignatureExpired):
+        return None
+
+
+_VORGANG_ABGELAUFEN = {"ok": False, "error": "Die Anmeldung ist abgelaufen — bitte erneut mit Kennwort.", "neu": True}
+
+
+def _vorgang_signierer() -> URLSafeTimedSerializer:
+    import sso
+    return URLSafeTimedSerializer(sso._get_secret(), salt="notbetrieb-faktor-vorgang")
+
+
+def _im_rahmen(body: dict) -> bool:
+    return body.get("rahmen") is True
+
+
+def _cookie_partitioniert(antwort: Response, wert: str, max_age: int) -> None:
+    """Sitzungs-Cookie für den Teams-Reiter: SameSite=None + Partitioned (CHIPS).
+    Von Hand gebaut: Starlette kann `partitioned` erst ab Python 3.14 (es
+    stützt sich auf http.cookies) — im Image läuft 3.11. Der Wert kommt von
+    itsdangerous (URL-sicheres Base64 und Punkte), braucht also kein Quoting."""
+    antwort.headers.append("set-cookie", f"{COOKIE}={wert}; Max-Age={max_age}; Path=/notfall; HttpOnly; "
+                                         "Secure; SameSite=None; Partitioned")
+
+
+def _anmeldung_fertig(postfach: str, anmeldename, quelle: str, wie: str,
+                      rahmen: bool = False) -> JSONResponse:
+    antwort = JSONResponse({"ok": True})
+    wert = _signierer().dumps({"b": postfach})
+    if rahmen:
+        # Teams-Reiter: nur so geht das Cookie im fremden Rahmen mit (Modul-Docstring).
+        _cookie_partitioniert(antwort, wert, TTL_S)
+    else:
+        antwort.set_cookie(COOKIE, wert, max_age=TTL_S, path="/notfall", httponly=True, secure=True,
+                           samesite="strict")
+    log.info("Notbetrieb-Webmail: Anmeldung %s → %s von %s (%s%s)", anmeldename, postfach, quelle, wie,
+             ", Teams-Reiter" if rahmen else "")
+    return antwort
+
+
+@router.post("/notfall/anmelden/faktor")
+async def notfall_anmelden_faktor(request: Request):
+    """Zweiter Schritt: Code aus der Authenticator-App oder ein Wiederherstellungscode."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    postfach = _vorgang_postfach(body)
+    if not postfach:
+        return JSONResponse(_VORGANG_ABGELAUFEN, status_code=401)
+    quelle = request.client.host if request.client else ""
+    ok, meldung = await asyncio.to_thread(notbetrieb_faktor.pruefen, postfach, str(body.get("code") or ""), quelle)
+    if not ok:
+        return JSONResponse({"ok": False, "error": meldung}, status_code=401)
+    return _anmeldung_fertig(postfach, postfach, quelle, "mit Code", _im_rahmen(body))
+
+
+@router.post("/notfall/anmelden/passkey/optionen")
+async def notfall_anmelden_passkey_optionen(request: Request):
+    """Zweiter Schritt mit Passkey, Teil 1: Herausforderung (gilt einmal)."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    postfach = _vorgang_postfach(body)
+    if not postfach:
+        return JSONResponse(_VORGANG_ABGELAUFEN, status_code=401)
+    optionen = await asyncio.to_thread(notbetrieb_faktor.passkey_anmelden_optionen, postfach, _seiten_host(request))
+    if not optionen:
+        return JSONResponse({"ok": False, "error": "Unter dieser Adresse ist kein Passkey eingerichtet — "
+                                                   "nimm den Code."}, status_code=404)
+    return JSONResponse({"ok": True, "optionen": optionen})
+
+
+@router.post("/notfall/anmelden/passkey")
+async def notfall_anmelden_passkey(request: Request):
+    """Zweiter Schritt mit Passkey, Teil 2: signierte Antwort des Browsers."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    postfach = _vorgang_postfach(body)
+    if not postfach:
+        return JSONResponse(_VORGANG_ABGELAUFEN, status_code=401)
+    quelle = request.client.host if request.client else ""
+    antwort = body.get("antwort") if isinstance(body.get("antwort"), dict) else {}
+    ok, meldung = await asyncio.to_thread(notbetrieb_faktor.passkey_pruefen, postfach, antwort, quelle)
+    if not ok:
+        return JSONResponse({"ok": False, "error": meldung}, status_code=401)
+    return _anmeldung_fertig(postfach, postfach, quelle, "mit Passkey", _im_rahmen(body))
+
+
+# ── Zweiten Faktor einrichten (nach frischer Entra-Anmeldung) ───────────────
+
+FRISCH_S = 15 * 60
+
+
+EINRICHTEN_COOKIE = "nb_einrichten"
+
+
+def _einrichten_signierer() -> URLSafeTimedSerializer:
+    import sso
+    return URLSafeTimedSerializer(sso._get_secret(), salt="notbetrieb-faktor-einrichten")
+
+
+def einrichten_bescheinigen(upn: str):
+    """Nach der vollständig geprüften Entra-Anmeldung (anmeldung.py,
+    /auth/id-callback): Bescheinigung für 15 Minuten, nur /notfall. Keine
+    Sitzung des Gateways — der Nachweis berechtigt zu nichts anderem."""
+    from fastapi.responses import RedirectResponse
+    antwort = RedirectResponse("/notfall/einrichten", status_code=302)
+    if notbetrieb.funktion_aktiv() and upn:
+        antwort.set_cookie(EINRICHTEN_COOKIE, _einrichten_signierer().dumps({"u": upn.strip().lower()}),
+                           max_age=FRISCH_S, path="/notfall", httponly=True, secure=True, samesite="strict")
+        log.info("Notbetrieb-Faktor: Entra-Nachweis für %s (Einrichten)", upn)
+    return antwort
+
+
+def _entra_postfach(request: Request) -> str:
+    """Postfach aus einer FRISCHEN Entra-Anmeldung (Bescheinigung, höchstens
+    15 Minuten alt). Frisch, damit ein länger liegendes Cookie keinen Faktor
+    einrichten kann."""
+    if not notbetrieb.funktion_aktiv():
+        raise HTTPException(404)
+    try:
+        daten = _einrichten_signierer().loads(request.cookies.get(EINRICHTEN_COOKIE) or "", max_age=FRISCH_S)
+    except (BadSignature, SignatureExpired):
+        raise HTTPException(401, "Bitte mit Microsoft anmelden.")
+    postfach = notbetrieb.postfach_fuer(str((daten or {}).get("u") or ""))
+    if not postfach:
+        raise HTTPException(403, "Zu diesem Konto gibt es kein Postfach im Notbetrieb.")
+    return postfach
+
+
+@router.get("/notfall/einrichten", response_class=HTMLResponse)
+async def notfall_einrichten_seite(request: Request):
+    return _seite(request, einrichten=True)
+
+
+@router.get("/notfall/api/faktor")
+async def notfall_faktor_stand(postfach: str = Depends(_entra_postfach)):
+    return JSONResponse({"ok": True, "postfach": postfach,
+                         # Darf das Postfach jetzt schon lesen (Probegruppe,
+                         # Lesen für alle, Notfall)? Dann führt die Seite weiter
+                         # ins Webmail — angemeldet wird dort wie immer mit
+                         # Windows-Kennwort und Faktor.
+                         "webmail": notbetrieb.inhalte_erlaubt(postfach),
+                         **await asyncio.to_thread(notbetrieb_faktor.stand, postfach)})
+
+
+@router.post("/notfall/api/faktor/beginnen")
+async def notfall_faktor_beginnen(postfach: str = Depends(_entra_postfach)):
+    return JSONResponse({"ok": True, **await asyncio.to_thread(notbetrieb_faktor.totp_beginnen, postfach)})
+
+
+@router.post("/notfall/api/faktor/bestaetigen")
+async def notfall_faktor_bestaetigen(request: Request, postfach: str = Depends(_entra_postfach)):
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    try:
+        codes = await asyncio.to_thread(notbetrieb_faktor.totp_bestaetigen, postfach, str(body.get("code") or ""))
+    except notbetrieb_faktor.FaktorFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "codes": codes})
+
+
+@router.post("/notfall/api/faktor/passkey/beginnen")
+async def notfall_passkey_beginnen(request: Request, postfach: str = Depends(_entra_postfach)):
+    try:
+        optionen = await asyncio.to_thread(notbetrieb_faktor.passkey_beginnen, postfach, _seiten_host(request))
+    except notbetrieb_faktor.FaktorFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "optionen": optionen})
+
+
+@router.post("/notfall/api/faktor/passkey/bestaetigen")
+async def notfall_passkey_bestaetigen(request: Request, postfach: str = Depends(_entra_postfach)):
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    antwort = body.get("antwort") if isinstance(body.get("antwort"), dict) else {}
+    try:
+        codes = await asyncio.to_thread(notbetrieb_faktor.passkey_bestaetigen, postfach, antwort,
+                                        str(body.get("name") or ""))
+    except notbetrieb_faktor.FaktorFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "codes": codes})
+
+
+@router.post("/notfall/api/faktor/passkey/entfernen")
+async def notfall_passkey_entfernen(request: Request, postfach: str = Depends(_entra_postfach)):
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    if not await asyncio.to_thread(notbetrieb_faktor.passkey_entfernen, postfach, str(body.get("id") or "")):
+        return JSONResponse({"ok": False, "error": "Diesen Passkey gibt es nicht."}, status_code=404)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/notfall/api/faktor/codes")
+async def notfall_faktor_codes(postfach: str = Depends(_entra_postfach)):
+    try:
+        codes = await asyncio.to_thread(notbetrieb_faktor.codes_erneuern, postfach)
+    except notbetrieb_faktor.FaktorFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "codes": codes})
+
+
+@router.post("/notfall/abmelden")
+async def notfall_abmelden():
+    antwort = JSONResponse({"ok": True})
+    antwort.delete_cookie(COOKIE, path="/notfall")
+    # Die Variante des Teams-Reiters lebt in ihrer eigenen Partition; löschen
+    # geht nur mit denselben Merkmalen. Beide Löschköpfe gehen mit — der
+    # Browser wendet jeden auf das passende Cookie an.
+    _cookie_partitioniert(antwort, "", 0)
+    return antwort
+
+
+@router.get("/notfall/api/ich")
+async def notfall_ich(benutzer: str = Depends(_benutzer)):
+    if not inhalte_erlaubt(benutzer):
+        # Bereitschaftsmodus: Anmeldung klappt, Inhalte erst im Notfall.
+        letzter = notbetrieb.letzter_abgleich()
+        return JSONResponse({"ok": True, "benutzer": benutzer, "bereit_modus": True,
+                             "letzter_abgleich": letzter, "zugriff": [], "absender": []})
+    zugriff = [p for p in await asyncio.to_thread(notbetrieb_rechte.zugriff, benutzer) if p["voll"]]
+    sendeweg = notbetrieb.sendeweg(benutzer)
+    senden = sendeweg is not None
+    return JSONResponse({"ok": True, "benutzer": benutzer, "bereit_modus": False, "zugriff": zugriff,
+                         "senden": senden, "sendeweg": sendeweg, "vorschau": None if notbetrieb.ausgerufen() else
+                         await asyncio.to_thread(_vorschau, [p["postfach"] for p in zugriff]),
+                         "absender": await asyncio.to_thread(notbetrieb_senden.absender, benutzer) if senden else []})
+
+
+def _vorschau(postfaecher: list[str]) -> dict:
+    """Für den Hinweis im Normalbetrieb: Stand der Kopie und je Postfach, wie
+    viele Tage Post sie hält — damit niemand die Kopie für das Postfach hält."""
+    stand = notbetrieb.letzter_abgleich()
+    tage = {p["postfach"].lower(): p["mail"] for p in notbetrieb.postfach_uebersicht()}
+    return {"stand": stand, "tage": {pf: tage.get(pf.lower()) for pf in postfaecher}}
+
+
+@router.get("/notfall/api/ordner")
+async def notfall_ordner(postfach: str, benutzer: str = Depends(_leser)):
+    pf = await _postfach(benutzer, postfach)
+    return JSONResponse({"ok": True, "ordner": await asyncio.to_thread(notbetrieb_lesen.ordner, pf)})
+
+
+@router.get("/notfall/api/kalender")
+async def notfall_kalender(postfach: str, von: str, bis: str, benutzer: str = Depends(_leser)):
+    """Termine (nur lesend). Private Termine eines fremden Postfachs nur als Zeitblock."""
+    import notbetrieb_pim
+    pf = await _postfach(benutzer, postfach)
+    eigen = any(p["postfach"] == pf and p["eigen"] for p in await asyncio.to_thread(notbetrieb_rechte.zugriff, benutzer))
+    return JSONResponse({"ok": True, "termine": await asyncio.to_thread(
+        notbetrieb_pim.termine, pf, von[:25], bis[:25], eigen)})
+
+
+@router.get("/notfall/api/kontakte")
+async def notfall_kontakte(postfach: str, benutzer: str = Depends(_leser)):
+    import notbetrieb_pim
+    pf = await _postfach(benutzer, postfach)
+    return JSONResponse({"ok": True, "kontakte": await asyncio.to_thread(notbetrieb_pim.kontakte, pf),
+                         "recht_fehlt": await asyncio.to_thread(notbetrieb_pim.kontakte_recht_fehlt)})
+
+
+@router.get("/notfall/api/adressen")
+async def notfall_adressen(q: str = "", benutzer: str = Depends(_leser)):
+    """Adresshilfe beim Verfassen: eigene Kontakte, dann die globale Adressliste."""
+    import notbetrieb_pim
+    return JSONResponse({"ok": True, "treffer": await asyncio.to_thread(
+        notbetrieb_pim.adressen_suchen, benutzer, q[:100])})
+
+
+@router.get("/notfall/api/adressbuch")
+async def notfall_adressbuch(q: str = "", benutzer: str = Depends(_leser)):
+    """Adressbuch beim Tipp auf An/Cc/Bcc: ohne Suchtext alles (eigene Kontakte
+    zuerst), sonst wie die Adresshilfe — mehr Treffer, ab dem ersten Zeichen."""
+    import notbetrieb_pim
+    treffer = await asyncio.to_thread(notbetrieb_pim.adressen_suchen, benutzer, q[:100], 0,
+                                      notbetrieb_pim.ADRESSBUCH_MAX + 1)
+    return JSONResponse({"ok": True, "treffer": treffer[:notbetrieb_pim.ADRESSBUCH_MAX],
+                         "mehr": len(treffer) > notbetrieb_pim.ADRESSBUCH_MAX})
+
+
+@router.get("/notfall/api/liste")
+async def notfall_liste(postfach: str, ordner: str = "", suche: str = "", seite: int = 0,
+                        ungelesen: bool = False, anhang: bool = False, unterhaltungen: bool = False,
+                        benutzer: str = Depends(_leser)):
+    pf = await _postfach(benutzer, postfach)
+    return JSONResponse({"ok": True, **await asyncio.to_thread(notbetrieb_lesen.liste, pf, ordner, suche[:200],
+                                                               seite, ungelesen, anhang, unterhaltungen)})
+
+
+@router.get("/notfall/api/mail")
+async def notfall_mail(postfach: str, id: str, benutzer: str = Depends(_leser)):
+    pf = await _postfach(benutzer, postfach)
+    m = await asyncio.to_thread(notbetrieb_lesen.mail, pf, id)
+    if not m:
+        raise HTTPException(404)
+    await asyncio.to_thread(notbetrieb_lesen.als_gelesen, benutzer, pf, id)
+    return JSONResponse({"ok": True, **m})
+
+
+@router.get("/notfall/inhalt")
+async def notfall_inhalt(postfach: str, id: str, markieren: str = "", benutzer: str = Depends(_leser)):
+    """HTML der Mail — NUR mit durchgesetzter CSP (notbetrieb_lesen.INHALT_CSP).
+    `markieren`: Suchwörter, die im Text gelb erscheinen."""
+    pf = await _postfach(benutzer, postfach)
+    inhalt = await asyncio.to_thread(notbetrieb_lesen.inhalt_html, pf, id, markieren[:200])
+    if inhalt is None:
+        raise HTTPException(404)
+    # frame-ancestors: Im Teams-Reiter ist Microsoft 365 die oberste Seite;
+    # geprüft wird die GANZE Kette, „self“ allein schlösse den Reiter aus.
+    return HTMLResponse(inhalt, headers={"Content-Security-Policy": notbetrieb_lesen.INHALT_CSP + "; "
+                                         + frame_ancestors(),
+                                         "X-Frame-Options": "SAMEORIGIN",
+                                         "Cache-Control": "no-store"})
+
+
+@router.get("/notfall/anhang")
+async def notfall_anhang(postfach: str, id: str, nr: int, benutzer: str = Depends(_leser)):
+    pf = await _postfach(benutzer, postfach)
+    a = await asyncio.to_thread(notbetrieb_lesen.anhang, pf, id, nr)
+    if not a:
+        raise HTTPException(404)
+    daten, name, _typ = a
+    # Immer als Download: ein HTML- oder SVG-Anhang darf nicht im Kontext des
+    # Gateways geöffnet werden.
+    return Response(daten, media_type="application/octet-stream",
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}",
+                             "Cache-Control": "no-store"})
+
+
+@router.get("/notfall/anhang/ansehen")
+async def notfall_anhang_ansehen(postfach: str, id: str, nr: int, benutzer: str = Depends(_leser)):
+    """Bild oder PDF im Browser ansehen. Typ aus den BYTES (vorschau_typ),
+    sonst 415 — die Oberfläche bietet dann nur den Download an. Inhalt in
+    eigener Sandbox (CSP sandbox, nosniff): Ein präpariertes PDF oder Bild
+    erreicht weder Cookies noch die Seite."""
+    pf = await _postfach(benutzer, postfach)
+    a = await asyncio.to_thread(notbetrieb_lesen.anhang, pf, id, nr)
+    if not a:
+        raise HTTPException(404)
+    daten, name, _angegeben = a
+    typ = notbetrieb_lesen.vorschau_typ(daten)
+    if not typ:
+        raise HTTPException(415, "Für diesen Anhang gibt es keine Vorschau.")
+    return Response(daten, media_type=typ, headers={
+        "Content-Disposition": f"inline; filename*=UTF-8''{quote(name)}",
+        "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; "
+                                   + frame_ancestors(),
+        "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
+
+
+@router.get("/notfall/api/vorlage")
+async def notfall_vorlage(postfach: str, id: str, art: str, benutzer: str = Depends(_leser)):
+    """Vorbelegung für Antworten / Allen antworten / Weiterleiten."""
+    pf = await _postfach(benutzer, postfach)
+    try:
+        return JSONResponse({"ok": True, **await asyncio.to_thread(notbetrieb_senden.vorlage, benutzer, pf, id, art)})
+    except notbetrieb_senden.SendeFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+
+
+_MAX_RUMPF = 22 * 1024 * 1024      # 15 MB Anhänge, base64 (×4/3) plus Text
+
+
+@router.post("/notfall/api/senden")
+async def notfall_senden(request: Request, benutzer: str = Depends(_sender)):
+    import base64
+    import binascii
+    if int(request.headers.get("content-length") or 0) > _MAX_RUMPF:
+        return JSONResponse({"ok": False, "error": "Nachricht zu groß."}, status_code=413)
+    try:
+        body = await request.json()
+        anhaenge = [(str(a.get("name") or "anhang"), str(a.get("typ") or ""),
+                     base64.b64decode(str(a.get("daten") or ""), validate=True))
+                    for a in (body.get("anhaenge") or [])[:20]]
+    except (ValueError, binascii.Error, AttributeError, TypeError):
+        return JSONResponse({"ok": False, "error": "Ungültige Anfrage."}, status_code=400)
+    try:
+        # Im Ereignis-Takt, nicht in einem Thread: senden() ruft den Handler —
+        # wie jede Mail vom Connector (dort läuft reinject ebenfalls synchron).
+        erg = await notbetrieb_senden.senden(
+            benutzer, str(body.get("postfach") or ""), str(body.get("an") or ""),
+            str(body.get("cc") or ""), str(body.get("bcc") or ""), str(body.get("betreff") or "")[:500],
+            str(body.get("text") or "")[:500000], anhaenge, str(body.get("bezug") or ""),
+            str(body.get("art") or "neu"), str(body.get("bezug_postfach") or ""))
+    except notbetrieb_senden.SendeFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    if body.get("entwurf"):
+        await asyncio.to_thread(notbetrieb_entwuerfe.loeschen, benutzer, str(body["entwurf"]))
+    return JSONResponse(erg)
+
+
+# ── Signatur-Vorschau: was der Handler anhängen würde ──────────────────────
+# Das Ergebnis ist HTML aus Vorlagen und Original — es läuft wie jede Mail im
+# Lesebereich NUR unter INHALT_CSP (eigene Route, iframe ohne Rechte). Gemerkt
+# im Speicher, je Person, kurz: Es ist eine Ansicht, kein Datensatz.
+_VORSCHAU_S, _VORSCHAU_MAX = 600, 200
+_vorschauen: dict[str, tuple[str, str, float]] = {}
+
+
+@router.post("/notfall/api/vorschau")
+async def notfall_vorschau(request: Request, benutzer: str = Depends(_sender)):
+    import secrets
+    import time
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        return JSONResponse({"ok": False, "error": "Ungültige Anfrage."}, status_code=400)
+    try:
+        erg = await notbetrieb_senden.vorschau(
+            benutzer, str(body.get("postfach") or ""), str(body.get("an") or ""), str(body.get("cc") or ""),
+            str(body.get("bcc") or ""), str(body.get("betreff") or "")[:500], str(body.get("bezug") or ""),
+            str(body.get("art") or "neu"), str(body.get("bezug_postfach") or ""))
+    except notbetrieb_senden.SendeFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    jetzt = time.monotonic()
+    for k in [k for k, (_, _, ts) in _vorschauen.items() if jetzt - ts > _VORSCHAU_S]:
+        _vorschauen.pop(k, None)
+    while len(_vorschauen) >= _VORSCHAU_MAX:
+        _vorschauen.pop(next(iter(_vorschauen)))
+    html = erg.pop("html")
+    if html:
+        k = secrets.token_urlsafe(16)
+        _vorschauen[k] = (benutzer, html, jetzt)
+        erg["url"] = "/notfall/vorschau?k=" + k
+    return JSONResponse(erg)
+
+
+@router.get("/notfall/vorschau")
+async def notfall_vorschau_inhalt(k: str, benutzer: str = Depends(_sender)):
+    eintrag = _vorschauen.get(k)
+    if not eintrag or eintrag[0] != benutzer:
+        raise HTTPException(404)
+    return HTMLResponse(eintrag[1], headers={"Content-Security-Policy": notbetrieb_lesen.INHALT_CSP + "; "
+                                             + frame_ancestors(),
+                                             "X-Frame-Options": "SAMEORIGIN", "Cache-Control": "no-store"})
+
+
+# ── Gelesen / ungelesen (in der Kopie, zurück nach Exchange) ────────────────
+
+@router.post("/notfall/api/gelesen")
+async def notfall_gelesen(request: Request, benutzer: str = Depends(_leser)):
+    """Wie das Öffnen einer Mail (_leser): Wer nur zur Vorschau liest, ändert
+    damit nur die Kopie; zurückgeschrieben wird für den, der im Webmail
+    arbeitet (notbetrieb_aenderungen.merken entscheidet)."""
+    import notbetrieb_aenderungen
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    pf = await _postfach(benutzer, str(body.get("postfach") or ""))
+    if not await asyncio.to_thread(notbetrieb_aenderungen.merken, benutzer, pf, str(body.get("id") or ""),
+                                   notbetrieb_aenderungen.GELESEN, "1" if body.get("gelesen") else "0"):
+        raise HTTPException(404)
+    return JSONResponse({"ok": True})
+
+
+# ── Löschen und Verschieben (in der Kopie, zurück nach Exchange) ────────────
+
+@router.post("/notfall/api/verschieben")
+async def notfall_verschieben(request: Request, benutzer: str = Depends(_sender)):
+    """Ziel: Ordner-Kennung des Postfachs oder „deleteditems“ (Löschen).
+    Nur wer im Webmail arbeitet (_sender) — in der reinen Vorschau ändert
+    niemand sein echtes Postfach."""
+    import notbetrieb_aenderungen
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    pf = await _postfach(benutzer, str(body.get("postfach") or ""))
+    ziel = await asyncio.to_thread(notbetrieb_lesen.ordner_kennung, pf, str(body.get("ziel") or ""))
+    if not ziel:
+        return JSONResponse({"ok": False, "error": "Diesen Ordner gibt es nicht."}, status_code=400)
+    if not await asyncio.to_thread(notbetrieb_aenderungen.merken, benutzer, pf, str(body.get("id") or ""),
+                                   notbetrieb_aenderungen.VERSCHIEBEN, ziel):
+        raise HTTPException(404)
+    return JSONResponse({"ok": True})
+
+
+# ── Entwürfe (automatisch gesichert, je angemeldetem Benutzer) ──────────────
+
+@router.get("/notfall/api/entwuerfe")
+async def notfall_entwuerfe(benutzer: str = Depends(_sender)):
+    return JSONResponse({"ok": True, "entwuerfe": await asyncio.to_thread(notbetrieb_entwuerfe.liste, benutzer)})
+
+
+@router.get("/notfall/api/entwurf")
+async def notfall_entwurf(id: str, benutzer: str = Depends(_sender)):
+    e = await asyncio.to_thread(notbetrieb_entwuerfe.laden, benutzer, id)
+    if not e:
+        raise HTTPException(404)
+    return JSONResponse({"ok": True, **e})
+
+
+@router.post("/notfall/api/entwurf")
+async def notfall_entwurf_speichern(request: Request, benutzer: str = Depends(_sender)):
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    try:
+        return JSONResponse({"ok": True, **await asyncio.to_thread(
+            notbetrieb_entwuerfe.speichern, benutzer, str(body.get("id") or ""), body)})
+    except notbetrieb_entwuerfe.EntwurfFehler as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@router.post("/notfall/api/entwurf/loeschen")
+async def notfall_entwurf_loeschen(request: Request, benutzer: str = Depends(_sender)):
+    try:
+        body = await request.json()
+    except Exception:                                               # noqa: BLE001
+        raise HTTPException(400, "Ungültige Anfrage")
+    await asyncio.to_thread(notbetrieb_entwuerfe.loeschen, benutzer, str(body.get("id") or ""))
+    return JSONResponse({"ok": True})

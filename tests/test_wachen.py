@@ -105,6 +105,21 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     # /api/self/*-Endpunkte (die hängen an _require_self).
     "/self":                  "Self-Service-Seite, meldet sich über die API an",
 
+    # ── Notbetrieb-Webmail (webui/routen/notfall.py): Mitarbeiter haben im
+    #    Störfall keine Gateway-Sitzung. Die Seite ist nur die Hülle; alle
+    #    Daten hängen an notfall._benutzer (eigene Wache, siehe _wachen()).
+    "/notfall":          "Hülle des Notbetrieb-Webmails, meldet sich über /notfall/anmelden an",
+    "/notfall/anmelden": "LDAP-Anmeldung am lokalen AD, gedrosselt je Name und Quelle",
+    "/notfall/abmelden": "löscht nur das eigene Sitzungs-Cookie",
+    "/notfall/anmelden/faktor": "zweiter Anmeldeschritt: signierter Vorgang (5 min) aus geprüftem Kennwort, "
+                                "Code gedrosselt und hart gesperrt (notbetrieb_faktor)",
+    "/notfall/einrichten": "Hülle der Einrichtungsseite; Daten hängen an notfall._entra_postfach",
+    "/notfall/app.webmanifest": "Manifest der Homescreen-App: Name, Symbole, Startadresse — keine Daten",
+    "/notfall/anmelden/passkey/optionen": "zweiter Anmeldeschritt mit Passkey: signierter Vorgang (5 min) aus "
+                                          "geprüftem Kennwort, Herausforderung gilt einmal",
+    "/notfall/anmelden/passkey": "zweiter Anmeldeschritt mit Passkey: signierter Vorgang, Signatur geprüft, "
+                                 "gedrosselt und hart gesperrt (notbetrieb_faktor)",
+
     # ── Betrieb
     "/health": "Gesundheitsprüfung für Container und Überwachung",
     "/api/csp-bericht": "CSP-Verstoßberichte senden Browser ohne Sitzung; nur Zähler, "
@@ -116,8 +131,13 @@ def _wachen():
     # _require_self ist eine vollwertige Wache (verlangt eine gültige Sitzung,
     # scopt auf das eigene Postfach) — nur eben keine Admin-Wache. Routen, die
     # ausschliesslich daran hängen, sind also NICHT ungeschützt.
+    # notfall._benutzer: Sitzung des Notbetrieb-Webmails (signiertes Cookie aus
+    # der LDAP-Anmeldung); Rechte je Postfach prüft die Route zusätzlich.
     from webui.deps import _check_auth, _require_admin, _require_self
-    return {_check_auth, _require_admin, _require_self}
+    # notfall._entra_postfach: Bescheinigung einer frischen, vollständig
+    # geprüften Entra-Anmeldung (15 min, nur /notfall) — fürs Einrichten.
+    from webui.routen.notfall import _benutzer, _entra_postfach
+    return {_check_auth, _require_admin, _require_self, _benutzer, _entra_postfach}
 
 
 def _hat_wache(dependant, wachen, tiefe: int = 0) -> bool:

@@ -274,6 +274,72 @@ def _ketten_farbe(antworten: int, verhindert: int) -> str:
     return "#e67e22" if antworten >= 20 and verhindert == 0 else ""
 
 
+def _rueckweg_zeilen(dval, st: dict) -> list[str]:
+    """Dauerbetrieb: Was lokal entsteht, geht laufend nach Exchange. Die Zeile
+    steht IMMER, solange gesendet werden darf — ein stehender Rückweg fiele
+    sonst erst im Ernstfall auf (dann liegt Post nur in der Kopie). Rot bei
+    Stau (älter als zwei Abgleichtakte) oder Fehlern."""
+    import notbetrieb
+    import notbetrieb_aenderungen
+    import settings_store
+    dauer = notbetrieb.lesen_alle() and settings_store.get("NOTBETRIEB_SENDEN_ALLE") is True
+    aend = notbetrieb_aenderungen.offen()
+    stau = 0 if st.get("ausgerufen") else int(st.get("lokal_stau", 0) or 0)
+    fehler = dval("dauer_zurueck_fehler") + dval("dauer_schreib_fehler")
+    if not (dauer or stau or aend["offen"] or fehler or dval("dauer_gesendet")):
+        return []
+    text = (f"{dval('dauer_gesendet')} über Exchange gesendet, {dval('dauer_zurueckgespielt')} Kopien "
+            f"zurückgespielt, {dval('dauer_geschrieben')} Änderungen geschrieben "
+            f"({dval('dauer_verworfen')} verworfen, weil Exchange jünger war); wartend: {stau} Mails "
+            f"länger als {notbetrieb.STAU_MIN} min, {aend['offen']} Änderungen"
+            + (f" ({aend['mit_fehler']} mit Fehler)" if aend["mit_fehler"] else "")
+            + (f"; {fehler} Fehler" if fehler else ""))
+    return [_row("Rückweg nach Exchange", text, "#e74c3c" if (stau or fehler or aend["mit_fehler"]) else "")]
+
+
+def _notbetrieb_zeilen(dval) -> list[str]:
+    """Notbetrieb im Tagesbericht. Die Kopie-Zeile steht IMMER, solange der
+    Notbetrieb an ist: Bleibt der Abgleich stehen, ist die Kopie im Ernstfall
+    veraltet — ein stilles Versagen, das sonst niemand bemerkt."""
+    try:
+        import notbetrieb
+        if not notbetrieb.funktion_aktiv() and not notbetrieb.sichtbar():
+            return []
+        st = notbetrieb.status()
+    except Exception as exc:                                        # noqa: BLE001
+        return [_row("EXO-Ausfallschutz", f"Stand nicht lesbar: {exc}", "#e74c3c")]
+    zeilen = []
+    if st.get("ausgerufen"):
+        zeilen.append(_row("Notfall ausgerufen", "ja — Post geht in die Kopie", "#e74c3c"))
+    letzter = (st.get("letzter_lauf") or {})
+    alter_h = None
+    try:
+        alter_h = (datetime.now(timezone.utc)
+                   - datetime.fromisoformat(str(letzter.get("ts")).replace("Z", "+00:00"))).total_seconds() / 3600
+    except (TypeError, ValueError):
+        pass
+    fehler = int(letzter.get("fehler", 0) or 0) + int(letzter.get("postfaecher_fehler", 0) or 0)
+    if alter_h is None:
+        text, farbe = f"{st.get('mails', 0)} Mails, noch kein Abgleich", "#e67e22"
+    else:
+        text = (f"{st.get('mails', 0)} Mails aus {st.get('postfaecher_im_schatten', 0)} Postfächern, "
+                f"Abgleich vor {alter_h:.1f} h" + (f", {fehler} Fehler" if fehler else ""))
+        farbe = "#e67e22" if (alter_h > 1 or fehler or letzter.get("kein_token")) else ""
+    zeilen.append(_row("Kopie für den Notfall", text, farbe))
+    if st.get("ausgerufen") and st.get("lokal_offen"):
+        zeilen.append(_row("Im Notbetrieb angenommen, nicht zurückgespielt", st["lokal_offen"], "#e74c3c"))
+    zeilen.extend(_rueckweg_zeilen(dval, st))
+    angenommen = dval("notfall_angenommen")
+    abgewiesen = dval("notfall_unbekannt") + dval("notfall_unecht") + dval("notfall_gedrosselt")
+    if st.get("ausgerufen") or angenommen or abgewiesen or dval("notfall_greylist"):
+        zeilen.append(_row("Notfall-Eingang von außen",
+                           f"{angenommen} angenommen ({dval('notfall_junk')} in Junk-E-Mail), "
+                           f"{dval('notfall_unbekannt')} an unbekannte Empfänger, "
+                           f"{dval('notfall_unecht')} gefälscht, {dval('notfall_gedrosselt')} gedrosselt, "
+                           f"{dval('notfall_greylist')} aufgeschoben"))
+    return zeilen
+
+
 # Farben der Ampel im Tagesbericht (Mail, kein Dunkelmodus) — wie die übrigen Zeilen.
 _PROBE_FARBE = {"fehler": "#e74c3c", "warnung": "#e67e22", "keine": "#888", "ok": ""}
 
@@ -481,6 +547,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         # 0 würde überlesen — hier zählt gerade der Ausschlag.
         *[(_row(_ae.LABELS.get(q, q), _abgewiesen[q], "#e67e22")
            if _abgewiesen.get(q) else "") for q in _ae.QUELLEN],
+        *_notbetrieb_zeilen(dval),
     ])
 
     # ── Diesen Monat ──

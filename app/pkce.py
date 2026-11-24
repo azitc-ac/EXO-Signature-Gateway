@@ -10,6 +10,7 @@ policies.
 import base64
 import hashlib
 import logging
+import re
 import secrets
 import time
 import urllib.parse
@@ -171,7 +172,13 @@ def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "s
     return state, auth_url
 
 
-def create_implicit_session(redirect_uri: str, next_url: str = "/") -> tuple[str, str]:
+def login_hint_gueltig(wert: str) -> bool:
+    """Ein Anmeldehinweis ist eine Adresse — nichts anderes geht an Entra."""
+    w = (wert or "").strip()
+    return 3 <= len(w) <= 254 and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", w) is not None
+
+
+def create_implicit_session(redirect_uri: str, next_url: str = "/", login_hint: str = "") -> tuple[str, str]:
     """SSO-Login über den Implicit-`id_token`-Flow.
 
     Holt die Identität DIREKT vom `/authorize` (front-channel, `response_mode=
@@ -209,6 +216,15 @@ def create_implicit_session(redirect_uri: str, next_url: str = "/") -> tuple[str
         "nonce": nonce,
         "prompt": "select_account",
     }
+    # Konto vorschlagen (aus dem Teams-Reiter: das Teams-Konto) — sonst nimmt
+    # der Browser womöglich ein anderes angemeldetes Konto. Nur eine Adresse.
+    if login_hint_gueltig(login_hint):
+        params["login_hint"] = login_hint.strip()
+        # Mit select_account zeigt Microsoft trotz Hinweis nur die Kontoliste,
+        # ohne Vorauswahl (Klicktest Teams Desktop, 17.11.2026). Ohne prompt
+        # nimmt es das genannte Konto — andere Konten bleiben über „Anderes
+        # Konto“ erreichbar.
+        params.pop("prompt", None)
     auth_url = ("https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?"
                 + urllib.parse.urlencode(params))
     log.debug("PKCE implicit session created state=%s", state)

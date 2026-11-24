@@ -1889,6 +1889,600 @@ def test_selbst_zustellen_prueft_port25_vor_dem_speichern(browser, server, monke
         assert not dialoge, dialoge
 
 
+# ── Webmail im Notbetrieb: verschiebbare Spalten, einzeilige breite Liste ────
+
+def _notfall_seite(browser, server, monkeypatch, breite, speicher=None, zusatz=None):
+    """Webmail mit nachgespielter API: angemeldet, ein Postfach, zwei Mails."""
+    import json as _json
+    import notbetrieb
+
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    antworten = {
+        "ich": {"ok": True, "benutzer": "max@firma.at", "senden": False,
+                "zugriff": [{"postfach": "max@firma.at", "eigen": True}]},
+        "ordner": {"ok": True, "ordner": [{"id": "e", "wk": "inbox", "name": "Posteingang",
+                                           "anzahl": 2, "ungelesen": 1}]},
+        "liste": {"ok": True, "gesamt": 2, "je_seite": 50, "mails": [
+            {"graph_id": "m1", "von": "Erika Musterfrau", "betreff": "Angebot", "empfangen":
+             "2026-11-16T09:00:00Z", "gelesen": False, "vorschau": "Hallo Max, anbei das Angebot"},
+            {"graph_id": "m2", "von": "Hans Beispiel", "betreff": "Termin", "empfangen":
+             "2026-11-16T08:00:00Z", "gelesen": True, "vorschau": "Passt Donnerstag?",
+             "an": "Vertrieb <vertrieb@firma.at>"}]},
+        "mail": {"ok": True, "betreff": "Termin", "von": [{"name": "Hans Beispiel", "adresse": "hans@firma.at"}],
+                 "an": [{"name": "Vertrieb", "adresse": "vertrieb@firma.at"}], "cc": [], "anhaenge": [],
+                 "datum": "2026-11-16T08:00:00Z", "html": False, "text": "Passt Donnerstag?"},
+    } | (zusatz or {})
+    gesendet = []
+    ctx = browser.new_context(viewport={"width": breite, "height": 900})
+    if speicher:
+        ctx.add_init_script("localStorage.setItem('nf-spalten', %s)" % _json.dumps(_json.dumps(speicher)))
+
+    def api(route):
+        teil = route.request.url.split("/notfall/api/")[1].split("?")[0]
+        if route.request.method == "POST":
+            gesendet.append((teil, route.request.post_data_json))
+        route.fulfill(status=200, content_type="application/json",
+                      body=_json.dumps(antworten.get(teil, {"ok": True})))
+
+    ctx.route("**/notfall/api/**", api)
+    pg = ctx.new_page()
+    pg.goto(f"{server}/notfall", wait_until="domcontentloaded", timeout=30000)
+    pg.wait_for_selector("#liste .eintrag", timeout=10000)
+    pg.gesendet = gesendet
+    return pg
+
+
+def _hoehe(pg, sel):
+    return pg.eval_on_selector(sel, "e => e.getBoundingClientRect().height")
+
+
+def test_notfall_liste_wird_einzeilig_wenn_breit_gezogen(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1600)
+    zweizeilig = _hoehe(pg, "#liste .eintrag")
+    assert pg.eval_on_selector("#listenspalte", "e => e.offsetWidth") == 360
+
+    # Trenner zwischen Liste und Lesebereich mit der Maus nach rechts ziehen.
+    box = pg.locator('.trenner[data-spalte="liste"]').bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + 200
+    pg.mouse.move(x, y); pg.mouse.down(); pg.mouse.move(x + 500, y, steps=5); pg.mouse.up()
+
+    assert pg.eval_on_selector("#listenspalte", "e => e.offsetWidth") > 800
+    einzeilig = _hoehe(pg, "#liste .eintrag")
+    assert einzeilig < zweizeilig * 0.6, (zweizeilig, einzeilig)
+    # Von, Betreff und Datum stehen auf einer Höhe.
+    oben = [pg.eval_on_selector(f"#liste .eintrag {s}", "e => Math.round(e.getBoundingClientRect().top)")
+            for s in (".von", ".betreff", ".datum")]
+    assert max(oben) - min(oben) <= 4, oben
+    # Gemerkt: neu laden behält die Breite.
+    gemerkt = pg.evaluate("JSON.parse(localStorage.getItem('nf-spalten')).liste")
+    assert gemerkt > 800
+    pg.context.close()
+
+
+def test_notfall_spalten_lassen_dem_lesebereich_platz(browser, server, monkeypatch):
+    # Gemerkte Breite aus einem großen Bildschirm, jetzt am kleinen Notebook.
+    pg = _notfall_seite(browser, server, monkeypatch, 1100, speicher={"ordner": 240, "liste": 2000})
+    assert pg.eval_on_selector("#lesen", "e => e.offsetWidth") >= 320
+    # Pfeiltaste verkleinert, Doppelklick setzt zurück.
+    t = pg.locator('.trenner[data-spalte="liste"]')
+    vorher = pg.eval_on_selector("#listenspalte", "e => e.offsetWidth")
+    t.focus(); pg.keyboard.press("ArrowLeft")
+    assert pg.eval_on_selector("#listenspalte", "e => e.offsetWidth") == vorher - 20
+    t.dblclick()
+    assert pg.eval_on_selector("#listenspalte", "e => e.offsetWidth") == 360
+    pg.context.close()
+
+
+def test_notfall_mobil_ohne_trenner_und_zweizeilig(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 393, speicher={"liste": 900})
+    assert pg.eval_on_selector('.trenner[data-spalte="liste"]', "e => getComputedStyle(e).display") == "none"
+    assert pg.evaluate("document.documentElement.scrollWidth") <= 393
+    kopf = pg.eval_on_selector("#liste .eintrag .von", "e => Math.round(e.getBoundingClientRect().top)")
+    betreff = pg.eval_on_selector("#liste .eintrag .betreff", "e => Math.round(e.getBoundingClientRect().top)")
+    assert betreff > kopf   # Betreff unter dem Absender, nicht daneben
+    pg.context.close()
+
+
+def test_notfall_suche_beim_tippen_und_markiert(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300)
+    anfragen = []
+    pg.on("request", lambda r: anfragen.append(r.url) if "/notfall/api/liste" in r.url and "suche=" in r.url
+          and "suche=&" not in r.url else None)
+    pg.fill("#suche", "")
+    pg.type("#suche", "an", delay=30)           # zwei Zeichen: noch keine Suche
+    pg.wait_for_timeout(700)
+    assert anfragen == []
+    pg.type("#suche", "gebot", delay=30)        # zügig weitergetippt: EINE Suche nach der Pause
+    pg.wait_for_timeout(900)
+    assert len(anfragen) == 1 and "suche=angebot" in anfragen[0], anfragen
+    # Markiert, in der Schreibung der Mail, und nur das Wort.
+    assert pg.eval_on_selector("#liste .eintrag .betreff mark", "e => e.textContent") == "Angebot"
+    assert pg.eval_on_selector("#liste .eintrag .vorschau mark", "e => e.textContent") == "Angebot"
+    farbe = pg.eval_on_selector("#liste mark", "e => getComputedStyle(e).backgroundColor")
+    assert farbe == "rgb(253, 230, 138)", farbe
+    pg.context.close()
+
+
+def test_notfall_suche_markiert_absender_und_empfaenger(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300)
+    # Treffer nur beim Empfänger: Die Liste zeigt dafür eine An-Zeile, markiert.
+    pg.fill("#suche", "vertrieb"); pg.press("#suche", "Enter")
+    pg.wait_for_timeout(500)
+    assert pg.eval_on_selector('#liste .eintrag[data-id="m2"] .an mark', "e => e.textContent") == "Vertrieb"
+    assert pg.locator('#liste .eintrag[data-id="m1"] .an').count() == 0     # kein Fund im An: keine Zeile
+    # Geöffnete Mail: An-Feld markiert.
+    pg.click('#liste .eintrag[data-id="m2"]')
+    pg.wait_for_selector("#lesen-betreff")
+    assert "vertrieb" in pg.inner_html("#lesen .kopfbereich").lower().split("<mark>")[1].split("</mark>")[0]
+    # Absender: in Liste und Kopf der Mail.
+    pg.fill("#suche", "hans"); pg.press("#suche", "Enter")
+    pg.wait_for_timeout(500)
+    assert pg.eval_on_selector('#liste .eintrag[data-id="m2"] .von mark', "e => e.textContent") == "Hans"
+    pg.click('#liste .eintrag[data-id="m2"]')
+    pg.wait_for_timeout(300)
+    marken = pg.eval_on_selector_all("#lesen .kopfbereich mark", "es => es.map(e => e.textContent)")
+    assert "Hans" in marken and "hans" in marken, marken      # Name und Adresse
+    pg.context.close()
+
+
+def test_notfall_antwort_zeigt_zitat_statt_textzitat(browser, server, monkeypatch):
+    """Das Original steht nicht mehr als „> “-Text im Feld; es ist eingeklappt
+    darunter zu sehen, und beim Senden geht der Bezug samt Postfach mit."""
+    zusatz = {
+        "ich": {"ok": True, "benutzer": "max@firma.at", "senden": True, "sendeweg": "notfall",
+                "zugriff": [{"postfach": "max@firma.at", "eigen": True}],
+                "absender": [{"postfach": "max@firma.at", "recht": "eigen"}]},
+        "vorlage": {"ok": True, "an": "hans@firma.at", "cc": "", "betreff": "AW: Termin", "text": "",
+                    "zitat": {"kopf": [{"feld": "Von", "wert": "Hans Beispiel <hans@firma.at>"},
+                                       {"feld": "Betreff", "wert": "Termin"}],
+                              "html": False, "text": "Passt Donnerstag?"}},
+        "senden": {"ok": True, "ueber": "notfall"},
+    }
+    pg = _notfall_seite(browser, server, monkeypatch, 393, zusatz=zusatz)
+    pg.click('#liste .eintrag[data-id="m2"]')
+    pg.wait_for_selector("#lesen-betreff")
+    pg.evaluate("verfassen('antwort')")
+    pg.wait_for_selector("#verfassen .zitat")
+    assert pg.input_value("#vf-text") == ""
+    assert "unten angefügt" in pg.inner_text("#verfassen .zitat summary")
+    pg.click("#verfassen .zitat summary")
+    assert pg.inner_text("#verfassen .zitat pre") == "Passt Donnerstag?"
+    assert "Hans Beispiel <hans@firma.at>" in pg.inner_text("#verfassen .zitat .kopf")
+    assert pg.evaluate("document.documentElement.scrollWidth") <= 393
+    pg.fill("#vf-text", "Ja, passt.")
+    pg.click("#vf-senden")
+    pg.wait_for_selector("#lesen .ok")
+    teil, rumpf = next(x for x in pg.gesendet if x[0] == "senden")
+    assert (rumpf["bezug"], rumpf["art"], rumpf["bezug_postfach"]) == ("m2", "antwort", "max@firma.at")
+    pg.context.close()
+
+
+# ── Webmail-Layout: Befehlsleiste, Gruppen, Initialen ───────────────────────
+
+_SENDER = {"ich": {"ok": True, "benutzer": "max@firma.at", "senden": True, "sendeweg": "notfall",
+                   "zugriff": [{"postfach": "max@firma.at", "eigen": True}],
+                   "absender": [{"postfach": "max@firma.at", "recht": "eigen"}]}}
+
+
+def test_notfall_befehlsleiste_loescht_nur_die_geoeffnete_mail(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300, zusatz=_SENDER)
+    assert _sichtbar(pg, "#befehle")
+    # Ohne geöffnete Mail gibt es nichts zu löschen oder zu verschieben.
+    assert pg.is_disabled("#b-loeschen") and pg.is_disabled("#b-verschieben")
+    pg.click('#liste .eintrag[data-id="m2"]')
+    pg.wait_for_selector("#lesen .mailansicht")
+    assert not pg.is_disabled("#b-loeschen") and not pg.is_disabled("#b-verschieben")
+    # Die Antwort-Symbole sitzen am Absender der Mail.
+    assert pg.locator('#lesen .symbole button[title="Antworten"]').count() == 1
+    pg.click("#b-loeschen")
+    pg.wait_for_function("() => !document.querySelector('#lesen .mailansicht')")
+    teil, rumpf = next(x for x in pg.gesendet if x[0] == "verschieben")
+    assert (rumpf["id"], rumpf["ziel"]) == ("m2", "deleteditems")
+    # Mail weg: wieder gesperrt.
+    pg.wait_for_function("() => document.getElementById('b-loeschen').disabled")
+    pg.context.close()
+
+
+def test_notfall_ohne_senderecht_keine_befehlsleiste(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300)
+    assert not _sichtbar(pg, "#befehle")
+    pg.context.close()
+
+
+def test_notfall_liste_gruppen_initialen_und_ordnerzahl(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300)
+    # Vor der ersten Mail steht ihre Datumsgruppe.
+    assert pg.evaluate("document.querySelector('#liste').firstElementChild.className") == "gruppe"
+    assert pg.inner_text('#liste .eintrag[data-id="m1"] .avatar') == "EM"
+    assert pg.inner_text('#liste .eintrag[data-id="m2"] .avatar') == "HB"
+    gruppen = pg.evaluate("""() => { const t = n => new Date(Date.now() - n * 864e5).toISOString();
+        return [datumGruppe(t(0)), datumGruppe(t(1)), datumGruppe(t(60))]; }""")
+    assert gruppen[:2] == ["Heute", "Gestern"] and gruppen[2] not in ("Heute", "Gestern", "Diese Woche", "Letzte Woche")
+    initialen = pg.evaluate("""() => ['Mustermann, Max', 'max.mustermann@firma.at', '"Erika Musterfrau" <e@x.at>']
+        .map(n => avatar(n).match(/>([^<]*)</)[1])""")
+    assert initialen == ["MM", "MM", "EM"], initialen
+    # Gleicher Name, gleiche Farbe — die Farbe kommt als Attribut, nie als Stil.
+    farben = pg.evaluate("() => [avatar('Hans Beispiel'), avatar('Hans Beispiel')].map(h => h.match(/data-farbe=\"(\\d)\"/)[1])")
+    assert farben[0] == farben[1]
+    assert "style" not in pg.evaluate("avatar('Hans Beispiel')")
+    # Ordner zeigen sichtbar nur die ungelesenen (1 von 2), die Gesamtzahl im Tooltip.
+    assert pg.inner_text('#ordner .eintrag[data-id="e"] .zahl') == "1"
+    assert "1 ungelesen von 2" in pg.get_attribute('#ordner .eintrag[data-id="e"]', "title")
+    pg.context.close()
+
+
+def test_notfall_termine_ohne_leere_kreisspalte(browser, server, monkeypatch):
+    """Kalender und Entwürfe haben keinen Absender — ihre Zeilen dürfen die
+    Spalte für die Initialen nicht freilassen."""
+    zusatz = {"kalender": {"ok": True, "termine": [
+        {"betreff": "Jour fixe", "beginn": "2026-11-16T09:00:00Z", "ende": "2026-11-16T10:00:00Z",
+         "ort": "Raum 1", "teilnehmer": [], "ganztag": False}]},
+        "kontakte": {"ok": True, "kontakte": [{"name": "Erika Musterfrau", "mails": ["erika@firma.at"],
+                                               "telefon": [], "firma": ""}]}}
+    pg = _notfall_seite(browser, server, monkeypatch, 1300, zusatz=zusatz)
+    links = pg.eval_on_selector("#liste", "e => e.getBoundingClientRect().left")
+    pg.evaluate("ordnerWaehlen('__kalender')")
+    pg.wait_for_selector("#liste .eintrag .betreff")
+    abstand = pg.eval_on_selector("#liste .eintrag .betreff", "e => e.getBoundingClientRect().left") - links
+    assert abstand < 30, abstand
+    assert pg.inner_text("#listentitel") == "Kalender"
+    pg.evaluate("ordnerWaehlen('__kontakte')")
+    pg.wait_for_selector("#liste .eintrag .avatar")
+    assert pg.inner_text("#liste .eintrag .avatar") == "EM"
+    pg.context.close()
+
+
+_VERFASSEN = _SENDER | {
+    "vorlage": {"ok": True, "an": "hans@firma.at", "cc": "", "bcc": "", "betreff": "AW: Termin", "text": "",
+                "zitat": None},
+    "vorschau": {"ok": True, "zustand": "angehaengt", "smime": True, "ohne_empfaenger": False, "meldung": "",
+                 "url": "/notfall/vorschau?k=probe"}}
+
+
+def test_notfall_befehlsleiste_antworten_und_ungelesen(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300, zusatz=_VERFASSEN)
+    for k in ("#b-antworten", "#b-allen", "#b-weiterleiten", "#b-gelesen"):
+        assert pg.is_disabled(k), k
+    pg.click('#liste .eintrag[data-id="m1"]')
+    pg.wait_for_selector("#lesen .mailansicht")
+    assert not pg.is_disabled("#b-antworten") and pg.inner_text("#b-gelesen") == "Als ungelesen markieren"
+    pg.click("#b-gelesen")
+    pg.wait_for_function("() => document.querySelector('#b-gelesen').innerText === 'Als gelesen markieren'")
+    assert pg.get_attribute('#liste .eintrag[data-id="m1"]', "data-ungelesen") == "1"
+    pg.click("#b-gelesen")
+    pg.wait_for_function("() => document.querySelector('#b-gelesen').innerText === 'Als ungelesen markieren'")
+    assert [(r["id"], r["gelesen"]) for t, r in pg.gesendet if t == "gelesen"] == [("m1", False), ("m1", True)]
+    # Antworten aus der Leiste: Formular mit Vorschau dessen, was angehängt wird.
+    pg.click("#b-antworten")
+    pg.wait_for_function("() => (document.getElementById('vf-sig-titel') || {textContent: ''}).textContent.startsWith('Diese')")
+    assert pg.inner_text("#vf-sig-titel") == "Diese Signatur, Banner und Disclaimer werden angehängt · S/MIME-signiert"
+    assert pg.get_attribute("#vf-sig iframe", "src") == "/notfall/vorschau?k=probe"
+    assert pg.get_attribute("#vf-sig iframe", "sandbox") == ""
+    erste = [r for t, r in pg.gesendet if t == "vorschau"]
+    assert erste[0]["art"] == "antwort" and erste[0]["bezug"] == "m1"
+    # Text tippen rechnet nicht neu, Empfänger ändern schon.
+    pg.fill("#vf-text", "Danke!")
+    pg.wait_for_timeout(1400)
+    assert len([1 for t, _ in pg.gesendet if t == "vorschau"]) == 1
+    pg.fill("#vf-cc", "erika@firma.at")
+    pg.wait_for_timeout(1400)
+    zweite = [r for t, r in pg.gesendet if t == "vorschau"]
+    assert len(zweite) == 2 and zweite[1]["cc"] == "erika@firma.at"
+    pg.context.close()
+
+
+def test_notfall_befehlsleiste_passt_aufs_handy(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 393, zusatz=_VERFASSEN)
+    pg.click('#liste .eintrag[data-id="m2"]')
+    pg.wait_for_selector("#lesen .mailansicht")
+    assert _sichtbar(pg, "#b-gelesen") and _sichtbar(pg, "#b-antworten")
+    assert pg.evaluate("document.documentElement.scrollWidth") <= 393
+    pg.context.close()
+
+
+def test_notfall_listenspalten_ziehbar_und_vorschautext(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1600, speicher={"liste": 1000},
+                        zusatz=_SENDER | {"kalender": {"ok": True, "termine": []}})
+    assert _sichtbar(pg, "#spaltenkopf")
+    links = lambda sel: pg.eval_on_selector(sel, "e => Math.round(e.getBoundingClientRect().left)")
+    breite = lambda sel: pg.eval_on_selector(sel, "e => Math.round(e.getBoundingClientRect().width)")
+    # Kopfzeile und Mails teilen das Gitter: Spalten stehen bündig.
+    assert abs(links("#spaltenkopf .sk:nth-child(3)") - links('#liste .eintrag[data-id="m1"] .betreff')) <= 1
+    assert breite("#spaltenkopf .sk:nth-child(2)") == 170
+    griff = pg.locator('.griff[data-s="von"]').bounding_box()
+    x, y = griff["x"] + griff["width"] / 2, griff["y"] + griff["height"] / 2
+    pg.mouse.move(x, y); pg.mouse.down(); pg.mouse.move(x + 80, y, steps=4); pg.mouse.up()
+    assert 245 <= breite("#spaltenkopf .sk:nth-child(2)") <= 262     # Griff sitzt mitten im Spaltenabstand
+    assert abs(breite('#liste .eintrag[data-id="m1"] .von') - breite("#spaltenkopf .sk:nth-child(2)")) <= 1
+    assert abs(links("#spaltenkopf .sk:nth-child(3)") - links('#liste .eintrag[data-id="m1"] .betreff')) <= 1
+    assert "von" in pg.evaluate("localStorage.getItem('nf-listenspalten')")
+    pg.dblclick('.griff[data-s="von"]')
+    assert breite("#spaltenkopf .sk:nth-child(2)") == 170
+    # Vorschautext aus: weg, und gemerkt.
+    assert _sichtbar(pg, '#liste .eintrag[data-id="m1"] .vorschau')
+    pg.click("label:has(#f-vorschautext)")
+    assert not _sichtbar(pg, '#liste .eintrag[data-id="m1"] .vorschau')
+    assert pg.evaluate("localStorage.getItem('nf-vorschautext')") == "0"
+    # Kalender & Co. haben keine Von/Betreff-Spalten.
+    pg.evaluate("ordnerWaehlen('__kalender')")
+    assert not _sichtbar(pg, "#spaltenkopf")
+    pg.context.close()
+
+
+def test_notfall_schmale_liste_ohne_spaltenkopf(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1100)
+    assert not _sichtbar(pg, "#spaltenkopf")
+    pg.context.close()
+
+
+# ── Notbetrieb-Seite: Lage, Abläufe, Geräte ─────────────────────────────────
+
+def test_notbetrieb_lage_knopf_und_vollstaendige_ablaeufe(seite, monkeypatch):
+    """Der Notfall ist ein Knopf mit Rückfrage, kein Kästchen wie jedes andere;
+    die Abläufe stehen nummeriert und vollständig da (nicht nach zwei Zeilen
+    gekürzt); „Auch senden“ ist ohne „für alle lesbar“ gesperrt; die Geräte
+    sind zugeklappt, ein Anker öffnet seinen Abschnitt."""
+    import notbetrieb
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    pg = seite("/notbetrieb", breite=1280)
+    assert pg.get_attribute("#nb-lage", "data-lage") == "normal"
+    assert pg.inner_text("#nb-ausrufen-btn").strip() == "Notfall ausrufen …"
+    gespeichert = []
+    pg.route("**/settings", lambda r: (gespeichert.append(r.request.post_data_json),
+                                       r.fulfill(status=200, content_type="application/json", body='{"ok": true}')))
+    pg.evaluate("window.location.reload = () => {}")
+    pg.click("#nb-ausrufen-btn")                               # Rückfrage: die Fixture bestätigt
+    pg.wait_for_function("() => document.getElementById('nb-ausrufen-btn').disabled === false")
+    assert gespeichert and gespeichert[-1].get("NOTBETRIEB_AUSGERUFEN") is True, gespeichert
+    schritte = pg.locator(".nb-schritte li")
+    assert schritte.count() == 8
+    assert pg.locator(".nb-ablauf .hint-toggle").count() == 0
+    assert "Zurückspielen" in schritte.nth(7).inner_text()
+    assert pg.is_disabled("#nb-senden-alle") != pg.is_checked("#nb-lesen-alle")
+    for k in ("nb-geraete-windows", "nb-teams-app", "nb-geraete-handys"):
+        assert pg.get_attribute(f"#{k}", "open") is None, k
+    pg.evaluate("location.hash = '#nb-teams-app'")
+    pg.wait_for_function("() => document.getElementById('nb-teams-app').open")
+    pg.context.close()
+
+
+def test_notbetrieb_stand_als_uebersicht_bleibt_nach_dem_abgleich(seite, monkeypatch):
+    """Der Stand der Kopie war eine lange Zeile; jetzt Bezeichnung │ Wert,
+    Fehler über 0 gelb. Und: Nach „Jetzt abgleichen“ verschwand die Zeile, weil
+    sie als Fortschrittsanzeige diente (versteckt und geleert am Ende)."""
+    import json as _json
+    import notbetrieb
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    status = {"ok": True, "mails": 143, "postfaecher_im_schatten": 4, "lokal_offen": 0, "profile": 36,
+              "profile_stand": "2026-11-17T20:35:44Z",
+              "letzter_lauf": {"ts": "2026-11-17T21:12:37Z", "neu": 0, "entfernt": 0, "abgelaufen": 0,
+                               "fehler": 2, "postfaecher_fehler": 0, "postfaecher": 21},
+              "eingang": {"angenommen": 5, "unbekannt": 1}}
+
+    def api(route):
+        teil = route.request.url.split("/api/notbetrieb/")[1].split("?")[0]
+        antwort = {"status": status, "abgleich": {"ok": True, "neu": 0, "entfernt": 0}}.get(teil, {"ok": True, "items": []})
+        route.fulfill(status=200, content_type="application/json", body=_json.dumps(antwort))
+    pg = seite("/notbetrieb", breite=1280)
+    pg.context.route("**/api/notbetrieb/**", api)
+    pg.reload(wait_until="domcontentloaded")
+    pg.wait_for_function("() => document.querySelectorAll('#nb-stand dt').length === 3")
+    zeilen = pg.eval_on_selector_all("#nb-stand dt", "e => e.map(x => x.innerText)")
+    assert zeilen == ["Kopie", "Profile für Signaturen", "Letzter Abgleich"], zeilen
+    assert pg.inner_text("#nb-stand dd:nth-of-type(1)") == "143 Mails aus 4 Postfächern"
+    fehler = pg.locator('#nb-stand [data-zustand="warnung"]')
+    assert fehler.count() == 1 and fehler.inner_text() == "2 Fehler"
+    assert "21 Postfächer" in pg.inner_text("#nb-stand dd:nth-of-type(3)")
+    assert pg.eval_on_selector_all("#nb-eingang-stand dt", "e => e.length") == 5
+    pg.click("#nb-abgleich-btn")
+    pg.wait_for_function("() => !document.getElementById('nb-abgleich-btn').disabled")
+    pg.wait_for_timeout(300)
+    assert _sichtbar(pg, "#nb-stand") and pg.eval_on_selector_all("#nb-stand dt", "e => e.length") == 3
+    pg.context.close()
+
+
+def test_notbetrieb_platz_was_waere_wenn_und_verwerfen(seite, monkeypatch):
+    """Platzbedarf steht bei den Feldern: ändern → sofort gerechnet (ohne
+    Speichern), als „noch nicht gespeichert“ markiert; „Änderungen verwerfen“
+    stellt den gespeicherten Stand her und sperrt Speichern wieder."""
+    import json as _json
+    import notbetrieb
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    gerechnet = []
+
+    def api(route):
+        teil = route.request.url.split("/api/notbetrieb/")[1].split("?")[0]
+        if teil == "platz-rechnen":
+            gerechnet.append(route.request.post_data_json)
+            antwort = {"ok": True, "gemessen": True, "bedarf": 1_000_000, "verfuegbar": 10_000_000, "anteil": 0.1,
+                       "frei": 9_000_000, "belegt": 1_000_000, "mess_ts": "2026-11-17T20:00:00Z", "mess_mails": 10,
+                       "mess_tage": 30, "mess_dauer_s": 1, "nach_herkunft": {}, "geeicht": False}
+        else:
+            antwort = {"ok": True, "items": []}
+        route.fulfill(status=200, content_type="application/json", body=_json.dumps(antwort))
+    pg = seite("/notbetrieb", breite=1280)
+    pg.context.route("**/api/notbetrieb/**", api)
+    pg.reload(wait_until="domcontentloaded")
+    pg.wait_for_function("() => !document.getElementById('nb-platz-urteil').hidden")
+    alt = pg.input_value("#nb-std-mail")
+    assert not _sichtbar(pg, "#nb-fenster-verwerfen") and pg.is_disabled("#nb-fenster-btn")
+    pg.fill("#nb-std-mail", str(int(alt) + 7))
+    pg.wait_for_function("() => document.getElementById('nb-platz-urteil').innerText.includes('noch nicht gespeichert')")
+    assert gerechnet[-1]["fenster"]["mail"] == int(alt) + 7                  # gerechnet, nicht gespeichert
+    assert _sichtbar(pg, "#nb-fenster-verwerfen") and not pg.is_disabled("#nb-fenster-btn")
+    pg.click("#nb-fenster-verwerfen")
+    pg.wait_for_function("() => document.getElementById('nb-fenster-verwerfen').hidden")
+    assert pg.input_value("#nb-std-mail") == alt
+    pg.wait_for_function("() => document.getElementById('nb-fenster-btn').disabled")
+    assert "noch nicht gespeichert" not in pg.inner_text("#nb-platz-urteil")
+    pg.context.close()
+
+
+# ── Roter Faden: „Dein Notfall-Zugang“ statt Anmeldemaske ────────────────────
+
+_FAKTOR_NUR_APP = {"ok": True, "postfach": "max@firma.at", "aktiv": True, "totp": True, "seit": "2026-11-01",
+                   "passkeys": [], "codes_uebrig": 8, "gesperrt": False, "webmail": False}
+
+
+def _notfall_start(browser, server, monkeypatch, faktor, ausgerufen=False, pfad="/notfall", breite=1100):
+    """Nicht angemeldet (/api/ich 401); `faktor` = Antwort von /api/faktor
+    (None = keine frische Microsoft-Anmeldung, 401)."""
+    import json as _json
+    import notbetrieb
+
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    monkeypatch.setattr(notbetrieb, "ausgerufen", lambda: ausgerufen)
+    ctx = browser.new_context(viewport={"width": breite, "height": 900})
+
+    def api(route):
+        teil = route.request.url.split("/notfall/api/")[1].split("?")[0]
+        if teil == "faktor" and faktor is not None:
+            route.fulfill(status=200, content_type="application/json", body=_json.dumps(faktor))
+            return
+        route.fulfill(status=401, content_type="application/json", body='{"detail": "Nicht angemeldet."}')
+
+    ctx.route("**/notfall/api/**", api)
+    pg = ctx.new_page()
+    pg.goto(f"{server}{pfad}", wait_until="domcontentloaded", timeout=30000)
+    _zugang_geladen(pg)
+    return pg
+
+
+# Fertig ist die Seite, wenn die Anmeldemaske steht oder der Zugang seinen
+# Stand zeigt (beides nach einer Antwort von /api/ich bzw. /api/faktor).
+_GELADEN = """() => { const z = id => !document.getElementById(id).hidden;
+  return z('anmeldung') || (z('einrichten') && (z('ein-stand') || z('ein-anmelden'))); }"""
+
+
+def _zugang_geladen(pg):
+    pg.wait_for_function(_GELADEN, timeout=10000)
+
+
+def _sichtbar(pg, sel):
+    return pg.eval_on_selector(sel, "e => !e.closest('[hidden]') && e.offsetParent !== null")
+
+
+def test_notfall_normalbetrieb_startet_beim_zugang(browser, server, monkeypatch):
+    pg = _notfall_start(browser, server, monkeypatch, faktor=None)
+    assert _sichtbar(pg, "#einrichten") and not _sichtbar(pg, "#anmeldung")
+    assert pg.inner_text("#einrichten h1") == "Deinen Notfall-Zugang einrichten"
+    assert "/auth/login/microsoft?next=/notfall/einrichten" in pg.get_attribute("#ein-anmelden a", "href")
+    # Anmeldung ausprobieren: ohne Sitzung zur Anmeldemaske, mit Weg zurück.
+    pg.click("#ein-weiter")
+    pg.wait_for_selector("#anmeldung:not([hidden])", timeout=5000)     # weiter() fragt erst /api/ich
+    assert _sichtbar(pg, "#anmeldung") and not _sichtbar(pg, "#einrichten")
+    assert pg.inner_text("#anmeldung h1") == "Notfall-Anmeldung"
+    assert _sichtbar(pg, "#zum-zugang")
+    pg.context.close()
+
+
+def test_notfall_ausprobieren_setzt_die_adresse_des_webmails(browser, server, monkeypatch):
+    """Ein Favorit nach „ausprobieren“ muss auf /notfall zeigen — die
+    Einrichtung braucht die Microsoft-Anmeldung, die im Notfall fehlt."""
+    pg = _notfall_start(browser, server, monkeypatch, faktor=None, pfad="/notfall/einrichten?host=teams")
+    pg.click("#ein-weiter")
+    pg.wait_for_selector("#anmeldung:not([hidden])", timeout=5000)
+    assert pg.url.endswith("/notfall?host=teams"), pg.url
+    pg.context.close()
+
+
+def test_notfall_passkey_nur_wo_der_rahmen_ihn_erlaubt(browser, server, monkeypatch):
+    """Ein Rahmen ohne publickey-credentials-get lässt navigator.credentials
+    hängen (Teams-Desktop-Reiter) — dann bietet die Seite keinen Passkey an."""
+    pg = _notfall_start(browser, server, monkeypatch, faktor=None)
+    assert pg.evaluate("pkMoeglich()") is True
+    for erlaubt, erwartet in (("publickey-credentials-get 'none'; publickey-credentials-create 'none'", False),
+                              ("publickey-credentials-get 'self'; publickey-credentials-create 'self'", True)):
+        pg.evaluate("""([url, allow]) => new Promise(fertig => { const f = document.createElement('iframe');
+            f.setAttribute('allow', allow); f.onload = fertig; f.src = url; document.body.appendChild(f); })""",
+                    [pg.url, erlaubt])
+        rahmen = pg.frames[-1]
+        rahmen.wait_for_function("typeof pkMoeglich === 'function'")
+        assert rahmen.evaluate("[pkMoeglich('get'), pkMoeglich('create')]") == [erwartet, erwartet], erlaubt
+    pg.context.close()
+
+
+def test_notfall_zugang_nur_app_schlaegt_passkey_vor(browser, server, monkeypatch):
+    pg = _notfall_start(browser, server, monkeypatch, faktor=_FAKTOR_NUR_APP)
+    stand = pg.locator("#ein-zustand")
+    assert stand.inner_text().startswith("Bereit ✓") and stand.get_attribute("data-zustand") == "bereit"
+    assert "Authenticator-App" in stand.inner_text() and "8 Wiederherstellungscodes" in stand.inner_text()
+    assert _sichtbar(pg, "#ein-pk-hinweis") and pg.inner_text("#ein-pk-hinweis").startswith("Tipp")
+    assert pg.inner_text("#ein-weiter") == "Notfall-Anmeldung ausprobieren"
+    pg.context.close()
+
+
+def test_notfall_zugang_offen_und_weiter_zur_post(browser, server, monkeypatch):
+    offen = _FAKTOR_NUR_APP | {"aktiv": False, "totp": False, "codes_uebrig": 0, "webmail": True}
+    pg = _notfall_start(browser, server, monkeypatch, faktor=offen, breite=393)
+    assert pg.get_attribute("#ein-zustand", "data-zustand") == "offen"
+    assert pg.inner_text("#ein-zustand").startswith("Noch nicht eingerichtet")
+    assert not _sichtbar(pg, "#ein-pk-hinweis")            # kein „Tipp“ ohne Faktor
+    assert pg.inner_text("#ein-weiter") == "Weiter zur Post"
+    assert pg.evaluate("document.documentElement.scrollWidth") <= 393
+    pg.context.close()
+
+
+def test_notfall_ausgerufen_startet_bei_der_anmeldung(browser, server, monkeypatch):
+    pg = _notfall_start(browser, server, monkeypatch, faktor=None, ausgerufen=True)
+    assert _sichtbar(pg, "#anmeldung") and not _sichtbar(pg, "#einrichten")
+    assert pg.inner_text("#anmeldung h1") == "Anmelden"
+    # /notfall/einrichten zeigt auch im Notfall den Zugang (alte Links, Konto-Menü).
+    pg.goto(pg.url.split("/notfall")[0] + "/notfall/einrichten", wait_until="domcontentloaded")
+    _zugang_geladen(pg)
+    assert _sichtbar(pg, "#einrichten")
+    pg.context.close()
+
+
+def test_notfall_im_teams_reiter_richtet_im_browser_ein(browser, server, monkeypatch):
+    pg = _notfall_start(browser, server, monkeypatch, faktor=None, pfad="/notfall?host=teams")
+    link = pg.locator("#ein-anmelden a")
+    assert link.inner_text() == "Im Browser einrichten"
+    assert link.get_attribute("target") == "_blank" and link.get_attribute("data-extern") is not None
+    assert "login.microsoftonline" not in (link.get_attribute("href") or "")
+    pg.context.close()
+
+
+def test_notfall_teams_konto_geht_als_anmeldehinweis_mit(browser, server, monkeypatch):
+    """Teams-Reiter → „Im Browser einrichten“ trägt das Teams-Konto mit; die
+    Einrichtung im Browser gibt es an die Microsoft-Anmeldung weiter (dort
+    war sonst ein anderes Konto angemeldet, Klicktest 17.11.2026)."""
+    import json as _json
+    import notbetrieb
+    monkeypatch.setattr(notbetrieb, "funktion_aktiv", lambda: True)
+    monkeypatch.setattr(notbetrieb, "ausgerufen", lambda: False)
+    ctx = browser.new_context(viewport={"width": 1100, "height": 900})
+    ctx.add_init_script("""window.microsoftTeams = {app: {
+        initialize: async () => {}, getContext: async () => ({user: {loginHint: 'nb.cloud@firma.at'}}),
+        openLink: async u => { window._geoeffnet = u; }}};""")
+    ctx.route("**/*teams-js*", lambda r: r.abort())
+    ctx.route("**/*MicrosoftTeams*", lambda r: r.abort())
+    ctx.route("**/notfall/api/**", lambda r: r.fulfill(status=401, content_type="application/json",
+                                                        body=_json.dumps({"detail": "x"})))
+    pg = ctx.new_page()
+    pg.goto(f"{server}/notfall?host=teams", wait_until="domcontentloaded", timeout=30000)
+    _zugang_geladen(pg)
+    pg.wait_for_function("() => nb.teamsOk && nb.teamsKonto")
+    pg.click("#ein-anmelden a")
+    pg.wait_for_function("() => window._geoeffnet")
+    ziel = pg.evaluate("window._geoeffnet")
+    assert "/notfall/einrichten" in ziel and "login_hint=nb.cloud%40firma.at" in ziel, ziel
+    # Im Browser angekommen: der Hinweis geht an die Microsoft-Anmeldung.
+    pg.goto(f"{server}/notfall/einrichten?login_hint=nb.cloud%40firma.at", wait_until="domcontentloaded")
+    _zugang_geladen(pg)
+    href = pg.get_attribute("#ein-anmelden a", "href")
+    assert href.startswith("/auth/login/microsoft?") and "login_hint=nb.cloud%40firma.at" in href, href
+    ctx.close()
+
+
+def test_webmail_hat_konto_menue(browser, server, monkeypatch):
+    pg = _notfall_seite(browser, server, monkeypatch, 1300)
+    assert _sichtbar(pg, "#konto-link")
+    assert pg.get_attribute("#konto-link", "href") == "/notfall/einrichten"
+    assert pg.inner_text("#konto-link") == "Anmeldung & Sicherheit"
+    pg.context.close()
+
+
 # ── Baukasten: lange Eingaben (Freitext, HTML-Code) ──────────────────────────
 # Anlass: Beide Felder waren 60px hoch und standen neben einer 110px-Beschriftung
 # in einer rund 400px breiten Spalte — längere Texte waren kaum zu bearbeiten.

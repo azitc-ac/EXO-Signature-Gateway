@@ -176,16 +176,16 @@ async def setup_wizard(
     # Fassung des Teams-Pakets neben dem Download — das Admin Center zeigt keine
     # Versionsnummer, nur „Last modified“; `seit` ist der Vergleichswert.
     try:
-        from webui.routen.addin import _teams_manifest, _versionstupel
-        _tm = _teams_manifest(addin_base_url)
-        teams_app = {"version": _tm["version"],
-                     "seit": (settings_store.get("_TEAMS_APP_STAND") or {}).get("seit", "")}
-        # Bereitgestellt (TEAMS_APP_AKTIV): Fassung im Teams-Katalog dagegenhalten.
-        # Braucht AppCatalog.Read.All — fehlt sie, sagt die Seite das, statt zu raten.
-        if settings_store.get("ADDIN_ENABLED") and settings_store.get("TEAMS_APP_AKTIV"):
-            teams_app["katalog"] = await graph_client.teams_katalog(_tm["id"])
-            v = teams_app["katalog"].get("version")
-            teams_app["katalog"]["aktuell"] = bool(v) and _versionstupel(v) >= _versionstupel(_tm["version"])
+        import teams_katalog
+        # Bereitgestellt (TEAMS_APP_AKTIV): Fassung im Teams-Katalog dagegenhalten
+        # (und merken — daraus entsteht die Aufgabe). Braucht AppCatalog.Read.All;
+        # fehlt sie, sagt die Seite das, statt zu raten.
+        if teams_katalog.aktiv("signatur"):
+            teams_app = await teams_katalog.stand("signatur", addin_base_url)
+        else:
+            from webui.routen.addin import _teams_manifest
+            teams_app = {"version": _teams_manifest(addin_base_url)["version"],
+                         "seit": (settings_store.get("_TEAMS_APP_STAND") or {}).get("seit", "")}
     except Exception as exc:
         log.warning("Einrichtung: Fassung des Teams-Pakets nicht ermittelt: %s", exc)
         teams_app = None

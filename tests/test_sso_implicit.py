@@ -38,6 +38,37 @@ def test_create_implicit_session_url_und_sitzung(monkeypatch):
     assert sess["next_url"] == "/x"
 
 
+@pytest.mark.parametrize("hinweis,erwartet", [
+    ("max.mustermann@firma.at", ["max.mustermann@firma.at"]),
+    ("", None),
+    ("kein-konto", None),
+    ("a@b.at\r\nx", None),
+    ("x" * 250 + "@b.at", None),
+])
+def test_anmeldehinweis_nur_als_adresse(monkeypatch, hinweis, erwartet):
+    """Aus dem Teams-Reiter geht das Teams-Konto als login_hint mit — sonst
+    nimmt der Standardbrowser womöglich ein anderes angemeldetes Konto."""
+    import urllib.parse
+    monkeypatch.setattr(pkce, "_get_client_id", lambda: "CID")
+    _state, url = pkce.create_implicit_session("https://rp/cb", next_url="/x", login_hint=hinweis)
+    q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+    assert q.get("login_hint") == erwartet
+    # Mit gültigem Hinweis keine erzwungene Kontoliste, sonst wie bisher.
+    assert q.get("prompt") == (None if erwartet else ["select_account"])
+
+
+def test_anmelderoute_reicht_den_hinweis_durch(monkeypatch):
+    import urllib.parse
+    from fastapi.testclient import TestClient
+    from webui.app import app
+    monkeypatch.setattr(pkce, "_get_client_id", lambda: "CID")
+    c = TestClient(app, base_url="https://testserver")
+    r = c.get("/auth/login/microsoft", params={"next": "/notfall/einrichten", "login_hint": "max@firma.at"},
+              follow_redirects=False)
+    q = urllib.parse.parse_qs(urllib.parse.urlparse(r.headers["location"]).query)
+    assert q["login_hint"] == ["max@firma.at"]
+
+
 # ── id_token-Verifikation ───────────────────────────────────────────────────────
 
 def _keypair():

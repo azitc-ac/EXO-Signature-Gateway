@@ -223,6 +223,18 @@ def test_band_bei_abgewiesener_eigener_exchange_post(monkeypatch):
     assert 'href="/advanced#quell-ip"' in html
 
 
+def test_notfall_ausgerufen_als_band_nur_fuer_admins(monkeypatch):
+    """Eine liegengebliebene Ausrufung lenkt den ganzen Mailfluss um — Band auf
+    jeder Seite, mit der Zahl der noch nicht zurückgespielten Mails."""
+    monkeypatch.setitem(deps.templates.env.globals, "notfall_gemeldet", lambda: {"lokal_offen": 4})
+    html = _seite(monkeypatch)
+    assert 'id="notfall-banner"' in html and "4 Mails im Notbetrieb angenommen" in html
+    assert 'href="/notbetrieb"' in html
+    assert 'id="notfall-banner"' not in _seite(monkeypatch, rolle="editor")
+    monkeypatch.setitem(deps.templates.env.globals, "notfall_gemeldet", lambda: None)
+    assert 'id="notfall-banner"' not in _seite(monkeypatch)
+
+
 def test_aufgegebene_zustellfehler_versprechen_keine_wiederholung(monkeypatch):
     """Raspi 20.11.2026: 11 Mails, alle nach 2 Tagen aufgegeben (bis 196 Versuche),
     das Banner sagte trotzdem „werden automatisch erneut zugestellt“."""

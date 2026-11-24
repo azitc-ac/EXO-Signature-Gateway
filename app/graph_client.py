@@ -1158,6 +1158,22 @@ async def _graph_user_per_adresse(client, headers: dict, email: str) -> dict | N
     return treffer[0]
 
 
+def _notbetrieb_profil(email: str) -> dict | None:
+    """Graph nicht erreichbar: zuletzt gesichertes Profil aus der Notbetrieb-Kopie
+    (notbetrieb.profile_sichern), sonst None. Nicht gecacht — Graph wird beim
+    nächsten Mal wieder gefragt. Ein 404 fällt NICHT hierher: Wen Entra nicht
+    kennt, den gibt es nicht."""
+    try:
+        import notbetrieb
+        daten = notbetrieb.profil(email)
+    except Exception as exc:                                        # noqa: BLE001
+        log.debug("Notbetrieb-Profil nicht lesbar: %s", exc)
+        return None
+    if daten:
+        log.warning("Graph nicht erreichbar — Profil %s aus der Notbetrieb-Kopie", email)
+    return daten
+
+
 async def _graph_user_data(email: str) -> dict | None:
     """Rohes Graph-Nutzerprofil — der EINZIGE Graph-Call in get_user —, prozessweit
     per TTL gecacht. None bei fehlendem Token / 404 / Fehler (NICHT gecacht, damit
@@ -1170,7 +1186,7 @@ async def _graph_user_data(email: str) -> dict | None:
 
     token = await _acquire_token_async()
     if not token:
-        return None
+        return _notbetrieb_profil(email)
     url = f"https://graph.microsoft.com/v1.0/users/{email}?$select={_build_select_fields()}"
     headers = {"Authorization": f"Bearer {token}"}
     try:
@@ -1191,7 +1207,7 @@ async def _graph_user_data(email: str) -> dict | None:
                 data = resp.json()
     except Exception as exc:
         log.error("Graph API error for %s: %s", email, exc)
-        return None
+        return _notbetrieb_profil(email)
     _user_data_cache[schluessel] = (data, now + _USER_DATA_TTL)
     return data
 

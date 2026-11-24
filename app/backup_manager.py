@@ -42,7 +42,10 @@ log = logging.getLogger(__name__)
 DATA_DIR = Path(config.DATA_DIR)
 TEMPLATE_DIR = Path(config.TEMPLATE_DIR)
 
-_EXCLUDE_DATA_SUBDIRS = {"logs", "le-config", "le-logs", "le-work", "acme-webroot"}
+# "notbetrieb": Schatten der Postfächer (notbetrieb.py) — von Exchange jederzeit
+# neu abgleichbar und für ein Backup viel zu groß.
+_EXCLUDE_DATA_SUBDIRS = {"logs", "le-config", "le-logs", "le-work", "acme-webroot",
+                         "notbetrieb"}
 
 # ── Verschlüsselung ──────────────────────────────────────────────────────────
 MAGIE = b"EXOGW-BACKUP-1\n"

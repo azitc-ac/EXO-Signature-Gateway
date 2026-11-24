@@ -16,6 +16,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import config
+import probelauf
 
 log = logging.getLogger(__name__)
 
@@ -84,6 +85,7 @@ def init_db() -> None:
     log.info("mail_audit: DB ready at %s", DB_PATH)
 
 
+@probelauf.ohne_wirkung()
 def log_event(
     *,
     sender: str,

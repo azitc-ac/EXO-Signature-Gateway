@@ -1,0 +1,1724 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Notfall-Mail — {{ gateway_name }}</title>
+{% include "_favicon.html" %}
+<link rel="manifest" href="/notfall/app.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Notfall-Mail">
+<script src="/static/common.js?v={{ version }}"></script>
+{% if im_teams %}
+<script src="{{ teamsjs_url }}" integrity="{{ teamsjs_sri }}" crossorigin="anonymous"></script>
+{% endif %}
+<style>
+/* Eigenständige Seite für alle Mitarbeiter (nicht die Admin-Oberfläche):
+   eigene Farbvariablen, Dunkelmodus über prefers-color-scheme. Angelehnt an
+   die Gateway-Oberfläche: blaue Kopfleiste, helle Arbeitsfläche, Karten. */
+:root {
+  --bg: #f4f6f9; --flaeche: #fff; --rand: #e2e8f0; --text: #1e293b; --leise: #64748b;
+  --akzent: #0078d4; --akzent-text: #fff; --wahl: #e0f2fe; --hover: #f1f5f9; --warn-bg: #fef3c7; --warn: #92400e;
+  --fehler-bg: #fef2f2; --fehler: #991b1b; --kopf: #0078d4; --treffer: #fde68a; --treffer-text: #1e293b;
+  --schatten: 0 1px 3px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .04);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1117; --flaeche: #1c2030; --rand: #2d3448; --text: #e2e8f0; --leise: #94a3b8;
+    --akzent: #5b9bd5; --akzent-text: #0f1117; --wahl: #1e3a5f; --hover: #252b3d; --warn-bg: #422006; --warn: #fde68a;
+    --fehler-bg: #450a0a; --fehler: #fecaca; --kopf: #0e1c2e; --treffer: #854d0e; --treffer-text: #fef9c3;
+    --schatten: 0 1px 3px rgba(0, 0, 0, .4);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+/* [hidden] muss gegen display:flex/grid der Klassen gewinnen — sonst standen
+   Postfachwahl und „Abmelden“ schon auf der Anmeldeseite. */
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, "Segoe UI", sans-serif; }
+header { background: var(--kopf); color: #fff; padding: 8px 16px; min-height: 48px; display: flex; gap: 12px;
+         align-items: center; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0, 0, 0, .15); position: relative; z-index: 2; }
+header .titel { font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; }
+header .band { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
+header .rechts { margin-left: auto; display: flex; gap: 10px; align-items: center; font-size: 13px; flex-wrap: wrap; }
+/* Kopfzeile ist in beiden Modi farbig: eigene Farben, nicht die der Fläche
+   (sonst weiß auf weiß im hellen Modus). */
+header button, header select { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.45); }
+header button:hover, header a.konto:hover { background: rgba(255,255,255,.15); }
+header select option { color: #1e293b; background: #fff; }
+header .wer { color: #e2e8f0; }
+header a.konto { color: #fff; border: 1px solid rgba(255,255,255,.45); border-radius: 6px; padding: 5px 12px;
+                 text-decoration: none; }
+/* „Dein Notfall-Zugang“: Stand in einem Satz, der Zustand trägt die Farbe. */
+.stand { margin: 0 0 10px; padding: 8px 10px; border-radius: 6px; background: var(--bg); }
+.stand[data-zustand="bereit"] { background: var(--wahl); }
+.stand[data-zustand="offen"] { background: var(--warn-bg); color: var(--warn); }
+.weiter { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--rand); }
+/* Vorschau im Normalbetrieb: eigene Zeile im Kopf, damit niemand die Kopie für das Postfach hält. */
+header .vorschau { flex-basis: 100%; font-size: 12px; color: #e2e8f0; }
+button, select, input { font: inherit; color: inherit; }
+button { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover { background: var(--hover); }
+button.haupt { background: var(--akzent); color: var(--akzent-text); border-color: var(--akzent); font-weight: 500; }
+button.haupt:hover { filter: brightness(1.08); }
+button:disabled { opacity: .45; cursor: default; }
+input, select { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 6px; padding: 6px 8px; }
+.anmeldung { max-width: 400px; margin: 60px auto; background: var(--flaeche); border: 1px solid var(--rand); border-radius: 12px;
+             padding: 24px; box-shadow: var(--schatten); }
+.anmeldung h1 { font-size: 20px; margin: 0 0 6px; }
+.anmeldung label { display: block; margin: 12px 0 4px; font-weight: 600; }
+.anmeldung input { width: 100%; }
+.leise { color: var(--leise); }
+/* Symbole: eine Strichstärke, Farbe aus dem Text. */
+.ikon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7;
+        stroke-linecap: round; stroke-linejoin: round; vertical-align: -4px; }
+/* Suchtreffer in Liste und Mail */
+mark { background: var(--treffer); color: var(--treffer-text); border-radius: 2px; }
+.qr svg { width: 200px; height: 200px; background: #fff; padding: 6px; border-radius: 6px; }
+.codes { font-size: 15px; line-height: 1.7; background: var(--bg); border: 1px solid var(--rand); border-radius: 6px;
+         padding: 8px 12px; columns: 2; }
+.knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.passkeys { margin: 6px 0; }
+.passkey { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0;
+           border-bottom: 1px solid var(--rand); font-size: 13px; }
+a.knopf { display: inline-block; text-decoration: none; border-radius: 6px; padding: 5px 12px;
+          border: 1px solid var(--rand); color: var(--text); background: var(--flaeche); }
+a.knopf.haupt { background: var(--akzent); color: var(--akzent-text); border-color: var(--akzent); }
+.meldung { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--fehler-bg); color: var(--fehler); }
+.meldung[hidden] { display: none; }
+/* Ordner- und Listenbreite verschiebbar (Trenner dazwischen), gemerkt je Browser.
+   Liste und Lesebereich liegen als Karten auf der Arbeitsfläche, die Ordner direkt darauf. */
+#app { display: grid; grid-template-columns: var(--b-ordner, 240px) 5px var(--b-liste, 360px) 5px minmax(0, 1fr);
+       grid-template-rows: auto minmax(0, 1fr); padding: 0 8px 8px 0;
+       height: calc(100vh - var(--kopfhoehe, 48px)); }
+.trenner { cursor: col-resize; touch-action: none; border-radius: 2px; grid-row: 2; }
+.trenner:hover, .trenner:focus-visible, #app[data-ziehen] .trenner[data-aktiv] {
+  background: linear-gradient(var(--akzent), var(--akzent)) center / 3px 100% no-repeat; outline: 0; }
+/* Beim Ziehen über der Mail: Der Rahmen schluckt sonst die Mausereignisse. */
+#app[data-ziehen] { cursor: col-resize; user-select: none; }
+#app[data-ziehen] iframe { pointer-events: none; }
+#app[hidden] { display: none; }
+#ordnerspalte, #listenspalte, #lesen { grid-row: 2; }
+/* Befehlsleiste über allen Spalten */
+#befehle { grid-column: 1 / -1; display: flex; gap: 4px; align-items: center; padding: 8px 0 8px 10px; flex-wrap: wrap; }
+#befehle button { display: inline-flex; align-items: center; gap: 6px; }
+#befehle .befehl { background: transparent; border-color: transparent; }
+#befehle .befehl:hover:not(:disabled) { background: var(--flaeche); border-color: var(--rand); }
+#befehle select { max-width: 200px; }
+#befehle .strich { width: 1px; align-self: stretch; background: var(--rand); margin: 4px 6px; }
+.spalte { overflow: auto; }
+#ordnerspalte { padding: 2px 4px 8px 8px; }
+#listenspalte, #lesen { background: var(--flaeche); border: 1px solid var(--rand); border-radius: 10px; box-shadow: var(--schatten); }
+#listenspalte { container-type: inline-size; display: flex; flex-direction: column; overflow: hidden;
+                /* Breite Liste: EIN Gitter für Kopfzeile und Mails (Spalten Von/Betreff ziehbar). */
+                --listengitter: 24px minmax(0, var(--s-von, 170px)) minmax(0, var(--s-betreff, 260px)) minmax(0, 1fr) auto auto; }
+#listenspalte[data-vorschautext="0"] { --listengitter: 24px minmax(0, var(--s-von, 170px)) minmax(0, 1fr) 0 auto auto; }
+/* Vorschautext aus: die dritte Zeile bzw. Spalte fehlt — außer sie nennt den
+   Grund eines Suchtreffers (An-Zeile). Kontakte, Termine, Entwürfe behalten sie. */
+#listenspalte[data-vorschautext="0"] #liste .eintrag:not(.kontakt):not(.ohne) > .vorschau:not(:has(.an)) { display: none; }
+.spaltenkopf { display: none; }
+#liste { flex: 1; overflow: auto; }
+/* Ordner: Zeilen mit Symbol, Auswahl mit Akzentstrich */
+#ordner .eintrag { display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin: 1px 0; border-radius: 6px;
+                   cursor: pointer; white-space: nowrap; }
+#ordner .eintrag .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#ordner .eintrag .ikon { color: var(--leise); }
+#ordner .eintrag:hover { background: var(--hover); }
+#ordner .eintrag[aria-current="true"] { background: var(--wahl); font-weight: 600; box-shadow: inset 3px 0 0 var(--akzent); }
+#ordner .eintrag[aria-current="true"] .ikon { color: var(--akzent); }
+#ordner .zahl { color: var(--akzent); font-size: 12px; font-weight: 700; }
+/* Tastatur: sichtbarer Fokus auf allen bedienbaren Elementen. */
+[role="button"]:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible, h2[tabindex]:focus-visible { outline: 2px solid var(--akzent); outline-offset: 1px; }
+/* Je Postfach eine Kopfzeile; das geöffnete zeigt darunter seine Ordner. Die
+   Auswahlliste oben braucht es nur auf dem Handy (Spalte ausgeblendet). */
+#ordner .postfach { display: flex; align-items: center; gap: 6px; padding: 12px 8px 4px; cursor: pointer; font-weight: 600;
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ordner .postfach .pfeil { transition: transform .15s; color: var(--leise); }
+#ordner .postfach[aria-expanded="true"] .pfeil { transform: rotate(90deg); }
+#ordner .postfach .art { font-weight: 400; color: var(--leise); font-size: 12px; }
+#postfachwahl { display: none; }
+/* Liste: Kopf mit Ordnername, Suche, Filter als Schaltflächen */
+.listenkopf { padding: 12px 14px 4px; }
+.listenkopf h1 { font-size: 17px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suche { padding: 6px 12px; display: flex; gap: 6px; }
+.suche input { flex: 1; min-width: 0; background: var(--bg); border-color: transparent; border-radius: 999px; padding: 6px 14px; }
+.suche input:focus { background: var(--flaeche); border-color: var(--akzent); outline: 0; }
+.suche button { border-radius: 999px; }
+.filter { padding: 2px 12px 8px; display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; border-bottom: 1px solid var(--rand); }
+.filter label { border: 1px solid var(--rand); border-radius: 999px; padding: 2px 10px; cursor: pointer; user-select: none; }
+.filter label:hover { background: var(--hover); }
+.filter label:has(:checked) { background: var(--wahl); border-color: var(--akzent); color: var(--akzent); font-weight: 600; }
+.filter label:has(:focus-visible) { outline: 2px solid var(--akzent); }
+.filter input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+#liste .gruppe { padding: 10px 14px 4px; font-size: 12px; font-weight: 600; color: var(--leise); }
+#liste .eintrag { display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 10px; padding: 8px 12px 8px 9px;
+                  cursor: pointer; border-left: 3px solid transparent; border-bottom: 1px solid var(--rand); }
+#liste .eintrag > :not(.avatar) { grid-column: 2; }
+/* Termine und Entwürfe: ohne Kreis, zweizeilig in jeder Breite. */
+#liste .eintrag.ohne { display: block; padding-left: 14px; }
+#liste .eintrag.ohne .kopf { display: flex; font-size: 12px; color: var(--leise); }
+#liste .eintrag:hover { background: var(--hover); }
+#liste .eintrag[aria-current="true"] { background: var(--wahl); }
+#liste .eintrag[data-ungelesen="1"] { border-left-color: var(--akzent); }
+#liste .eintrag[data-ungelesen="1"] .von { font-weight: 700; }
+#liste .eintrag[data-ungelesen="1"] .betreff { font-weight: 600; color: var(--akzent); }
+#liste .kopf { display: flex; justify-content: space-between; gap: 8px; }
+#liste .von { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#liste .datum { font-size: 12px; color: var(--leise); white-space: nowrap; }
+#liste .betreff { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#liste .betreff .ikon { width: 14px; height: 14px; vertical-align: -2px; color: var(--leise); margin-right: 3px; }
+#liste .zahl { font-size: 11px; border-radius: 999px; padding: 0 6px; background: var(--bg); color: var(--leise); font-weight: 600; }
+#liste .vorschau { font-size: 12px; color: var(--leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Bei einer Suche mit Fund nur im Empfänger: An-Zeile vor der Vorschau, etwas kräftiger. */
+#liste .vorschau .an { color: var(--text); }
+/* Kreis mit Initialen; Farbe aus dem Namen (data-farbe 0–7), weiße Schrift in beiden Modi. */
+.avatar { grid-column: 1; grid-row: 1 / span 4; width: 32px; height: 32px; border-radius: 50%; display: grid;
+          place-items: center; font-size: 12px; font-weight: 600; color: #fff; background: #64748b; letter-spacing: .3px; }
+.avatar[data-farbe="0"] { background: #0078d4; } .avatar[data-farbe="1"] { background: #8764b8; }
+.avatar[data-farbe="2"] { background: #038387; } .avatar[data-farbe="3"] { background: #ca5010; }
+.avatar[data-farbe="4"] { background: #498205; } .avatar[data-farbe="5"] { background: #c239b3; }
+.avatar[data-farbe="6"] { background: #986f0b; } .avatar[data-farbe="7"] { background: #4f6bed; }
+.avatar.gross { width: 42px; height: 42px; font-size: 15px; }
+/* Breite Liste (großer Bildschirm, Trenner nach rechts gezogen): je Mail EINE
+   Zeile wie in Outlook — Von │ Betreff │ Vorschau │ Datum. */
+@container (min-width: 620px) {
+  #liste .eintrag { grid-template-columns: var(--listengitter);
+                    gap: 12px; align-items: center; padding: 5px 12px 5px 9px; }
+  #liste .kopf { display: contents; }
+  /* Alle Zellen in Zeile 1: Das Datum (Spalte 6) steht im Markup vor dem Betreff
+     (Spalte 3) — ohne feste Zeile setzt das Gitter alles danach in eine neue Zeile. */
+  #liste .kopf > *, #liste .eintrag > :not(.kopf) { grid-row: 1; }
+  #liste .avatar { grid-column: 1; width: 24px; height: 24px; font-size: 10px; }
+  #liste .von { grid-column: 2; font-size: 13px; }
+  #liste .eintrag > .betreff { grid-column: 3; }
+  #liste .eintrag > .vorschau { grid-column: 4; }
+  #liste .eintrag > .ort { grid-column: 5; white-space: nowrap; }
+  #liste .datum { grid-column: 6; }
+  #liste .kontakt > .betreff { grid-column: 2; }
+  #liste .kontakt > .vorschau { grid-column: 3 / -1; }
+  #listenspalte[data-art="post"] .spaltenkopf { display: grid; grid-template-columns: var(--listengitter); gap: 12px;
+                padding: 5px 12px 5px 9px; border-left: 3px solid transparent; border-bottom: 1px solid var(--rand);
+                font-size: 12px; font-weight: 600; color: var(--leise); user-select: none; }
+  .spaltenkopf .sk { position: relative; min-width: 0; }
+  .spaltenkopf .t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .spaltenkopf .sk-datum { grid-column: 6; text-align: right; }
+  #listenspalte[data-vorschautext="0"] .spaltenkopf .sk-vorschau { visibility: hidden; }
+  /* Griff mitten im Spaltenabstand; Linie wie bei den Trennern der Spalten. */
+  .spaltenkopf .griff { position: absolute; top: -5px; bottom: -5px; right: -10px; width: 8px; cursor: col-resize; z-index: 1; }
+  .spaltenkopf .griff:hover, .spaltenkopf .griff:focus-visible, .spaltenkopf .griff[data-aktiv] {
+    background: linear-gradient(var(--akzent), var(--akzent)) center / 2px 100% no-repeat; outline: 0; }
+}
+.eintrag .ort { color: var(--leise); font-size: 12px; }
+.unterhaltung { margin-top: 10px; font-size: 13px; }
+.unterhaltung .eintrag { padding: 4px 0; cursor: pointer; color: var(--akzent); }
+#lesen { padding: 0; overflow: auto; display: flex; flex-direction: column; container-type: inline-size; }
+/* Schmaler Lesebereich (Handy, Liste breit gezogen): Absender über die volle
+   Breite, Symbole und Datum darunter in einer Zeile. */
+@container (max-width: 560px) {
+  .absender { flex-wrap: wrap; }
+  .absender .rechts { flex-basis: 100%; flex-direction: row-reverse; justify-content: space-between; align-items: center; }
+}
+.mailansicht { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+#lesen h2 { font-size: 19px; font-weight: 600; }
+.mailansicht h2 { margin: 0; padding: 16px 20px 6px; }
+#lesen .kopfbereich { padding: 6px 20px 14px; border-bottom: 1px solid var(--rand); }
+.absender { display: flex; gap: 12px; align-items: flex-start; }
+.absender .avatar { flex: none; }
+.absender .wer { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.absender .name { font-weight: 600; }
+.absender .adresse, .absender .empf { color: var(--leise); font-size: 13px; }
+.absender .rechts { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.absender .datum { font-size: 12px; color: var(--leise); white-space: nowrap; }
+.symbole { display: flex; gap: 2px; }
+.symbole button { background: transparent; border-color: transparent; padding: 5px 7px; color: var(--akzent); }
+.symbole button:hover { background: var(--hover); border-color: var(--rand); }
+.hinweis { font-size: 12px; color: var(--leise); margin-top: 8px; }
+.anhaenge { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.anhaenge .anhang { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--rand); border-radius: 8px;
+                    padding: 6px 10px; max-width: 100%; font-size: 13px; }
+.anhaenge .anhang .ikon { color: var(--leise); }
+.anhaenge .groesse { color: var(--leise); font-size: 12px; }
+.anhaenge a { color: var(--akzent); text-decoration: none; }
+.anhaenge a:hover { text-decoration: underline; }
+.bilder { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.bilder img { max-width: min(240px, 100%); max-height: 180px; border: 1px solid var(--rand); border-radius: 6px; }
+#lesen iframe { flex: 1; border: 0; width: 100%; min-height: 400px; background: #fff; border-radius: 0 0 10px 10px; }
+#lesen pre { white-space: pre-wrap; padding: 16px 20px; margin: 0; font: inherit; }
+.leer { flex: 1; display: grid; place-items: center; align-content: center; gap: 8px; color: var(--leise); padding: 24px; }
+.leer .ikon { width: 56px; height: 56px; stroke-width: 1; opacity: .6; }
+.aktionen { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+#verfassen { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+#verfassen .zeile { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; }
+#verfassen input, #verfassen select, #verfassen textarea { width: 100%; }
+/* Antworten/Weiterleiten: das Original hängt der Server an — hier nur zum Nachsehen. */
+#verfassen .zitat summary { cursor: pointer; color: var(--leise); }
+#verfassen .zitat .kopf { font-size: 12px; color: var(--leise); margin: 6px 0; overflow-wrap: anywhere; }
+#verfassen .zitat iframe { width: 100%; min-height: 260px; border: 1px solid var(--rand); border-radius: 6px; background: #fff; }
+/* Was das Gateway beim Senden anhängt — gerechnet vom Handler selbst (Probelauf). */
+#verfassen .sigvorschau summary { cursor: pointer; color: var(--leise); }
+#verfassen .sigvorschau iframe { display: block; width: 100%; height: 220px; margin-top: 6px; border: 1px solid var(--rand);
+                                 border-radius: 6px; background: #fff; resize: vertical; }
+#verfassen .sigvorschau .leise { margin-top: 6px; }
+#verfassen .zitat pre { white-space: pre-wrap; margin: 0; font: inherit; max-height: 50vh; overflow: auto;
+                         border: 1px solid var(--rand); border-radius: 6px; padding: 8px; }
+#verfassen textarea { min-height: 260px; font: inherit; background: var(--flaeche); color: var(--text);
+  border: 1px solid var(--rand); border-radius: 6px; padding: 8px; }
+.ok { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--wahl); }
+.zurueck { display: none; }
+/* Adressbuch (Tipp auf An/Cc/Bcc) */
+#verfassen .feldknopf { background: none; border: 0; padding: 0; color: var(--akzent); text-align: left;
+                        text-decoration: underline; cursor: pointer; }
+#adressbuch { border: 1px solid var(--rand); border-radius: 10px; background: var(--flaeche); color: var(--text);
+              padding: 0; width: min(520px, calc(100vw - 32px)); }
+#adressbuch::backdrop { background: #0f172a; opacity: .4; }
+#adressbuch .kopf, #adressbuch .fuss { display: flex; gap: 8px; align-items: center; padding: 10px 12px; }
+#adressbuch .kopf { border-bottom: 1px solid var(--rand); }
+#adressbuch .kopf input { flex: 1; min-width: 0; }
+#adressbuch .fuss { border-top: 1px solid var(--rand); justify-content: flex-end; flex-wrap: wrap; }
+#adressbuch .fuss .leise { margin-right: auto; }
+#ab-liste { overflow: auto; max-height: 55dvh; padding: 4px 0; }
+#ab-liste label { display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; cursor: pointer; }
+#ab-liste label:hover { background: var(--wahl); }
+#ab-liste .adr { color: var(--leise); font-size: 12px; overflow-wrap: anywhere; }
+
+/* Kalender, Kontakte, Meine Entwürfe: Die Mail-Filter und die Befehle für eine
+   geöffnete Mail haben dort keine Wirkung (ordnerWaehlen setzt data-art). */
+#app[data-art="andere"] .filter, #app[data-art="andere"] #befehle .nur-mail { display: none; }
+
+@media (max-width: 800px) {
+  /* Schmal steht die Adresse schon in der Postfach-Auswahl — der Text daneben
+     wiederholte sie (Klicktest 393 px). */
+  #kopf-rechts #ich { display: none; }
+  /* 16 px in Eingabefeldern: Darunter zoomt Safari (iOS) beim Fokussieren
+     heran — „Neue Mail“ setzt den Fokus sofort ins Feld „An“, danach lag die
+     linke Spalte (An, Cc, Bcc) außerhalb des Bildes. */
+  input, select, textarea { font-size: 16px; }
+  #app { grid-template-columns: 1fr; height: auto; padding: 0; }
+  .trenner { display: none; }
+  #app #listenspalte, #app #lesen { grid-row: auto; border-radius: 0; border-width: 1px 0 0; box-shadow: none; }
+  #listenspalte { overflow: visible; }
+  #befehle { padding: 6px 8px; }
+  /* Auf dem Handy nur Symbole — außer „Neue E-Mail“. */
+  #befehle .befehl .text { display: none; }
+  #app[data-ansicht="liste"] #befehle .nur-mail { display: none; }
+  #app[data-ansicht="liste"] #lesen, #app[data-ansicht="lesen"] #ordnerspalte,
+  #app[data-ansicht="lesen"] #listenspalte { display: none; }
+  /* Auf dem Handy ersetzt eine Auswahlliste den Ordnerbaum — er belegte
+     sonst den ganzen ersten Bildschirm. */
+  #app #ordnerspalte { display: none; }
+  #ordnerwahl { display: block !important; }
+  #postfachwahl { display: inline-block; }
+  .listenkopf { display: none; }
+  #befehle .strich { display: none; }
+  #befehle select { max-width: 150px; }
+  /* Lesebereich bildschirmhoch: EIN Rollbalken im Mailrahmen statt Rahmen
+     fester Höhe mit Leerraum darunter. */
+  #app[data-ansicht="lesen"] #lesen { height: calc(100dvh - var(--kopfhoehe, 48px) - var(--befehlhoehe, 0px)); }
+  .zurueck { display: inline-block; margin: 10px 18px 0; align-self: flex-start; }
+}
+</style>
+</head>
+<body>
+<header>
+  <span class="titel"><span data-ikon="post"></span>{{ gateway_name }}</span>
+  <span class="band" id="band">Notfall-Mail</span>
+  <span class="rechts" id="kopf-rechts" hidden>
+    <select id="postfachwahl" aria-label="Postfach" onchange="postfachWaehlen(this.value)"></select>
+    <span id="ich" class="wer"></span>
+    <button id="glocke" onclick="hinweiseErlauben()" title="Bei neuer Post benachrichtigen"
+            aria-label="Bei neuer Post benachrichtigen" hidden>🔔</button>
+    <a class="konto" id="konto-link" href="/notfall/einrichten"{% if im_teams %} target="_blank" rel="noopener" data-extern{% endif %}>Anmeldung &amp; Sicherheit</a>
+    <button onclick="abmelden()">Abmelden</button>
+  </span>
+  <span class="vorschau" id="vorschau" hidden></span>
+</header>
+
+<section class="anmeldung" id="anmeldung" hidden>
+  {% if ausgerufen %}
+  <h1>Anmelden</h1>
+  <p class="leise" style="margin:0">Exchange Online ist gestört. Hier liest du deine Post der letzten Tage weiter —
+    mit deinem gewohnten Windows-Kennwort.</p>
+  {% else %}
+  <h1>Notfall-Anmeldung</h1>
+  <p class="leise" style="margin:0">So meldest du dich an, wenn Exchange Online ausfällt: mit deinem gewohnten
+    Windows-Kennwort und deinem zweiten Faktor.</p>
+  {% endif %}
+  {% if not eingerichtet %}
+  <div class="meldung">Die Anmeldung ist noch nicht eingerichtet. Wende dich an die IT.</div>
+  {% endif %}
+  <form onsubmit="anmelden(event)">
+    <label for="name">Anmeldename</label>
+    <input autocapitalize="none" autocorrect="off" spellcheck="false" id="name" autocomplete="username" placeholder="max.mustermann@firma.at" required>
+    <label for="kennwort">Kennwort</label>
+    <input id="kennwort" type="password" autocomplete="current-password" required>
+    <div style="margin-top:14px"><button class="haupt" id="anmelde-knopf" type="submit">Anmelden</button></div>
+  </form>
+  <div class="meldung" id="anmelde-meldung" hidden></div>
+  {% if ausgerufen %}
+  <p class="leise" style="margin:14px 0 0"><a href="/notfall/einrichten" id="zum-zugang"{% if im_teams %} target="_blank" rel="noopener" data-extern{% endif %}>Zweiten Faktor einrichten (braucht die Microsoft-Anmeldung)</a></p>
+  {% else %}
+  <p class="leise" style="margin:14px 0 0"><a href="/notfall{% if im_teams %}?host=teams{% endif %}" id="zum-zugang">← Deinen Notfall-Zugang einrichten</a></p>
+  {% endif %}
+</section>
+
+<section class="anmeldung" id="faktor" hidden>
+  <h1>Zweiter Faktor</h1>
+  <div id="faktor-pk" hidden>
+    <p class="leise" style="margin:0 0 10px">Bestätige mit deinem Passkey — Fingerabdruck, Gesicht, Windows Hello
+      oder Sicherheitsschlüssel.</p>
+    <button class="haupt" id="faktor-pk-knopf" onclick="passkeyAnmelden()">Mit Passkey bestätigen</button>
+    <p class="leise" style="margin:14px 0 0">Oder mit Code:</p>
+  </div>
+  <p class="leise" style="margin:0" id="faktor-text"></p>
+  <form onsubmit="faktorSenden(event)">
+    <label for="faktor-code">Code</label>
+    <input id="faktor-code" autocomplete="one-time-code" inputmode="numeric" required>
+    <div style="margin-top:14px"><button class="haupt" id="faktor-knopf" type="submit">Bestätigen</button></div>
+  </form>
+  <div class="meldung" id="faktor-meldung" hidden></div>
+</section>
+
+<section class="anmeldung" id="einrichten" hidden>
+  <h1>Deinen Notfall-Zugang einrichten</h1>
+  <p class="leise" style="margin:0 0 10px">Fällt Exchange Online aus, liest und schreibst du hier weiter. Du meldest
+    dich dann mit deinem Windows-Kennwort an und bestätigst mit einem Passkey (Fingerabdruck, Gesicht,
+    Windows Hello) oder einem Code aus einer Authenticator-App. Eingerichtet wird jetzt, solange die
+    Microsoft-Anmeldung funktioniert.</p>
+  <div id="ein-anmelden" hidden>
+    {% if im_teams %}
+    <p style="margin:0 0 10px">Einrichten geht im Browser: Die Microsoft-Anmeldung lässt sich in Teams nicht
+      einbetten.</p>
+    <a class="knopf haupt" href="/notfall/einrichten" target="_blank" rel="noopener" data-extern>Im Browser einrichten</a>
+    {% else %}
+    <p style="margin:0 0 10px">Melde dich dafür mit deinem Microsoft-Konto an — meist geht das ohne Eingabe
+      (gilt {{ frisch_min }} Minuten).</p>
+    <a class="knopf haupt" href="/auth/login/microsoft?next=/notfall/einrichten">Mit Microsoft anmelden</a>
+    {% endif %}
+  </div>
+  <div id="ein-stand" hidden>
+    <p class="stand" id="ein-zustand"></p>
+    <p class="leise" style="margin:0 0 10px">Angemeldet als <strong id="ein-wer"></strong>.</p>
+    <div id="ein-passkeys"></div>
+    <div class="knoepfe">
+      <button class="haupt" id="ein-pk" onclick="passkeyEinrichten()" hidden>Passkey auf diesem Gerät einrichten</button>
+      <button id="ein-beginnen" onclick="faktorBeginnen()">Authenticator-App einrichten</button>
+      <button id="ein-codes" onclick="codesErneuern()" hidden>Neue Wiederherstellungscodes</button>
+    </div>
+    <p class="leise" id="ein-pk-hinweis" hidden></p>
+    <div class="ok" id="ein-ok" style="margin-top:10px" hidden></div>
+  </div>
+  <div id="ein-qr" hidden>
+    <p style="margin:10px 0 6px">Scanne den Code mit der App — oder gib den Schlüssel von Hand ein:</p>
+    <div id="ein-qr-bild" class="qr"></div>
+    <p class="leise" style="word-break:break-all;margin:6px 0"><code id="ein-geheimnis"></code></p>
+    <label for="ein-code">Code aus der App</label>
+    <input id="ein-code" autocomplete="one-time-code" inputmode="numeric">
+    <div style="margin-top:10px"><button class="haupt" id="ein-bestaetigen" onclick="faktorBestaetigen()">Bestätigen</button></div>
+  </div>
+  <div id="ein-fertig" hidden>
+    <div class="ok" style="margin:10px 0" id="ein-fertig-text"></div>
+    <pre id="ein-liste" class="codes"></pre>
+  </div>
+  <div class="meldung" id="ein-meldung" hidden></div>
+  <div class="weiter">
+    <p class="leise" style="margin:0 0 8px" id="ein-weiter-text">Ist alles eingerichtet, probier die
+      Notfall-Anmeldung einmal aus.</p>
+    <button id="ein-weiter" onclick="weiter()">Notfall-Anmeldung ausprobieren</button>
+  </div>
+</section>
+
+<section class="anmeldung" id="bereit" hidden>
+  <h1>Bereit</h1>
+  <p style="margin:0 0 8px">Dein Notfall-Zugang ist eingerichtet. Solange Exchange Online läuft, arbeitest du wie
+    gewohnt — fällt es aus, findest du hier deine Post der letzten Tage, Termine und Kontakte.</p>
+  <p class="leise" id="bereit-stand" style="margin:0 0 12px"></p>
+  <div class="knoepfe">
+    <a class="knopf" href="/notfall/einrichten"{% if im_teams %} target="_blank" rel="noopener" data-extern{% endif %}>Anmeldung &amp; Sicherheit</a>
+    <button onclick="abmelden()">Abmelden</button>
+  </div>
+</section>
+
+<main id="app" hidden data-ansicht="liste">
+  <div id="befehle" role="toolbar" aria-label="Befehle" hidden>
+    <button class="haupt" onclick="verfassen()" data-ikon="neu">Neue E-Mail</button>
+    <span class="strich nur-mail"></span>
+    <button class="befehl nur-mail" id="b-loeschen" onclick="mailVerschieben('deleteditems', this)" title="Löschen"
+            data-ikon="papierkorb" disabled><span class="text">Löschen</span></button>
+    <select class="nur-mail" id="b-verschieben" aria-label="Verschieben nach" disabled
+            onchange="if (this.value) mailVerschieben(this.value, this)"></select>
+    <span class="strich nur-mail"></span>
+    <button class="befehl nur-mail" id="b-antworten" onclick="verfassen('antwort')" title="Antworten"
+            data-ikon="antworten" disabled><span class="text">Antworten</span></button>
+    <button class="befehl nur-mail" id="b-allen" onclick="verfassen('allen')" title="Allen antworten"
+            data-ikon="allen" disabled><span class="text">Allen antworten</span></button>
+    <button class="befehl nur-mail" id="b-weiterleiten" onclick="verfassen('weiterleiten')" title="Weiterleiten"
+            data-ikon="weiter" disabled><span class="text">Weiterleiten</span></button>
+    <span class="strich nur-mail"></span>
+    <button class="befehl nur-mail" id="b-gelesen" onclick="gelesenUmschalten(this)" data-ikon="umschlag"
+            disabled><span class="text">Als ungelesen markieren</span></button>
+  </div>
+  <nav class="spalte" id="ordnerspalte"><div id="ordner"></div></nav>
+  <div class="trenner" data-spalte="ordner" role="separator" aria-orientation="vertical" tabindex="0"
+       aria-label="Breite der Ordner ändern (Pfeiltasten, Doppelklick setzt zurück)"></div>
+  <section class="spalte" id="listenspalte">
+    <div class="listenkopf"><h1 id="listentitel">Posteingang</h1></div>
+    <select id="ordnerwahl" aria-label="Ordner" style="display:none;margin:8px;width:calc(100% - 16px)"
+            onchange="ordnerWaehlen(this.value)"></select>
+    <form class="suche" onsubmit="event.preventDefault(); listeLaden(0)">
+      <input id="suche" type="search" placeholder="Suchen in allen Ordnern" aria-label="Suchen" oninput="sucheGetippt()">
+      <button type="submit">Suchen</button>
+    </form>
+    <div class="filter" role="group" aria-label="Filter">
+      <label><input type="checkbox" id="f-ungelesen" onchange="listeLaden(0)"> Ungelesen</label>
+      <label><input type="checkbox" id="f-anhang" onchange="listeLaden(0)"> Mit Anhang</label>
+      <label><input type="checkbox" id="f-unterhaltungen" onchange="unterhaltungenMerken(this.checked)"> Unterhaltungen</label>
+      <label><input type="checkbox" id="f-vorschautext" checked onchange="vorschautextMerken(this.checked)"> Vorschautext</label>
+    </div>
+    <div class="spaltenkopf" id="spaltenkopf">
+      <span></span>
+      <span class="sk"><span class="t">Von</span><span class="griff" data-s="von" role="separator" aria-orientation="vertical"
+            tabindex="0" aria-label="Breite der Spalte Von ändern (Pfeiltasten, Doppelklick setzt zurück)"></span></span>
+      <span class="sk"><span class="t">Betreff</span><span class="griff" data-s="betreff" role="separator"
+            aria-orientation="vertical" tabindex="0"
+            aria-label="Breite der Spalte Betreff ändern (Pfeiltasten, Doppelklick setzt zurück)"></span></span>
+      <span class="sk sk-vorschau"><span class="t">Vorschau</span></span>
+      <span class="sk sk-datum"><span class="t">Datum</span></span>
+    </div>
+    <div id="liste"></div>
+  </section>
+  <div class="trenner" data-spalte="liste" role="separator" aria-orientation="vertical" tabindex="0"
+       aria-label="Breite der Liste ändern (Pfeiltasten, Doppelklick setzt zurück)"></div>
+  <article id="lesen">
+    <button class="zurueck" onclick="ansicht('liste')">← Zurück</button>
+    <div class="leer"><span data-ikon="post"></span>Wähle eine Nachricht zum Lesen.</div>
+  </article>
+</main>
+
+<dialog id="adressbuch" aria-labelledby="ab-titel">
+  <div class="kopf"><strong id="ab-titel">Adressbuch</strong></div>
+  <div class="kopf"><input id="ab-suche" type="search" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Name oder Adresse" aria-label="Im Adressbuch suchen"
+                           autocomplete="off" oninput="adressbuchSuchen()"></div>
+  <div id="ab-liste" role="group" aria-label="Einträge" onchange="adressbuchWahl(event)"></div>
+  <div class="fuss"><span class="leise" id="ab-zahl" aria-live="polite"></span>
+    <button type="button" onclick="adressbuchZu()">Abbrechen</button>
+    <button type="button" class="haupt" onclick="adressbuchUebernehmen()">Übernehmen</button></div>
+</dialog>
+
+<script>
+let nb = {postfach: '', ordner: '', zugriff: [], absender: [], mail: null};
+// Lage der Seite (vom Server): Notfall ausgerufen? Als Teams-Reiter geöffnet?
+const AUSGERUFEN = {{ 'true' if ausgerufen else 'false' }};
+const IM_TEAMS = {{ 'true' if im_teams else 'false' }};
+
+// SITZUNG-WACHE BEGINN — Läuft die Anmeldung ab (Ablauf, Neustart des Gateways),
+// lehnt der Server jeden Inhaltsabruf mit 401 ab. Bis hierher zeigte dann nur
+// die Stelle, die den Abruf machte, „Nicht angemeldet“; Kopf, Liste und Knöpfe
+// standen mit dem alten Stand weiter da. Jetzt EINE Stelle für alle Abrufe:
+// Ordner merken, Seite neu laden — dort führt start() wie beim ersten Öffnen
+// zur Anmeldung, danach geht es im gemerkten Ordner weiter.
+// Ausgenommen: /notfall/api/ich (damit prüft start() selbst, sonst Endlosschleife)
+// und /notfall/api/faktor… (Einrichtung, eigene Microsoft-Anmeldung).
+// Anmeldewege liegen nicht unter /notfall/api/ (falsches Kennwort ist dort 401).
+const SITZUNG_MERK = 'nf-zurueck';
+let _sitzungWeg = false;
+function sitzungPruefen(url, d) {
+  if (d && d.http === 401 && !_sitzungWeg && /^\/notfall\/api\//.test(url)
+      && !/^\/notfall\/api\/(ich|faktor)(\b|\/|\?|$)/.test(url)) {
+    _sitzungWeg = true;
+    try { sessionStorage.setItem(SITZUNG_MERK, JSON.stringify({postfach: nb.postfach, ordner: nb.ordner})); }
+    catch (e) { /* ohne Speicher: neu anmelden geht trotzdem, nur der Ordner ist dann der Posteingang */ }
+    location.reload();
+  }
+  return d;
+}
+function sitzungZurueck() {
+  let w = null;
+  try { w = JSON.parse(sessionStorage.getItem(SITZUNG_MERK) || 'null'); sessionStorage.removeItem(SITZUNG_MERK); }
+  catch (e) { w = null; }
+  return w && typeof w === 'object' ? w : null;
+}
+const _getJSON = getJSON, _postJSON = postJSON;
+getJSON = async (url) => sitzungPruefen(url, await _getJSON(url));
+postJSON = async (url, body) => sitzungPruefen(url, await _postJSON(url, body));
+// SITZUNG-WACHE ENDE
+
+// Teams-Reiter: Links mit data-extern (Einrichten, Konto) gehen über Teams in
+// den Browser — die Microsoft-Anmeldung lässt sich im Reiter nicht einbetten.
+// Antwortet TeamsJS nicht, bleibt es beim gewöhnlichen Link (target=_blank).
+// Das Teams-Konto geht als Anmeldehinweis mit: Im Standardbrowser ist oft ein
+// anderes Konto angemeldet (Klicktest 17.11.2026), Microsoft schlägt sonst das vor.
+if (IM_TEAMS && window.microsoftTeams) {
+  microsoftTeams.app.initialize().then(async () => {
+    nb.teamsOk = true;
+    try { const c = await microsoftTeams.app.getContext();
+          nb.teamsKonto = (c.user && (c.user.loginHint || c.user.userPrincipalName)) || ''; }
+    catch (e) { nb.teamsKonto = ''; }
+  }, () => { nb.teamsOk = false; });
+}
+document.addEventListener('click', ev => {
+  const a = ev.target.closest ? ev.target.closest('a[data-extern]') : null;
+  if (!a || !nb.teamsOk) return;
+  ev.preventDefault();
+  const ziel = new URL(a.href, location.href);
+  if (nb.teamsKonto && ziel.pathname === '/notfall/einrichten') ziel.searchParams.set('login_hint', nb.teamsKonto);
+  microsoftTeams.app.openLink(ziel.href).catch(() => { location.href = ziel.href; });
+});
+// Im Browser angekommen (aus Teams): den Hinweis an die Microsoft-Anmeldung weitergeben.
+(function () {
+  const hinweis = new URLSearchParams(location.search).get('login_hint') || '';
+  const a = document.querySelector('#ein-anmelden a[href^="/auth/login/microsoft"]');
+  if (hinweis && a) a.href = a.getAttribute('href') + '&login_hint=' + encodeURIComponent(hinweis);
+})();
+
+// ── Barrierefreiheit an EINER Stelle ───────────────────────────────────────
+// Einträge (Mails, Ordner, Postfächer, Termine, Kontakte, Entwürfe) werden an
+// vielen Stellen als <div onclick> gezeichnet und wären per Tastatur nicht
+// erreichbar. Statt jede Stelle einzeln: neu gezeichnete Einträge bekommen
+// tabindex/role, Enter und Leertaste lösen den Klick aus. Meldungen werden
+// vorgelesen (role="alert").
+function zugaenglichMachen(wurzel) {
+  wurzel.querySelectorAll('.eintrag[onclick], .postfach[onclick]').forEach(e => {
+    if (!e.hasAttribute('tabindex')) { e.tabIndex = 0; e.setAttribute('role', 'button'); }
+  });
+  wurzel.querySelectorAll('.meldung:not([role])').forEach(e => e.setAttribute('role', 'alert'));
+}
+new MutationObserver(liste => liste.forEach(m => m.target.nodeType === 1 && zugaenglichMachen(m.target)))
+  .observe(document.body, {childList: true, subtree: true});
+// Was immer den Lesebereich ersetzt (Mail, Verfassen, Kalender …): Leiste nachziehen.
+new MutationObserver(befehleSetzen).observe(document.getElementById('lesen'), {childList: true});
+document.addEventListener('keydown', ev => {
+  const e = ev.target;
+  if ((ev.key === 'Enter' || ev.key === ' ') && e.matches && e.matches('[role="button"][tabindex]')) {
+    ev.preventDefault(); e.click();
+  }
+});
+
+function ansicht(a) { document.getElementById('app').dataset.ansicht = a; }
+
+// ── Symbole, Initialen, Datum ────────────────────────────────────────────
+// Eine Strichzeichnung je Zweck (24er-Raster, Farbe aus dem Text).
+const IKON = {
+  post: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6 8.5-6"/>',
+  neu: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/>',
+  eingang: '<path d="M3 13h5l1.5 2.5h5L16 13h5"/><path d="M5.5 5h13l2.5 8v6H3v-6z"/>',
+  gesendet: '<path d="M3 11.5 21 3l-6 18-3.5-7.5z"/><path d="M11.5 13.5 21 3"/>',
+  papierkorb: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  archiv: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9M10 13h4"/>',
+  ordner: '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/>',
+  junk: '<circle cx="12" cy="12" r="8.5"/><path d="m6 6 12 12"/>',
+  entwurf: '<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+  kalender: '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  kontakte: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.8 3.6-5.5 7-5.5s6.2 1.7 7 5.5"/>',
+  antworten: '<path d="M10 6 4 12l6 6"/><path d="M4 12h9a7 7 0 0 1 7 7"/>',
+  allen: '<path d="M12 6 6 12l6 6"/><path d="M8 6 2 12l6 6"/><path d="M6 12h8a7 7 0 0 1 7 7"/>',
+  weiter: '<path d="m14 6 6 6-6 6"/><path d="M20 12h-9a7 7 0 0 0-7 7"/>',
+  anhang: '<path d="m20 11.5-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.2a1.7 1.7 0 0 1-2.4-2.4L15 7"/>',
+  pfeil: '<path d="m9 6 6 6-6 6"/>',
+  umschlag: '<path d="M3.5 10.5 12 4l8.5 6.5V19a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/><path d="m3.5 10.5 8.5 6 8.5-6"/>',
+};
+function ikon(name) {
+  return '<svg class="ikon" viewBox="0 0 24 24" aria-hidden="true">' + (IKON[name] || IKON.ordner) + '</svg>';
+}
+// Statisches Markup trägt nur data-ikon; das Symbol kommt von hier.
+function ikonenSetzen(wurzel) {
+  wurzel.querySelectorAll('[data-ikon]:not([data-ikon-da])').forEach(e => {
+    e.insertAdjacentHTML('afterbegin', ikon(e.dataset.ikon)); e.dataset.ikonDa = '1';
+  });
+}
+const ORDNER_IKON = {inbox: 'eingang', sentitems: 'gesendet', outbox: 'gesendet', deleteditems: 'papierkorb',
+                     archive: 'archiv', junkemail: 'junk', drafts: 'entwurf'};
+// Initialen und eine von acht Farben, fest je Name.
+function avatar(name, gross) {
+  const n = String(name || '?').replace(/<[^>]*>/g, '').replace(/["']/g, '').trim() || '?';
+  const teile = (n.includes('@') && !n.includes(' ') ? n.split('@')[0].split(/[._-]/) : n.split(/[\s,]+/)).filter(Boolean);
+  const kurz = ((teile[0] || '?')[0] + (teile.length > 1 ? teile[teile.length - 1][0] : '')).toUpperCase();
+  let h = 0; for (const z of n.toLowerCase()) h = (h * 31 + z.codePointAt(0)) >>> 0;
+  return '<span class="avatar' + (gross ? ' gross' : '') + '" data-farbe="' + (h % 8) + '" aria-hidden="true">' + esc(kurz) + '</span>';
+}
+function tagBeginn(d) { const t = new Date(d); t.setHours(0, 0, 0, 0); return t; }
+// Liste wie in Outlook: heute die Uhrzeit, diese Woche Wochentag, sonst Datum.
+function datumListe(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const tage = Math.round((tagBeginn(new Date()) - tagBeginn(d)) / 864e5);
+  if (tage <= 0) return d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+  if (tage < 7) return d.toLocaleDateString('de-DE', {weekday: 'short'}) + ' ' + d.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
+  return d.toLocaleDateString('de-DE', d.getFullYear() === new Date().getFullYear()
+    ? {day: '2-digit', month: '2-digit'} : {day: '2-digit', month: '2-digit', year: 'numeric'});
+}
+function datumGruppe(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const heute = tagBeginn(new Date()), tage = Math.round((heute - tagBeginn(d)) / 864e5);
+  const wochentag = (heute.getDay() + 6) % 7;            // Montag = 0
+  if (tage <= 0) return 'Heute';
+  if (tage === 1) return 'Gestern';
+  if (tage <= wochentag) return 'Diese Woche';
+  if (tage <= wochentag + 7) return 'Letzte Woche';
+  return d.toLocaleDateString('de-DE', {month: 'long', year: 'numeric'});
+}
+// Alle Befehle außer „Neu“ gelten der geöffneten Mail — ohne sie gesperrt.
+function befehleSetzen() {
+  const offen = !!document.querySelector('#lesen .mailansicht');
+  for (const id of ['b-loeschen', 'b-antworten', 'b-allen', 'b-weiterleiten', 'b-gelesen'])
+    document.getElementById(id).disabled = !offen;
+  const g = document.getElementById('b-gelesen'), text = nb.mailGelesen === false ? 'Als gelesen markieren'
+    : 'Als ungelesen markieren';
+  g.title = text;
+  g.querySelector('.text').textContent = text;
+  const v = document.getElementById('b-verschieben');
+  v.disabled = !offen;
+  v.innerHTML = '<option value="">Verschieben…</option>' + (nb.ordnerliste || []).filter(o => o.id !== nb.ordner)
+    .map(o => '<option value="' + escAttr(o.id) + '">' + esc(o.name) + '</option>').join('');
+}
+function listentitel(text) { document.getElementById('listentitel').textContent = text; }
+ikonenSetzen(document.body);
+function datumKurz(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleString('de-DE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+}
+function q(params) { return Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&'); }
+
+// Der rote Faden: Wer nicht angemeldet ist, landet im Normalbetrieb bei
+// „Dein Notfall-Zugang“, im ausgerufenen Notfall bei der Anmeldung.
+async function start() {
+  const d = await getJSON('/notfall/api/ich');
+  if (!d.ok) { if (AUSGERUFEN) anmeldungZeigen(); else einrichtenStart(); return; }
+  if (d.bereit_modus) {
+    document.getElementById('bereit-stand').textContent = d.letzter_abgleich
+      ? 'Kopie zuletzt aktualisiert: ' + new Date(d.letzter_abgleich).toLocaleString('de-DE') : '';
+    document.getElementById('bereit').hidden = false;
+    return;
+  }
+  nb.zugriff = d.zugriff;
+  nb.absender = d.absender || [];
+  nb.senden = !!d.senden;
+  nb.sendeweg = d.sendeweg;
+  nb.vorschau = d.vorschau;
+  document.getElementById('befehle').hidden = !nb.senden;
+  document.getElementById('band').textContent = d.vorschau ? 'Vorschau' : 'Notfall';
+  document.getElementById('ich').textContent = d.benutzer;
+  document.getElementById('postfachwahl').innerHTML = d.zugriff.map(p =>
+    '<option value="' + escAttr(p.postfach) + '">' + esc(p.postfach) + (p.eigen ? '' : ' (geteilt)') + '</option>').join('');
+  document.getElementById('kopf-rechts').hidden = false;
+  document.getElementById('glocke').hidden = !(window.Notification && Notification.permission === 'default');
+  if (!nb.takt) nb.takt = setInterval(neuePostPruefen, NEUE_POST_MS);
+  document.getElementById('app').hidden = false;
+  spaltenSetzen(false);   // erst jetzt hat #app eine Breite
+  // Nach abgelaufener Sitzung dorthin zurück, wo man war (sitzungPruefen).
+  const zurueck = sitzungZurueck();
+  const pf = zurueck && d.zugriff.some(p => p.postfach === zurueck.postfach) ? zurueck.postfach : d.zugriff[0].postfach;
+  document.getElementById('postfachwahl').value = pf;
+  postfachWaehlen(pf, zurueck && zurueck.ordner);
+}
+
+function anmeldungZeigen() {
+  document.getElementById('einrichten').hidden = true;
+  document.getElementById('anmeldung').hidden = false;
+  document.getElementById('name').focus();
+}
+
+// Vom Zugang weiter: Läuft schon eine Sitzung, direkt zur Post, sonst anmelden.
+async function weiter() {
+  // Ab hier gilt die Adresse des Webmails: Ein Favorit, ein Neuladen nach der
+  // Anmeldung und der Notfall selbst landen dort — nicht auf der Einrichtung,
+  // die die Microsoft-Anmeldung braucht.
+  try { history.replaceState(null, '', '/notfall' + location.search); } catch (e) { /* Rahmen ohne Verlauf */ }
+  const d = await getJSON('/notfall/api/ich');
+  if (!d.ok) { anmeldungZeigen(); return; }
+  document.getElementById('einrichten').hidden = true;
+  start().then(kopfhoeheMerken);
+}
+
+async function anmelden(ev) {
+  ev.preventDefault();
+  const kw = document.getElementById('kennwort');
+  const d = await knopfAktion('anmelde-knopf', 'Prüfe…', () =>
+    postJSON('/notfall/anmelden', {benutzer: feldWert('name'), passwort: kw.value, rahmen: IM_TEAMS}));
+  kw.value = '';
+  if (d.ok && d.faktor) {
+    nb.vorgang = d.vorgang;
+    document.getElementById('anmeldung').hidden = true;
+    document.getElementById('faktor').hidden = false;
+    document.getElementById('faktor-text').textContent = d.totp
+      ? 'Gib den 6-stelligen Code aus deiner Authenticator-App ein — oder einen deiner Wiederherstellungscodes.'
+      : 'Gib einen deiner Wiederherstellungscodes ein.';
+    const mitPasskey = d.passkey && pkMoeglich();
+    document.getElementById('faktor-pk').hidden = !mitPasskey;
+    if (mitPasskey) passkeyAnmelden();     // ohne Umweg; scheitert es (Browser verlangt einen Klick), bleibt der Knopf
+    else document.getElementById('faktor-code').focus();
+    return;
+  }
+  if (d.ok) { document.getElementById('anmeldung').hidden = true; start().then(kopfhoeheMerken); return; }
+  const m = document.getElementById('anmelde-meldung');
+  m.innerHTML = esc(errText(d)) + (d.einrichten
+    ? ' <a href="/notfall/einrichten"' + (IM_TEAMS ? ' target="_blank" rel="noopener" data-extern' : '')
+      + '>Jetzt einrichten</a>' : '');
+  m.hidden = false;
+}
+
+async function faktorSenden(ev) {
+  ev.preventDefault();
+  if (nb.pkAbbruch) nb.pkAbbruch.abort();
+  const feld = document.getElementById('faktor-code');
+  const d = await knopfAktion('faktor-knopf', 'Prüfe…', () =>
+    postJSON('/notfall/anmelden/faktor', {vorgang: nb.vorgang, code: feld.value, rahmen: IM_TEAMS}));
+  feld.value = '';
+  if (d.ok) { document.getElementById('faktor').hidden = true; start().then(kopfhoeheMerken); return; }
+  if (d.neu) { location.reload(); return; }
+  faktorMeldung(errText(d));
+}
+
+function faktorMeldung(text) {
+  const m = document.getElementById('faktor-meldung');
+  m.textContent = text; m.hidden = !text;
+}
+
+// ── Passkeys: WebAuthn-Optionen kommen als JSON (base64url), der Browser will Bytes ──
+function b64uBytes(t) {
+  const s = atob(t.replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(s, c => c.charCodeAt(0));
+}
+function bytesB64u(b) {
+  let s = '';
+  new Uint8Array(b).forEach(x => { s += String.fromCharCode(x); });
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+// Passkeys nur, wenn der Browser sie kann UND der Rahmen sie erlaubt. Ein
+// eingebettetes Fenster ohne allow="publickey-credentials-get|create" lässt
+// navigator.credentials ohne Dialog und ohne Fehler hängen — beobachtet im
+// Teams-Desktop-Reiter (Klicktest 17.11.2026; Ursache dort vermutet, nicht
+// gemessen). `art`: 'get' (Anmelden) oder 'create' (Einrichten).
+function pkMoeglich(art) {
+  if (!(window.PublicKeyCredential && navigator.credentials)) return false;
+  const regel = document.permissionsPolicy || document.featurePolicy;
+  return !(regel && regel.allowsFeature && !regel.allowsFeature('publickey-credentials-' + (art || 'get')));
+}
+function pkOptionen(o) {
+  o.challenge = b64uBytes(o.challenge);
+  if (o.user) o.user.id = b64uBytes(o.user.id);
+  for (const k of ['allowCredentials', 'excludeCredentials']) (o[k] || []).forEach(c => { c.id = b64uBytes(c.id); });
+  return o;
+}
+function pkAntwort(c) {
+  const r = c.response, a = {clientDataJSON: bytesB64u(r.clientDataJSON)};
+  if (r.attestationObject) {
+    a.attestationObject = bytesB64u(r.attestationObject);
+    a.transports = r.getTransports ? r.getTransports() : [];
+  }
+  if (r.authenticatorData) {
+    a.authenticatorData = bytesB64u(r.authenticatorData);
+    a.signature = bytesB64u(r.signature);
+    a.userHandle = r.userHandle ? bytesB64u(r.userHandle) : null;
+  }
+  return {id: c.id, rawId: bytesB64u(c.rawId), type: c.type, response: a,
+          authenticatorAttachment: c.authenticatorAttachment || null,
+          clientExtensionResults: c.getClientExtensionResults ? c.getClientExtensionResults() : {}};
+}
+function pkAbgebrochen(e) { return e && (e.name === 'NotAllowedError' || e.name === 'AbortError'); }
+
+async function passkeyAnmelden() {
+  faktorMeldung('');
+  const d = await knopfAktion('faktor-pk-knopf', 'Warte auf Passkey…', async () => {
+    const o = await postJSON('/notfall/anmelden/passkey/optionen', {vorgang: nb.vorgang});
+    if (!o.ok) return o;
+    let c;
+    // Abbrechbar: Wer stattdessen einen Code eingibt, soll nicht auf das Ende
+    // eines übersehenen Passkey-Dialogs warten (Klicktest: knapp 3 Minuten).
+    nb.pkAbbruch = new AbortController();
+    // Kommt kein Passkey-Fenster, sagt das sonst niemand: nach 8 s ein Hinweis
+    // (der Dialog darf weiterlaufen — vielleicht ist er nur verdeckt).
+    const still = setTimeout(() => faktorMeldung('Kein Passkey-Fenster zu sehen? Gib stattdessen den Code ein.'), 8000);
+    try { c = await navigator.credentials.get({publicKey: pkOptionen(o.optionen), signal: nb.pkAbbruch.signal}); }
+    catch (e) { return {ok: false, still: pkAbgebrochen(e), error: 'Passkey nicht verfügbar: ' + e.message}; }
+    finally { clearTimeout(still); }
+    return postJSON('/notfall/anmelden/passkey', {vorgang: nb.vorgang, antwort: pkAntwort(c), rahmen: IM_TEAMS});
+  });
+  if (d.ok) { document.getElementById('faktor').hidden = true; start().then(kopfhoeheMerken); return; }
+  if (d.neu) { location.reload(); return; }
+  if (!d.still) faktorMeldung(errText(d));
+}
+
+// ── Einrichten (nach Microsoft-Anmeldung) ──
+function einMeldung(text) {
+  const m = document.getElementById('ein-meldung');
+  m.textContent = text; m.hidden = !text;
+}
+
+async function einrichtenStart() {
+  document.getElementById('einrichten').hidden = false;
+  const d = await getJSON('/notfall/api/faktor');
+  if (!d.ok) {
+    if (d.http === 401) { document.getElementById('ein-anmelden').hidden = false; return; }
+    einMeldung(errText(d)); return;
+  }
+  document.getElementById('ein-wer').textContent = d.postfach;
+  const stand = document.getElementById('ein-zustand');
+  stand.textContent = zugangStand(d);
+  stand.dataset.zustand = d.aktiv && !d.gesperrt ? 'bereit' : 'offen';
+  // Weiter: Wer schon lesen darf (Probegruppe, Lesen für alle), kommt zur Post.
+  document.getElementById('ein-weiter').textContent = d.webmail ? 'Weiter zur Post' : 'Notfall-Anmeldung ausprobieren';
+  document.getElementById('ein-weiter-text').textContent = d.webmail
+    ? 'Die Kopie deiner Post kannst du schon jetzt lesen — angemeldet wird mit Windows-Kennwort und Faktor.'
+    : 'Ist alles eingerichtet, probier die Notfall-Anmeldung einmal aus.';
+  // Als Blöcke, nicht als Tabelle: Die Karte ist schmal (~380 px), eine
+  // Tabelle schnitt „Entfernen“ selbst am Desktop ab (Klicktest). Der Name
+  // des Gateways steht nur, wenn er von dieser Seite abweicht.
+  const kurz = iso => new Date(iso).toLocaleString('de-DE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+  document.getElementById('ein-passkeys').innerHTML = d.passkeys.length
+    ? '<div class="passkeys">' + d.passkeys.map(p => '<div class="passkey"><div><strong>' + esc(p.name) + '</strong>'
+        + '<div class="leise">zuletzt ' + esc(p.zuletzt ? kurz(p.zuletzt) : 'noch nie')
+        + (p.rp !== location.hostname ? ' · für ' + esc(p.rp) : '') + '</div></div>'
+        + '<button data-id="' + escAttr(p.id) + '" onclick="passkeyEntfernen(this, this.dataset.id)">Entfernen</button></div>')
+        .join('') + '</div>' : '';
+  const pk = document.getElementById('ein-pk'), hinweis = document.getElementById('ein-pk-hinweis');
+  pk.hidden = !pkMoeglich('create');
+  pk.textContent = d.passkeys.length ? 'Weiteren Passkey auf diesem Gerät' : 'Passkey auf diesem Gerät einrichten';
+  // Nur die App: Passkey vorschlagen — er ist schneller (kein Code abtippen).
+  const nurApp = d.aktiv && d.totp && !d.passkeys.length;
+  hinweis.hidden = pkMoeglich('create') && !nurApp;
+  hinweis.textContent = !pkMoeglich('create') ? 'Hier gehen keine Passkeys — nimm die Authenticator-App.'
+    : 'Tipp: Füge einen Passkey hinzu — die Anmeldung geht damit schneller, ohne Code abzutippen.';
+  document.getElementById('ein-beginnen').textContent = d.totp ? 'Neues Telefon für die App' : 'Authenticator-App einrichten';
+  document.getElementById('ein-codes').hidden = !d.aktiv || d.gesperrt;
+  document.getElementById('ein-stand').hidden = false;
+}
+
+// Stand in einem Satz: was eingerichtet ist und was fehlt.
+function zugangStand(d) {
+  if (d.gesperrt) return 'Gesperrt nach Fehlversuchen — richte deinen zweiten Faktor neu ein.';
+  if (!d.aktiv) return 'Noch nicht eingerichtet — richte jetzt einen Passkey ein, oder die Authenticator-App.';
+  const teile = [];
+  if (d.passkeys.length) teile.push(d.passkeys.length === 1 ? '1 Passkey' : d.passkeys.length + ' Passkeys');
+  if (d.totp) teile.push('Authenticator-App');
+  teile.push(d.codes_uebrig === 1 ? '1 Wiederherstellungscode' : d.codes_uebrig + ' Wiederherstellungscodes');
+  return 'Bereit ✓ — ' + teile.join(', ') + '.';
+}
+
+function geraeteName() {
+  const ua = navigator.userAgent;
+  const art = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
+    : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Gerät';
+  return art + ', ' + new Date().toLocaleDateString('de-DE');
+}
+
+async function passkeyEinrichten() {
+  einMeldung('');
+  const d = await knopfAktion('ein-pk', 'Warte auf Passkey…', async () => {
+    const o = await postJSON('/notfall/api/faktor/passkey/beginnen', {});
+    if (!o.ok) return o;
+    let c;
+    try { c = await navigator.credentials.create({publicKey: pkOptionen(o.optionen)}); }
+    catch (e) {
+      return {ok: false, still: pkAbgebrochen(e),
+              error: e.name === 'InvalidStateError' ? 'Auf diesem Gerät ist schon ein Passkey eingerichtet.'
+                                                    : 'Passkey nicht verfügbar: ' + e.message};
+    }
+    return postJSON('/notfall/api/faktor/passkey/bestaetigen', {antwort: pkAntwort(c), name: geraeteName()});
+  });
+  if (!d.ok) { if (!d.still) einMeldung(errText(d)); return; }
+  if (d.codes.length) { codesZeigen(d.codes, 'Passkey eingerichtet.'); return; }
+  await einrichtenStart();
+  const ok = document.getElementById('ein-ok');
+  ok.textContent = 'Passkey eingerichtet. Deine Wiederherstellungscodes gelten weiter.'; ok.hidden = false;
+}
+
+async function passkeyEntfernen(knopf, id) {
+  if (!confirm('Diesen Passkey entfernen?')) return;
+  const d = await knopfAktion(knopf, 'Entferne…', () => postJSON('/notfall/api/faktor/passkey/entfernen', {id: id}));
+  if (!d.ok) { einMeldung(errText(d)); return; }
+  await einrichtenStart();
+  const ok = document.getElementById('ein-ok');
+  ok.textContent = 'Passkey entfernt.'; ok.hidden = false;
+}
+
+async function faktorBeginnen() {
+  const d = await knopfAktion('ein-beginnen', 'Bereite vor…', () => postJSON('/notfall/api/faktor/beginnen', {}));
+  if (!d.ok) { einMeldung(errText(d)); return; }
+  einMeldung('');
+  // Das SVG erzeugt das Gateway selbst (segno) aus dem eigenen otpauth-Text.
+  document.getElementById('ein-qr-bild').innerHTML = d.qr_svg;
+  document.getElementById('ein-geheimnis').textContent = d.geheimnis.replace(/(.{4})/g, '$1 ').trim();
+  // Stand samt Knopf ausblenden: ein zweiter Klick erzeugte still einen neuen
+  // Schlüssel, und der schon gescannte passte nicht mehr (Klicktest).
+  document.getElementById('ein-stand').hidden = true;
+  document.getElementById('ein-qr').hidden = false;
+  document.getElementById('ein-code').focus();
+}
+
+async function faktorBestaetigen() {
+  const d = await knopfAktion('ein-bestaetigen', 'Prüfe…', () =>
+    postJSON('/notfall/api/faktor/bestaetigen', {code: feldWert('ein-code')}));
+  if (!d.ok) { einMeldung(errText(d)); return; }
+  codesZeigen(d.codes, 'Authenticator-App eingerichtet.');
+}
+
+async function codesErneuern() {
+  if (!confirm('Neue Wiederherstellungscodes erzeugen? Die bisherigen gelten dann nicht mehr.')) return;
+  const d = await knopfAktion('ein-codes', 'Erzeuge…', () => postJSON('/notfall/api/faktor/codes', {}));
+  if (!d.ok) { einMeldung(errText(d)); return; }
+  codesZeigen(d.codes, 'Neue Wiederherstellungscodes.');
+}
+
+function codesZeigen(codes, was) {
+  einMeldung('');
+  document.getElementById('ein-fertig-text').textContent = was + ' Bewahre diese Wiederherstellungscodes sicher '
+    + 'auf — jeder gilt einmal, falls Telefon oder Passkey fehlen. Sie werden nur jetzt angezeigt.';
+  document.getElementById('ein-qr').hidden = true;
+  document.getElementById('ein-stand').hidden = true;
+  document.getElementById('ein-liste').textContent = codes.join('\n');
+  document.getElementById('ein-fertig').hidden = false;
+}
+
+// ── Neue Post: Takt, Fenstertitel, Hinweis des Browsers ─────────────────
+// Ohne Service Worker nur, solange die Seite offen ist — im Notfall genügt das.
+const NEUE_POST_MS = 60000;
+const TITEL = document.title;
+function titelSetzen() {
+  document.title = (nb.ungelesen ? '(' + nb.ungelesen + ') ' : '') + TITEL;
+}
+// Verborgener Tab (anderer Reiter, Fenster minimiert): nur alle 5 min — bei
+// Hunderten offener Webmails ist der Minutentakt der größte Teil der Last.
+// Wer Hinweise erlaubt hat, wartet auf sie: dann weiter jede Minute. Beim
+// Zurückkehren sofort, wenn der letzte Blick älter als der Takt ist.
+const NEUE_POST_VERBORGEN_MS = 300000;
+function hinweiseAn() { return !!(window.Notification && Notification.permission === 'granted'); }
+async function neuePostPruefen(sofort) {
+  if (!nb.postfach) return;
+  const seit = Date.now() - (nb.zuletztGeprueft || 0);
+  if (!sofort && document.hidden && !hinweiseAn() && seit < NEUE_POST_VERBORGEN_MS - 5000) return;
+  nb.zuletztGeprueft = Date.now();
+  const vorher = nb.ungelesen || 0;
+  await ordnerLaden();
+  if (nb.ungelesen <= vorher) return;
+  const imEingang = (nb.ordnerliste || []).some(o => o.id === nb.ordner && o.wk === 'inbox');
+  if (imEingang && document.getElementById('app').dataset.ansicht === 'liste') listeLaden(0);
+  if (document.hidden && hinweiseAn()) {
+    new Notification('Neue Mail', {body: (nb.ungelesen - vorher) + ' neu in ' + nb.postfach, tag: 'notfall-mail'});
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && nb.takt && Date.now() - (nb.zuletztGeprueft || 0) > NEUE_POST_MS) neuePostPruefen(true);
+});
+async function hinweiseErlauben() {
+  const antwort = await Notification.requestPermission();
+  document.getElementById('glocke').hidden = antwort !== 'default';
+}
+
+async function abmelden() {
+  await postJSON('/notfall/abmelden', {});
+  location.reload();
+}
+
+// Normalbetrieb: Hinweis, wie alt die Kopie ist und wie weit sie zurückreicht.
+function vorschauZeigen() {
+  const el = document.getElementById('vorschau'), v = nb.vorschau;
+  el.hidden = !v;
+  if (!v) return;
+  const min = v.stand ? Math.max(0, Math.round((Date.now() - new Date(v.stand)) / 60000)) : null;
+  const tage = v.tage[nb.postfach.toLowerCase()];
+  el.textContent = 'Das ist die Notfall-Kopie, nicht dein Postfach: Stand '
+    + (min === null ? 'unbekannt' : min < 1 ? 'gerade eben' : min < 120 ? 'vor ' + min + ' min'
+       : 'vom ' + new Date(v.stand).toLocaleString('de-DE'))
+    + (tage ? ', Post der letzten ' + tage + (tage === 1 ? ' Tag' : ' Tage') : '')
+    + (nb.sendeweg === 'exchange' ? '. Gesendet wird über Exchange, wie aus Outlook.'
+       : nb.senden ? '. Senden geht hier am Exchange vorbei (Probealarm).' : '. Senden nur im Notfall — arbeite wie gewohnt in Outlook.');
+  kopfhoeheMerken();
+}
+
+async function postfachWaehlen(pf, ordnerWunsch) {
+  nb.postfach = pf; nb.ordner = '';
+  vorschauZeigen();
+  const erster = await ordnerLaden();
+  // Auch die festen Bereiche (Entwürfe, Kalender, Kontakte) — sie stehen nicht
+  // in der Ordnerliste des Postfachs.
+  const gewuenscht = ordnerWunsch && (SONDERORDNER.includes(ordnerWunsch)
+    || (nb.ordnerliste || []).some(o => o.id === ordnerWunsch)) ? ordnerWunsch : null;
+  if (gewuenscht || erster) ordnerWaehlen(gewuenscht || erster.id);
+}
+
+// Ordnerbaum (und mobil die Auswahlliste) samt Zählern zeichnen. Auch nach dem
+// Öffnen einer ungelesenen Mail, damit der Zähler sofort nachzieht.
+async function ordnerLaden() {
+  const d = await getJSON('/notfall/api/ordner?' + q({postfach: nb.postfach}));
+  const el = document.getElementById('ordner');
+  if (!d.ok) { el.textContent = errText(d); return null; }
+  nb.ordnerliste = d.ordner;
+  const eingang = d.ordner.find(o => o.wk === 'inbox');
+  nb.ungelesen = eingang ? eingang.ungelesen : 0;
+  titelSetzen();
+  // Unterordner einrücken: Tiefe aus der Elternkette.
+  const nachId = Object.fromEntries(d.ordner.map(o => [o.id, o]));
+  const t = o => { let n = 0, e = o.eltern; while (nachId[e] && n < 8) { n++; e = nachId[e].eltern; } return n; };
+  const zahl = o => (o.ungelesen ? o.ungelesen + ' / ' : '') + o.anzahl;
+  // Wie in Outlook: nur die ungelesenen zählen sichtbar, die Gesamtzahl steht im Tooltip.
+  const eintrag = (id, name, symbol, tiefe, o) => '<div class="eintrag" data-id="' + escAttr(id) + '" style="padding-left:'
+    + (10 + 16 * tiefe) + 'px" onclick="ordnerWaehlen(this.dataset.id)"'
+    + (o ? ' title="' + escAttr(o.name + ': ' + (o.ungelesen ? o.ungelesen + ' ungelesen von ' : '') + o.anzahl) + '"' : '')
+    + (id === nb.ordner ? ' aria-current="true"' : '') + '>' + ikon(symbol) + '<span class="name">' + esc(name) + '</span>'
+    + (o && o.ungelesen ? '<span class="zahl">' + o.ungelesen + '</span>' : '') + '</div>';
+  const ordnerHtml = d.ordner.map(o => eintrag(o.id, o.name, ORDNER_IKON[o.wk] || 'ordner', t(o), o)).join('');
+  // Alle erreichbaren Postfächer untereinander; nur das geöffnete klappt auf.
+  el.innerHTML = (nb.senden ? eintrag('__entwuerfe', 'Meine Entwürfe', 'entwurf', 0) : '')
+    + nb.zugriff.map(p => {
+    const offen = p.postfach === nb.postfach;
+    return '<div class="postfach" data-pf="' + escAttr(p.postfach) + '" aria-expanded="' + offen
+      + '" onclick="postfachWaehlen(this.dataset.pf)" title="' + escAttr(p.postfach) + '">'
+      + '<span class="pfeil">' + ikon('pfeil') + '</span>' + esc(p.postfach) + (p.eigen ? '' : ' <span class="art">geteilt</span>') + '</div>'
+      + (offen ? ordnerHtml + eintrag('__kalender', 'Kalender', 'kalender', 0) + eintrag('__kontakte', 'Kontakte', 'kontakte', 0) : '');
+  }).join('');
+  document.getElementById('postfachwahl').value = nb.postfach;
+  const wahl = document.getElementById('ordnerwahl');
+  wahl.innerHTML = d.ordner.map(o => '<option value="' + escAttr(o.id) + '">'
+    + esc('\u00a0'.repeat(2 * t(o)) + o.name) + ' (' + zahl(o) + ')</option>').join('')
+    + '<option value="__kalender">Kalender</option><option value="__kontakte">Kontakte</option>'
+    + (nb.senden ? '<option value="__entwuerfe">Meine Entwürfe</option>' : '');
+  if (nb.ordner) wahl.value = nb.ordner;
+  return d.ordner.find(o => o.wk === 'inbox') || d.ordner[0] || null;
+}
+
+const SONDERORDNER = ['__entwuerfe', '__kalender', '__kontakte'];
+function ordnerWaehlen(id) {
+  nb.ordner = id;
+  document.getElementById('listenspalte').dataset.art = id.startsWith('__') ? 'andere' : 'post';
+  document.getElementById('app').dataset.art = id.startsWith('__') ? 'andere' : 'post';
+  document.getElementById('suche').value = '';
+  document.querySelectorAll('#ordner .eintrag').forEach(e => e.setAttribute('aria-current', e.dataset.id === id));
+  document.getElementById('ordnerwahl').value = id;
+  befehleSetzen();
+  listentitel({__kalender: 'Kalender', __kontakte: 'Kontakte', __entwuerfe: 'Meine Entwürfe'}[id]
+    || ((nb.ordnerliste || []).find(o => o.id === id) || {}).name || '');
+  if (id === '__kalender') return kalenderZeigen();
+  if (id === '__kontakte') return kontakteZeigen();
+  if (id === '__entwuerfe') return entwuerfeZeigen();
+  listeLaden(0);
+}
+
+// ── Entwürfe (auf dem Gateway gesichert, je angemeldeter Person) ─────────
+async function entwuerfeZeigen() {
+  const d = await getJSON('/notfall/api/entwuerfe');
+  const el = document.getElementById('liste');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  el.innerHTML = d.entwuerfe.length ? d.entwuerfe.map(e => '<div class="eintrag ohne" data-id="' + escAttr(e.id)
+      + '" onclick="entwurfOeffnen(this.dataset.id)"><div class="betreff">' + esc(e.betreff || '(ohne Betreff)') + '</div>'
+      + '<div class="vorschau">' + esc([e.an ? 'An: ' + e.an : '', datumKurz(e.ts)].filter(Boolean).join(' · '))
+      + '</div></div>').join('')
+    : '<p class="leise" style="padding:12px">Keine Entwürfe. Was du hier schreibst, sichert sich von selbst.</p>';
+}
+
+async function entwurfOeffnen(id) {
+  const e = await getJSON('/notfall/api/entwurf?' + q({id: id}));
+  if (!e.ok) { alert(errText(e)); return; }
+  await verfassen(e.art && e.art !== 'neu' ? e.art : '', e);
+}
+
+// ── Kalender und Kontakte (nur lesend) ───────────────────────────────────
+function tagText(iso) {
+  return new Date(iso).toLocaleDateString('de-DE', {weekday: 'long', day: '2-digit', month: '2-digit'});
+}
+function uhrzeit(iso) { return new Date(iso).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}); }
+
+async function kalenderZeigen() {
+  const heute = new Date(); heute.setHours(0, 0, 0, 0);
+  const von = new Date(heute.getTime() - 14 * 864e5), bis = new Date(heute.getTime() + 15 * 864e5);
+  const d = await getJSON('/notfall/api/kalender?' + q({postfach: nb.postfach, von: von.toISOString(), bis: bis.toISOString()}));
+  const el = document.getElementById('liste');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  nb.termine = d.termine;
+  if (!d.termine.length) {
+    el.innerHTML = '<p class="leise" style="padding:12px">Keine Termine in der Kopie. Sie reicht so weit, wie im Gateway eingestellt.</p>';
+    return;
+  }
+  let tag = '';
+  el.innerHTML = d.termine.map((t, i) => {
+    const neu = tagText(t.beginn) !== tag; tag = tagText(t.beginn);
+    return (neu ? '<div class="gruppe">' + esc(tag) + '</div>' : '')
+      + '<div class="eintrag ohne" data-i="' + i + '" onclick="terminZeigen(+this.dataset.i)">'
+      + '<div class="kopf"><span>' + (t.ganztag ? 'ganztägig' : esc(uhrzeit(t.beginn) + '–' + uhrzeit(t.ende)))
+      + '</span><span>' + esc(t.ort || '') + '</span></div>'
+      + '<div class="betreff">' + (t.abgesagt ? '<s>' : '') + esc(t.betreff || '(ohne Betreff)') + (t.abgesagt ? '</s>' : '')
+      + (t.privat && !t.geschwaerzt ? ' <span class="leise">· privat</span>' : '')
+      + '</div></div>';
+  }).join('');
+  if (innerWidth > 720) terminZeigen(Math.max(0, d.termine.findIndex(t => new Date(t.ende) >= new Date())));
+}
+
+function terminZeigen(i) {
+  const t = nb.termine[i]; if (!t) return;
+  document.querySelectorAll('#liste .eintrag').forEach(e => e.setAttribute('aria-current', +e.dataset.i === i));
+  const wer = a => esc(a.name ? a.name + ' <' + a.address + '>' : (a.address || ''));
+  const antw = {accepted: 'zugesagt', declined: 'abgesagt', tentativelyAccepted: 'vorläufig', none: '', notResponded: 'offen', organizer: 'Organisator'};
+  document.getElementById('lesen').innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
+    + '<div style="padding:12px 18px"><h2 style="margin:0 0 6px">' + (t.abgesagt ? 'Abgesagt: ' : '') + esc(t.betreff || '(ohne Betreff)') + '</h2>'
+    + '<div class="leise">' + esc(tagText(t.beginn)) + (t.ganztag ? ', ganztägig' : ', ' + esc(uhrzeit(t.beginn) + '–' + uhrzeit(t.ende)))
+    + (t.privat && !t.geschwaerzt ? ' · privat (für andere nur als „Privater Termin“)' : '') + '</div>'
+    + (t.ort ? '<div>Ort: ' + esc(t.ort) + '</div>' : '')
+    + (t.organisator && t.organisator.address ? '<div>Organisator: ' + wer(t.organisator) + '</div>' : '')
+    + (t.teilnehmer.length ? '<div style="margin-top:6px">Teilnehmer:<ul style="margin:2px 0 0 18px;padding:0">'
+       + t.teilnehmer.map(a => '<li>' + wer(a) + (antw[a.antwort] ? ' <span class="leise">(' + esc(antw[a.antwort]) + ')</span>' : '') + '</li>').join('')
+       + '</ul></div>' : '')
+    + (t.online ? '<div style="margin-top:6px">Online-Besprechung: <span class="leise">' + esc(t.online) + '</span></div>' : '')
+    + (t.text ? '<div style="margin-top:10px;white-space:pre-wrap">' + esc(t.text) + '</div>' : '')
+    + '<p class="leise" style="margin-top:14px">Nur lesend — Änderungen am Kalender sind im Notbetrieb nicht möglich.</p></div>';
+  ansicht('lesen');
+}
+
+async function kontakteZeigen() {
+  const d = await getJSON('/notfall/api/kontakte?' + q({postfach: nb.postfach}));
+  const el = document.getElementById('liste');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  nb.kontakte = d.kontakte;
+  if (!d.kontakte.length) {
+    el.innerHTML = '<p class="leise" style="padding:12px">' + (d.recht_fehlt
+      ? 'Kontakte sind in der Kopie nicht verfügbar — dem Gateway fehlt das Leserecht dafür (IT).'
+      : 'Keine Kontakte in der Kopie.') + ' Beim Verfassen schlägt die Adresshilfe trotzdem Kolleginnen und Kollegen vor.</p>';
+    return;
+  }
+  el.innerHTML = d.kontakte.map((k, i) => '<div class="eintrag kontakt" data-i="' + i + '" onclick="kontaktZeigen(+this.dataset.i)">'
+    + avatar(k.name || k.mails[0])
+    + '<div class="betreff">' + esc(k.name || k.mails[0] || '') + '</div>'
+    + '<div class="vorschau">' + esc([k.firma, k.mails[0]].filter(Boolean).join(' · ')) + '</div></div>').join('');
+}
+
+function kontaktZeigen(i) {
+  const k = nb.kontakte[i]; if (!k) return;
+  document.querySelectorAll('#liste .eintrag').forEach(e => e.setAttribute('aria-current', +e.dataset.i === i));
+  document.getElementById('lesen').innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
+    + '<div style="padding:12px 18px"><h2 style="margin:0 0 6px">' + esc(k.name) + '</h2>'
+    + (k.titel || k.firma ? '<div class="leise">' + esc([k.titel, k.firma].filter(Boolean).join(', ')) + '</div>' : '')
+    + k.mails.map(m => '<div>' + esc(m) + (nb.senden ? ' <button data-an="' + escAttr(m)
+      + '" onclick="anSchreiben(this.dataset.an)">Mail schreiben</button>' : '') + '</div>').join('')
+    + k.telefon.map(t => '<div>Telefon: ' + esc(t) + '</div>').join('') + '</div>';
+  ansicht('lesen');
+}
+
+async function anSchreiben(adresse) {
+  await verfassen();
+  const an = document.getElementById('vf-an'); if (an) { an.value = adresse; document.getElementById('vf-betreff').focus(); }
+}
+
+// ── Adresshilfe: Kontakte und globale Adressliste beim Tippen ────────────
+let nbAdressTakt = 0;
+// Name in Anführungszeichen: „Mustermann, Max <…>“ zerfiele beim Senden am
+// Komma (getaddresses) — „Ungültige Adresse: Mustermann“.
+// Art eines Treffers: eigener Kontakt, Verteiler, Gruppe, Extern — oder nichts (Postfach).
+function adressArt(t) { return t.quelle === 'kontakt' ? 'Kontakt' : (t.art || ''); }
+function adressText(t) {
+  const name = (t.name || '').replace(/["\\\r\n]/g, '').trim();
+  return name ? '"' + name + '" <' + t.adresse + '>' : t.adresse;
+}
+
+// ── Adressbuch: Tipp auf An/Cc/Bcc ─────────────────────────────────────────
+const nbAb = {feld: '', gewaehlt: new Map(), takt: 0, treffer: []};
+function adressbuchOeffnen(feld) {
+  nbAb.feld = feld;
+  nbAb.gewaehlt = new Map();
+  document.getElementById('ab-suche').value = '';
+  document.getElementById('adressbuch').showModal();
+  adressbuchSuchen();
+  document.getElementById('ab-suche').focus();
+}
+async function adressbuchSuchen() {
+  const takt = ++nbAb.takt;
+  await new Promise(r => setTimeout(r, 150));
+  if (takt !== nbAb.takt) return;
+  const d = await getJSON('/notfall/api/adressbuch?' + q({q: feldWert('ab-suche')}));
+  if (takt !== nbAb.takt) return;
+  const el = document.getElementById('ab-liste');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  nbAb.treffer = d.treffer;
+  el.innerHTML = d.treffer.length ? d.treffer.map((t, i) =>
+    '<label><input type="checkbox" data-nr="' + i + '"' + (nbAb.gewaehlt.has(t.adresse.toLowerCase()) ? ' checked' : '')
+    + '><span><span>' + esc(t.name || t.adresse) + (adressArt(t) ? ' <span class="leise">· ' + esc(adressArt(t)) + '</span>' : '')
+    + '</span><br><span class="adr">' + esc(t.adresse) + '</span></span></label>').join('')
+    : '<p class="leise" style="padding:8px 12px">Nichts gefunden.</p>';
+  adressbuchZahl(d.mehr);
+}
+function adressbuchZahl(mehr) {
+  const n = nbAb.gewaehlt.size;
+  document.getElementById('ab-zahl').textContent = (n ? n + ' gewählt' : '')
+    + (mehr ? (n ? ' · ' : '') + 'mehr Einträge — Suche eingrenzen' : '');
+}
+function adressbuchWahl(ev) {
+  const t = nbAb.treffer[Number(ev.target.dataset.nr)];
+  if (!t) return;
+  if (ev.target.checked) nbAb.gewaehlt.set(t.adresse.toLowerCase(), t);
+  else nbAb.gewaehlt.delete(t.adresse.toLowerCase());
+  adressbuchZahl(false);
+}
+function adressbuchUebernehmen() {
+  const feld = document.getElementById(nbAb.feld);
+  if (feld && nbAb.gewaehlt.size) {
+    const alt = feld.value.trim().replace(/,\s*$/, '');
+    feld.value = [alt, ...[...nbAb.gewaehlt.values()].map(adressText)].filter(Boolean).join(', ');
+    entwurfMerken();
+  }
+  adressbuchZu();
+  if (feld) feld.focus();
+}
+function adressbuchZu() { document.getElementById('adressbuch').close(); }
+
+async function adressVorschlag(feld) {
+  const wert = feld.value, komma = wert.lastIndexOf(',');
+  const vorne = komma >= 0 ? wert.slice(0, komma + 1) + ' ' : '', teil = wert.slice(komma + 1).trim();
+  const takt = ++nbAdressTakt;
+  if (teil.length < 2) return;
+  await new Promise(r => setTimeout(r, 200));
+  if (takt !== nbAdressTakt) return;
+  const d = await getJSON('/notfall/api/adressen?' + q({q: teil}));
+  if (!d.ok || takt !== nbAdressTakt) return;
+  document.getElementById('vf-vorschlaege').innerHTML = d.treffer.map(t =>
+    '<option value="' + escAttr(vorne + adressText(t)) + '">'
+    + esc(adressArt(t) || 'Adressliste') + '</option>').join('');
+}
+
+// Suche beim Tippen: ab 3 Zeichen, erst nach einer Tipppause — sonst liefe
+// je Anschlag eine Suche über das ganze Postfach (großes Postfach ≈ 0,3 s, unter
+// der gemeinsamen Sperre). Leeren zeigt wieder den Ordner. Enter sucht sofort.
+const SUCHE_PAUSE_MS = 400;
+function sucheGetippt() {
+  clearTimeout(nb.suchTakt);
+  const n = feldWert('suche').length;
+  if (n && n < 3) return;
+  nb.suchTakt = setTimeout(() => listeLaden(0), n ? SUCHE_PAUSE_MS : 0);
+}
+// Suchwörter gelb markieren: Text in Stücke an den Treffern, jedes Stück maskiert.
+function suchMuster(woerter) {
+  return new RegExp('(' + woerter.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+}
+function markiert(text, woerter) {
+  text = String(text || '');
+  if (!woerter || !woerter.length) return esc(text);
+  return text.split(suchMuster(woerter)).map((t, i) => i % 2 ? '<mark>' + esc(t) + '</mark>' : esc(t)).join('');
+}
+function trifft(text, woerter) { return suchMuster(woerter).test(String(text || '')); }
+
+async function listeLaden(seite) {
+  clearTimeout(nb.suchTakt);
+  document.getElementById('listenspalte').dataset.art = 'post';
+  const suche = feldWert('suche');
+  const nr = nb.listeNr = (nb.listeNr || 0) + 1;
+  const d = await getJSON('/notfall/api/liste?' + q({postfach: nb.postfach, ordner: suche ? '' : nb.ordner,
+                                                     suche: suche, seite: seite,
+                                                     ungelesen: document.getElementById('f-ungelesen').checked,
+                                                     anhang: document.getElementById('f-anhang').checked,
+                                                     unterhaltungen: document.getElementById('f-unterhaltungen').checked}));
+  if (nr !== nb.listeNr) return;   // inzwischen weitergetippt: veraltete Antwort
+  const w = nb.suchwoerter = suche.split(/\s+/).filter(Boolean).slice(0, 5);
+  nb.weitere = Object.fromEntries(d.ok ? d.mails.map(m => [m.graph_id, m.weitere || []]) : []);
+  // Suche über alle Ordner: zu jedem Treffer den Ordner nennen.
+  const ordnerName = id => ((nb.ordnerliste || []).find(o => o.id === id || o.wk === id) || {}).name || '';
+  const el = document.getElementById('liste');
+  listentitel(suche ? 'Suchergebnisse' : ordnerName(nb.ordner));
+  if (!d.ok) { el.textContent = errText(d); return; }
+  if (!d.mails.length) {
+    el.innerHTML = '<p class="leise" style="padding:12px">' + (suche ? 'Nichts gefunden — gesucht wird in Betreff, '
+      + 'Absender, Empfängern und Text der Post in der Kopie.' : 'Keine Nachrichten.') + '</p>';
+    return;
+  }
+  // Gruppen nach Datum (Heute, Gestern, …) — Kopf nur, wenn sie wechselt.
+  let gruppe = null;
+  el.innerHTML = d.mails.map(m => (datumGruppe(m.empfangen) !== gruppe
+      ? '<div class="gruppe">' + esc(gruppe = datumGruppe(m.empfangen)) + '</div>' : '')
+    + '<div class="eintrag" data-id="' + escAttr(m.graph_id) + '" data-ungelesen="'
+    + (m.gelesen ? 0 : 1) + '" onclick="mailOeffnen(this.dataset.id)">' + avatar(m.von)
+    + '<div class="kopf"><span class="von">' + markiert(m.von, w) + '</span><span class="datum" title="'
+    + escAttr(datumKurz(m.empfangen)) + '">' + esc(datumListe(m.empfangen)) + '</span></div>'
+    + '<div class="betreff">' + (m.anhang ? '<span role="img" aria-label="Mit Anhang">' + ikon('anhang') + '</span>' : '') + markiert(m.betreff || '(kein Betreff)', w)
+    + (m.anzahl > 1 ? ' <span class="zahl" title="Mails in dieser Unterhaltung">' + m.anzahl + '</span>' : '') + '</div>'
+    + (suche && ordnerName(m.ordner) ? '<div class="ort">in ' + esc(ordnerName(m.ordner)) + '</div>' : '')
+    // Treffer nur beim Empfänger: Die Liste zeigt sonst kein An — ohne diese
+    // Zeile stünde der Fund ohne sichtbaren Grund in der Liste.
+    + '<div class="vorschau">' + (w.length && m.an && trifft(m.an, w) && !trifft(m.von, w)
+         ? '<span class="an">An: ' + markiert(m.an, w) + '</span> · ' : '')
+    + markiert(m.vorschau, w) + '</div></div>').join('')
+    + (d.gesamt > (seite + 1) * d.je_seite
+       ? '<div style="padding:10px"><button onclick="listeLaden(' + (seite + 1) + ')">Ältere</button></div>' : '')
+    + (seite ? '<div style="padding:0 10px 10px"><button onclick="listeLaden(' + (seite - 1) + ')">Neuere</button></div>' : '');
+}
+
+function adressen(liste) { return liste.map(a => a.name ? a.name + ' <' + a.adresse + '>' : a.adresse).join(', '); }
+
+async function mailOeffnen(id) {
+  document.querySelectorAll('#liste .eintrag').forEach(e => e.setAttribute('aria-current', e.dataset.id === id));
+  const d = await getJSON('/notfall/api/mail?' + q({postfach: nb.postfach, id: id}));
+  const el = document.getElementById('lesen');
+  if (!d.ok) { el.textContent = errText(d); return; }
+  const zeile = document.querySelector('#liste .eintrag[data-id="' + CSS.escape(id) + '"]');
+  if (zeile && zeile.dataset.ungelesen === '1') { zeile.dataset.ungelesen = '0'; ordnerLaden(); }
+  nb.mailGelesen = true;            // Öffnen markiert als gelesen (Server: notfall_mail)
+  const p = q({postfach: nb.postfach, id: id});
+  const w = nb.suchwoerter || [];
+  nb.mail = id;
+  const von = d.von[0] || {name: '', adresse: ''};
+  const datum = new Date(d.datum);
+  const anhangLink = a => '/notfall/anhang?' + escAttr(p) + '&nr=' + a.nr;
+  const ansehenLink = a => '/notfall/anhang/ansehen?' + escAttr(p) + '&nr=' + a.nr;
+  el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
+    + '<div class="mailansicht"><h2 id="lesen-betreff" tabindex="-1">' + markiert(d.betreff || '(kein Betreff)', w) + '</h2>'
+    + '<div class="kopfbereich"><div class="absender">' + avatar(von.name || von.adresse, true)
+    + '<div class="wer"><div><span class="name">' + markiert(von.name || von.adresse, w) + '</span>'
+    + (von.name ? ' <span class="adresse">&lt;' + markiert(von.adresse, w) + '&gt;</span>' : '')
+    + (d.von.length > 1 ? ' <span class="adresse">' + markiert(adressen(d.von.slice(1)), w) + '</span>' : '') + '</div>'
+    + '<div class="empf">An: ' + markiert(adressen(d.an), w) + '</div>'
+    + (d.cc.length ? '<div class="empf">Cc: ' + markiert(adressen(d.cc), w) + '</div>' : '') + '</div>'
+    + '<div class="rechts">'
+    + (nb.senden ? '<div class="symbole">'
+      + '<button onclick="verfassen(\'antwort\')" title="Antworten" aria-label="Antworten">' + ikon('antworten') + '</button>'
+      + '<button onclick="verfassen(\'allen\')" title="Allen antworten" aria-label="Allen antworten">' + ikon('allen') + '</button>'
+      + '<button onclick="verfassen(\'weiterleiten\')" title="Weiterleiten" aria-label="Weiterleiten">' + ikon('weiter') + '</button></div>' : '')
+    + '<div class="datum">' + esc(isNaN(datum) ? '' : datum.toLocaleString('de-DE', {weekday: 'short', day: '2-digit',
+        month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})) + '</div></div></div>'
+    // Die Signatur wird hier NICHT geprüft — nur angezeigt, dass eine da ist.
+    + (d.signiert || d.verschluesselt ? '<div class="hinweis">'
+       + [d.signiert ? 'S/MIME-signiert (Signatur im Notbetrieb nicht geprüft)' : '',
+          d.verschluesselt ? 'verschlüsselt — im Notbetrieb nicht lesbar' : ''].filter(Boolean).join(' · ') + '</div>' : '')
+    + (d.echtheit === 'unbestaetigt' ? '<div class="meldung" style="margin:10px 0 0">Absender nicht bestätigt '
+       + '(SPF/DKIM/DMARC) — Vorsicht bei Links, Anhängen und Zahlungsaufforderungen.</div>' : '')
+    + (d.anhaenge.length ? '<div class="anhaenge">' + d.anhaenge.map(a => '<span class="anhang">' + ikon('anhang')
+        + '<span><a href="' + anhangLink(a) + '" title="Herunterladen">' + esc(a.name) + '</a> <span class="groesse">'
+        + Math.max(1, Math.round(a.groesse / 1024)) + ' KB</span>'
+        // Vorschau nur, wo das Gateway den Typ an den Bytes erkannt hat (Bild, PDF).
+        + (a.vorschau ? ' · <a href="' + ansehenLink(a) + '" target="_blank" rel="noopener noreferrer">Ansehen</a>' : '')
+        + '</span></span>').join('') + '</div>'
+      + (d.anhaenge.some(a => a.vorschau.startsWith('image/')) ? '<div class="bilder">' + d.anhaenge
+          .filter(a => a.vorschau.startsWith('image/')).map(a => '<a href="' + ansehenLink(a)
+          + '" target="_blank" rel="noopener noreferrer"><img loading="lazy" alt="' + escAttr(a.name)
+          + '" src="' + ansehenLink(a) + '"></a>').join('') + '</div>' : '') : '')
+    // Option „Unterhaltungen“: die übrigen Mails derselben Unterhaltung.
+    + ((nb.weitere || {})[id] && nb.weitere[id].length ? '<div class="unterhaltung"><b>In dieser Unterhaltung:</b>'
+       + nb.weitere[id].map(w => '<div class="eintrag" data-id="' + escAttr(w.graph_id) + '" data-ungelesen="'
+         + (w.gelesen ? 0 : 1) + '" onclick="mailOeffnen(this.dataset.id)">' + esc(w.von || '') + ' · '
+         + datumKurz(w.empfangen) + '</div>').join('') + '</div>' : '')
+    + '</div>'
+    + (d.html
+       // sandbox ohne Rechte: kein Skript, kein Formular, kein Zugriff auf diese Seite.
+       // Zusätzlich liefert der Server den Inhalt mit durchgesetzter CSP.
+       ? '<iframe sandbox="" referrerpolicy="no-referrer" src="/notfall/inhalt?' + escAttr(p + (w.length ? '&' + q({markieren: w.join(' ')}) : '')) + '" title="Nachricht"></iframe>'
+       : '<pre>' + markiert(d.text, w) + '</pre>') + '</div>';
+  ansicht('lesen');
+  document.getElementById('lesen-betreff').focus();   // Screenreader und Tastatur landen bei der Mail
+}
+
+// ── Spaltenbreiten ───────────────────────────────────────────────────────
+// Ziehen, Pfeiltasten oder Doppelklick (zurück auf die Vorgabe) — gemerkt nur
+// in diesem Browser. Dem Lesebereich bleiben immer LESEN_MIN Pixel.
+// Gemerkte Werte dieses Browsers; ohne Speicher (privat, Vorschau) die Vorgabe.
+function gemerkt(schluessel, vorgabe) {
+  try { return Object.assign({}, vorgabe, JSON.parse(localStorage.getItem(schluessel) || '{}')); }
+  catch (e) { return Object.assign({}, vorgabe); }
+}
+// Griff, der eine Breite zieht — EINE Stelle für Spaltentrenner und Listenspalten:
+// Ziehen, Pfeiltasten (±20 px), Doppelklick = Vorgabe. `setzen(px, merken)`
+// begrenzt selbst; nach dem Loslassen zählt, was wirklich steht.
+function ziehgriff(griff, zelle, setzen, vorgabe) {
+  griff.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    griff.setPointerCapture(ev.pointerId);
+    const app = document.getElementById('app'), links = zelle.getBoundingClientRect().left;
+    app.dataset.ziehen = '1'; griff.dataset.aktiv = '1';     // iframes fangen sonst die Maus
+    const ziehen = e => setzen(e.clientX - links, false);
+    const loslassen = () => {
+      griff.removeEventListener('pointermove', ziehen);
+      delete app.dataset.ziehen; delete griff.dataset.aktiv;
+      setzen(zelle.getBoundingClientRect().width, true);
+    };
+    griff.addEventListener('pointermove', ziehen);
+    griff.addEventListener('pointerup', loslassen, {once: true});
+    griff.addEventListener('pointercancel', loslassen, {once: true});
+  });
+  griff.addEventListener('keydown', ev => {
+    const schritt = {ArrowLeft: -20, ArrowRight: 20}[ev.key];
+    if (!schritt) return;
+    ev.preventDefault();
+    setzen(zelle.getBoundingClientRect().width + schritt, true);
+  });
+  griff.addEventListener('dblclick', () => setzen(vorgabe, true));
+}
+const SPALTE_VORGABE = {ordner: 240, liste: 360}, SPALTE_MIN = {ordner: 140, liste: 240}, LESEN_MIN = 320;
+let spaltenBreite = gemerkt('nf-spalten', SPALTE_VORGABE);
+function spaltenSetzen(merken) {
+  const app = document.getElementById('app');
+  const st = getComputedStyle(app), rand = (parseFloat(st.paddingLeft) || 0) + (parseFloat(st.paddingRight) || 0);
+  const platz = (app.clientWidth || window.innerWidth) - rand - 10 - LESEN_MIN;
+  const b = {};
+  b.ordner = Math.max(SPALTE_MIN.ordner, Math.min(+spaltenBreite.ordner || SPALTE_VORGABE.ordner, platz - SPALTE_MIN.liste));
+  b.liste = Math.max(SPALTE_MIN.liste, Math.min(+spaltenBreite.liste || SPALTE_VORGABE.liste, platz - b.ordner));
+  app.style.setProperty('--b-ordner', Math.round(b.ordner) + 'px');
+  app.style.setProperty('--b-liste', Math.round(b.liste) + 'px');
+  document.querySelectorAll('.trenner').forEach(t => t.setAttribute('aria-valuenow', Math.round(b[t.dataset.spalte])));
+  if (merken) { try { localStorage.setItem('nf-spalten', JSON.stringify(spaltenBreite)); } catch (e) { /* privat */ } }
+}
+document.querySelectorAll('.trenner').forEach(t => {
+  const spalte = t.dataset.spalte, ziel = document.getElementById(spalte === 'ordner' ? 'ordnerspalte' : 'listenspalte');
+  ziehgriff(t, ziel, (px, merken) => { spaltenBreite[spalte] = px; spaltenSetzen(merken); }, SPALTE_VORGABE[spalte]);
+});
+window.addEventListener('resize', () => spaltenSetzen(false));
+spaltenSetzen(false);
+
+// Kopfzeile ist mobil oft zweizeilig: ihre echte Höhe für den Lesebereich.
+function kopfhoeheMerken() {
+  document.documentElement.style.setProperty('--kopfhoehe', document.querySelector('header').offsetHeight + 'px');
+  document.documentElement.style.setProperty('--befehlhoehe', document.getElementById('befehle').offsetHeight + 'px');
+}
+window.addEventListener('resize', kopfhoeheMerken);
+kopfhoeheMerken();
+
+// ── Spalten der breiten Liste: Von und Betreff ziehbar, Vorschautext ein/aus ──
+// Wie die Spaltentrenner: Ziehen, Pfeiltasten, Doppelklick = Vorgabe; gemerkt
+// nur in diesem Browser. Kopfzeile und Mails teilen EIN Gitter (--listengitter).
+const LSPALTE_VORGABE = {von: 170, betreff: 260}, LSPALTE_MIN = 70, LSPALTE_MAX = 640;
+let lspalten = gemerkt('nf-listenspalten', LSPALTE_VORGABE);
+function lspaltenSetzen(merken) {
+  const el = document.getElementById('listenspalte');
+  for (const k of ['von', 'betreff']) {
+    lspalten[k] = Math.max(LSPALTE_MIN, Math.min(LSPALTE_MAX, Math.round(+lspalten[k] || LSPALTE_VORGABE[k])));
+    el.style.setProperty('--s-' + k, lspalten[k] + 'px');
+    const g = el.querySelector('.griff[data-s="' + k + '"]');
+    if (g) g.setAttribute('aria-valuenow', lspalten[k]);
+  }
+  if (merken) { try { localStorage.setItem('nf-listenspalten', JSON.stringify(lspalten)); } catch (e) { /* privat */ } }
+}
+document.querySelectorAll('.spaltenkopf .griff').forEach(g => {
+  const k = g.dataset.s;
+  ziehgriff(g, g.parentElement, (px, merken) => { lspalten[k] = px; lspaltenSetzen(merken); }, LSPALTE_VORGABE[k]);
+});
+lspaltenSetzen(false);
+
+function vorschautextMerken(an) {
+  document.getElementById('listenspalte').dataset.vorschautext = an ? '1' : '0';
+  try { localStorage.setItem('nf-vorschautext', an ? '' : '0'); } catch (e) { /* privat: nur für jetzt */ }
+}
+try { if (localStorage.getItem('nf-vorschautext') === '0') document.getElementById('f-vorschautext').checked = false; }
+catch (e) { /* ohne Speicher: Vorgabe an */ }
+vorschautextMerken(document.getElementById('f-vorschautext').checked);
+
+// ── Verfassen ────────────────────────────────────────────────────────────
+// Unterhaltungen: Option, Vorgabe aus — gemerkt nur in diesem Browser.
+function unterhaltungenMerken(an) {
+  try { localStorage.setItem('nf-unterhaltungen', an ? '1' : ''); } catch (e) { /* privat: nur für jetzt */ }
+  listeLaden(0);
+}
+try { document.getElementById('f-unterhaltungen').checked = localStorage.getItem('nf-unterhaltungen') === '1'; }
+catch (e) { /* ohne Speicher: Vorgabe aus */ }
+
+// Löschen = nach „Gelöschte Elemente“. Wirkt sofort in der Kopie; nach
+// Exchange schreibt das Gateway es im Hintergrund zurück.
+async function mailVerschieben(ziel, el) {
+  // Eine Auswahlliste ist kein Knopf — knopfAktion ersetzte ihren Inhalt.
+  const d = await knopfAktion(el.tagName === 'SELECT' ? null : el, 'Verschiebe…', () =>
+    postJSON('/notfall/api/verschieben', {postfach: nb.postfach, id: nb.mail, ziel: ziel}));
+  if (!d.ok) { alert(errText(d)); return; }
+  document.getElementById('lesen').innerHTML = '<p class="leise" style="padding:18px">'
+    + (ziel === 'deleteditems' ? 'Gelöscht.' : 'Verschoben.') + '</p>';
+  ansicht('liste');
+  await ordnerLaden();
+  listeLaden(0);
+}
+
+// Gelesen/ungelesen der geöffneten Mail — wie Löschen in der Kopie sofort,
+// nach Exchange im Hintergrund (für wen das Webmail zurückschreibt).
+async function gelesenUmschalten(knopf) {
+  const gelesen = nb.mailGelesen === false;
+  const d = await knopfAktion(knopf, 'Markiere…', () =>
+    postJSON('/notfall/api/gelesen', {postfach: nb.postfach, id: nb.mail, gelesen: gelesen}));
+  if (!d.ok) { alert(errText(d)); return; }
+  nb.mailGelesen = gelesen;
+  const zeile = document.querySelector('#liste .eintrag[data-id="' + CSS.escape(nb.mail) + '"]');
+  if (zeile) zeile.dataset.ungelesen = gelesen ? '0' : '1';
+  befehleSetzen();
+  ordnerLaden();
+}
+
+// art: '' (neu) | 'antwort' | 'allen' | 'weiterleiten' (bezieht sich auf nb.mail)
+async function verfassen(art, entwurf) {
+  let v = {an: '', cc: '', bcc: '', betreff: '', text: ''};
+  // Bezug fest am Formular — nicht nb.mail, das sich beim Weiterlesen ändert.
+  let bezug = art ? nb.mail : '', bezugPf = art ? nb.postfach : '';
+  let zitat = null;
+  if (entwurf) {
+    v = entwurf; bezug = entwurf.bezug; bezugPf = entwurf.bezug_postfach;
+  }
+  if (art && bezug) {
+    const d = await getJSON('/notfall/api/vorlage?' + q({postfach: bezugPf || nb.postfach, id: bezug, art: art}));
+    if (!d.ok) { alert(errText(d)); return; }
+    if (!entwurf) v = d;
+    // Ältere Entwürfe tragen das Zitat noch als „> “-Text: dann hängt der
+    // Server es nicht noch einmal an (notbetrieb_senden._ALTES_ZITAT).
+    if (!/^Am .+ schrieb .+:\n> /m.test(v.text || '')) zitat = d.zitat;
+  }
+  if (!nb.absender.length) { alert('Du darfst aus keinem Postfach senden.'); return; }
+  // Vorbelegter Absender: das gerade geöffnete Postfach, wenn es ein Senderecht hat.
+  const von = entwurf && nb.absender.find(a => a.postfach === entwurf.postfach) ? entwurf.postfach
+    : nb.absender.find(a => a.postfach === nb.postfach) ? nb.postfach : nb.absender[0].postfach;
+  const recht = {eigen: '', als: ' (senden als)', auftrag: ' (im Auftrag)'};
+  const el = document.getElementById('lesen');
+  el.innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
+    + '<form id="verfassen" onsubmit="absenden(event)" oninput="entwurfMerken(); sigVorschauBald(event)">'
+    + '<div class="zeile"><label for="vf-von">Von</label><select id="vf-von">' + nb.absender.map(a =>
+        '<option value="' + escAttr(a.postfach) + '"' + (a.postfach === von ? ' selected' : '') + '>'
+        + esc(a.postfach + recht[a.recht]) + '</option>').join('') + '</select></div>'
+    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-an" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">An</button><input id="vf-an" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="An" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.an) + '"></div>'
+    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-cc" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">Cc</button><input id="vf-cc" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Cc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.cc) + '"></div>'
+    + '<div class="zeile"><button type="button" class="feldknopf" data-feld="vf-bcc" onclick="adressbuchOeffnen(this.dataset.feld)" title="Adressbuch öffnen">Bcc</button><input id="vf-bcc" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Bcc" list="vf-vorschlaege" autocomplete="off" oninput="adressVorschlag(this)" value="' + escAttr(v.bcc || '') + '"><datalist id="vf-vorschlaege"></datalist></div>'
+    + '<div class="zeile"><label for="vf-betreff">Betreff</label><input id="vf-betreff" value="' + escAttr(v.betreff) + '"></div>'
+    + '<textarea id="vf-text" aria-label="Text">' + esc(v.text) + '</textarea>'
+    + (zitat ? zitatVorschau(zitat, art, bezugPf || nb.postfach, bezug) : '')
+    + '<details class="sigvorschau" id="vf-sig" open><summary id="vf-sig-titel">Was beim Senden angehängt wird</summary>'
+    + '<div id="vf-sig-inhalt"><div class="leise">Wird berechnet…</div></div></details>'
+    + '<div class="zeile"><label for="vf-dateien">Anhänge</label><input id="vf-dateien" type="file" multiple></div>'
+    + '<div class="aktionen"><button class="haupt" id="vf-senden" type="submit">Senden</button>'
+    + '<button type="button" onclick="verwerfen(this)">Verwerfen</button>'
+    + '<span class="leise" id="vf-entwurf">' + (entwurf ? 'Entwurf vom ' + esc(datumKurz(entwurf.ts)) : '') + '</span></div>'
+    + '<div class="leise">Entwürfe sichern sich von selbst (ohne Anhänge).</div>'
+    + '<div class="meldung" id="vf-meldung" hidden></div></form>';
+  el.dataset.art = art || '';
+  nb.entwurf = {id: entwurf ? entwurf.id : '', bezug: bezug || '', bezugPf: bezugPf || '', takt: null};
+  sigVorschau();
+  ansicht('lesen');
+  document.getElementById(art ? 'vf-text' : 'vf-an').focus();
+}
+
+// Das Original unter dem Textfeld, eingeklappt: Der Server hängt es beim
+// Senden als HTML an (Outlook-Aufbau) — es steht nicht mehr als „> “-Text im Feld.
+function zitatVorschau(z, art, postfach, id) {
+  return '<details class="zitat"><summary>' + (art === 'weiterleiten'
+      ? 'Die weitergeleitete Nachricht wird unten angefügt, mit ihren Anhängen'
+      : 'Die ursprüngliche Nachricht wird unten angefügt') + '</summary>'
+    + '<div class="kopf">' + z.kopf.map(k => '<b>' + esc(k.feld) + ':</b> ' + esc(k.wert)).join('<br>') + '</div>'
+    + (z.html
+       ? '<iframe sandbox="" referrerpolicy="no-referrer" title="Ursprüngliche Nachricht" loading="lazy" src="/notfall/inhalt?'
+         + escAttr(q({postfach: postfach, id: id})) + '"></iframe>'
+       : '<pre>' + esc(z.text || '') + '</pre>')
+    + '</details>';
+}
+
+// Signatur, Banner, Disclaimer: Der Server schickt den Entwurf als Probelauf
+// durch denselben Handler wie beim Senden (Absender, Empfänger intern/extern,
+// Betreff-Trigger, Original). Neu gerechnet, wenn sich davon etwas ändert —
+// nicht beim Tippen im Text, der ändert nichts daran.
+function sigVorschauBald(ev) {
+  if (!ev || ['vf-text', 'vf-dateien'].includes(ev.target.id)) return;
+  clearTimeout(nb.sigTakt);
+  nb.sigTakt = setTimeout(sigVorschau, 1000);
+}
+async function sigVorschau() {
+  if (!document.getElementById('vf-sig')) return;
+  const nr = nb.sigNr = (nb.sigNr || 0) + 1;
+  const art = document.getElementById('lesen').dataset.art || '';
+  const d = await postJSON('/notfall/api/vorschau', {
+    postfach: document.getElementById('vf-von').value, an: feldWert('vf-an'), cc: feldWert('vf-cc'),
+    bcc: feldWert('vf-bcc'), betreff: feldWert('vf-betreff'), bezug: art ? nb.entwurf.bezug : '',
+    art: art || 'neu', bezug_postfach: art ? nb.entwurf.bezugPf : ''});
+  const titel = document.getElementById('vf-sig-titel'), inhalt = document.getElementById('vf-sig-inhalt');
+  if (nr !== nb.sigNr || !titel) return;                // inzwischen neu gerechnet oder Formular weg
+  const hinweis = t => '<div class="leise">' + esc(t) + '</div>';
+  if (!d.ok) { titel.textContent = 'Was beim Senden angehängt wird'; inhalt.innerHTML = hinweis(errText(d)); return; }
+  titel.textContent = {
+    angehaengt: 'Diese Signatur, Banner und Disclaimer werden angehängt',
+    nichts: 'Es wird nichts angehängt',
+    verschluesselt: 'Die Mail wird verschlüsselt',
+    nicht_gesendet: 'So würde die Mail nicht gesendet'}[d.zustand] + (d.smime ? ' · S/MIME-signiert' : '');
+  inhalt.innerHTML = (d.url ? '<iframe sandbox="" referrerpolicy="no-referrer" title="Vorschau: was angehängt wird" src="'
+                       + escAttr(d.url) + '"></iframe>' : '')
+    + (d.zustand === 'nichts' ? hinweis('Für dieses Postfach und diese Empfänger hängt das Gateway weder Signatur '
+                                          + 'noch Banner oder Disclaimer an.') : '')
+    + (d.zustand === 'verschluesselt' ? hinweis('Signatur und Banner werden vor dem Verschlüsseln angehängt; '
+                                                 + 'eine Vorschau ist dann nicht möglich.') : '')
+    + (d.meldung ? hinweis(d.meldung) : '')
+    + (d.ohne_empfaenger ? hinweis('Noch keine Empfänger: gerechnet wie an externe. An interne Empfänger '
+                                     + 'kann es anders aussehen.') : '');
+}
+
+function dateiLesen(datei) {
+  return new Promise((ok, fehler) => {
+    const r = new FileReader();
+    r.onload = () => ok({name: datei.name, typ: datei.type || 'application/octet-stream',
+                         daten: String(r.result).split(',', 2)[1] || ''});
+    r.onerror = () => fehler(r.error);
+    r.readAsDataURL(datei);
+  });
+}
+
+async function absenden(ev) {
+  ev.preventDefault();
+  const art = document.getElementById('lesen').dataset.art || '';
+  const dateien = [...document.getElementById('vf-dateien').files];
+  const meldung = document.getElementById('vf-meldung');
+  // Das Abwarten eines laufenden Sicherns gehört in den Knopf: gesperrt, „Sende…“
+  // (Klicktest: sonst sah man Sekunden lang nichts und klickte womöglich nochmal).
+  const d = await knopfAktion('vf-senden', 'Sende…', async () => {
+    await entwurfFertig();                    // erst danach steht die Kennung des Entwurfs fest
+    return postJSON('/notfall/api/senden', {
+    postfach: document.getElementById('vf-von').value, an: feldWert('vf-an'), cc: feldWert('vf-cc'),
+    bcc: feldWert('vf-bcc'), betreff: feldWert('vf-betreff'), text: document.getElementById('vf-text').value,
+    anhaenge: await Promise.all(dateien.map(dateiLesen)), bezug: art ? nb.entwurf.bezug : '', art: art || 'neu',
+    bezug_postfach: art ? nb.entwurf.bezugPf : '', entwurf: nb.entwurf.id});
+  });
+  if (!d.ok) { meldung.textContent = errText(d); meldung.hidden = false; return; }
+  clearTimeout(nb.entwurf.takt);
+  nb.entwurf = {id: '', takt: null};
+  document.getElementById('lesen').innerHTML = '<button class="zurueck" onclick="ansicht(\'liste\')">← Zurück</button>'
+    + '<div class="ok" style="margin:18px">' + (d.ueber === 'exchange'
+      ? 'Gesendet über Exchange. Die Kopie erscheint in wenigen Minuten auch in Outlook unter „Gesendete Elemente“.'
+      : 'Gesendet. Die Mail liegt unter „Gesendete Elemente“ und wird nach der Störung nach Exchange übernommen.')
+    + '</div>';
+  ordnerLaden();
+}
+
+// Sichern 1,5 s nach der letzten Eingabe — nicht je Tastendruck.
+function entwurfMerken() {
+  clearTimeout(nb.entwurf.takt);
+  nb.entwurf.takt = setTimeout(entwurfSichern, 1500);
+}
+
+// Ein laufendes Sichern merken: Senden und Verwerfen warten es ab. Sonst kannte
+// das Senden die Kennung eines gerade erst angelegten Entwurfs noch nicht, und
+// das Sichern legte ihn danach trotzdem an (Klicktest: Entwurf blieb stehen).
+function entwurfSichern() {
+  nb.entwurf.laeuft = entwurfSichernJetzt().finally(() => { nb.entwurf.laeuft = null; });
+  return nb.entwurf.laeuft;
+}
+
+async function entwurfFertig() {
+  clearTimeout(nb.entwurf.takt);
+  if (nb.entwurf.laeuft) await nb.entwurf.laeuft;
+}
+
+async function entwurfSichernJetzt() {
+  if (!document.getElementById('verfassen')) return;
+  const art = document.getElementById('lesen').dataset.art || '';
+  const d = await postJSON('/notfall/api/entwurf', {
+    id: nb.entwurf.id, postfach: document.getElementById('vf-von').value, an: feldWert('vf-an'),
+    cc: feldWert('vf-cc'), bcc: feldWert('vf-bcc'), betreff: feldWert('vf-betreff'),
+    text: document.getElementById('vf-text').value, art: art, bezug: nb.entwurf.bezug,
+    bezug_postfach: nb.entwurf.bezugPf});
+  const el = document.getElementById('vf-entwurf');
+  if (d.ok) nb.entwurf.id = d.id;
+  if (el) el.textContent = d.ok ? 'Entwurf gesichert ' + new Date(d.ts).toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'})
+                                : 'Entwurf nicht gesichert: ' + errText(d);
+}
+
+async function verwerfen(knopf) {
+  if (!confirm('Entwurf verwerfen?')) return;
+  await knopfAktion(knopf, 'Verwerfe…', async () => {
+    await entwurfFertig();
+    if (nb.entwurf.id) await postJSON('/notfall/api/entwurf/loeschen', {id: nb.entwurf.id});
+    return {ok: true};
+  });
+  nb.entwurf = {id: '', takt: null};
+  document.getElementById('lesen').innerHTML = '<p class="leise" style="padding:18px">Verworfen.</p>';
+  ansicht('liste');
+}
+
+zugaenglichMachen(document.body);
+{% if einrichten %}einrichtenStart();{% else %}start().then(kopfhoeheMerken);{% endif %}
+</script>
+</body>
+</html>

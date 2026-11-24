@@ -121,6 +121,18 @@ def _abwesenheit_aktiv() -> bool:
 templates.env.globals["abwesenheit_aktiv"] = _abwesenheit_aktiv
 
 
+def _notbetrieb_sichtbar() -> bool:
+    """Ob der Menüpunkt Notbetrieb erscheint (an oder Kopie vorhanden)."""
+    try:
+        import notbetrieb
+        return notbetrieb.sichtbar()
+    except Exception:                                   # noqa: BLE001
+        return False                                    # nie die Seite kippen
+
+
+templates.env.globals["notbetrieb_sichtbar"] = _notbetrieb_sichtbar
+
+
 def _utc_anzeige(iso: str) -> str:
     """„2026-11-06T23:03:59Z“ → „06.11.2026 23:03 UTC“; Unlesbares unverändert."""
     from datetime import datetime
@@ -198,6 +210,21 @@ def _wartung_gemeldet() -> dict | None:
 
 
 templates.env.globals["wartung_gemeldet"] = _wartung_gemeldet
+
+
+def _notfall_gemeldet() -> dict | None:
+    """Notfall ausgerufen? {lokal_offen} oder None. Eine liegengebliebene
+    Ausrufung lenkt den ganzen Mailfluss um — sie muss überall sichtbar sein."""
+    try:
+        import notbetrieb
+        if not notbetrieb.ausgerufen():
+            return None
+        return {"lokal_offen": notbetrieb._bestand().get("lokal_offen", 0)}
+    except Exception:                                       # noqa: BLE001
+        return None
+
+
+templates.env.globals["notfall_gemeldet"] = _notfall_gemeldet
 
 
 def _zustellfehler_stand() -> dict:

@@ -1,0 +1,1011 @@
+{% extends "base.html" %}
+{% from "_filterfeld.html" import filterfeld %}
+{% block content %}
+<h1>EXO-Ausfallschutz <span style="display:inline-block;font-size:10px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle">PREVIEW</span></h1>
+
+{% if not aktiv %}
+<div class="alert warn" style="margin-bottom:14px">
+  Der Notbetrieb ist <strong>aus</strong>, es liegt aber noch eine Kopie. Sie wird nicht mehr
+  nachgeführt. Spiele zurück, was im Notbetrieb angenommen wurde, und lösche sie dann —
+  oder schalte den Notbetrieb im <a href="/setup#step-mode" style="color:inherit;font-weight:700">Assistenten</a> wieder ein.
+</div>
+{% endif %}
+
+<style>
+  .nb-tabelle th, .nb-tabelle td {
+    padding:6px 8px; text-align:left; border-bottom:1px solid #e5e7eb; font-size:13px; vertical-align:top }
+  [data-theme="dark"] .nb-tabelle th, [data-theme="dark"] .nb-tabelle td { border-bottom-color:#334155 }
+  .nb-tabelle th { font-weight:600; color:#555; font-size:12px }
+  .nb-tage { width:5em }
+  /* Einklappbarer Abschnitt einer Karte: Kopf wie eine h3, Pfeil davor. Der
+     Kopf darf einen Zustand tragen (.nb-klapp-zustand), damit er auch
+     zugeklappt sichtbar bleibt. Ein Anker aufs <details> öffnet es (base.html). */
+  /* Lage des Notfalls: Zustand und EIN Knopf — der folgenreichste Schalter
+     des Gateways sah vorher aus wie jedes andere Kästchen. */
+  .nb-lage { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:12px 14px; border-radius:8px;
+             border:1px solid #bbf7d0; background:#f0fdf4; color:#166534 }
+  .nb-lage[data-lage="notfall"] { border-color:#fca5a5; background:#fef2f2; color:#991b1b }
+  [data-theme="dark"] .nb-lage { border-color:#166534; background:#0a1f10; color:#86efac }
+  [data-theme="dark"] .nb-lage[data-lage="notfall"] { border-color:#991b1b; background:#1f0a0a; color:#fca5a5 }
+  .nb-lage-text { flex:1 1 320px; display:flex; flex-direction:column; gap:2px; font-size:13px }
+  .nb-lage-text strong { font-size:15px }
+  .nb-ablauf { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:4px 28px; margin-top:6px }
+  .nb-schritte { margin:0; padding-left:20px; font-size:13px; line-height:1.6 }
+  .nb-schritte li { margin-bottom:2px }
+  .nb-eingerueckt { padding-left:26px }
+  .nb-zusatz { display:inline }
+  /* Kennzahlen als Übersicht statt einer langen Zeile: Bezeichnung │ Wert. */
+  .nb-kennzahlen { display:grid; grid-template-columns:max-content 1fr; gap:4px 16px; margin:8px 0 12px; font-size:13px }
+  .nb-kennzahlen dt { color:#64748b }
+  [data-theme="dark"] .nb-kennzahlen dt { color:#94a3b8 }
+  .nb-kennzahlen dd { margin:0 }
+  @media (max-width:600px) { .nb-kennzahlen { grid-template-columns:1fr; gap:0 } .nb-kennzahlen dd { margin-bottom:6px } }
+  .nb-klapp { border-top:1px solid #e5e7eb; padding:2px 0 }
+  [data-theme="dark"] .nb-klapp { border-top-color:#334155 }
+  .nb-klapp > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+                        padding:10px 0; font-size:13px; font-weight:600 }
+  .nb-klapp > summary::-webkit-details-marker { display:none }
+  .nb-klapp > summary::before { content:"\25B8"; width:1em }
+  .nb-klapp[open] > summary::before { content:"\25BE" }
+  .nb-klapp > summary .hint { font-weight:400; margin:0 }
+  .nb-klapp-inhalt { padding:0 0 10px 1.6em }
+  .nb-klapp-zustand { margin-left:0; white-space:normal; font-weight:400 }
+</style>
+
+<!-- Notfall -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Notfall</h2>
+  <div class="nb-lage" id="nb-lage" data-lage="{{ 'notfall' if ausgerufen else 'normal' }}">
+    <div class="nb-lage-text">
+      {% if ausgerufen %}
+      <strong>Notfall ausgerufen</strong>
+      <span>Post geht nicht an Exchange: Interne Empfänger bekommen sie in die Kopie (Notfall-Webmail),
+        externe über den Direktversand. Nach der Störung beenden und zurückspielen.</span>
+      {% else %}
+      <strong>Normalbetrieb</strong>
+      <span>Post läuft wie gewohnt über Exchange Online. Ruf den Notfall erst aus, wenn Exchange Online
+        ausgefallen ist.</span>
+      {% endif %}
+    </div>
+    <button type="button" class="btn {{ 'secondary' if ausgerufen else 'danger' }}" id="nb-ausrufen-btn"
+            {% if not aktiv %}disabled{% endif %} onclick="nbAusrufen({{ 'false' if ausgerufen else 'true' }})">
+      {{ 'Notfall beenden …' if ausgerufen else 'Notfall ausrufen …' }}</button>
+  </div>
+  <div class="msg" id="nb-ausgerufen-msg" hidden></div>
+  <p class="hint" style="margin:10px 0 0">Ohne Direktversand bleibt Post an externe Empfänger im Notfall in der
+    Warteschlange.</p>
+
+  <div class="nb-ablauf">
+    <div>
+      <h3>Im Ernstfall</h3>
+      <ol class="nb-schritte">
+        <li><strong>Notfall ausrufen</strong> (oben) — ab dann geht Post in die Kopie statt an Exchange.</li>
+        <li>Beim DNS-Anbieter den <strong>MX</strong> jeder Domäne auf dieses Gateway stellen (kurze TTL vorab hilft).</li>
+        <li>In der Firewall <strong>Port 25 aus dem Internet</strong> zum Gateway öffnen (sonst nur Microsoft).</li>
+        <li>Den Mitarbeitern das Notfall-Webmail nennen: <code>{{ webmail_url }}</code></li>
+        <li>Unter Bereitschaft <strong>„Jetzt prüfen“</strong>: Der MX muss auf das Gateway zeigen.</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Nach der Störung</h3>
+      <ol class="nb-schritte">
+        <li>MX zurück auf Exchange Online, Port 25 wieder nur für Microsoft.</li>
+        <li><strong>Notfall beenden</strong> (oben).</li>
+        <li>Unter Kopie für den Ernstfall <strong>„Zurückspielen“</strong> — Post aus dem Notbetrieb geht nach
+          Exchange; doppelt Eingespieltes wird erkannt.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- Bereitschaft -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Bereitschaft</h2>
+  <p class="hint" style="margin-top:0">
+    Würde der Notbetrieb jetzt funktionieren? Geprüft werden Kopie, Rechte, Profile, Anmeldung am
+    Domänencontroller, Versand nach außen und Zertifikat — dazu, wohin der MX jeder Domäne zeigt.
+  </p>
+  <div style="margin-top:10px">
+    <button class="btn secondary btn-sm" id="nb-bereit-btn" onclick="nbBereitschaft()">Jetzt prüfen</button>
+  </div>
+  <div class="tabellen-rollbereich">
+  <table class="nb-tabelle" id="nb-bereit-tabelle" style="width:100%;min-width:520px;border-collapse:collapse;margin-top:8px" hidden>
+    <thead><tr><th>Punkt</th><th>Zustand</th><th>Befund</th></tr></thead><tbody></tbody>
+  </table>
+  </div>
+  <div class="tabellen-rollbereich">
+  <table class="nb-tabelle" id="nb-mx-tabelle" style="width:100%;min-width:520px;border-collapse:collapse;margin-top:8px" hidden>
+    <thead><tr><th>Domäne</th><th>MX zeigt auf</th><th>Einträge</th></tr></thead><tbody></tbody>
+  </table>
+  </div>
+  <div class="msg" id="nb-bereit-msg" style="margin-top:6px" hidden></div>
+</div>
+
+<!-- Vor dem Notfall -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Vor dem Notfall: kennenlernen und üben</h2>
+  <p class="hint" style="margin:0 0 10px">
+    Anmelden kann sich jeder jederzeit — so richten alle den Zugang vorab auf ihren Geräten ein. Inhalte zeigt
+    das Webmail vor dem Notfall nur der Probegruppe; alle anderen sehen „bereit“ — außer du gibst die Kopie unten
+    für alle frei.
+  </p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-lesen-alle" {% if lesen_alle %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
+             onchange="nbSchalter(this, {NOTBETRIEB_LESEN_ALLE: this.checked}, 'nb-lesen-alle-msg'); nbSendenFreigeben()">
+      Kopie schon im Normalbetrieb für alle lesbar <span class="hint nb-zusatz">— im Webmail, nur lesen</span>
+    </label>
+  </div>
+  <div class="msg" id="nb-lesen-alle-msg" hidden></div>
+  <div class="settings-row nb-eingerueckt">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-senden-alle" {% if senden_alle %}checked{% endif %}
+             {% if not aktiv or not lesen_alle %}disabled{% endif %}
+             onchange="nbSchalter(this, {NOTBETRIEB_SENDEN_ALLE: this.checked}, 'nb-senden-alle-msg')">
+      Auch senden <span class="hint nb-zusatz">— über Exchange, wie jede Mail des Gateways</span>
+    </label>
+  </div>
+  <div class="msg" id="nb-senden-alle-msg" hidden></div>
+  <p class="hint">
+    So sieht jeder, was im Ausfall da wäre, und kennt die Oberfläche schon. Das Webmail zeigt oben, wie alt die
+    Kopie ist und wie weit sie zurückreicht. Gesendetes legt das Gateway selbst unter „Gesendete Elemente“ nach
+    Exchange zurück — derselbe Weg wie nach einer Störung, nur laufend.
+  </p>
+
+  <div class="settings-row" style="margin-top:12px">
+    <label for="nb-probegruppe">Probegruppe</label>
+    <div class="settings-control">
+      <textarea id="nb-probegruppe" rows="3" style="width:100%"
+        placeholder="max.mustermann@firma.at">{{ probegruppe | join('\n') }}</textarea>
+      <div class="hint" style="margin-top:4px">Eine Adresse je Zeile. Liest und sendet schon jetzt wie im
+        Notfall: sieht die Kopie auch ohne „für alle lesbar“ und sendet am Exchange vorbei (Probealarm: externe
+        per Direktversand, interne nur in die Kopie).</div>
+    </div>
+  </div>
+  <div class="settings-row">
+    <button class="btn secondary" id="nb-probe-btn" data-wache="nb-probegruppe"
+            data-wache-hinweis="nb-probe-result" onclick="nbProbeSpeichern()">Speichern</button>
+    <span id="nb-probe-result"></span>
+  </div>
+</div>
+
+<!-- Stand -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Kopie für den Ernstfall</h2>
+  <p class="hint" style="margin-top:0">
+    Das Gateway hält die Ordnerstruktur jedes aktivierten Postfachs und darin die Post der
+    eingestellten Tage. Nachgeführt wird alle 15 Minuten; was aus dem Fenster fällt, wird gelöscht.
+  </p>
+  <dl id="nb-stand" class="nb-kennzahlen"><dt>Stand</dt><dd>Lädt…</dd></dl>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    {% if aktiv %}<button class="btn secondary btn-sm" id="nb-abgleich-btn" onclick="nbAbgleich()">Jetzt abgleichen</button>{% endif %}
+    <button class="btn secondary btn-sm" id="nb-zurueck-btn" onclick="nbZurueck()"
+            title="Im Notbetrieb angenommene Post nach Exchange spielen — Doppeltes erkennt es an der Message-ID">Zurückspielen</button>
+    <span id="nb-abgleich-laeuft" hidden></span>
+    <button class="btn danger btn-sm" id="nb-loeschen-btn" onclick="nbLoeschen()"
+            title="Die ganze Kopie auf diesem Gateway löschen — verweigert, solange angenommene Post nicht zurückgespielt ist">Kopie löschen</button>
+  </div>
+  <div class="msg" id="nb-msg" style="margin-top:6px" hidden></div>
+</div>
+
+<!-- Fenster -->
+<div class="settings-card" id="nb-fenster-karte" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Wie weit die Kopie reicht</h2>
+  <p class="hint" style="margin-top:0">
+    Tage zurück für Mail, zurück und voraus für den Kalender. Regeln gelten von oben nach unten —
+    die erste passende gewinnt, wie bei den Gruppen-Richtlinien. Greift keine, gilt die Vorgabe.
+  </p>
+  <h3>Welche Postfächer</h3>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="radio" name="nb-umfang" id="nb-umfang-alle" value="alle" {% if umfang == 'alle' %}checked{% endif %}>
+      Alle Benutzer- und geteilten Postfächer
+    </label>
+  </div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="radio" name="nb-umfang" id="nb-umfang-aktivierte" value="aktivierte" {% if umfang == 'aktivierte' %}checked{% endif %}>
+      Nur die im Gateway aktivierten, samt geteilter Postfächer mit Vollzugriff
+    </label>
+  </div>
+
+  <h3>Vorgabe</h3>
+  <div class="settings-row">
+    <label for="nb-std-mail">Mail (Tage zurück)</label>
+    <div class="settings-control"><input type="number" class="nb-tage" id="nb-std-mail" min="0" max="{{ max_tage }}" value="{{ fenster.mail }}"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-std-kal_zurueck">Kalender (Tage zurück)</label>
+    <div class="settings-control"><input type="number" class="nb-tage" id="nb-std-kal_zurueck" min="0" max="{{ max_tage }}" value="{{ fenster.kal_zurueck }}"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-std-kal_vor">Kalender (Tage voraus)</label>
+    <div class="settings-control"><input type="number" class="nb-tage" id="nb-std-kal_vor" min="0" max="{{ max_tage }}" value="{{ fenster.kal_vor }}"></div>
+  </div>
+
+  <h3>Abweichungen je Gruppe oder Postfach</h3>
+  <div class="tabellen-rollbereich">
+    <table id="nb-regel-tabelle" class="nb-tabelle" style="min-width:560px;width:100%;border-collapse:collapse">
+      <thead><tr><th>Gilt für</th><th>Mail</th><th>Kal. zurück</th><th>Kal. voraus</th><th></th></tr></thead>
+      <tbody id="nb-regel-tbody"></tbody>
+    </table>
+  </div>
+  <div style="margin-top:8px">
+    <button class="btn secondary btn-sm" id="nb-regel-neu-btn" onclick="nbRegelNeu()">Regel hinzufügen</button>
+  </div>
+
+  <!-- Platzbedarf: direkt bei den Feldern, damit „was wäre wenn“ ohne Speichern
+       sichtbar ist — vorher stand es in einer eigenen Karte darunter. -->
+  <h3>Reicht der Platz?</h3>
+  <div class="msg" id="nb-platz-urteil" style="margin-top:0" hidden></div>
+  <p class="hint" id="nb-platz-wofuer" style="margin:6px 0 0">Gerechnet für die Werte oben — ändere sie und sieh
+    sofort, ob es passt. Erst „Speichern“ übernimmt sie, „Änderungen verwerfen“ stellt den gespeicherten Stand
+    wieder her.</p>
+  <p class="hint" id="nb-platz-text" style="margin:6px 0 0"></p>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px">
+    <button class="btn secondary btn-sm" id="nb-messen-btn" onclick="nbMessen()">Platzbedarf messen</button>
+    <span id="nb-messen-stand" class="fortschritt" hidden></span>
+    <span class="hint">Einmal messen genügt: die Post der letzten {{ mess_tage }} Tage live in Exchange, längere
+      Fenster aus dem Tagesmittel hochgerechnet.</span>
+  </div>
+
+  <div class="actions" style="margin-top:14px">
+    <button class="btn secondary" id="nb-fenster-btn" data-wache-container="#nb-fenster-karte"
+            data-wache-hinweis="nb-fenster-result"
+            onclick="nbFensterSpeichern()">Speichern</button>
+    <button class="btn secondary" id="nb-fenster-verwerfen" onclick="nbFensterVerwerfen()" hidden>Änderungen verwerfen</button>
+    <span id="nb-fenster-result"></span>
+  </div>
+</div>
+
+<!-- Zugriffsrechte -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Postfachberechtigungen</h2>
+  <p class="hint" style="margin-top:0">
+    Abbild von Vollzugriff, „Senden als“ und „Senden im Auftrag“ aus Exchange, täglich erneuert.
+    Im Störfall gilt der zuletzt gesehene Stand. Postfächer, auf die ein aktiviertes Postfach
+    Vollzugriff hat, kommen mit in die Kopie. Gruppen werden eine Ebene tief aufgelöst.
+    Mitgelesen werden Verteiler, Microsoft-365-Gruppen und externe Benutzer: Post an sie
+    stellt das Gateway im Notfall den Mitgliedern bzw. an die externe Adresse zu.
+  </p>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    {% if aktiv %}<button class="btn secondary btn-sm" id="nb-rechte-btn" onclick="nbRechteAbgleichen()">Rechte jetzt lesen</button>{% endif %}
+    <span id="nb-rechte-stand" class="muted"></span>
+  </div>
+  <div class="msg" id="nb-rechte-msg" style="margin-top:6px" hidden></div>
+  <div class="tabellen-rollbereich" style="margin-top:10px">
+    <table id="nb-rechte-tabelle" class="nb-tabelle" style="min-width:640px;width:100%;border-collapse:collapse">
+      <thead><tr><th>Postfach</th><th>Art</th><th>Vollzugriff</th><th>Senden als</th><th>Im Auftrag</th></tr></thead>
+      <tbody id="nb-rechte-tbody"><tr><td colspan="5" class="muted">Lädt…</td></tr></tbody>
+    </table>
+  </div>
+  <h3>Was sieht jemand im Notbetrieb?</h3>
+  <div class="settings-row">
+    <label for="nb-wer">Anmeldename oder Adresse</label>
+    <div class="settings-control" style="display:flex;gap:6px;flex-wrap:wrap">
+      <input autocapitalize="none" autocorrect="off" spellcheck="false" type="text" id="nb-wer" placeholder="max.mustermann@firma.at" style="min-width:220px">
+      <button class="btn secondary btn-sm" id="nb-wer-btn" onclick="nbZugriff()">Zeigen</button>
+    </div>
+  </div>
+  <p class="hint" id="nb-wer-ergebnis" style="margin:4px 0 0"></p>
+</div>
+
+<!-- Post von außen -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Post von außen im Notfall</h2>
+  <p class="hint" style="margin-top:0">
+    Solange der Notfall ausgerufen ist, nimmt das Gateway Post aus dem Internet an — nur für Postfächer
+    des eigenen Tenants, alles andere wird schon beim Empfänger abgewiesen (kein offenes Relay).
+    Damit sie ankommt, zeigt der MX der Domäne auf das Gateway und die Firewall lässt Port 25 aus dem
+    Internet durch; beides ist im Normalbetrieb nicht so und wird nach der Störung zurückgestellt.
+    Geprüft werden SPF, DKIM und DMARC: abweisen, was die Absenderdomäne so verlangt oder sich als
+    eigene Domäne ausgibt, Zweifelhaftes in Junk-E-Mail. Noch ohne Inhaltsfilter.
+  </p>
+  <dl id="nb-eingang-stand" class="nb-kennzahlen"></dl>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-eingang-grey" {% if eingang.greylist %}checked{% endif %}>
+      Greylisting — erster Versuch eines unbekannten Absenders wird um einige Minuten aufgeschoben
+    </label>
+  </div>
+  <div class="settings-row">
+    <label for="nb-eingang-empf">Empfänger je Mail höchstens</label>
+    <div class="settings-control"><input type="number" id="nb-eingang-empf" min="1" max="1000" value="{{ eingang.max_empf }}" class="nb-tage"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-eingang-mb">Größe je Mail höchstens (MB)</label>
+    <div class="settings-control"><input type="number" id="nb-eingang-mb" min="1" max="150" value="{{ eingang.max_mb }}" class="nb-tage"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-eingang-stunde">Mails je Absendernetz und Stunde</label>
+    <div class="settings-control"><input type="number" id="nb-eingang-stunde" min="1" max="10000" value="{{ eingang.je_stunde }}" class="nb-tage"></div>
+  </div>
+  <div class="settings-row">
+    <button class="btn secondary" id="nb-eingang-btn" data-wache="nb-eingang-grey,nb-eingang-empf,nb-eingang-mb,nb-eingang-stunde"
+            data-wache-hinweis="nb-eingang-result" onclick="nbEingangSpeichern()">Speichern</button>
+    <span id="nb-eingang-result"></span>
+  </div>
+</div>
+
+<!-- On-Prem-Postfächer -->
+<div class="settings-card" id="nb-onprem-karte" style="margin-bottom:18px">
+  <h2 style="margin-top:0">On-Prem-Postfächer</h2>
+  <p class="hint" style="margin-top:0">
+    Liegen Postfächer noch auf einem eigenen Exchange-Server (gemeinsamer Namensraum: Exchange Online führt
+    sie als externe Benutzer mit eigener Adresse), leitet Exchange Online deren Post im Normalbetrieb dorthin.
+    Im Notfall übernimmt das Gateway — über einen Zielserver aus
+    <a href="/settings/routing#weiterleitungsziele">Einstellungen → Mail-Routing</a>. Weitergeleitet wird nur,
+    was im Abbild als On-Prem-Postfach steht, nie eine ganze Domäne. Gibt es für die Domäne schon eine
+    Route auf einen Zielserver, gilt diese. Ohne Ziel weist das Gateway solche Post im Notfall ab bzw. legt
+    sie in die Warteschlange; nach der Störung stellt Exchange sie zu.
+  </p>
+  <p class="hint" id="nb-onprem-stand" style="margin:6px 0">{{ onprem.postfaecher }} Postfächer liegen on-prem,
+    {{ onprem.ohne_ziel }} davon ohne Ziel.</p>
+  <div class="settings-row">
+    <label for="nb-onprem-ziel">Ziel im Notfall</label>
+    <div class="settings-control">
+      <select id="nb-onprem-ziel" data-vorher="{{ onprem_ziel }}" onchange="nbOnpremZiel(this)">
+        <option value="">— keines —</option>
+        {% for z in routing_ziele %}<option value="{{ z }}" {% if z == onprem_ziel %}selected{% endif %}>{{ z }}</option>{% endfor %}
+      </select>
+      <span id="nb-onprem-ziel-msg"></span>
+    </div>
+  </div>
+  {% if not routing_ziele %}
+  <p class="hint">Noch kein Zielserver angelegt — zuerst unter
+    <a href="/settings/routing#weiterleitungsziele">Einstellungen → Mail-Routing</a> den On-Prem-Server eintragen.</p>
+  {% endif %}
+  <div class="settings-row">
+    <button class="btn secondary" id="nb-onprem-probe-btn" onclick="nbOnpremProbe()">Weg prüfen</button>
+    <span id="nb-onprem-probe-msg"></span>
+  </div>
+  <p class="hint" style="margin:4px 0 0">„Weg prüfen“ verbindet sich wie die Zustellung und fragt bis zum
+    Empfänger (RCPT) — ohne etwas zu senden. Das Ergebnis zählt zur Bereitschaft. Löst der Name des Ziels
+    nur öffentlich auf, ginge die Post im Notfall über den Internetanschluss zurück ins eigene Netz — ein
+    Eintrag unter <a href="/advanced#hosts-eintraege">Einstellungen → Erweitert → Hosts-Einträge</a> führt sie
+    direkt hin, die Zertifikatsprüfung bleibt beim Namen.</p>
+</div>
+
+<!-- Direktversand-Probe -->
+<p class="hint" style="margin:-6px 0 18px">Ob der Weg nach außen trägt, prüft die tägliche Probe unter
+  <a href="/settings/routing#direktversand-probe">Einstellungen → Mail-Routing</a>; ihr Ergebnis zählt zur Bereitschaft.</p>
+
+<!-- Auf die Geräte -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Webmail auf die Geräte bringen</h2>
+  <p class="hint" style="margin-top:0">
+    Im Notfall installiert niemand mehr etwas — bring die Notfall-Mail vorher auf die Geräte.
+    <strong>Die Nutzer öffnen die App und werden geführt:</strong> Im Normalbetrieb zeigt sie „Dein
+    Notfall-Zugang“ — Microsoft-Anmeldung, dann Passkey oder Authenticator-App einrichten. Im ausgerufenen
+    Notfall zeigt sie zuerst die Anmeldung. Niemand braucht eine Adresse. Verteile immer diese, Passkeys gelten
+    nur für den Namen, unter dem sie eingerichtet wurden: <code>{{ webmail_url }}</code>.
+  </p>
+  <p class="hint" id="nb-faktor-abdeckung">
+    Zweiter Faktor: <strong>{{ faktor_abdeckung.eingerichtet }} von {{ faktor_abdeckung.nutzer }}</strong>
+    Benutzerpostfächern eingerichtet{% if faktor_abdeckung.nutzer and faktor_abdeckung.eingerichtet < faktor_abdeckung.nutzer %}
+    — die übrigen öffnen die App und werden zur Einrichtung geführt, solange die Microsoft-Anmeldung
+    geht{% endif %}.{% if not zweitfaktor.pflicht %} Er ist derzeit nicht vorgeschrieben.{% endif %}
+  </p>
+
+  <details class="nb-klapp" id="nb-geraete-windows">
+  <summary>Windows-PCs (Microsoft Edge) <span class="hint">— empfohlen, still per Richtlinie</span></summary>
+  <div class="nb-klapp-inhalt">
+  <p class="hint" style="margin-top:0">
+    Die Edge-Richtlinie <em>Configure list of force-installed Web Apps</em> (<code>WebAppInstallForceList</code>)
+    installiert die App still bei allen Nutzern, mit Eintrag im Startmenü und Verknüpfung auf dem Desktop.
+    In Edge können die Nutzer sie nicht deinstallieren. Lass die Richtlinie dauerhaft stehen: Fällt sie weg,
+    entfernt Edge die App beim nächsten Laden der Richtlinien von selbst. Wert der Richtlinie:
+  </p>
+  <div class="feld-werkzeuge">
+    <div class="feld-knoepfe">
+      <button type="button" class="copy-btn" data-copy-target="nb-edge-richtlinie"
+              title="Wert der Richtlinie kopieren"></button>
+    </div>
+    <pre id="nb-edge-richtlinie" class="code-block">{{ edge_richtlinie }}</pre>
+  </div>
+  <p class="hint">
+    Gruppenrichtlinie: <em>Computer- bzw. Benutzerkonfiguration → Administrative Vorlagen → Microsoft Edge →
+    Configure list of force-installed Web Apps</em> (Vorlage <code>MSEdge.admx</code>), Wert wie oben. Ohne
+    Vorlage: Registrierung <code>HKLM\SOFTWARE\Policies\Microsoft\Edge</code>, Wert
+    <code>WebAppInstallForceList</code> (REG_SZ).
+    Intune: <em>Geräte → Konfiguration → Erstellen → Einstellungskatalog</em>, Kategorie <em>Microsoft Edge</em>,
+    Einstellung <em>Configure list of force-installed Web Apps</em>, Wert wie oben.
+    Ohne Richtlinie: In Edge auf das App-Symbol in der Adressleiste → „Installieren“.
+    Die Edge-App hängt an nichts von Microsoft 365 — sie ist der robuste Weg.
+  </p>
+  </div>
+  </details>
+
+  {% set k = teams_notfall.katalog if teams_notfall else {} %}
+  <details class="nb-klapp" id="nb-teams-app">
+  <summary>Teams <span class="hint">— Alternative zur Edge-App</span>
+    {% if k.zustand == 'ok' and k.aktuell %}<span class="speicher-hinweis nb-klapp-zustand" data-zustand="fertig">✓ Fassung {{ k.version }} im Katalog</span>
+    {% elif k.zustand == 'ok' %}<span class="speicher-hinweis nb-klapp-zustand" data-zustand="offen">⚠ Katalog veraltet</span>{% endif %}
+  </summary>
+  <div class="nb-klapp-inhalt">
+  <p class="hint" style="margin-top:0">
+    Die Teams-App „Notfall-Mail“ zeigt dieselbe Seite als Reiter in Teams — bequem im Alltag und bei einem
+    Ausfall nur von Exchange Online. Sie braucht aber Teams und damit die Microsoft-Anmeldung: Fällt
+    Microsoft 365 oder Entra breiter aus, startet sie nicht. Verteile deshalb beide. Den zweiten Faktor
+    richten die Nutzer aus dem Reiter heraus im Browser ein — die Microsoft-Anmeldung lässt sich in Teams nicht
+    einbetten.
+  </p>
+  {% if teams_notfall %}
+  <p class="hint">
+    <a class="btn secondary btn-sm" href="/notbetrieb/notfall-teams-app.zip">Paket herunterladen</a>
+    Fassung {{ teams_notfall.version }}{% if teams_notfall.seit %} · seit {{ teams_notfall.seit }}{% endif %}.
+    Erstes Hochladen: Teams Admin Center → <em>Teams-Apps → Apps verwalten → Hochladen</em> oder
+    <em>Integrierte Apps</em>, dann zuweisen.
+  </p>
+  <p style="margin:0 0 8px;font-size:12.5px">
+  {% if k.zustand == 'ok' and k.aktuell %}
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fertig" id="nb-teams-katalog-stand">✓ Im Teams-Katalog: Fassung {{ k.version }}, aktuell</span>
+  {% elif k.zustand == 'ok' %}
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="nb-teams-katalog-stand">⚠ Im Teams-Katalog: Fassung {{ k.version }}, das Paket hat {{ teams_notfall.version }}.</span>
+    <span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <button type="button" class="btn secondary btn-sm" id="nb-teams-katalog-btn" onclick="teamsKatalogAktualisieren(this, 'notfall', 'nb-teams-katalog-result', 'nb-teams-katalog-einfuegen', 'nb-teams-app')">Im Teams-Katalog aktualisieren</button>
+      <span class="hint">Anmeldung mit einem Konto mit aktiver Rolle Teams-Administrator oder höher (bei PIM vorher aktivieren).</span>
+    </span>
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" id="nb-teams-katalog-result" hidden></span>
+    <span id="nb-teams-katalog-einfuegen" style="display:block" hidden></span>
+  {% elif k.zustand == 'nicht_gefunden' %}
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="nb-teams-katalog-stand">Noch nicht im Teams-Katalog.</span>
+  {% elif k.zustand == 'recht_fehlt' %}
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="nb-teams-katalog-stand">Fassung im Teams-Katalog nicht lesbar: <code>AppCatalog.Read.All</code> fehlt — unter Einrichtung erteilen.</span>
+  {% else %}
+    <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fehler" id="nb-teams-katalog-stand">✗ Teams-Katalog nicht abgefragt (Graph-Fehler, siehe Protokoll).</span>
+  {% endif %}
+  </p>
+  {% else %}
+  <p class="hint">Für das Paket fehlt die Außenadresse des Gateways (Einrichtung → Außenadresse).</p>
+  {% endif %}
+  </div>
+  </details>
+
+  <details class="nb-klapp" id="nb-geraete-handys">
+  <summary>Handys und Tablets <span class="hint">— als App auf den Home-Bildschirm</span></summary>
+  <div class="nb-klapp-inhalt">
+  <p class="hint" style="margin-top:0">
+    Auf dem Handy lässt sich die Notfall-Mail als App auf den Home-Bildschirm legen (Safari: Teilen →
+    „Zum Home-Bildschirm“; Chrome/Edge: „App installieren“).
+  </p>
+  <p class="hint">
+    Mit Intune: <em>Apps → All Apps → Create</em>, Typ „iOS/iPadOS web clip“ (mit „Full screen“: Yes),
+    „Windows web link“ oder für Android Enterprise ein Web-Link über Managed Google Play; App URL wie oben.
+    Weise ihn als <em>Available</em> zu: Als <em>Required</em> zugewiesene Web-Clips lassen sich auf iOS nur
+    über die Zuweisung <em>Uninstall</em> wieder entfernen. „Require a managed browser“ öffnet den Link in
+    Microsoft Edge — nur nötig, wenn eure App-Schutzrichtlinien das verlangen.
+  </p>
+  </div>
+  </details>
+</div>
+
+<!-- Anmeldung -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Anmeldung im Notbetrieb</h2>
+  <p class="hint" style="margin-top:0">
+    Im Störfall ist womöglich auch Entra nicht erreichbar. Die Nutzer melden sich dann mit ihrem
+    gewohnten Kennwort an; das Gateway prüft es direkt am Domänencontroller (LDAP, nur verschlüsselt).
+    Es braucht kein Dienstkonto und speichert kein Kennwort.
+  </p>
+  <div class="settings-row">
+    <label for="nb-ldap-server">Domänencontroller</label>
+    <div class="settings-control"><input autocapitalize="none" autocorrect="off" spellcheck="false" type="text" id="nb-ldap-server" value="{{ ldap.server }}"
+      placeholder="ldaps://dc01.firma.local" style="min-width:260px">
+      <div class="hint" style="margin-top:4px">Den Namen aus dem Zertifikat des DC eintragen — geprüft wird gegen
+        ihn. Eine IP-Adresse geht nur, wenn sie im Zertifikat steht. Löst der Name hier nicht auf:
+        <a href="/advanced#hosts-eintraege">Hosts-Eintrag</a> anlegen.</div></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-ldap-basis">Basis-DN</label>
+    <div class="settings-control"><input type="text" id="nb-ldap-basis" value="{{ ldap.basis }}"
+      placeholder="DC=firma,DC=local" style="min-width:260px"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-ldap-ca">CA-Zertifikat (PEM, optional)</label>
+    <div class="settings-control"><textarea id="nb-ldap-ca" rows="4" style="width:100%;font-family:monospace;font-size:12px"
+      placeholder="-----BEGIN CERTIFICATE-----">{{ ldap.ca }}</textarea></div>
+  </div>
+  <div class="actions">
+    <button class="btn secondary" id="nb-ldap-btn" data-wache="nb-ldap-server,nb-ldap-basis,nb-ldap-ca"
+            data-wache-hinweis="nb-ldap-result" onclick="nbLdapSpeichern()">Speichern</button>
+    <span id="nb-ldap-result"></span>
+  </div>
+
+  <h3>Zweiter Faktor</h3>
+  <p class="hint" style="margin-top:0">
+    Kennwort allein reicht nicht: Dazu kommt ein Passkey (Fingerabdruck, Gesicht, Windows Hello,
+    Sicherheitsschlüssel) oder ein Code aus einer Authenticator-App (TOTP). Eingerichtet wird er im
+    Normalbetrieb nach einer Microsoft-Anmeldung, damit nur die Person selbst ihn einrichten kann — unter
+    <code>{{ webmail_url }}/einrichten</code>. Auch das prüft das Gateway
+    ohne Cloud. Microsoft verlangt dabei eine frische Anmeldung; wer dort noch keine MFA-Methode hat, wird
+    zuerst durch deren Einrichtung geführt.
+  </p>
+  <p class="hint">
+    Ein Passkey gilt nur für den Namen, unter dem er eingerichtet wurde. Ändert sich der Name des Gateways
+    (oder öffnet jemand das Webmail unter einem anderen Namen oder per IP-Adresse), bleibt dort nur der Code
+    aus der App oder ein Wiederherstellungscode. Verteile deshalb immer denselben Link.
+  </p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-zweitfaktor" {% if zweitfaktor.pflicht %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
+             onchange="nbSchalter(this, {NOTBETRIEB_ZWEITFAKTOR: this.checked}, 'nb-zweitfaktor-msg')"> Zweiter Faktor Pflicht
+    </label>
+  </div>
+  <div class="msg" id="nb-zweitfaktor-msg" hidden></div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="nb-zf-notfall" {% if zweitfaktor.notfall_ohne %}checked{% endif %} {% if not aktiv %}disabled{% endif %}
+             onchange="nbSchalter(this, {NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE: this.checked}, 'nb-zf-notfall-msg')"> Im ausgerufenen Notfall auch ohne eingerichteten Faktor
+    </label>
+    <span class="hint">Mehr erreichen dann, aber nur mit Kennwort</span>
+  </div>
+  <div class="msg" id="nb-zf-notfall-msg" hidden></div>
+  <div class="tabellen-rollbereich">
+    <table class="nb-tabelle" style="min-width:520px;width:100%;border-collapse:collapse;margin-top:8px">
+      <thead><tr><th>Postfach</th><th>Art</th><th>Eingerichtet</th><th>Wiederherstellungscodes</th><th>Zustand</th><th></th></tr></thead>
+      <tbody id="nb-faktor-tbody"></tbody>
+    </table>
+  </div>
+  <div class="msg" id="nb-faktor-msg" style="margin-top:6px" hidden></div>
+
+  <h3>Anmeldung testen</h3>
+  <p class="hint" style="margin-top:0">Spielt die Anmeldung durch, wie sie im Notbetrieb abliefe. Wird nicht gespeichert.</p>
+  <div class="settings-row">
+    <label for="nb-test-name">Anmeldename</label>
+    <div class="settings-control"><input spellcheck="false" autocorrect="off" autocapitalize="none" type="text" id="nb-test-name" autocomplete="off"
+      placeholder="max.mustermann@firma.at" style="min-width:220px"></div>
+  </div>
+  <div class="settings-row">
+    <label for="nb-test-kennwort">Kennwort</label>
+    <div class="settings-control"><input type="password" id="nb-test-kennwort" autocomplete="new-password" style="min-width:220px"></div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <button class="btn secondary btn-sm" id="nb-test-btn" onclick="nbAnmeldungTesten()">Anmeldung testen</button>
+  </div>
+  <div class="msg" id="nb-test-msg" style="margin-top:6px" hidden></div>
+</div>
+
+<!-- Postfächer -->
+<div class="settings-card">
+  <h2 style="margin-top:0">Postfächer</h2>
+  {# Bei hunderten Postfächern sonst endlos: Filter und ein Rollbereich mit
+     stehender Kopfzeile, wie in der Postfachliste (rollbereichHoehe, base.html). #}
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px">
+    {{ filterfeld("nb-pf-filter", placeholder="Postfach filtern…", oninput="nbPostfaecherFiltern()") }}
+    <span class="hint" id="nb-pf-zahl"></span>
+  </div>
+  <div class="tabellen-rollbereich" id="nb-pf-rollbereich">
+    <table id="nb-pf-tabelle" class="nb-tabelle" style="min-width:640px;width:100%;border-collapse:collapse">
+      <thead><tr><th>Postfach</th><th>Mail</th><th>Kalender</th><th>Gilt wegen</th><th>Ordner</th><th>Mails in der Kopie</th><th>Bedarf</th></tr></thead>
+      <tbody id="nb-pf-tbody"><tr><td colspan="7" class="muted">Lädt…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const NB_GRUPPEN = {{ gruppen | tojson }};
+const NB_POSTFAECHER = {{ postfaecher | tojson }};
+let nbRegeln = {{ regeln | tojson }};
+// Gespeicherter Stand der Karte „Wie weit die Kopie reicht“ — für „Änderungen
+// verwerfen“ und die Markierung „noch nicht gespeichert“ an der Platzrechnung.
+const nbUmfangWert = () => (document.querySelector('input[name="nb-umfang"]:checked') || {}).value || 'alle';
+let nbFensterGespeichert = null;
+function nbFensterStand() { return JSON.stringify([nbFormular(), nbUmfangWert()]); }
+function nbFensterGeaendert() { return nbFensterGespeichert !== null && nbFensterStand() !== nbFensterGespeichert; }
+function nbFensterVerwerfen() {
+  const [f, umfang] = JSON.parse(nbFensterGespeichert);
+  ['mail', 'kal_zurueck', 'kal_vor'].forEach(k => { document.getElementById('nb-std-' + k).value = f.fenster[k]; });
+  const radio = document.querySelector('input[name="nb-umfang"][value="' + umfang + '"]');
+  if (radio) radio.checked = true;
+  nbRegeln = f.regeln;
+  nbRegelnZeichnen();
+  // Die Speicher-Wache vergleicht mit dem gespeicherten Stand — ein Ereignis genügt.
+  document.getElementById('nb-std-mail').dispatchEvent(new Event('input', {bubbles: true}));
+  nbRechnen();
+}
+let nbPlatz = null;            // letzte Rechnung, je Postfach für die Tabelle
+
+function nbZielOptionen(gewaehlt) {
+  let h = '<optgroup label="Gruppen">';
+  NB_GRUPPEN.forEach(g => { const v = 'gruppe:' + g;
+    h += '<option value="' + escAttr(v) + '"' + (v === gewaehlt ? ' selected' : '') + '>' + esc(g) + '</option>'; });
+  h += '</optgroup><optgroup label="Postfächer">';
+  NB_POSTFAECHER.forEach(p => { const v = 'postfach:' + p;
+    h += '<option value="' + escAttr(v) + '"' + (v === gewaehlt ? ' selected' : '') + '>' + esc(p) + '</option>'; });
+  return h + '</optgroup>';
+}
+
+function nbRegelnZeichnen() {
+  const tb = document.getElementById('nb-regel-tbody');
+  if (!nbRegeln.length) { tabelleHinweis(tb, 5, 'Keine Abweichungen — für alle gilt die Vorgabe.'); return; }
+  tb.innerHTML = nbRegeln.map((r, i) =>
+    '<tr data-i="' + i + '">'
+    + '<td><select class="nb-ziel">' + nbZielOptionen(r.ziel) + '</select></td>'
+    + ['mail', 'kal_zurueck', 'kal_vor'].map(k =>
+        '<td><input type="number" class="nb-tage" data-k="' + k + '" min="0" max="{{ max_tage }}" value="'
+        + escAttr(r[k] == null ? '' : r[k]) + '"></td>').join('')
+    + '<td style="white-space:nowrap">'
+    + '<button class="btn secondary btn-sm" onclick="nbRegelSchieben(' + i + ',-1)" title="nach oben"' + (i ? '' : ' disabled') + '>↑</button> '
+    + '<button class="btn secondary btn-sm" onclick="nbRegelSchieben(' + i + ',1)" title="nach unten"' + (i < nbRegeln.length - 1 ? '' : ' disabled') + '>↓</button> '
+    + '<button class="btn danger btn-sm" onclick="nbRegelWeg(' + i + ')" title="Regel entfernen">✕</button></td></tr>'
+  ).join('');
+}
+
+// Liest Vorgabe und Regeln aus dem Formular — Grundlage für Speichern UND Rechnen.
+function nbFormular() {
+  const fenster = {};
+  ['mail', 'kal_zurueck', 'kal_vor'].forEach(k => { fenster[k] = parseInt(feldWert('nb-std-' + k), 10) || 0; });
+  const regeln = [...document.querySelectorAll('#nb-regel-tbody tr[data-i]')].map(tr => {
+    const r = {ziel: tr.querySelector('.nb-ziel').value};
+    tr.querySelectorAll('input[data-k]').forEach(inp => {
+      r[inp.dataset.k] = inp.value === '' ? fenster[inp.dataset.k] : (parseInt(inp.value, 10) || 0);
+    });
+    return r;
+  });
+  return {fenster, regeln};
+}
+
+function nbRegelNeu() {
+  nbRegeln = nbFormular().regeln;
+  const f = nbFormular().fenster;
+  nbRegeln.push({ziel: NB_GRUPPEN.length ? 'gruppe:' + NB_GRUPPEN[0] : 'postfach:' + (NB_POSTFAECHER[0] || ''),
+                 mail: f.mail, kal_zurueck: f.kal_zurueck, kal_vor: f.kal_vor});
+  nbRegelnZeichnen(); nbRechnenBald();
+}
+function nbRegelSchieben(i, d) {
+  nbRegeln = nbFormular().regeln;
+  const [r] = nbRegeln.splice(i, 1); nbRegeln.splice(i + d, 0, r);
+  nbRegelnZeichnen(); nbRechnenBald();
+}
+function nbRegelWeg(i) {
+  nbRegeln = nbFormular().regeln;
+  nbRegeln.splice(i, 1);
+  nbRegelnZeichnen(); nbRechnenBald();
+}
+
+async function nbFensterSpeichern() {
+  const f = nbFormular();
+  const umfang = (document.querySelector('input[name="nb-umfang"]:checked') || {}).value || 'alle';
+  const ok = await savePartial({NOTBETRIEB_FENSTER: f.fenster, NOTBETRIEB_REGELN: f.regeln,
+                                NOTBETRIEB_UMFANG: umfang}, 'nb-fenster-result');
+  wacheFertig('nb-fenster-btn', ok);
+  if (ok) { nbFensterGespeichert = nbFensterStand(); nbRechnen(); nbPostfaecher(); }
+}
+
+// ── Notfall ──────────────────────────────────────────────────────────────
+// Reiner Schalter → speichert sofort; er lenkt den ganzen Mailfluss um, daher
+// mit Rückfrage. Danach neu laden, damit Hinweis und Stand zusammenpassen.
+async function nbAusrufen(an) {
+  const frage = an
+    ? 'Notfall ausrufen? Post geht dann NICHT mehr an Exchange, sondern in die Kopie bzw. per Direktversand hinaus.'
+    : 'Notfall beenden? Post geht wieder an Exchange. Spiele danach zurück, was im Notbetrieb angenommen wurde.';
+  if (!confirm(frage)) return;
+  const d = await knopfAktion('nb-ausrufen-btn', an ? 'Rufe aus…' : 'Beende…',
+    async () => ({ok: await savePartial({NOTBETRIEB_AUSGERUFEN: an}, 'nb-ausgerufen-msg')}));
+  if (d.ok) location.reload();
+}
+
+// „Auch senden“ wirkt nur zusammen mit „für alle lesbar“ — ohne es gesperrt.
+function nbSendenFreigeben() {
+  const lesen = document.getElementById('nb-lesen-alle');
+  document.getElementById('nb-senden-alle').disabled = lesen.disabled || !lesen.checked;
+}
+
+// ── Bereitschaft ─────────────────────────────────────────────────────────
+const NB_MX_ZIEL = {exchange: 'Exchange Online', gateway: 'dieses Gateway', anders: 'anderen Server',
+                    keiner: 'keinen Eintrag', unbekannt: 'nicht lesbar'};
+
+async function nbBereitschaft() {
+  const d = await knopfAktion('nb-bereit-btn', 'Prüfe…', () => getJSON('/api/notbetrieb/bereitschaft'));
+  if (!d.ok) { showMsg('nb-bereit-msg', 'Prüfung fehlgeschlagen: ' + errText(d), false); return; }
+  const t = document.getElementById('nb-bereit-tabelle');
+  t.querySelector('tbody').innerHTML = d.punkte.map(p =>
+    '<tr><td>' + esc(p.name) + '</td><td><span class="zustand-text" data-zustand="'
+    + (p.zustand === 'ok' && !p.teilweise ? 'ok' : 'warnung') + '">'
+    + esc(p.teilweise ? 'teilweise' : {ok: 'bereit', offen: 'offen', unbekannt: 'unklar'}[p.zustand] || p.zustand)
+    + '</span></td><td>' + esc(p.befund) + (p.zu_tun ? '<br><span class="hint">' + esc(p.zu_tun) + '</span>' : '')
+    + '</td></tr>').join('');
+  t.hidden = false;
+  const m = document.getElementById('nb-mx-tabelle');
+  m.querySelector('tbody').innerHTML = (d.mx || []).map(x =>
+    '<tr><td>' + esc(x.domain) + '</td><td>' + esc(NB_MX_ZIEL[x.ziel] || x.ziel) + '</td><td>'
+    + esc((x.mx || []).join(', ') || x.fehler || '') + '</td></tr>').join('');
+  m.hidden = !(d.mx || []).length;
+  showMsg('nb-bereit-msg', d.bereit ? 'Bereit für den Ernstfall.' : 'Nicht alles bereit — siehe Befunde.', d.bereit);
+}
+
+// ── Stand ────────────────────────────────────────────────────────────────
+// Kennzahlen als Übersicht: [Bezeichnung, HTML] je Zeile — EINE Darstellung
+// für den Stand der Kopie und den Notfall-Eingang. Werte maskiert der Aufrufer.
+function nbKennzahlen(el, zeilen) {
+  el.innerHTML = zeilen.map(z => '<dt>' + esc(z[0]) + '</dt><dd>' + z[1] + '</dd>').join('');
+}
+// Zahl mit Bezeichnung; über 0 und `warnen` gelb hervorgehoben.
+function nbZahl(n, text, warnen) {
+  const t = esc((n || 0) + ' ' + text);
+  return warnen && n > 0 ? '<span class="zustand-text" data-zustand="warnung">' + t + '</span>' : t;
+}
+function nbZeit(iso) {
+  return new Date(iso).toLocaleString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric',
+                                                hour: '2-digit', minute: '2-digit'});
+}
+const nbWarnung = t => '<span class="zustand-text" data-zustand="warnung">' + esc(t) + '</span>';
+
+async function nbStand() {
+  const d = await getJSON('/api/notbetrieb/status');
+  const el = document.getElementById('nb-stand');
+  if (!d.ok) { nbKennzahlen(el, [['Stand', nbWarnung('nicht lesbar: ' + errText(d))]]); return; }
+  const l = d.letzter_lauf;
+  const zeilen = [['Kopie', esc(d.mails + ' Mails aus ' + d.postfaecher_im_schatten + ' Postfächern')]];
+  if (d.lokal_offen) zeilen.push(['Zurückzuspielen', nbWarnung(d.lokal_offen + ' im Notbetrieb angenommen, '
+                                                              + 'noch nicht zurückgespielt')]);
+  zeilen.push(['Profile für Signaturen', d.profile_stand
+    ? esc(d.profile + ' gesichert · Stand ' + nbZeit(d.profile_stand)) : nbWarnung('noch nicht gesichert')]);
+  zeilen.push(['Letzter Abgleich', !(l && l.ts) ? nbWarnung('noch keiner')
+    : esc(nbZeit(l.ts) + ' · ' + l.postfaecher + ' Postfächer') + '<br>' + (l.kein_token ? nbWarnung('kein Graph-Zugang')
+      : [nbZahl(l.neu, 'neu'), nbZahl(l.entfernt, 'entfernt'), nbZahl(l.abgelaufen, 'abgelaufen'),
+         nbZahl(l.fehler + l.postfaecher_fehler, 'Fehler', true)].join(' · '))]);
+  nbKennzahlen(el, zeilen);
+  const e = d.eingang || {};
+  nbKennzahlen(document.getElementById('nb-eingang-stand'), [
+    ['Angenommen', nbZahl(e.angenommen, 'seit dem Start')],
+    ['Abgewiesen', [nbZahl(e.unbekannt, 'an unbekannte Empfänger'), nbZahl(e.unecht, 'als gefälscht')].join(' · ')],
+    ['Aufgeschoben', nbZahl(e.greylist, 'durch Greylisting')],
+    ['Gedrosselt', nbZahl(e.gedrosselt, 'Mails')],
+    ['Junk-E-Mail', nbZahl(e.junk, 'abgelegt')]]);
+}
+
+async function nbAbgleich() {
+  // Fortschritt neben den Knöpfen — sonst zeigt der Stand bis zum Ende den vorigen
+  // Lauf (Klicktest). Nicht AM Stand: Die Anzeige wird danach versteckt und geleert,
+  // und mit ihr verschwand bis 17.11.2026 die ganze Standzeile bis zum Neuladen.
+  const d = await knopfAktion('nb-abgleich-btn', 'Gleiche ab…', () => postJSON('/api/notbetrieb/abgleich', {}),
+                              {anzeige: 'nb-abgleich-laeuft'});
+  showMsg('nb-msg', d.ok ? 'Abgleich gelaufen: ' + d.neu + ' neu, ' + d.entfernt + ' entfernt.'
+                         : 'Abgleich fehlgeschlagen: ' + errText(d), d.ok);
+  nbStand(); nbPostfaecher();
+}
+
+async function nbZurueck() {
+  const d = await knopfAktion('nb-zurueck-btn', 'Spiele zurück…', () => postJSON('/api/notbetrieb/zurueckspielen', {}));
+  showMsg('nb-msg', d.kein_token ? 'Kein Graph-Zugang — nichts zurückgespielt.'
+      : d.eingespielt + ' eingespielt, ' + d.schon_da + ' waren schon in Exchange, ' + d.fehler + ' Fehler.', d.ok);
+  nbStand();
+}
+
+async function nbLoeschen() {
+  if (!confirm('Die Kopie aller Postfächer auf diesem Gateway löschen?')) return;
+  const d = await knopfAktion('nb-loeschen-btn', 'Lösche…', () => postJSON('/api/notbetrieb/loeschen', {}));
+  showMsg('nb-msg', d.ok ? 'Kopie gelöscht.' : errText(d), d.ok);
+  if (d.ok && !{{ aktiv | tojson }}) { location.href = '/setup#step-mode'; return; }
+  nbStand(); nbPostfaecher();
+}
+
+// ── Zugriffsrechte ───────────────────────────────────────────────────────
+const NB_ART = {SharedMailbox: 'geteilt', UserMailbox: 'Nutzer'};
+// Verteiler, Gruppen, externe Benutzer/Kontakte aus dem Abbild (notbetrieb_rechte.ARTEN).
+const NB_EMPF = {verteiler: 'Verteiler', dynamisch: 'dynamische Verteiler', gruppe: 'Gruppen',
+                 extern: 'externe Benutzer', kontakt: 'Kontakte'};
+function nbEmpfaengerText(je) {
+  const teile = Object.entries(je || {}).map(([art, n]) => n + ' ' + (NB_EMPF[art] || art));
+  return teile.length ? '; ' + teile.join(', ') : '';
+}
+async function nbRechte() {
+  const tb = document.getElementById('nb-rechte-tbody');
+  const d = await getJSON('/api/notbetrieb/rechte');
+  if (!d.ok) { tabelleHinweis(tb, 5, 'Nicht lesbar: ' + esc(errText(d)), true); return; }
+  const st = d.stand || {};
+  document.getElementById('nb-rechte-stand').textContent = st.ts
+    ? 'Stand ' + new Date(st.ts).toLocaleString('de-DE') + ': ' + st.konten + ' Postfächer, ' + st.rechte + ' Rechte'
+      + (st.nicht_aufgeloest ? ', ' + st.nicht_aufgeloest + ' Berechtigte nicht auflösbar' : '')
+      + nbEmpfaengerText(st.empfaenger)
+    : 'Noch nicht gelesen.';
+  if (!d.items.length) { tabelleHinweis(tb, 5, st.ts ? 'Keine Postfächer mit Rechten für andere.' : '—'); return; }
+  const liste = a => a.length ? a.map(esc).join('<br>') : '<span class="muted">—</span>';
+  tb.innerHTML = d.items.map(p => '<tr><td>' + esc(p.postfach) + '</td><td>' + esc(NB_ART[p.typ] || p.typ) + '</td>'
+    + '<td>' + liste(p.voll) + '</td><td>' + liste(p.als) + '</td><td>' + liste(p.auftrag) + '</td></tr>').join('');
+}
+
+// ── Zweiter Faktor ──────────────────────────────────────────────────────────
+// Tabelle laden: Fehler- bzw. Leerzeile über tabelleHinweis; sonst die Antwort.
+async function nbTabelleLaden(tb, url, spalten, leer) {
+  const d = await getJSON(url);
+  if (!d.ok) { tabelleHinweis(tb, spalten, 'Nicht lesbar: ' + esc(errText(d)), true); return null; }
+  if (!d.items.length) { tabelleHinweis(tb, spalten, leer); return null; }
+  return d;
+}
+
+async function nbFaktoren() {
+  const tb = document.getElementById('nb-faktor-tbody');
+  const d = await nbTabelleLaden(tb, '/api/notbetrieb/faktoren', 6, 'Noch niemand hat einen zweiten Faktor eingerichtet.');
+  if (!d) return;
+  tb.innerHTML = d.items.map(f => '<tr><td>' + esc(f.postfach) + '</td><td>'
+    + esc([f.passkeys ? (f.passkeys === 1 ? 'Passkey' : f.passkeys + ' Passkeys') : '', f.totp ? 'App' : '']
+          .filter(Boolean).join(' + ')) + '</td><td>'
+    + esc(new Date(f.seit).toLocaleDateString('de-DE')) + '</td><td>' + esc(String(f.codes_uebrig)) + '</td><td>'
+    + (f.gesperrt ? 'gesperrt (Fehlversuche)' : 'aktiv') + '</td><td><button class="btn danger btn-sm" '
+    + 'onclick="nbFaktorZuruecksetzen(this, \'' + escJsAttr(f.postfach) + '\')">Zurücksetzen</button></td></tr>').join('');
+}
+async function nbFaktorZuruecksetzen(knopf, postfach) {
+  if (!confirm('Zweiten Faktor von ' + postfach + ' zurücksetzen? Die Person muss ihn danach neu einrichten.')) return;
+  const d = await knopfAktion(knopf, 'Setze zurück…', () =>
+    postJSON('/api/notbetrieb/faktoren/zuruecksetzen', {postfach: postfach}));
+  showMsg('nb-faktor-msg', d.ok ? 'Zurückgesetzt: ' + postfach : errText(d), d.ok);
+  nbFaktoren();
+}
+
+async function nbRechteAbgleichen() {
+  const d = await knopfAktion('nb-rechte-btn', 'Lese Rechte…', () => postJSON('/api/notbetrieb/rechte', {}));
+  showMsg('nb-rechte-msg', d.ok ? 'Rechte gelesen: ' + d.konten + ' Postfächer, ' + d.rechte + ' Rechte.'
+                                : errText(d), d.ok);
+  nbRechte(); nbPostfaecher();
+}
+
+async function nbZugriff() {
+  const el = document.getElementById('nb-wer-ergebnis');
+  const wer = feldWert('nb-wer');
+  if (!wer) { el.textContent = ''; return; }
+  const d = await knopfAktion('nb-wer-btn', '', () => getJSON('/api/notbetrieb/zugriff?wer=' + encodeURIComponent(wer)));
+  if (!d.ok) { el.textContent = 'Nicht lesbar: ' + errText(d); return; }
+  if (!d.items.length) { el.textContent = 'Unbekannt — kein Postfach mit diesem Namen im Abbild.'; return; }
+  el.textContent = d.items.map(p => p.postfach + (p.eigen ? ' (eigenes)' : ' — '
+    + [p.voll ? 'lesen' : '', p.als ? 'senden als' : '', p.auftrag ? 'im Auftrag' : ''].filter(Boolean).join(', '))).join(' · ');
+}
+
+// ── Anmeldung ────────────────────────────────────────────────────────────
+async function nbProbeSpeichern() {
+  const liste = feldWert('nb-probegruppe').split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(x => x.includes('@'));
+  wacheFertig('nb-probe-btn', await savePartial({NOTBETRIEB_PROBEGRUPPE: liste}, 'nb-probe-result'));
+}
+
+// Reine Schalter → speichern sofort (Speichern-Linie Regel 4). Der Schlüssel
+// steht wörtlich im onchange (test_einstellungen_register sucht „KEY:“).
+async function nbSchalter(el, werte, meldung) {
+  if (!await savePartial(werte, meldung)) el.checked = !el.checked;
+}
+
+async function nbEingangSpeichern() {
+  wacheFertig('nb-eingang-btn', await savePartial({
+    NOTBETRIEB_EINGANG_GREYLIST: document.getElementById('nb-eingang-grey').checked,
+    NOTBETRIEB_EINGANG_MAX_EMPF: parseInt(feldWert('nb-eingang-empf'), 10) || 50,
+    NOTBETRIEB_EINGANG_MAX_MB: parseInt(feldWert('nb-eingang-mb'), 10) || 25,
+    NOTBETRIEB_EINGANG_JE_STUNDE: parseInt(feldWert('nb-eingang-stunde'), 10) || 30,
+  }, 'nb-eingang-result'));
+}
+
+// Auswahl ohne Begleitfeld → speichert sofort (Speichern-Linie Regel 4).
+async function nbOnpremZiel(el) {
+  const vorher = el.dataset.vorher;
+  if (await savePartial({NOTBETRIEB_ONPREM_ZIEL: el.value}, 'nb-onprem-ziel-msg')) el.dataset.vorher = el.value;
+  else el.value = vorher;
+}
+
+async function nbOnpremProbe() {
+  const d = await knopfAktion('nb-onprem-probe-btn', 'Prüfe…', () => postJSON('/api/notbetrieb/onprem-probe', {}),
+                              {anzeige: 'nb-onprem-probe-msg'});
+  showMsg('nb-onprem-probe-msg', d.ok ? 'Angenommen: ' + d.adresse + ' über ' + d.ziel + ' (' + d.antwort + ')'
+          : 'Nicht angenommen: ' + (d.fehler || d.antwort || errText(d)), !!d.ok);
+  if (d.stand) document.getElementById('nb-onprem-stand').textContent = d.stand.postfaecher
+    + ' Postfächer liegen on-prem, ' + d.stand.ohne_ziel + ' davon ohne Ziel.';
+}
+
+async function nbLdapSpeichern() {
+  wacheFertig('nb-ldap-btn', await savePartial({
+    NOTBETRIEB_LDAP_SERVER: feldWert('nb-ldap-server'),
+    NOTBETRIEB_LDAP_BASIS: feldWert('nb-ldap-basis'),
+    NOTBETRIEB_LDAP_CA: feldWert('nb-ldap-ca'),
+  }, 'nb-ldap-result'));
+}
+
+async function nbAnmeldungTesten() {
+  const pw = document.getElementById('nb-test-kennwort');
+  const d = await knopfAktion('nb-test-btn', 'Prüfe…', () => postJSON('/api/notbetrieb/anmeldung-test',
+    {benutzer: feldWert('nb-test-name'), passwort: pw.value}));
+  pw.value = '';
+  showMsg('nb-test-msg', d.ok
+    ? 'Angemeldet als ' + d.benutzer + ' — sieht: ' + d.zugriff.map(p => p.postfach + (p.eigen ? ' (eigenes)' : '')).join(', ')
+    : errText(d), d.ok);
+}
+
+// ── Postfächer ───────────────────────────────────────────────────────────
+async function nbPostfaecher() {
+  const tb = document.getElementById('nb-pf-tbody');
+  const d = await nbTabelleLaden(tb, '/api/notbetrieb/postfaecher', 7, 'Keine aktivierten Postfächer.');
+  if (!d) return;
+  const bedarf = {};
+  ((nbPlatz && nbPlatz.postfaecher) || []).forEach(z => { bedarf[z.postfach] = z; });
+  tb.innerHTML = d.items.map(p => {
+    const b = bedarf[p.postfach];
+    return '<tr><td>' + esc(p.postfach) + '</td>'
+      + '<td>' + p.mail + ' T.</td><td>−' + p.kal_zurueck + ' / +' + p.kal_vor + ' T.</td>'
+      + '<td>' + esc(p.herkunft) + '</td><td>' + p.ordner + '</td><td>' + p.mails + '</td>'
+      + '<td>' + (b ? groesseText(b.bedarf) + (b.hochgerechnet ? ' *' : '') : '—') + '</td></tr>';
+  }).join('');
+  nbPostfaecherFiltern();
+  rollbereichHoehe(document.getElementById('nb-pf-rollbereich'), 'fenster');   // base.html
+}
+
+// Filter über alle Spalten der Zeile; die Zahl nennt Treffer und Gesamtzahl.
+function nbPostfaecherFiltern() {
+  const q = feldWert('nb-pf-filter').toLowerCase();
+  const zeilen = Array.from(document.querySelectorAll('#nb-pf-tbody tr'))
+    .filter(tr => !tr.querySelector('td[colspan]'));
+  let sichtbar = 0;
+  zeilen.forEach(tr => {
+    const passt = !q || tr.textContent.toLowerCase().includes(q);
+    tr.hidden = !passt;
+    if (passt) sichtbar++;
+  });
+  document.getElementById('nb-pf-zahl').textContent = !zeilen.length ? ''
+    : q ? sichtbar + ' von ' + zeilen.length + ' Postfächern'
+        : anzahlText(zeilen.length, 'Postfach', 'Postfächer');
+}
+
+// ── Platzbedarf ──────────────────────────────────────────────────────────
+function nbPlatzZeigen(d) {
+  nbPlatz = d;
+  const geaendert = nbFensterGeaendert();
+  document.getElementById('nb-fenster-verwerfen').hidden = !geaendert;
+  const urteil = document.getElementById('nb-platz-urteil');
+  const text = document.getElementById('nb-platz-text');
+  if (!d.ok || !d.gemessen) {
+    urteil.hidden = true;
+    text.textContent = d.ok ? 'Noch nicht gemessen.' : 'Rechnung fehlgeschlagen: ' + errText(d);
+    return;
+  }
+  const anteil = d.anteil == null ? null : Math.round(d.anteil * 100);
+  // Ab 80 % rot: Der Schatten wächst bis zum Ausfall weiter, und das Gateway
+  // braucht selbst noch Platz (Protokolle, Warteschlange).
+  const ok = anteil != null && anteil < 80;
+  showMsg(urteil, 'Bedarf ' + groesseText(d.bedarf) + ' von ' + groesseText(d.verfuegbar) + ' verfügbar'
+          + (anteil != null ? ' (' + anteil + ' %)' : '')
+          + (ok ? ' — passt.' : ' — reicht nicht oder zu knapp.')
+          + (geaendert ? ' (für die geänderten, noch nicht gespeicherten Werte)' : ''), ok);
+  const teile = Object.entries(d.nach_herkunft || {}).map(([h, b]) => h + ': ' + groesseText(b)).join(' · ');
+  text.textContent = 'Gemessen ' + new Date(d.mess_ts).toLocaleString('de-DE') + ': ' + d.mess_mails
+    + ' Mails der letzten ' + d.mess_tage + ' Tage in ' + d.mess_dauer_s + ' s'
+    + (d.mess_fehler ? ', ' + d.mess_fehler + ' Postfächer nicht messbar' : '')
+    + '. Verfügbar = frei ' + groesseText(d.frei) + ' + heutige Kopie ' + groesseText(d.belegt) + '. '
+    + (teile ? 'Nach Regel: ' + teile + '. ' : '')
+    + (d.geeicht
+       ? 'Geeicht an ' + d.eich_n + ' Stichproben: Die Kopie ist ' + String(d.mime_faktor).replace('.', ',')
+         + '× so groß wie Exchanges Größenangabe. '
+       : 'Nicht geeicht (keine Stichprobe lesbar) — gerechnet mit Exchanges Größenangabe. ')
+    + '* = über ' + d.mess_tage + ' Tage hinaus hochgerechnet.';
+  nbPostfaecher();
+}
+
+async function nbRechnen() {
+  nbPlatzZeigen(await postJSON('/api/notbetrieb/platz-rechnen', nbFormular()));
+}
+let _nbRechnenUhr = null;
+function nbRechnenBald() { clearTimeout(_nbRechnenUhr); _nbRechnenUhr = setTimeout(nbRechnen, 300); }
+
+async function nbMessen() {
+  const d = await knopfAktion('nb-messen-btn', 'Messe…', async (zeige) => {
+    const start = await postJSON('/api/notbetrieb/platz-messen', {});
+    if (!start.ok) return start;
+    // Läuft im Hintergrund: Fortschritt abfragen, bis fertig.
+    for (;;) {
+      await new Promise(r => setTimeout(r, 1500));
+      const s = await getJSON('/api/notbetrieb/platz-messen');
+      if (!s.ok) return s;
+      if (!s.laeuft) return {ok: true};
+      zeige('Messe… ' + s.fertig + ' von ' + s.gesamt + ' Postfächern');
+    }
+  }, {anzeige: 'nb-messen-stand'});
+  if (!d.ok) { showMsg('nb-messen-stand', 'Messung fehlgeschlagen: ' + errText(d), false); return; }
+  nbRechnen();
+}
+
+document.getElementById('nb-fenster-karte').addEventListener('input', nbRechnenBald);
+document.getElementById('nb-fenster-karte').addEventListener('change', nbRechnenBald);
+nbRegelnZeichnen();
+nbFensterGespeichert = nbFensterStand();
+nbStand();
+nbRechte();
+nbFaktoren();
+nbRechnen();
+</script>
+{% endblock %}

@@ -51,6 +51,41 @@ DEFAULTS: dict = {
     # die Abwesenheit im Self-Service ein. Aus → auch kein Hintergrund-Abgleich
     # (abwesenheit.zentral_aktiv), damit nichts unsichtbar weiterläuft.
     "ABWESENHEIT_AKTIV": False,
+    # Notbetrieb „Exchange-Schatten" (notbetrieb.py): hält Posteingang und
+    # Gesendete der letzten Tage als Kopie für einen Exchange-Ausfall. Aus →
+    # kein Abgleich; ein vorhandener Schatten wird in der Oberfläche zum
+    # Löschen angeboten.
+    "NOTBETRIEB_AKTIV": False,
+    "NOTBETRIEB_AUSGERUFEN": False,   # Notfall: Übergabe an Exchange geht in die Kopie
+    "NOTBETRIEB_PROBEGRUPPE": [],     # sieht im Webmail schon vor dem Notfall Inhalte (Probealarm)
+    "NOTBETRIEB_LESEN_ALLE": False,   # Webmail/IMAP: alle lesen die Kopie schon im Normalbetrieb
+    "NOTBETRIEB_SENDEN_ALLE": False,  # … und senden im Normalbetrieb über Exchange (braucht LESEN_ALLE)
+    "NOTBETRIEB_ZWEITFAKTOR": True,   # Webmail: AD-Kennwort + zweiter Faktor (TOTP) Pflicht
+    "NOTBETRIEB_ZWEITFAKTOR_NOTFALL_OHNE": False,  # im ausgerufenen Notfall auch ohne Faktor
+    "NOTBETRIEB_EINGANG_GREYLIST": True,   # Notfall-Eingang von außen: Greylisting
+    "NOTBETRIEB_EINGANG_MAX_EMPF": 50,     # … höchstens Empfänger je Mail
+    "NOTBETRIEB_EINGANG_MAX_MB": 25,       # … höchstens MB je Mail
+    "NOTBETRIEB_EINGANG_JE_STUNDE": 30,    # … höchstens Mails je Absendernetz und Stunde
+    # On-Prem-Postfächer (gemeinsamer Namensraum): Routing-Ziel (RELAY_TARGETS)
+    # für den Notfall; eine Domänen-Route auf ein eigenes Ziel hat Vorrang.
+    # Leer = solche Post bleibt im Notfall in der Warteschlange.
+    "NOTBETRIEB_ONPREM_ZIEL": "",
+    # Wie weit der Schatten reicht (Tage): Mail zurück, Kalender zurück/voraus.
+    # Auflösung in notbetrieb.fenster_fuer(): erste passende Regel aus
+    # NOTBETRIEB_REGELN ({ziel: "gruppe:<Name>"|"postfach:<Schlüssel>", mail,
+    # kal_zurueck, kal_vor}), sonst NOTBETRIEB_FENSTER.
+    "NOTBETRIEB_FENSTER": {"mail": 3, "kal_zurueck": 3, "kal_vor": 3},
+    "NOTBETRIEB_REGELN": [],
+    # Anmeldung im Notbetrieb per LDAP-Bind am lokalen AD (notbetrieb_anmeldung):
+    # ldaps://host[:port] oder ldap://host (dann StartTLS), Basis-DN für die
+    # Kontosuche, optional die CA des DC-Zertifikats als PEM (kein Geheimnis).
+    # Welche Postfächer der Schatten führt: "alle" (jedes Benutzer- und
+    # geteilte Postfach aus dem Rechte-Abbild) oder "aktivierte" (im Gateway
+    # aktivierte samt geteilter mit Vollzugriff). notbetrieb.umfang().
+    "NOTBETRIEB_UMFANG": "alle",
+    "NOTBETRIEB_LDAP_SERVER": "",
+    "NOTBETRIEB_LDAP_BASIS": "",
+    "NOTBETRIEB_LDAP_CA": "",
     # Abwesenheit automatisch aus dem Kalender aktivieren (opt-in): Termine mit
     # Status „Abwesend" (showAs=oof) ab OOO_CALENDAR_MIN_HOURS Dauer schalten die
     # native Abwesenheit für ihr Zeitfenster ein. Braucht Calendars.Read (Consent).
@@ -228,6 +263,7 @@ DEFAULTS: dict = {
     # Ursprungsadresse setzen (smtp_proxy.py). Leer = aus. Nur diese Adressen
     # dürfen den Absender angeben — und müssen es dann auch.
     "SMTP_PROXY_QUELLEN": [],
+    "HOSTS_EINTRAEGE": "",                 # eigene Hosts-Einträge (namensaufloesung), Format wie /etc/hosts
     # Woran Exchange Online an Port 25 erkannt wird (exo_erkennung.py):
     # "eins" = Adresse ODER Client-Zertifikat, "beide" = beides, "adresse" = nur Adresse.
     "EXO_ERKENNUNG": "eins",
@@ -524,10 +560,13 @@ INTERNAL_KEYS = frozenset({
     "_DAILY_LAST_RUN",            # scheduler.py
     "_OOO_STATE",                 # abwesenheit.py — zuletzt gesetzter OOF-Text je Postfach
     "_OOO_LAST",                  # abwesenheit.py — Zählung des letzten Poll-Laufs
+    "_NOTBETRIEB_LAST",           # notbetrieb.py — Zählung des letzten Schatten-Abgleichs
+    "_NOTBETRIEB_MESSUNG",        # notbetrieb.py — Platzmessung aus Exchange (Was-wäre-wenn)
     "_OOO_UEBERSICHT",            # abwesenheit.py — gecachter Status-Scan (Admin-Dashboard)
     "_ADDIN_MANIFEST_STAND",      # webui/routen/addin.py — {hash, version} des zuletzt
                                   # ausgelieferten Manifests; Version steigt nur bei Änderung
     "_TEAMS_APP_STAND",           # webui/routen/addin.py — dasselbe für das Teams-App-Paket (Tab)
+    "_TEAMS_NOTFALL_STAND",       # webui/routen/addin.py — dasselbe für die Teams-App „Notfall-Mail“
     "_ADDIN_VERFASSEN_STAND",     # webui/routen/addin_verfassen.py — dasselbe für das Verfassen-Add-in
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
     "_DIREKTVERSAND_PROBE",       # direktversand_probe.py — Stand der letzten Probe
@@ -554,6 +593,10 @@ INTERNAL_KEYS = frozenset({
 # Oberfläche, um sie zu löschen. Wer vorher Sectigo oder SwissSign konfiguriert
 # hatte, dessen Zugangsdaten lagen weiter in der Datei.
 OBSOLETE_KEYS = {
+    "NOTBETRIEB_IMAP":             "IMAP-Zugang des Ausfallschutzes — vorerst ausgebaut (Mailprogramme folgen gesondert)",
+    "NOTBETRIEB_SMTP":             "Senden aus Mailprogrammen (587) des Ausfallschutzes — vorerst ausgebaut",
+    "NOTBETRIEB_PROBE_POSTFACH":   "Probe-Postfach des Direktversands — jetzt DIREKTVERSAND_PROBE_POSTFACH (Einstellungen → Mail-Routing)",
+    "_NOTBETRIEB_PROBE":           "Stand der Direktversand-Probe — jetzt _DIREKTVERSAND_PROBE",
     "_DMARC_GRUPPE":               "Rollen-Soll für Group-Conversation.Read.All wird seit v1.12.146 beim Lesen abgeleitet (dmarc_berichte.gruppen_rolle_noetig) — der gespeicherte Wert folgte dem Umschalten der Eingrenzung nicht",
     "SMTP_CLIENTZERT_BEOBACHTEN":  "Messschalter der Untersuchung vom 11.11.2026 — durch EXO_ERKENNUNG ersetzt (v1.11.24), das das Client-Zertifikat nur anfordert, wo die Adresse nicht reicht",
     "WEBUI_USERNAME":              "örtliche Anmeldung nur mit Kennwort (v1.10.77) — es gibt genau ein örtliches Konto",

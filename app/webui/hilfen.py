@@ -39,6 +39,20 @@ import config
 import settings_store
 
 
+# Microsoft-365-Hosts, die Seiten des Gateways einrahmen dürfen: Outlook (Add-in,
+# Lesen-Ansicht) und Teams/Microsoft 365 (persönliche Reiter; Doku „Extend
+# Personal Tab to Microsoft 365“). EINE Liste für die berichtende CSP aller
+# Seiten (app.py) und die DURCHGESETZTE der Notfall-Mail (Teams-Reiter).
+M365_RAHMEN = ("https://outlook.office.com", "https://outlook.office365.com", "https://*.office.com",
+               "https://*.cloud.microsoft", "https://teams.microsoft.com",
+               "https://*.teams.microsoft.com", "https://*.microsoft365.com")
+
+
+def frame_ancestors() -> str:
+    """CSP-Direktive: die eigene Seite und die Microsoft-365-Hosts."""
+    return "frame-ancestors 'self' " + " ".join(M365_RAHMEN)
+
+
 def _cert_expiry() -> str:
     """Restlaufzeit des TLS-Zertifikats des SMTP-Lauschers, als fertiges HTML.
 
