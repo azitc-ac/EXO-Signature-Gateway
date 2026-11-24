@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.160 — 2026-11-24 — Tests: Abnahme-Punkt Notbetrieb bei ausgeschaltetem Schalter
+
+Ein Test erwartete für den Abnahme-Punkt „Notbetrieb-Bereitschaft“ bei
+ausgeschaltetem Schalter noch „OK“; seit v1.12.159 lautet er „entfällt“. Am
+Verhalten des Gateways ändert sich nichts.
+
+**Zu tun:** nichts.
+
 ## v1.12.159 — 2026-11-24 — EXO-Ausfallschutz (Notbetrieb) als PREVIEW, ab Werk aus
 
 Neue Funktion für den Fall, dass Exchange Online ausfällt. Sie ist als

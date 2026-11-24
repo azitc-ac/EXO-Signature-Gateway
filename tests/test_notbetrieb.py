@@ -1176,7 +1176,7 @@ def test_aufgabe_notbetrieb_bereit_erscheint_und_verschwindet(nb, graph, monkeyp
     assert p["zustand"] == abnahme.OFFEN and "Contacts.Read" in p["befund"] and "Berechtigungen" in p["zu_tun"]
     assert notbetrieb_pim.kontakte_recht_fehlt()
     nb["NOTBETRIEB_AKTIV"] = False
-    assert abnahme._notbetrieb_lokal()["zustand"] == abnahme.OK
+    assert abnahme._notbetrieb_lokal()["zustand"] == abnahme.ENTFAELLT   # Preview aus
     assert any(a.kennung == "notbetrieb-bereit" for a in aufgaben.AUFGABEN)
 
 
