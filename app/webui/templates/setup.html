@@ -2259,7 +2259,7 @@ async function saveKeyvault() {
             <span id="addin-validate-result" hidden></span>
           </div>
           <span id="addin-copy-ok" style="font-size:11px;color:#16a34a;display:none">Kopiert ✓</span>
-          <span class="hint" id="addin-knopf-fassung">{% if addin_knopf.version %}Fassung {{ addin_knopf.version }}{% if addin_knopf.seit %} · seit {{ addin_knopf.seit }}{% endif %}
+          <span class="hint" id="addin-knopf-fassung">{% if addin_knopf.version %}Fassung {{ addin_knopf.version }}{% if addin_knopf.seit %} · seit {{ addin_knopf.seit }}{% endif %}{% if addin_knopf.grund %} · Grund: {{ addin_knopf.grund|join('; ') }}{% endif %}
             — ob sie in den Postfächern angekommen ist, zeigt der Postfach-Status.{% else %}Noch nie abgerufen
             — die Fassung erscheint hier, sobald das Manifest einmal geladen wurde (etwa über <em>Erreichbarkeit prüfen</em>).{% endif %}</span>
           <details style="margin-top:6px">
@@ -2332,7 +2332,7 @@ async function saveKeyvault() {
           <span id="addin-verfassen-validate-result" hidden></span>
         </div>
         <span id="addin-verfassen-copy-ok" style="font-size:11px;color:#16a34a;display:none">Kopiert ✓</span>
-        <span class="hint" id="addin-verfassen-fassung">{% if av.version %}Fassung {{ av.version }}{% if av.seit %} · seit {{ av.seit }}{% endif %}
+        <span class="hint" id="addin-verfassen-fassung">{% if av.version %}Fassung {{ av.version }}{% if av.seit %} · seit {{ av.seit }}{% endif %}{% if av.grund %} · Grund: {{ av.grund|join('; ') }}{% endif %}
           — ob sie in den Postfächern angekommen ist, zeigt die Spalte <em>Add-in Signatur</em> im Postfach-Status.{% else %}Noch nie abgerufen
           — die Fassung erscheint hier, sobald das Manifest einmal geladen wurde (etwa über <em>Erreichbarkeit prüfen</em>).{% endif %}</span>
       </div>
@@ -2840,5 +2840,6 @@ async function validateAddinManifest(btn, url, el) {
   }, {anzeige: el});
   showMsg(el, d.ok ? 'Erreichbar & valides XML ✓  (ID: ' + d.id + ')' : d.error, d.ok);
 }
+
 </script>
 {% endblock %}

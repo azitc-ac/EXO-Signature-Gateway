@@ -209,6 +209,9 @@ def offene() -> list[dict]:
             liste.append({"kennung": a.kennung, "titel": a.titel, "laeuft": laeuft,
                           "befund": p.get("befund", ""), "zu_tun": p.get("zu_tun", ""),
                           "link": a.link, "dringend": a.dringend, "seit": a.seit,
+                          # Wiederkehrende Aufgaben (neue Add-in-Fassung) nennen ihren
+                          # tatsächlichen Anlass; „seit v1.11.56“ las sich wie die Ursache.
+                          "anlass": p.get("anlass", ""),
                           "stempel": _stempel(p)})
     liste.sort(key=lambda x: not x["dringend"])
     _zwischen = (jetzt, liste)

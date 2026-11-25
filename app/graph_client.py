@@ -751,7 +751,19 @@ async def teams_katalog_aktualisieren(token: str, externe_id: str, paket: bytes)
         if r.status_code != 200:
             log.warning("teams_katalog_aktualisieren: Lesen Graph %s %s", r.status_code, r.text[:200])
             return None
-        return _katalog_auswerten(r.json().get("value", []))
+        apps = r.json().get("value", [])
+        ergebnis = _katalog_auswerten(apps)
+        if not ergebnis["katalog_id"]:
+            # Mit dem delegierten Token blieb die Notfall-App am 25.11.2026 auf exohv
+            # unsichtbar, obwohl der Anwendungs-Token sie unter derselben
+            # externalId fand (Fassung 1.12.48). Ursache offen — deshalb das
+            # Gelesene ins Protokoll, damit der nächste Versuch belegt, was Graph
+            # dem Konto zeigt.
+            log.warning("teams_katalog_aktualisieren: %s mit Anmeldung nicht gefunden — %d App(s), "
+                        "Fassungen %s", externe_id, len(apps),
+                        [(d.get("version"), d.get("publishingState")) for a in apps
+                         for d in a.get("appDefinitions") or []])
+        return ergebnis
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:

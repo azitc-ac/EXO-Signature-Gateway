@@ -29,6 +29,15 @@ Den Zeitpunkt der Aktualisierung im Admin Center sieht das Gateway nicht. Die
 Uhr startet deshalb beim frühesten Prüflauf, der ein Postfach auf der
 Soll-Fassung sah (`_ADDIN_VERTEILUNG`, je Add-in und Soll-Fassung; eine neue
 Soll-Fassung beginnt neu).
+
+KATALOG (seit v1.12.161)
+------------------------
+`Get-App -OrganizationApp -PrivateCatalog` zeigt app-only die Fassung im
+Katalog „Integrierte Apps“ (DEV-Tenant 25.11.2026: Minuten nach dem Klick auf
+„Aktualisieren“ schon neu, das Postfach noch tagelang alt). Ist sie bekannt,
+entscheidet SIE, ob aktualisiert wurde — nicht erst das erste Postfach. Die Uhr
+startet dann beim ersten Prüflauf, der den Katalog auf der Soll-Fassung sah.
+Ohne Katalogwert (Abfrage gescheitert, ältere Läufe) gilt die Regel oben.
 """
 from __future__ import annotations
 
@@ -87,11 +96,52 @@ def gesehen(art: str, soll: str, ist: str, jetzt: datetime | None = None) -> Non
     settings_store.force_update({KEY: stand})
 
 
+KATALOG_KEY = "_ADDIN_KATALOG"
+
+
+def katalog_gelesen(art: str, version: str, jetzt: datetime | None = None) -> None:
+    """Ein Prüflauf las die Katalogfassung `version` ("" = nicht im Katalog)."""
+    stand = dict(settings_store.get(KATALOG_KEY) or {})
+    alt = stand.get(art) or {}
+    zeit = _iso(jetzt or _jetzt())
+    eintrag = {"version": version, "gelesen": zeit,
+               "gesehen": alt.get("gesehen") if alt.get("version") == version and alt.get("gesehen") else zeit}
+    if alt != eintrag:
+        stand[art] = eintrag
+        settings_store.force_update({KATALOG_KEY: stand})
+
+
+def katalog(art: str) -> dict:
+    """{"version", "gesehen", "gelesen"} — leer, wenn nie gelesen."""
+    e = (settings_store.get(KATALOG_KEY) or {}).get(art)
+    return e if isinstance(e, dict) and "version" in e else {}
+
+
+def _zeit(s: str) -> datetime | None:
+    try:
+        return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def im_katalog_aktuell(art: str, soll: str) -> bool | None:
+    """True/False, wenn der Katalog gelesen wurde — None, wenn unbekannt."""
+    k = katalog(art)
+    if not k:
+        return None
+    return ist_aktuell(k.get("version") or "", soll)
+
+
 def einordnen(art: str, soll: str, ist: str, jetzt: datetime | None = None) -> str:
     """Lage EINES Postfachs (siehe Modulkopf)."""
     if ist_aktuell(ist, soll):
         return AKTUELL
+    # Katalog alt: wie ohne Katalog (kein Postfach kann neuer sein als er).
+    kat = im_katalog_aktuell(art, soll)
     beginn = erstmals(art, soll)
+    if kat:
+        k_beginn = _zeit(katalog(art).get("gesehen"))
+        beginn = min(b for b in (beginn, k_beginn) if b) if (beginn or k_beginn) else None
     if beginn is None:
         return NICHT_INSTALLIERT if not (ist or "").strip() else AKTUALISIEREN
     if (jetzt or _jetzt()) - beginn < FENSTER:
@@ -103,16 +153,23 @@ ZUWEISUNG_WEG = ("Admin Center → Einstellungen → Integrierte Apps → Add-in
                  "an alle (Jeder) zuweisen. Seit über 72 Stunden hat Exchange die neue "
                  "Fassung diesem Postfach nicht ausgeliefert.")
 AKTUALISIEREN_WEG = ("Einrichtung → Verfassen-Add-in → „Integrierte Apps öffnen“ → Add-in → "
-                     "Aktualisieren und die neuen Berechtigungen bestätigen. Exchange "
-                     "verteilt die neue Fassung danach binnen bis zu 72 Stunden.")
+                     "Aktualisieren. Exchange verteilt die neue Fassung danach binnen bis "
+                     "zu 72 Stunden.")
 
 
-def aktualisieren_weg(art: str) -> str:
+def aktualisieren_weg(art: str, rechte_neu: bool = False) -> str:
     """Weg zum Aktualisieren je Add-in — der Abschnitt in der Einrichtung
-    unterscheidet sich, der Schritt im Admin Center nicht."""
+    unterscheidet sich, der Schritt im Admin Center nicht.
+
+    „…und die neuen Berechtigungen bestätigen“ nur, wenn sich <Permissions>
+    wirklich geändert hat (Stand `rechte_neu`, seit v1.12.161) — bis dahin
+    stand es immer da, auch bei einem bloß neuen Namen."""
+    weg = AKTUALISIEREN_WEG
+    if rechte_neu:
+        weg = weg.replace("Aktualisieren.", "Aktualisieren und die neuen Berechtigungen bestätigen.", 1)
     if art == "knopf":
-        return AKTUALISIEREN_WEG.replace("Einrichtung → Verfassen-Add-in", "Einrichtung → Outlook Add-in → Knopf", 1)
-    return AKTUALISIEREN_WEG
+        return weg.replace("Einrichtung → Verfassen-Add-in", "Einrichtung → Outlook Add-in → Knopf", 1)
+    return weg
 
 
 # ── Hybrid-Nutzer: Abruf statt Get-App (seit v1.12.69) ────────────────────────

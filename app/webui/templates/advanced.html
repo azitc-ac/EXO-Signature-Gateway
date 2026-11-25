@@ -231,7 +231,8 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     <label for="gateway-name">Gateway-Name</label>
     <div class="settings-control">
       <input type="text" id="gateway-name" value="{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}" style="width:320px">
-      <span class="hint">Prefix für EXO-Objekte (Connectors, Rules, Distribution Groups). Änderung gilt erst nach erneutem Ausführen des Setup-Assistenten.</span>
+      <span class="hint">Prefix für EXO-Objekte (Connectors, Rules, Distribution Groups). Änderung gilt erst nach erneutem Ausführen des Setup-Assistenten.
+        Der Name steht auch in den Outlook-Add-ins und der Teams-App: Nach einer Änderung erscheint die Aufgabe, beide Add-ins im Admin Center und die Teams-App im Katalog zu aktualisieren (danach bis zu 72 Stunden Verteilung).</span>
       <div style="margin-top:6px">
         <button class="btn secondary" id="gateway-name-btn" data-wache-hinweis="gateway-name-result" data-wache="gateway-name" onclick="saveGatewayName()">Speichern</button>
         <span id="gateway-name-result" style="font-size:12px;margin-left:8px"></span>

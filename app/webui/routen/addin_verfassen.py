@@ -77,8 +77,8 @@ import sso as sso_mod
 from webui.deps import log
 from webui.hilfen import _addin_base_url
 from webui.routen.addin import (
-    _NO_STORE, KNOPF_FORM_PFAD, OUTLOOK_SIGNATUR_MAX, _addin_cfg, _lokal_gesehen, _manifest_texte,
-    _manifest_version, _ohne_adresse, markiert, signatur_fuer_outlook,
+    _NO_STORE, KNOPF_FORM_PFAD, OUTLOOK_SIGNATUR_MAX, _addin_cfg, _lokal_gesehen,
+    _ohne_adresse, markiert, signatur_fuer_outlook,
 )
 
 router = APIRouter()
@@ -112,8 +112,14 @@ def verfassen_manifest_xml(base: str) -> str:
     """Manifest des Verfassen-Add-ins; setzt dabei die Fassung (siehe
     addin.manifest_staende_auffrischen)."""
     hostname = base.split("://")[-1].split(":")[0]
-    kennung = addin_id(hostname)
-    t = _manifest_texte()
+    from webui.routen import addin as _addin
+    kennung = addin_id(_addin.kennungs_host(hostname))
+    xml, version = _addin.mit_fassung("_ADDIN_VERFASSEN_STAND",
+                                      lambda t: _verfassen_bauen(base, hostname, kennung, t))
+    return xml.replace("__VERSION__", version, 1)
+
+
+def _verfassen_bauen(base: str, hostname: str, kennung: str, t: dict) -> tuple[str, str]:
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp
   xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
@@ -210,8 +216,7 @@ def verfassen_manifest_xml(base: str) -> str:
     </VersionOverrides>
   </VersionOverrides>
 </OfficeApp>"""
-    return xml.replace("__VERSION__", _manifest_version(
-        _ohne_adresse(xml, base, hostname, kennung), "_ADDIN_VERFASSEN_STAND"), 1)
+    return xml, _ohne_adresse(xml, base, hostname, kennung)
 
 
 @router.get(LAUFZEIT_HTML, response_class=HTMLResponse)
@@ -256,7 +261,8 @@ def _konfiguration(base: str) -> dict:
     import html as _html
     # Name der App, wie sie in Outlook unter „Apps“ steht (Teams-Paket name.short) —
     # für den Hinweis auf dem Handy, wo man die Signatur ändert.
-    app = _html.unescape(_manifest_texte()["knopf"])
+    from webui.routen import addin as _addin
+    app = _html.unescape(_addin._manifest_texte()["knopf"])
     import config as _config
     return {**naa_konfiguration(), "api": base + SIGNATUR_API, "meldung": base + MELDUNG_API,
             "kettenkopf": sig_thread.ADDIN_KOPF, "app": app,

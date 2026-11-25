@@ -106,6 +106,85 @@ def test_aenderung_ohne_gateway_update_zaehlt_die_vierte_stelle(monkeypatch):
     assert _version(_manifest(monkeypatch, "Mein GW", True, data)) == "1.9.146.2"
 
 
+# ── Grund einer neuen Fassung (seit v1.12.161) ───────────────────────────────
+# Anlass: Nach einer Umbenennung las sich die Aufgabe „im Admin Center
+# aktualisieren“ tagelang wie die Folge eines späteren Updates.
+
+def test_umbenennen_kommt_an_und_nennt_den_grund(monkeypatch):
+    """Ein neuer Name (Umfirmierung) muss in den Knöpfen ankommen — neue Fassung,
+    Grund „Anzeigename“, nicht „Code geändert“."""
+    import config
+    data = {}
+    monkeypatch.setattr(config, "VERSION", "1.12.121")
+    _manifest(monkeypatch, "Alt GW", True, data)
+    monkeypatch.setattr(config, "VERSION", "1.12.161")
+    root = _manifest(monkeypatch, "Neu GW", True, data)
+    stand = data["_ADDIN_MANIFEST_STAND"]
+    assert _version(root) == "1.12.161" and root.find("o:ProviderName", NS).text == "Neu GW"
+    assert stand["grund"] == ["Anzeigename geändert (bisher „Alt GW“, jetzt „Neu GW“)"], stand["grund"]
+    assert stand["rechte_neu"] is False
+
+
+def test_code_und_name_geaendert_nennt_beides(monkeypatch):
+    import config
+    data = {}
+    monkeypatch.setattr(config, "VERSION", "1.12.121")
+    _manifest(monkeypatch, "Alt GW", True, data)
+    data["_ADDIN_MANIFEST_STAND"]["hash"] = "anderer-code"
+    monkeypatch.setattr(config, "VERSION", "1.12.161")
+    _manifest(monkeypatch, "Neu GW", True, data)
+    grund = data["_ADDIN_MANIFEST_STAND"]["grund"]
+    assert any("Manifest mit Gateway v1.12.161" in g for g in grund), grund
+    assert any("Anzeigename" in g for g in grund), grund
+
+
+def test_nur_code_geaendert(monkeypatch):
+    import config
+    data = {}
+    monkeypatch.setattr(config, "VERSION", "1.12.121")
+    _manifest(monkeypatch, "Mein GW", True, data)
+    data["_ADDIN_MANIFEST_STAND"]["hash"] = "anderer-code"
+    monkeypatch.setattr(config, "VERSION", "1.12.161")
+    _manifest(monkeypatch, "Mein GW", True, data)
+    assert data["_ADDIN_MANIFEST_STAND"]["grund"] == ["Manifest mit Gateway v1.12.161 geändert"]
+
+
+def test_abwesenheit_umschalten_nennt_die_knopfbeschriftung(monkeypatch):
+    import config
+    data = {}
+    monkeypatch.setattr(config, "VERSION", "1.12.121")
+    _manifest(monkeypatch, "Mein GW", True, data)
+    _manifest(monkeypatch, "Mein GW", False, data)
+    assert data["_ADDIN_MANIFEST_STAND"]["grund"] == ["Knopfbeschriftung (zentrale Abwesenheit ausgeschaltet)"]
+
+
+def test_bestandsanlage_ohne_texte_behaelt_ihre_fassung(monkeypatch):
+    """Das Update selbst darf keine neue Fassung erzeugen: Stand ohne `texte`
+    (vor v1.12.161) mit gleichem Inhalt → Version bleibt, Texte werden nachgetragen."""
+    import config
+    data = {}
+    monkeypatch.setattr(config, "VERSION", "1.12.121")
+    _manifest(monkeypatch, "Mein GW", True, data)
+    for k in ("texte", "rechte", "grund", "rechte_neu"):
+        data["_ADDIN_MANIFEST_STAND"].pop(k, None)
+    monkeypatch.setattr(config, "VERSION", "1.12.161")
+    assert _version(_manifest(monkeypatch, "Mein GW", True, data)) == "1.12.121"
+    assert data["_ADDIN_MANIFEST_STAND"]["texte"] == {"name": "Mein GW", "abwesenheit": True}
+
+
+def test_geaenderte_berechtigung_steht_im_grund(monkeypatch):
+    import config
+    data = {}
+    monkeypatch.setattr(config, "VERSION", "1.12.121")
+    _manifest(monkeypatch, "Mein GW", True, data)
+    data["_ADDIN_MANIFEST_STAND"].update(rechte="ReadItem", hash="alt")
+    monkeypatch.setattr(config, "VERSION", "1.12.161")
+    _manifest(monkeypatch, "Mein GW", True, data)
+    stand = data["_ADDIN_MANIFEST_STAND"]
+    assert stand["rechte_neu"] is True
+    assert any(g.startswith("Berechtigung geändert (bisher ReadItem,") for g in stand["grund"]), stand["grund"]
+
+
 def test_version_faellt_nie(monkeypatch):
     """Gespeicherter Stand höher als die laufende Gateway-Version (Rückspielen eines
     älteren Images): eine niedrigere Version würde Integrierte Apps nicht annehmen."""
@@ -211,3 +290,24 @@ def test_addin_neues_symbol_gibt_neue_version(monkeypatch):
     monkeypatch.setattr(addin, "_symbol_abdruck", lambda: "neu")
     monkeypatch.setattr(config, "VERSION", "1.10.3")
     assert _version(_manifest(monkeypatch, "Mein GW", True, data)) == "1.10.3"
+
+
+def test_kennung_kommt_aus_der_aussenadresse_nicht_aus_der_anfrage(monkeypatch):
+    """Abruf über eine andere Adresse (intern, localhost) darf keine andere
+    Kennung erzeugen — sonst „different product ID“ beim Hochladen (25.11.2026).
+    Die Adressen im Manifest bleiben die der Anfrage."""
+    from webui.routen import addin_verfassen
+    data = {"PUBLIC_HOSTNAME": "sig.firma.at"}
+    _manifest(monkeypatch, "Mein GW", True, data)          # setzt get/force_update auf `data`
+    data.pop("ADDIN_BASE_URL")
+    xml = addin.knopf_manifest_xml("https://localhost:8080")
+    assert f"<Id>{addin.knopf_addin_id('sig.firma.at')}</Id>" in xml
+    assert "https://localhost:8080/addin/" in xml
+    v = addin_verfassen.verfassen_manifest_xml("https://10.99.0.5")
+    assert f"<Id>{addin_verfassen.addin_id('sig.firma.at')}</Id>" in v
+    t = addin._teams_manifest("https://localhost:8080")
+    assert t["id"] == addin._teams_manifest("https://sig.firma.at")["id"]
+    assert t["validDomains"] == ["localhost"]
+    assert addin._notfall_teams_manifest("https://localhost")["id"] == addin.notfall_teams_id("sig.firma.at")
+    assert {e["kennung"] for e in addin.lokal_bereitstellung("https://10.99.0.5")} == {
+        addin_verfassen.addin_id("sig.firma.at"), addin.knopf_addin_id("sig.firma.at")}

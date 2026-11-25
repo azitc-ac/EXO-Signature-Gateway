@@ -330,9 +330,10 @@ def test_befehle_fuer_exchange_lokal(lage):
                             "manifest.xml' -ProvidedTo Everyone -DefaultStateForUser Enabled")
     assert "-FileData ([System.IO.File]::ReadAllBytes('C:\\Temp\\exo-signatur-verfassen.xml'))" \
         in v["neu_datei"]
-    assert v["kennung"] == av.addin_id("sig.firma.at")
+    # Kennung aus der EINGESTELLTEN Außenadresse (addin.kennungs_host, v1.12.161)
+    assert v["kennung"] == av.addin_id(addin.kennungs_host("sig.firma.at"))
     assert v["entfernen"] == f"Remove-App -Identity '{v['kennung']}' -OrganizationApp -Confirm:$false"
-    assert befehle["knopf"]["kennung"] == addin.knopf_addin_id("sig.firma.at")
+    assert befehle["knopf"]["kennung"] == addin.knopf_addin_id(addin.kennungs_host("sig.firma.at"))
 
 
 def test_befehle_maskieren_die_adresse(lage):

@@ -970,6 +970,11 @@ def _addin_fassung_art(art: str, name: str) -> dict:
         return _punkt(name, UNBEKANNT, "Noch keine Postfachprüfung gegen die aktuelle Fassung.",
                       "Postfächer → Status aktualisieren.")
     aktuell = len(lagen.get(av.AKTUELL, []))
+    stand = _addin_stand(art)
+    neu_text = _fassung_text(soll, stand)
+    kat = av.katalog(art)
+    kat_text = (f" Im Admin Center steht Fassung {kat['version'] or '–'} (gelesen "
+                f"{_datum(kat.get('gelesen'))})." if kat else "")
     if lagen.get(av.ZUWEISUNG):
         z = sorted(lagen[av.ZUWEISUNG])
         return _punkt(name, OFFEN,
@@ -977,13 +982,16 @@ def _addin_fassung_art(art: str, name: str) -> dict:
                       f"sie andere erreicht hat (z. B. {z[0]}).", av.ZUWEISUNG_WEG)
     if lagen.get(av.AKTUALISIEREN):
         alt = sorted(lagen[av.AKTUALISIEREN])
-        return _punkt(name, OFFEN,
-                      f"Kein Postfach hat die neue Fassung {soll}; {len(alt)} mit älterer "
-                      f"(z. B. {alt[0]}).", av.aktualisieren_weg(art))
+        return {**_punkt(name, OFFEN,
+                         f"{neu_text}{kat_text} Noch in keinem Postfach; {len(alt)} mit älterer "
+                         f"(z. B. {alt[0]}).",
+                         av.aktualisieren_weg(art, bool(stand.get("rechte_neu")))),
+                "anlass": _anlass(stand)}
     if lagen.get(av.VERTEILUNG):
+        erledigt = " Im Admin Center aktualisiert." if av.im_katalog_aktuell(art, soll) else ""
         return _punkt(name, OK,
-                      f"Verteilung läuft: {aktuell} von {gesamt} Postfächern aktuell. Nichts "
-                      "zu tun; Exchange braucht bis zu 72 Stunden.")
+                      f"{neu_text}{erledigt} Verteilung läuft: {aktuell} von {gesamt} Postfächern "
+                      "aktuell. Nichts zu tun; Exchange braucht bis zu 72 Stunden.")
     if not aktuell:
         return _punkt(name, ENTFAELLT, f"Bei keinem der {gesamt} geprüften Postfächer installiert.")
     zeiten = sorted(str((((h or {}).get("checks") or {}).get("addin_" + art) or {}).get("checked_at") or "")
@@ -991,6 +999,37 @@ def _addin_fassung_art(art: str, name: str) -> dict:
     stand = f", geprüft {zeiten[-1]}" if zeiten and zeiten[-1] else ""
     return _punkt(name, OK, f"{aktuell} von {gesamt} Postfächern aktuell "
                             f"(Stand der letzten Postfachprüfung{stand}).")
+
+
+_ADDIN_STAENDE = {"verfassen": "_ADDIN_VERFASSEN_STAND", "knopf": "_ADDIN_MANIFEST_STAND"}
+
+
+def _addin_stand(art: str) -> dict:
+    import settings_store
+    st = settings_store.get(_ADDIN_STAENDE.get(art, "")) or {}
+    return st if isinstance(st, dict) else {}
+
+
+def _datum(iso: str | None) -> str:
+    """„2026-11-20…“ → „20.11.2026“ (leer bleibt leer)."""
+    t = str(iso or "")[:10].split("-")
+    return f"{t[2]}.{t[1]}.{t[0]}" if len(t) == 3 else ""
+
+
+def _fassung_text(soll: str, stand: dict) -> str:
+    """„Neue Fassung 1.12.121 vom 20.11.2026 — Grund: … .“ Der Grund kommt aus
+    dem Fassungs-Stand (webui/routen/addin.mit_fassung, seit v1.12.161); ältere
+    Stände haben keinen, dann nur Fassung und Datum. Anlass: Ohne Grund las sich
+    die Aufgabe nach jedem Update wie eine Folge DIESES Updates — tatsächlich
+    hatte eine Umbenennung Tage zuvor die Fassung erzeugt."""
+    vom = f" vom {_datum(stand.get('seit'))}" if stand.get("seit") else ""
+    grund = "; ".join(g for g in (stand.get("grund") or []) if isinstance(g, str))
+    return f"Neue Fassung {soll}{vom}" + (f" — Grund: {grund}." if grund else ".")
+
+
+def _anlass(stand: dict) -> str:
+    """Kurzer Anlass für die Marke unter der Aufgabe (statt „seit v…“)."""
+    return f"neue Fassung vom {_datum(stand.get('seit'))}" if stand.get("seit") else ""
 
 
 def _addin_fassung() -> dict:

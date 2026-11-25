@@ -155,6 +155,9 @@ def pruefung(app: str) -> dict:
         return abnahme._punkt(name, abnahme.UNBEKANNT, f"Fassung im Teams-Katalog unklar ({zustand}).")
     if _versionstupel(version) >= _versionstupel(paket):
         return abnahme._punkt(name, abnahme.OK, f"Im Katalog Fassung {version}, aktuell.")
-    return abnahme._punkt(name, abnahme.OFFEN, f"Im Teams-Katalog steht Fassung {version}, "
-                          f"das Paket des Gateways hat {paket}.",
-                          "„Im Teams-Katalog aktualisieren“ (Konto mit Rolle Teams-Administrator).")
+    stand = settings_store.get({"notfall": "_TEAMS_NOTFALL_STAND"}.get(app, "_TEAMS_APP_STAND")) or {}
+    stand = stand if isinstance(stand, dict) else {}
+    return {**abnahme._punkt(name, abnahme.OFFEN,
+                             abnahme._fassung_text(paket, stand) + f" Im Teams-Katalog steht noch {version}.",
+                             "„Im Teams-Katalog aktualisieren“ (Konto mit Rolle Teams-Administrator)."),
+            "anlass": abnahme._anlass(stand)}

@@ -297,14 +297,21 @@ def _teams_manifest(base: str) -> dict:
     Betreibers (SELF_DATENSCHUTZ_URL / SELF_NUTZUNGSBEDINGUNGEN_URL), sonst die
     öffentliche Seite /self/rechtliches.
     """
-    import html as _html
     hostname = base.split("://")[-1].split(":")[0]
-    t = {k: _html.unescape(v) for k, v in _manifest_texte().items()}
+    m, version = mit_fassung("_TEAMS_APP_STAND", lambda t: _teams_bauen(base, hostname, t),
+                             stellen=3, ohne_abdruck_veraltet=True)
+    m["version"] = version
+    return m
+
+
+def _teams_bauen(base: str, hostname: str, texte: dict) -> tuple[dict, str]:
+    import html as _html
+    t = {k: _html.unescape(v) for k, v in texte.items()}
     m = {
         "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
         "manifestVersion": "1.17",
         "version": "__VERSION__",
-        "id": str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"exo-signature-tab.{hostname}")),
+        "id": str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"exo-signature-tab.{kennungs_host(hostname)}")),
         "developer": {"name": t["anbieter"][:32], "websiteUrl": base,
                       "privacyUrl": rechtstext_url("SELF_DATENSCHUTZ_URL", base, "datenschutz"),
                       "termsOfUseUrl": rechtstext_url("SELF_NUTZUNGSBEDINGUNGEN_URL", base, "nutzung")},
@@ -324,9 +331,7 @@ def _teams_manifest(base: str) -> dict:
         "validDomains": [hostname],
     }
     roh = _json_mod.dumps(m, ensure_ascii=False, sort_keys=True)
-    m["version"] = _manifest_version(_ohne_adresse(roh, base, hostname, m["id"]),
-                                     "_TEAMS_APP_STAND", stellen=3, ohne_abdruck_veraltet=True)
-    return m
+    return m, _ohne_adresse(roh, base, hostname, m["id"])
 
 
 def teams_app_paket(base: str) -> tuple[bytes, dict]:
@@ -348,14 +353,21 @@ def _notfall_teams_manifest(base: str) -> dict:
 
     Fassung wie beim Self-Service-Paket: steigt nur bei inhaltlicher Änderung
     (_manifest_version, eigener Stand `_TEAMS_NOTFALL_STAND`)."""
-    import html as _html
     hostname = base.split("://")[-1].split(":")[0].split("/")[0]
-    anbieter = _html.unescape(_manifest_texte()["anbieter"])
+    m, version = mit_fassung("_TEAMS_NOTFALL_STAND", lambda t: _notfall_bauen(base, hostname, t),
+                             stellen=3, ohne_abdruck_veraltet=True)
+    m["version"] = version
+    return m
+
+
+def _notfall_bauen(base: str, hostname: str, texte: dict) -> tuple[dict, str]:
+    import html as _html
+    anbieter = _html.unescape(texte["anbieter"])
     m = {
         "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
         "manifestVersion": "1.17",
         "version": "__VERSION__",
-        "id": notfall_teams_id(hostname),
+        "id": notfall_teams_id(kennungs_host(hostname)),
         "developer": {"name": anbieter[:32], "websiteUrl": base,
                       "privacyUrl": rechtstext_url("SELF_DATENSCHUTZ_URL", base, "datenschutz"),
                       "termsOfUseUrl": rechtstext_url("SELF_NUTZUNGSBEDINGUNGEN_URL", base, "nutzung")},
@@ -377,9 +389,7 @@ def _notfall_teams_manifest(base: str) -> dict:
         "validDomains": [hostname],
     }
     roh = _json_mod.dumps(m, ensure_ascii=False, sort_keys=True)
-    m["version"] = _manifest_version(_ohne_adresse(roh, base, hostname, m["id"]),
-                                     "_TEAMS_NOTFALL_STAND", stellen=3, ohne_abdruck_veraltet=True)
-    return m
+    return m, _ohne_adresse(roh, base, hostname, m["id"])
 
 
 def notfall_teams_id(hostname: str) -> str:
@@ -427,8 +437,20 @@ async def addin_teams_app(request: Request):
 _KURZ, _LANG = 125, 250
 
 
-def _manifest_texte() -> dict[str, str]:
+def _textquelle() -> dict:
+    """Was die sichtbaren Texte der Manifeste bestimmt — so, wie es JETZT
+    eingestellt ist: Gateway-Name und ob die zentrale Abwesenheit an ist."""
+    import abwesenheit
+    return {"name": (_gateway_name() or "").strip() or "EXO Signature Gateway",
+            "abwesenheit": bool(abwesenheit.funktion_aktiv())}
+
+
+def _manifest_texte(quelle: dict | None = None) -> dict[str, str]:
     """Alle sichtbaren Texte des Manifests — XML-maskiert, EINE Quelle.
+
+    `quelle`: {"name", "abwesenheit"} — ohne Angabe der aktuelle Stand
+    (_textquelle). Eine andere Quelle braucht nur mit_fassung, um den Grund
+    einer neuen Fassung zu bestimmen.
 
     Rubrik (Gruppe im Menüband) ist an BEIDEN Einstiegspunkten der Gateway-Name;
     der Knopf heisst an beiden gleich: „Signatur & Abwesenheit", oder nur
@@ -440,9 +462,9 @@ def _manifest_texte() -> dict[str, str]:
     Verteilen des Manifests; ein späteres Umschalten benennt installierte Knöpfe
     nicht um.
     """
-    import abwesenheit
-    name = (_gateway_name() or "").strip() or "EXO Signature Gateway"
-    abw = abwesenheit.funktion_aktiv()
+    q = quelle if isinstance(quelle, dict) else _textquelle()
+    name = str(q.get("name") or "").strip() or "EXO Signature Gateway"
+    abw = bool(q.get("abwesenheit"))
     knopf = "Signatur & Abwesenheit" if abw else "Signatur"
     roh = {
         "anbieter": (name, _KURZ),
@@ -497,6 +519,23 @@ def _ohne_adresse(inhalt: str, base: str, hostname: str, app_id: str) -> str:
             .replace(app_id, "__ID__"))
 
 
+def kennungs_host(hostname: str) -> str:
+    """Hostname, aus dem die KENNUNGEN der Add-ins und Teams-Apps entstehen:
+    die eingestellte Außenadresse (aussenadresse.konfiguriert), sonst der
+    Host der Anfrage.
+
+    Anlass (25.11.2026): Wer das Teams-Paket oder ein Manifest über eine andere
+    Adresse abrief (intern, localhost), bekam eine andere Kennung — Microsoft
+    lehnt das Hochladen dann mit „different product ID“ ab, und die
+    Postfachprüfung (health_check._addin_id_aus_adresse) suchte ohnehin unter
+    der Kennung der Außenadresse. Die ADRESSEN im Manifest bleiben die der
+    Anfrage: Die Weboberfläche kann unter einem anderen Namen erreichbar sein
+    als der eingestellte Host."""
+    from urllib.parse import urlsplit
+    import aussenadresse
+    return urlsplit(aussenadresse.konfiguriert() or "").hostname or hostname
+
+
 def knopf_addin_id(hostname: str) -> str:
     """Kennung des Add-ins mit Knopf — aus dem Hostnamen, damit sie über
     Neustarts gleich bleibt. Gegenstück: addin_verfassen.addin_id."""
@@ -504,7 +543,9 @@ def knopf_addin_id(hostname: str) -> str:
 
 
 def _manifest_version(inhalt: str, schluessel: str = "_ADDIN_MANIFEST_STAND",
-                      stellen: int = 4, ohne_abdruck_veraltet: bool = False) -> str:
+                      stellen: int = 4, ohne_abdruck_veraltet: bool = False,
+                      texte: dict | None = None, rechte: str | None = None,
+                      grund: list[str] | None = None) -> str:
     """Manifest-Version: steigt nur, wenn sich das Manifest INHALTLICH ändert.
 
     Ein über „Integrierte Apps" hochgeladenes Add-in übernimmt Änderungen am
@@ -532,19 +573,25 @@ def _manifest_version(inhalt: str, schluessel: str = "_ADDIN_MANIFEST_STAND",
     passendem Hash ist also schon jünger als das Symbol. Sie übernehmen den
     Abdruck ohne neue Version (sonst müsste der Admin ein drittes Mal
     aktualisieren und erneut bis zu 72 h warten).
+
+    `texte`/`rechte`/`grund` (seit v1.12.161, siehe mit_fassung) werden im
+    Stand mitgeschrieben: die Texte, aus denen die Fassung entstand, der Inhalt von
+    <Permissions> und WARUM die Fassung neu ist — die Aufgabe nennt beides.
     """
     import hashlib
     h = hashlib.sha256(inhalt.encode("utf-8")).hexdigest()
     symbol = _symbol_abdruck()
     stand = settings_store.get(schluessel) or {}
-    if isinstance(stand, dict) and stand.get("hash") == h and stand.get("version"):
-        if stand.get("symbol") == symbol:
-            return str(stand["version"])
-        if "symbol" not in stand and not ohne_abdruck_veraltet:
-            settings_store.force_update({schluessel: {**stand, "symbol": symbol}})
-            return str(stand["version"])
+    stand = stand if isinstance(stand, dict) else {}
+    extra = {k: v for k, v in (("texte", texte), ("rechte", rechte)) if v is not None}
+    if _fassung_bleibt(h, stand, symbol, ohne_abdruck_veraltet):
+        nachtrag = {**({"symbol": symbol} if "symbol" not in stand else {}),
+                    **{k: v for k, v in extra.items() if stand.get(k) != v}}
+        if nachtrag:
+            settings_store.force_update({schluessel: {**stand, **nachtrag}})
+        return str(stand["version"])
     neu = ".".join(_gateway_version_als_manifest().split(".")[:stellen])
-    alt = isinstance(stand, dict) and stand.get("version")
+    alt = stand.get("version")
     if alt and _versionstupel(alt) >= _versionstupel(neu):
         # Gleiche Gateway-Version, aber anderer Inhalt (z. B. Einstellung
         # umgeschaltet): letzte erlaubte Stelle hochzählen. Beim Add-in die vierte
@@ -557,9 +604,93 @@ def _manifest_version(inhalt: str, schluessel: str = "_ADDIN_MANIFEST_STAND",
     # Admin ihn mit „Last modified“ unter Integrierte Apps vergleichen kann
     # (eine Versionsnummer zeigt das Admin Center nicht).
     import datetime as _dt
-    settings_store.force_update({schluessel: {"hash": h, "version": neu, "symbol": symbol,
-                                              "seit": _dt.date.today().isoformat()}})
+    if grund is None:
+        grund = _grund(stand, h, symbol, texte, rechte)
+    eintrag = {"hash": h, "version": neu, "symbol": symbol,
+               "seit": _dt.date.today().isoformat(), **extra, "grund": grund}
+    if rechte is not None:
+        eintrag["rechte_neu"] = bool(stand.get("version")) and stand.get("rechte", rechte) != rechte
+    settings_store.force_update({schluessel: eintrag})
     return neu
+
+
+def _fassung_bleibt(h: str, stand: dict, symbol: str, ohne_abdruck_veraltet: bool) -> bool:
+    """Bleibt die gemerkte Fassung gültig? Gleicher Inhalt UND gleiches Symbol
+    (ein Stand ohne Abdruck gilt bei Outlook-Add-ins als passend, siehe
+    _manifest_version)."""
+    if not (stand.get("hash") == h and stand.get("version")):
+        return False
+    return stand.get("symbol") == symbol or ("symbol" not in stand and not ohne_abdruck_veraltet)
+
+
+def _grund(stand: dict, h: str, symbol: str, texte: dict | None, rechte: str | None,
+           code_geaendert: bool | None = None) -> list[str]:
+    """Warum eine Fassung neu ist — in Worten für die Aufgabe."""
+    if not stand.get("version"):
+        return ["erste Fassung"]
+    g = []
+    alt_t = stand.get("texte") if isinstance(stand.get("texte"), dict) else None
+    if texte is not None and alt_t is not None:
+        if alt_t.get("name") != texte.get("name"):
+            g.append(f"Anzeigename geändert (bisher „{alt_t.get('name')}“, jetzt „{texte.get('name')}“)")
+        if bool(alt_t.get("abwesenheit")) != bool(texte.get("abwesenheit")):
+            g.append("Knopfbeschriftung (zentrale Abwesenheit "
+                     + ("eingeschaltet)" if texte.get("abwesenheit") else "ausgeschaltet)"))
+    if rechte is not None and stand.get("rechte") not in (None, rechte):
+        g.append(f"Berechtigung geändert (bisher {stand.get('rechte')}, jetzt {rechte})")
+    if stand.get("symbol") not in (None, symbol):
+        g.append("Symbol geändert")
+    if code_geaendert or (code_geaendert is None and not g):
+        g.append(f"Manifest mit Gateway v{config.VERSION} geändert")
+    return g
+
+
+def _rechte(xml: str) -> str | None:
+    import re
+    m = re.search(r"<Permissions>\s*([^<]*?)\s*</Permissions>", xml)
+    return m.group(1) if m else None
+
+
+def mit_fassung(schluessel: str, bauen, *, stellen: int = 4,
+                ohne_abdruck_veraltet: bool = False):
+    """Manifest bauen und seine Fassung bestimmen — samt GRUND, falls sie neu ist.
+
+    `bauen(texte)` liefert (ergebnis, roh): `roh` ist der Inhalt ohne Adresse,
+    Kennung und Versionsnummer (Grundlage des Hashes, siehe _ohne_adresse).
+
+    Die Texte sind immer die aktuellen: Ein umbenanntes Gateway (etwa nach einer
+    Umfirmierung) soll in den Knöpfen der Nutzer ankommen — das kostet eine neue
+    Fassung und ein Aktualisieren im Admin Center. Im Stand mitgeschrieben werden
+    die Texte, aus denen die Fassung entstand, damit eine neue Fassung ihren Grund
+    nennen kann: Anzeigename, Knopfbeschriftung, Berechtigung, Symbol — und ob
+    sich darüber hinaus der Code geändert hat (geprüft, indem das Manifest mit den
+    ALTEN Texten gebaut und mit dem gemerkten Hash verglichen wird).
+    Anlass (25.11.2026): Die Aufgabe nach einer Umbenennung las sich wie die
+    Folge eines späteren Updates.
+    """
+    import hashlib
+    stand = settings_store.get(schluessel) or {}
+    stand = stand if isinstance(stand, dict) else {}
+    aktuell = _textquelle()
+    ergebnis, roh = bauen(_manifest_texte(aktuell))
+    rechte = _rechte(roh)
+    h = hashlib.sha256(roh.encode("utf-8")).hexdigest()
+    grund = None
+    alt_t = stand.get("texte") if isinstance(stand.get("texte"), dict) else None
+    if stand.get("version") and not _fassung_bleibt(h, stand, _symbol_abdruck(), ohne_abdruck_veraltet):
+        code_geaendert = None
+        if alt_t and alt_t != aktuell:
+            _e, roh_alt = bauen(_manifest_texte(alt_t))
+            code_geaendert = hashlib.sha256(roh_alt.encode("utf-8")).hexdigest() != stand.get("hash")
+        grund = _grund(stand, h, _symbol_abdruck(), aktuell, rechte, code_geaendert)
+    version = _manifest_version(roh, schluessel, stellen, ohne_abdruck_veraltet,
+                                texte=aktuell, rechte=rechte, grund=grund)
+    return ergebnis, version
+
+
+# Fassungs-Stände aller Manifeste.
+MANIFEST_STAENDE = ("_ADDIN_MANIFEST_STAND", "_ADDIN_MANIFEST_LOKAL_STAND",
+                    "_ADDIN_VERFASSEN_STAND", "_TEAMS_APP_STAND", "_TEAMS_NOTFALL_STAND")
 
 
 def _manifest_hosts(v11: bool) -> str:
@@ -730,8 +861,13 @@ def knopf_manifest_xml(base: str, lokal: bool = False) -> str:
     zählten abwechselnde Abrufe beider Fassungen die Version hoch."""
     hostname = base.split("://")[-1].split(":")[0]
     # Stable add-in ID derived from the hostname so it never changes across restarts.
-    addin_id = knopf_addin_id(hostname)
-    t = _manifest_texte()
+    addin_id = knopf_addin_id(kennungs_host(hostname))
+    schluessel = "_ADDIN_MANIFEST_LOKAL_STAND" if lokal else "_ADDIN_MANIFEST_STAND"
+    xml, version = mit_fassung(schluessel, lambda t: _knopf_bauen(base, hostname, addin_id, lokal, t))
+    return xml.replace("__VERSION__", version, 1)
+
+
+def _knopf_bauen(base: str, hostname: str, addin_id: str, lokal: bool, t: dict) -> tuple[str, str]:
     hosts_v10, hosts_v11 = _manifest_hosts(False), _manifest_hosts(True)
     v11 = "" if lokal else _knopf_v11(base, t, hosts_v11)
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -812,9 +948,7 @@ def knopf_manifest_xml(base: str, lokal: bool = False) -> str:
     </Resources>
 {v11}  </VersionOverrides>
 </OfficeApp>"""
-    schluessel = "_ADDIN_MANIFEST_LOKAL_STAND" if lokal else "_ADDIN_MANIFEST_STAND"
-    return xml.replace("__VERSION__", _manifest_version(_ohne_adresse(xml, base, hostname, addin_id),
-                                                       schluessel), 1)
+    return xml, _ohne_adresse(xml, base, hostname, addin_id)
 
 
 # ── Bereitstellung in Exchange lokal (Hybrid-Nutzer, seit v1.12.69) ──────────
@@ -862,8 +996,8 @@ def lokal_bereitstellung(base: str) -> list[dict]:
     namen = addin_namen()
     aus = []
     for art, url, kennung in (
-            ("verfassen", base + "/addin/verfassen/manifest.xml", addin_verfassen.addin_id(host)),
-            ("knopf", base + KNOPF_LOKAL_PFAD, knopf_addin_id(host))):
+            ("verfassen", base + "/addin/verfassen/manifest.xml", addin_verfassen.addin_id(kennungs_host(host))),
+            ("knopf", base + KNOPF_LOKAL_PFAD, knopf_addin_id(kennungs_host(host)))):
         pfad = "C:\\Temp\\" + LOKAL_DATEI[art]     # Beispielpfad, nach dem Herunterladen anpassen
         aus.append({
             "art": art, "name": namen[art], "url": url, "kennung": kennung,

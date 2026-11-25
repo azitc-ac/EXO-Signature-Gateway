@@ -207,3 +207,49 @@ def test_ps_trennt_nicht_gefunden_von_fehler():
     quelle = inspect.getsource(health_check)
     assert "Get-App -Mailbox $email -Identity $aid -ErrorAction SilentlyContinue" not in quelle
     assert "ManagementObjectNotFoundException" in quelle and '"!" + ' in quelle
+
+
+# ── Katalog „Integrierte Apps“ (seit v1.12.161) ──────────────────────────────
+# Get-App -OrganizationApp -PrivateCatalog zeigt die Fassung im Admin Center
+# Minuten nach dem Aktualisieren — das Postfach hinkt bis zu 72 h hinterher.
+
+def test_katalog_aktuell_ohne_postfach_ist_verteilung_ohne_aufgabe(stand, monkeypatch):
+    _uhr(monkeypatch, T0)
+    health_check._katalog_merken({VERF: SOLL, KNOPF: "!Drosselung"})
+    _postfaecher(stand, {"a@x.de": "1.10.31", "b@x.de": "1.10.31"})
+    p = abnahme._addin_fassung()
+    assert p["zustand"] == abnahme.OK and "Im Admin Center aktualisiert" in p["befund"], p
+    assert not _aufgabe_da()
+    assert "knopf" not in stand["_ADDIN_KATALOG"]          # Fehler zählt nicht als Lesung
+
+
+def test_katalog_aktuell_aber_72_stunden_spaeter_zuweisung(stand, monkeypatch):
+    _uhr(monkeypatch, T0)
+    health_check._katalog_merken({VERF: SOLL})
+    _uhr(monkeypatch, T0 + timedelta(hours=73))
+    health_check._katalog_merken({VERF: SOLL})              # erneut gelesen: Uhr bleibt
+    _postfaecher(stand, {"a@x.de": "1.10.31"})
+    p = abnahme._addin_fassung()
+    assert p["zustand"] == abnahme.OFFEN and "Jeder" in p["zu_tun"], p
+
+
+def test_katalog_alt_ist_aktualisieren_mit_grund_und_datum(stand, monkeypatch):
+    _uhr(monkeypatch, T0)
+    stand["_ADDIN_VERFASSEN_STAND"].update(grund=["Anzeigename geändert (bisher „A“, jetzt „B“)"], rechte_neu=False)
+    health_check._katalog_merken({VERF: "1.10.31"})
+    _postfaecher(stand, {"a@x.de": "1.10.31"})
+    p = abnahme._addin_fassung()
+    assert p["zustand"] == abnahme.OFFEN
+    assert "vom 12.11.2026" in p["befund"] and "Anzeigename" in p["befund"], p["befund"]
+    assert "Im Admin Center steht Fassung 1.10.31" in p["befund"]
+    assert "Berechtigungen" not in p["zu_tun"]
+    assert p["anlass"] == "neue Fassung vom 12.11.2026"
+    stand["_ADDIN_VERFASSEN_STAND"]["rechte_neu"] = True
+    assert "neuen Berechtigungen" in abnahme._addin_fassung()["zu_tun"]
+
+
+def test_ps_fragt_den_katalog_ab():
+    import inspect
+    quelle = inspect.getsource(health_check)
+    assert "Get-App -OrganizationApp -PrivateCatalog -Identity $aid" in quelle
+    assert '$results["_katalog"] = $katalog' in quelle

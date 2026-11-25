@@ -201,10 +201,10 @@ async def setup_wizard(
             # Fassung des Knopf-Manifests (wie beim Verfassen-Add-in) — sonst stand
             # die Soll-Fassung nur in der Aufgabe, nicht am Abschnitt.
             "addin_knopf": {k: (settings_store.get("_ADDIN_MANIFEST_STAND") or {}).get(k, "")
-                            for k in ("version", "seit")},
+                            for k in ("version", "seit", "grund")},
             "addin_verfassen": {"url": addin_base_url + "/addin/verfassen/manifest.xml",
                                 **{k: (settings_store.get("_ADDIN_VERFASSEN_STAND") or {}).get(k, "")
-                                   for k in ("version", "seit")}},
+                                   for k in ("version", "seit", "grund")}},
             # Hybrid-Nutzer: Add-ins in Exchange lokal bereitstellen (New-App) —
             # nur, solange es Hybrid-Nutzer geben kann (Option an oder Einträge da).
             "addin_lokal": _addin_lokal(addin_base_url),

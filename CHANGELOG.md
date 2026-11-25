@@ -5,6 +5,52 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.161 — 2026-11-25 — Add-ins: neue Fassung mit Grund, Katalogfassung aus dem Admin Center, Kennung aus der Außenadresse
+
+Ein über „Integrierte Apps“ bereitgestelltes Outlook-Add-in übernimmt ein
+geändertes Manifest erst, wenn ein Admin es im Admin Center aktualisiert; danach
+verteilt Exchange bis zu 72 Stunden. Eine neue Fassung entsteht, wenn sich der
+Inhalt des Manifests ändert — durch den Code eines Updates, aber auch durch den
+Gateway-Namen (Anbieter, Anzeigename, Gruppe im Menüband) oder das Umschalten der
+zentralen Abwesenheit (Knopfbeschriftung). Die Aufgabe sagte bisher nicht, woher
+eine neue Fassung kam, und las sich nach einer Umbenennung wie die Folge des
+nächsten Updates. Der Hinweis am Gateway-Namen (*Erweitert*) nennt jetzt, dass
+eine Änderung auch die Add-ins und die Teams-App betrifft.
+
+* **Grund und Datum in der Aufgabe:** Die Aufgaben „Verfassen-Add-in/Knopf-Add-in
+  im Admin Center aktualisieren“ und „Teams-App … im Katalog aktualisieren“ nennen
+  jetzt, wann die neue Fassung entstand und warum (etwa „Anzeigename geändert (bisher …, jetzt …)“,
+  „Manifest mit Gateway vX geändert“, „Berechtigung geändert“, „Symbol geändert“).
+  Unter der Aufgabe steht „neue Fassung vom …“ statt „seit v…“ — die alte Marke
+  nannte die Version, in der es diese Art Aufgabe erstmals gab, und las sich wie
+  die Ursache. Der Abschnitt in der Einrichtung zeigt den Grund ebenfalls.
+* **„Neue Berechtigungen bestätigen“ nur noch, wenn sie sich geändert haben**
+  (Vergleich von `<Permissions>` mit der vorigen Fassung). Bisher stand es bei
+  jeder neuen Fassung.
+* **Katalogfassung:** Die Postfachprüfung liest zusätzlich mit
+  `Get-App -OrganizationApp -PrivateCatalog` die Fassung im Katalog
+  „Integrierte Apps“. Die steht Minuten nach dem Aktualisieren auf dem neuen
+  Stand, die Postfächer erst Stunden bis Tage später. Ist der Katalog aktuell,
+  gilt das Aktualisieren als erledigt — auch wenn noch kein Postfach die neue
+  Fassung hat — und die Aufgabe wird zu „Verteilung läuft“; die 72-Stunden-Frist
+  zählt ab dem ersten Prüflauf, der den Katalog aktuell sah. Bisher war erst das
+  erste aktualisierte Postfach der Beleg, und bis dahin blieb die Aufforderung
+  stehen, obwohl nichts mehr zu tun war. Scheitert die Katalogabfrage, gilt die
+  bisherige Einordnung.
+* **Kennung aus der Außenadresse:** Die Kennungen der Outlook-Add-ins und
+  Teams-Apps entstehen jetzt immer aus der eingestellten Außenadresse
+  (`ADDIN_BASE_URL`, sonst `PUBLIC_HOSTNAME`), nicht aus der Adresse, über die
+  die Oberfläche gerade aufgerufen wird. Ein Paket, das über eine interne Adresse
+  heruntergeladen wurde, trug bisher eine andere Kennung; Microsoft lehnte das
+  Hochladen dann mit „different product ID“ ab. Die Postfachprüfung rechnete
+  schon so. Die Adressen im Manifest selbst bleiben unverändert.
+* **Prüfung im Test:** `tests/test_manifest_stand.py` hält den Inhalt aller fünf
+  Manifeste fest. Eine Codeänderung, die ein Manifest berührt, fällt damit vor
+  dem Ausliefern auf und braucht ein „Zu tun“ mit dem Aktualisieren im Admin
+  Center.
+
+**Zu tun:** nichts. Die Manifeste dieser Fassung sind inhaltlich unverändert.
+
 ## v1.12.160 — 2026-11-24 — Tests: Abnahme-Punkt Notbetrieb bei ausgeschaltetem Schalter
 
 Ein Test erwartete für den Abnahme-Punkt „Notbetrieb-Bereitschaft“ bei

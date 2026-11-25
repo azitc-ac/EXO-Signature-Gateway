@@ -192,6 +192,27 @@ try {{
 }}
 
 $results = @{{}}
+
+# Fassung im Katalog „Integrierte Apps“ (seit v1.12.161): Get-App -OrganizationApp
+# -PrivateCatalog liest app-only, was das Admin Center bereitstellt — getrennt
+# von der Postfach-Sicht, die bis zu 72 h hinterherhinkt (DEV-Tenant 25.11.2026:
+# Katalog 1.12.121 Minuten nach dem Aktualisieren, Postfach noch 1.11.57).
+# Fehler als "!<Meldung>" — dann gilt die Einordnung ohne Katalog.
+$katalog = @{{}}
+foreach ($aid in $addinIds) {{
+    try {{
+        $k = Get-App -OrganizationApp -PrivateCatalog -Identity $aid -ErrorAction Stop
+        $katalog[$aid] = if ($k) {{ [string]$k.AppVersion }} else {{ "" }}
+    }} catch {{
+        $grund = [string]$_.CategoryInfo.Reason
+        if ($grund -eq 'ManagementObjectNotFoundException' -or $_.FullyQualifiedErrorId -like '*NotFound*') {{
+            $katalog[$aid] = ""
+        }} else {{
+            $katalog[$aid] = "!" + [string]$_.Exception.Message
+        }}
+    }}
+}}
+$results["_katalog"] = $katalog
 foreach ($email in $emails) {{
     $emailLow = $email.ToLower()
     $dgFixed = $false
@@ -316,6 +337,9 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
                     return {e.lower(): dict(error_result) for e in emails}
                 # Normal result: {email: {dg_member, ...}}
                 result = {}
+                kat = raw.pop("_katalog", None)
+                if isinstance(kat, dict):
+                    _katalog_merken(kat)
                 for k, v in raw.items():
                     if not isinstance(v, dict):
                         continue
@@ -421,6 +445,16 @@ def _versionstupel(v: str) -> tuple[int, ...]:
         return tuple(int(t) for t in str(v).split("."))
     except ValueError:
         return (0,)
+
+
+def _katalog_merken(katalog: dict) -> None:
+    """Katalogfassungen ({Add-in-Kennung: Version}) je Art merken — siehe
+    addin_verteilung.katalog_gelesen. Gescheiterte Abfragen ("!…") zählen nicht."""
+    import addin_verteilung as av
+    for a in _addin_soll():
+        v = katalog.get(a["id"])
+        if isinstance(v, str) and not v.startswith("!"):
+            av.katalog_gelesen(a["art"], v.strip())
 
 
 def _check_addins(installiert: dict | None) -> dict[str, dict]:
