@@ -339,3 +339,31 @@ def test_unsichtbar_und_403_nennt_die_sichtbarkeit(monkeypatch):
                       post_status=403)
     r = asyncio.run(graph_client.teams_katalog_aktualisieren("DELEG", APP_ID, b"ZIP"))
     assert not r["ok"] and "nicht sichtbar" in r["msg"]
+
+
+def _zip(version):
+    import io, json as _j, zipfile
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w") as z:
+        z.writestr("manifest.json", _j.dumps({"version": version}))
+    return b.getvalue()
+
+
+def test_ablehnung_aber_fassung_im_katalog_ist_erfolg(monkeypatch):
+    """exohv 25.11.2026: 400 „entity null“ hatte trotzdem hochgeladen, danach
+    409 „version exists“ — Erfolg ist, was im Katalog steht."""
+    _graph_schreibend(monkeypatch, [
+        (200, _katalog_app(("1.12.48", "published"))),
+        (200, _katalog_app(("1.12.48", "published"), ("1.12.121", "published"))),
+    ], post_status=409)
+    r = asyncio.run(graph_client.teams_katalog_aktualisieren("T", APP_ID, _zip("1.12.121")))
+    assert r == {"ok": True, "msg": "", "version": "1.12.121"}
+
+
+def test_ablehnung_und_fassung_fehlt_bleibt_fehler(monkeypatch):
+    _graph_schreibend(monkeypatch, [
+        (200, _katalog_app(("1.12.48", "published"))),
+        (200, _katalog_app(("1.12.48", "published"))),
+    ], post_status=400)
+    r = asyncio.run(graph_client.teams_katalog_aktualisieren("T", APP_ID, _zip("1.12.121")))
+    assert not r["ok"] and r["msg"].startswith("Graph 400")

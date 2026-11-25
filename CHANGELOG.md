@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.163 — 2026-11-25 — Teams-Katalog: Ablehnung von Microsoft, Fassung trotzdem im Katalog, gilt als Erfolg
+
+Lehnt Microsoft das Hochladen einer neuen Fassung ab, liest das Gateway den
+Katalog jetzt noch einmal. Steht die Fassung des Pakets dort, meldet
+„Im Teams-Katalog aktualisieren“ Erfolg. Beobachtet: Ein Hochladen kam mit
+„400 Value cannot be null“ zurück und stand trotzdem im Katalog; der nächste
+Versuch meldete „409 version exists“. Beide Male zeigte die Oberfläche
+„fehlgeschlagen“.
+
+**Zu tun:** nichts.
+
 ## v1.12.162 — 2026-11-25 — Teams-Katalog: Aktualisieren auch, wenn die App für das angemeldete Konto unsichtbar ist
 
 „Im Teams-Katalog aktualisieren“ meldete „Die App ist noch nicht im

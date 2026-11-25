@@ -728,6 +728,17 @@ def _katalog_auswerten(apps: list) -> dict:
             "eingereicht": max(eingereicht, key=_versions_tupel) if eingereicht else None}
 
 
+def _paket_version(paket: bytes) -> str | None:
+    """Fassung aus manifest.json im Teams-Paket (ZIP) — None, wenn nicht lesbar."""
+    import io
+    import zipfile
+    try:
+        with zipfile.ZipFile(io.BytesIO(paket)) as z:
+            return str(json.loads(z.read("manifest.json")).get("version") or "") or None
+    except Exception:                                          # noqa: BLE001
+        return None
+
+
 async def teams_katalog_aktualisieren(token: str, externe_id: str, paket: bytes) -> dict:
     """Neue Fassung der Teams-App in den Katalog des Tenants — mit dem
     DELEGIERTEN Token eines Admins (Graph „Update teamsApp“ kennt keine
@@ -820,6 +831,17 @@ async def teams_katalog_aktualisieren(token: str, externe_id: str, paket: bytes)
                     fehler = (resp.json().get("error") or {}).get("message", "")
                 except ValueError:
                     pass
+                # Erfolg ist, was im Katalog steht: exohv 25.11.2026 — ein 400
+                # („Value cannot be null. (Parameter 'entity')“) hatte trotzdem
+                # hochgeladen, der nächste Klick bekam 409 „version exists“.
+                # Deshalb nach jeder Ablehnung nachlesen.
+                soll = _paket_version(paket)
+                danach = await _lesen(client) if sichtbar else await teams_katalog(externe_id)
+                if soll and danach and danach.get("version") and \
+                        _versions_tupel(danach["version"]) >= _versions_tupel(soll):
+                    log.info("teams_katalog_aktualisieren: Graph %s, aber Fassung %s steht im Katalog",
+                             resp.status_code, danach["version"])
+                    return {"ok": True, "msg": "", "version": danach["version"]}
                 return {"ok": False, "version": vorher["version"],
                         "msg": f"Graph {resp.status_code}: {fehler or resp.text[:200]}" + unsichtbar_hinweis}
             nachher = await _lesen(client) if sichtbar else await teams_katalog(externe_id)
