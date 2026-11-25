@@ -139,7 +139,11 @@ def test_aktualisieren_laedt_an_die_katalog_id_und_liest_neu(monkeypatch):
 
 
 def test_nicht_im_katalog_laedt_nichts_hoch(monkeypatch):
-    aufrufe = _graph_schreibend(monkeypatch, [(200, [])])
+    """Weder mit der Anmeldung noch für die Gateway-App im Katalog."""
+    async def _tok():
+        return "APP"
+    monkeypatch.setattr(graph_client, "_acquire_token_async", _tok)
+    aufrufe = _graph_schreibend(monkeypatch, [(200, []), (200, [])])
     r = asyncio.run(graph_client.teams_katalog_aktualisieren("T", APP_ID, b"ZIP"))
     assert not r["ok"] and "Integrierte Apps" in r["msg"] and aufrufe["post"] == []
 
@@ -306,3 +310,32 @@ def test_taeglicher_abgleich_liest_immer_live(werte, monkeypatch):
     teams_katalog.merken("notfall", {"zustand": "ok", "version": "1.11.9"})
     asyncio.run(teams_katalog.auffrischen())
     assert len(abrufe) == 2
+
+
+def test_mit_anmeldung_unsichtbar_laedt_an_die_id_der_gateway_app(monkeypatch):
+    """exohv 25.11.2026: Notfall-App delegiert 0 Treffer, App-Token fand sie.
+    Dann Katalog-ID über die Gateway-App, Hochladen mit der Anmeldung, Prüfen
+    wieder über die Gateway-App."""
+    async def _tok():
+        return "APP"
+    monkeypatch.setattr(graph_client, "_acquire_token_async", _tok)
+    aufrufe = _graph_schreibend(monkeypatch, [
+        (200, []),                                              # delegiert: unsichtbar
+        (200, _katalog_app(("1.12.48", "published"))),          # Gateway-App: da
+        (200, _katalog_app(("1.12.48", "published"), ("1.12.121", "published"))),
+    ])
+    r = asyncio.run(graph_client.teams_katalog_aktualisieren("DELEG", APP_ID, b"ZIP"))
+    assert r == {"ok": True, "msg": "", "version": "1.12.121"}
+    url, kopf, _ = aufrufe["post"][0]
+    assert url.endswith(f"/teamsApps/{KATALOG_ID}/appDefinitions") and kopf["Authorization"] == "Bearer DELEG"
+    assert [h["Authorization"] for _, h in aufrufe["get"]] == ["Bearer DELEG", "Bearer APP", "Bearer APP"]
+
+
+def test_unsichtbar_und_403_nennt_die_sichtbarkeit(monkeypatch):
+    async def _tok():
+        return "APP"
+    monkeypatch.setattr(graph_client, "_acquire_token_async", _tok)
+    _graph_schreibend(monkeypatch, [(200, []), (200, _katalog_app(("1.12.48", "published")))],
+                      post_status=403)
+    r = asyncio.run(graph_client.teams_katalog_aktualisieren("DELEG", APP_ID, b"ZIP"))
+    assert not r["ok"] and "nicht sichtbar" in r["msg"]

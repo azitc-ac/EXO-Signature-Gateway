@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.162 — 2026-11-25 — Teams-Katalog: Aktualisieren auch, wenn die App für das angemeldete Konto unsichtbar ist
+
+„Im Teams-Katalog aktualisieren“ meldete „Die App ist noch nicht im
+Teams-Katalog“, obwohl sie dort stand: Mit der Anmeldung des Admins lieferte
+Graph für diese App keinen Treffer, die Gateway-App fand sie unter derselben
+Kennung. Eine mögliche Ursache ist eine im Teams Admin Center gesperrte oder nur
+bestimmten Nutzern zugewiesene App (nicht belegt). Jetzt holt das Gateway die
+Katalog-ID in diesem Fall über die Gateway-App, lädt mit der Anmeldung hoch und
+prüft das Ergebnis wieder über die Gateway-App. Lehnt Microsoft das Hochladen
+ab, nennt die Meldung zusätzlich die Sichtbarkeit der App als Prüfpunkt.
+
+**Zu tun:** nichts.
+
 ## v1.12.161 — 2026-11-25 — Add-ins: neue Fassung mit Grund, Katalogfassung aus dem Admin Center, Kennung aus der Außenadresse
 
 Ein über „Integrierte Apps“ bereitgestelltes Outlook-Add-in übernimmt ein

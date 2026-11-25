@@ -771,10 +771,27 @@ async def teams_katalog_aktualisieren(token: str, externe_id: str, paket: bytes)
             if vorher is None:
                 return {"ok": False, "version": None,
                         "msg": "Katalog nicht lesbar (siehe Protokoll). Es wurde nichts hochgeladen."}
+            sichtbar = True
             if not vorher["katalog_id"]:
-                return {"ok": False, "version": None,
-                        "msg": "Die App ist noch nicht im Teams-Katalog. Das erste Hochladen geht nur "
-                               "über Integrierte Apps (Graph erlaubt dafür nur eine Einreichung zur Prüfung)."}
+                # Mit der Anmeldung unsichtbar heisst nicht „nicht im Katalog“:
+                # exohv 25.11.2026 — die Notfall-App lieferte delegiert 0 Apps, der
+                # Anwendungs-Token fand sie (organization, 1.12.48), die Signatur-App
+                # war mit derselben Anmeldung sichtbar. Vermutung (ungeprüft): Die
+                # App ist für das Konto gesperrt oder nur bestimmten Nutzern
+                # zugewiesen. Dann die Katalog-ID über die Gateway-App holen und mit
+                # der Anmeldung hochladen; gelesen wird danach ebenfalls so.
+                app_sicht = await teams_katalog(externe_id)
+                if not app_sicht.get("katalog_id"):
+                    return {"ok": False, "version": None,
+                            "msg": "Die App ist noch nicht im Teams-Katalog. Das erste Hochladen geht nur "
+                                   "über Integrierte Apps (Graph erlaubt dafür nur eine Einreichung zur Prüfung)."}
+                log.info("teams_katalog_aktualisieren: %s nur für die Gateway-App sichtbar — lade an "
+                         "Katalog-ID %s", externe_id, app_sicht["katalog_id"])
+                vorher, sichtbar = app_sicht, False
+            unsichtbar_hinweis = ("" if sichtbar else
+                                  " Die App ist für dein Konto im Teams-Katalog nicht sichtbar — im Teams "
+                                  "Admin Center prüfen, ob sie gesperrt oder nur bestimmten Nutzern "
+                                  "zugewiesen ist.")
             resp = await client.post(
                 f"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps/{vorher['katalog_id']}/appDefinitions",
                 headers={**kopf, "Content-Type": "application/zip"}, content=paket)
@@ -794,7 +811,8 @@ async def teams_katalog_aktualisieren(token: str, externe_id: str, paket: bytes)
                         "msg": "Microsoft hat abgelehnt (403"
                                + (f": „{fehler}“" if fehler else "") + "). Nötig sind eine aktive Rolle "
                                "Teams-Administrator oder höher (bei PIM vorher aktivieren) und die "
-                               "Zustimmung zu „Read and write to all app catalogs“ bei der Anmeldung."}
+                               "Zustimmung zu „Read and write to all app catalogs“ bei der Anmeldung."
+                               + unsichtbar_hinweis}
             if resp.status_code not in (200, 201, 204):
                 log.warning("teams_katalog_aktualisieren: Graph %s %s", resp.status_code, resp.text[:300])
                 fehler = ""
@@ -803,8 +821,8 @@ async def teams_katalog_aktualisieren(token: str, externe_id: str, paket: bytes)
                 except ValueError:
                     pass
                 return {"ok": False, "version": vorher["version"],
-                        "msg": f"Graph {resp.status_code}: {fehler or resp.text[:200]}"}
-            nachher = await _lesen(client)
+                        "msg": f"Graph {resp.status_code}: {fehler or resp.text[:200]}" + unsichtbar_hinweis}
+            nachher = await _lesen(client) if sichtbar else await teams_katalog(externe_id)
     except Exception as exc:                                   # noqa: BLE001
         log.warning("teams_katalog_aktualisieren: %s", exc)
         return {"ok": False, "msg": str(exc), "version": None}
