@@ -18,13 +18,17 @@ import email
 import email.mime.multipart
 import email.mime.text
 import logging
+import re
 from pathlib import Path
 
 import pytest
 
 import mail_processor as mp
 
-NEU = (Path(__file__).parent / "daten" / "werkzeug_layoutbox.html").read_text(encoding="utf-8")
+# Unbekannte Vorlage: das Gerüst der neuen Vorlage OHNE deren Kennzeichen
+# (es-wrapper) — so sähe ein weiterer Vorlagenwechsel aus.
+NEU = re.sub(r"\bes-wrapper(?:-color)?\b", "x-huelle",
+             (Path(__file__).parent / "daten" / "werkzeug_layoutbox.html").read_text(encoding="utf-8"))
 ALT = ('<html><body><table align="center"><tr><td id="templateBody">'
        '<p>Sehr geehrte Damen und Herren,</p><p>anbei der Beleg.</p></td></tr></table>'
        '</body></html>')

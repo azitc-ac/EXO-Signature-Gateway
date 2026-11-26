@@ -1097,6 +1097,64 @@ def _fix_lexware_zeilenhoehe(html: str) -> str:
     return neu
 
 
+# ── Neue Lexware-Vorlage (E-Mail-Baukasten, seit November 2026) ─────────────
+# Gerüst: body > div.es-wrapper-color[#F6F6F6] (+ VML-Hintergrund für Outlook)
+# > table.es-wrapper 100% > … > table 600px weiß (align=center, bgcolor) > … >
+# td (Text). Zielbild (26.11.2026): „Box weg, wie früher“ — kein Rahmen, kein
+# Hintergrund, keine Zentrierung, Schrift wie die übrigen Korrekturen; die
+# Signatur sitzt nach dem letzten Text (_inhalts_container).
+_LEXWARE_BAUKASTEN_RE = re.compile(r'class=["\'][^"\']*\bes-wrapper(?:-color)?\b', re.IGNORECASE)
+_VML_HINTERGRUND_RE = re.compile(
+    r'<!--\[if[^\]]*\]>\s*<v:background\b.*?</v:background>\s*<!\[endif\]-->', re.S | re.I)
+_HINTERGRUND_ATTR_RE = re.compile(
+    r'\s(?:bgcolor|background)\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)', re.I)
+_HINTERGRUND_STIL_RE = re.compile(r'(?<![\w-])background(?:-color|-image)?\s*:[^;"\']*;?', re.I)
+_BK_ALIGN_CENTER_RE = re.compile(r'(\balign\s*=\s*["\']?)center', re.I)
+_TEXT_BK_ALIGN_CENTER_RE = re.compile(r'(text-align\s*:\s*)center', re.I)
+_ZEILENHOEHE_PX_RE = re.compile(r'line-height\s*:\s*\d+(?:\.\d+)?px', re.I)
+_MSO_EXAKT_RE = re.compile(r'mso-line-height-rule\s*:\s*exactly\s*;?', re.I)
+_RESTHINTERGRUND_RE = re.compile(
+    r'\sbgcolor\s*=|(?<![\w-])background(?:-color)?\s*:\s*(?!transparent|none|inherit)[^;"\']+|<v:background\b',
+    re.I)
+
+
+def _fix_lexware_baukasten(html: str) -> str:
+    """Neue Lexware-Vorlage linksbündig als Geschäftsbrief: Rahmen, Hintergrund
+    und Zentrierung weg, Schrift Calibri 11pt. Nur im <body>; der Kopf (CSS für
+    Dunkelmodus und schmale Bildschirme) bleibt. Bleibt danach Zentrierung oder
+    Hintergrund übrig, ist es eine weitere Vorlagenfassung → lexware_unbekannt."""
+    m_body = re.search(r"<body\b[^>]*>", html, re.I)
+    if not m_body or not _LEXWARE_BAUKASTEN_RE.search(html, m_body.end()):
+        return html
+    ende = html.lower().rfind("</body>")
+    ende = ende if ende > m_body.end() else len(html)
+    # Das <body>-Tag selbst gehört dazu (Schrift, Hintergrund im style).
+    kopf, body, rest = html[:m_body.start()], html[m_body.start():ende], html[ende:]
+    vorher = body
+    body = _VML_HINTERGRUND_RE.sub("", body)
+    body = _HINTERGRUND_ATTR_RE.sub("", body)
+    body = _HINTERGRUND_STIL_RE.sub("", body)
+    body = _BK_ALIGN_CENTER_RE.sub(r"\1left", body)
+    body = _TEXT_BK_ALIGN_CENTER_RE.sub(r"\1left", body)
+    body = _EMPTY_FONT_FAMILY_RE.sub("font-family:Calibri,sans-serif; font-size:11.0pt; ", body)
+    body = _FONT_FAMILY_RE.sub(lambda mm: ("font-family:Calibri,sans-serif;"
+                                           if mm.group(1).lower() == "font-family"
+                                           else f"{mm.group(1)}:Calibri;"), body)
+    body = _FONT_SIZE_RE.sub("font-size:11.0pt", body)
+    body = _ZEILENHOEHE_PX_RE.sub("line-height:normal", body)
+    body = _MSO_EXAKT_RE.sub("", body)
+    if body != vorher:
+        log.info("_fix_lexware_baukasten: Rahmen, Hintergrund und Zentrierung der "
+                 "Lexware-Vorlage entfernt, Schrift auf Calibri 11pt")
+    rest_fund = _RESTZENTRIERUNG_RE.search(body) or _RESTHINTERGRUND_RE.search(body)
+    if rest_fund:
+        _lexware_zaehlen("lexware_unbekannt")
+        log.warning("_fix_lexware_baukasten: nach der Korrektur ist noch Zentrierung "
+                    "oder Hintergrund übrig — vermutlich eine neue Vorlagenfassung: %s",
+                    rest_fund.group(0)[:80])
+    return kopf + body + rest
+
+
 def ist_lexware(msg: email.message.Message | None) -> bool:
     """Kommt die Mail aus Lexware Office? Erkannt am Kopf `X-Mailer: lxo` der
     GESAMTEN Mail — unabhängig vom Aufbau des HTML.
@@ -1137,16 +1195,20 @@ def _fix_lexware_format(html: str, lexware: bool = False) -> str:
         return html
     if lexware:
         _lexware_zaehlen("lexware_belege")
-        if not _LEXWARE_MARKER_RE.search(html):
+        if not (_LEXWARE_MARKER_RE.search(html) or _LEXWARE_BAUKASTEN_RE.search(html)):
             _lexware_zaehlen("lexware_unbekannt")
             log.warning("Lexware-Beleg (X-Mailer lxo) mit unbekannter Vorlage — "
-                        "kein Marker templateBody, die Lexware-Korrekturen greifen "
-                        "nicht. Vermutlich eine neue Vorlagenfassung.")
+                        "weder templateBody noch es-wrapper, die Lexware-Korrekturen "
+                        "greifen nicht. Vermutlich eine neue Vorlagenfassung.")
     # Defensive: falls doch schon eine Gateway-Signatur im Text steckt (z.B. bei
     # SKIP_SIG_IN_THREAD=False), lieber nichts anfassen statt versehentlich in
     # bereits zitierten/quotierten Inhalt einzugreifen.
     if _SIG_MARKER_START in html:
         return html
+    if lexware and not _LEXWARE_MARKER_RE.search(html):
+        # Neue Vorlage nur bei als Lexware ERKANNTEN Belegen anfassen: die
+        # Klasse es-wrapper verwenden auch andere Newsletter-Werkzeuge.
+        html = _fix_lexware_baukasten(html)
     html = _fix_lexware_empty_p(html)
     html = _fix_lexware_centering(html)
     html = _fix_lexware_font(html)

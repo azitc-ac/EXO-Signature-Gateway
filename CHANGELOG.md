@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.168 — 2026-11-26 — Lexware: neue Vorlage linksbündig als Geschäftsbrief, Signatur unter dem Text
+
+Die aktuelle Mail-Vorlage von Lexware Office legt den Text in eine zentrierte
+weiße Box auf grauem Rahmen, mit eigener Schrift und festen Zeilenabständen.
+Bei Belegen, die das Gateway als Lexware erkennt (`X-Mailer: lxo`), entfernt
+es jetzt Rahmen, Hintergrund (auch den Outlook-eigenen VML-Hintergrund) und
+Zentrierung und setzt die Schrift auf Calibri 11pt — wie bei der älteren
+Vorlage. Die Signatur steht direkt unter dem letzten Text.
+
+Andere Werkzeuge mit derselben Baukasten-Vorlage bleiben unverändert. Bleibt
+nach der Korrektur Zentrierung oder Hintergrund übrig, zählt das als
+„Lexware-Beleg mit unbekanntem Aufbau“ im Tagesbericht.
+
+**Zu tun:** nichts.
+
 ## v1.12.167 — 2026-11-26 — Lexware-Belege am Absenderprogramm erkannt, neue Vorlage fällt im Tagesbericht auf
 
 Die Formatkorrekturen für Lexware-Belege (Ausrichtung, Schrift, Abstände)
