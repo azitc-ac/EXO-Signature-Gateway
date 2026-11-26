@@ -654,8 +654,8 @@ def _schema_kern(conn) -> None:
         """)
     # Spalten, die nach der ersten Fassung dazukamen (Bestandsdatenbanken).
     vorhanden = {z[1] for z in conn.execute("PRAGMA table_info(mails)")}
-    for spalte in _MAIL_ZUSATZ:
-        if spalte not in vorhanden:
+    for spalte in _MAIL_ZUSATZ:                 # „name TYP“ — Vergleich über den Namen
+        if spalte.split()[0] not in vorhanden:
             conn.execute(f"ALTER TABLE mails ADD COLUMN {spalte}")
     if "wk" not in {z[1] for z in conn.execute("PRAGMA table_info(ordner)")}:
         conn.execute("ALTER TABLE ordner ADD COLUMN wk TEXT")
@@ -676,7 +676,6 @@ _MAIL_ZUSATZ = ("betreff TEXT", "von TEXT", "an TEXT", "anhang INTEGER", "text T
                # Kennung in Exchange nach dem Rückspielen — Ziel späterer
                # Änderungen (gelesen, verschoben), bis der Abgleich die Zeile übernimmt.
                "exo_id TEXT")
-_MAIL_ZUSATZ = tuple(z.split()[0] for z in _MAIL_ZUSATZ)
 
 # Bekannte Ordner, deren Kennung je Postfach gemerkt wird: Lokale Post wird
 # unter dem bekannten Namen abgelegt („inbox“), Exchange-Kopien unter der

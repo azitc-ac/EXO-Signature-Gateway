@@ -36,6 +36,16 @@ def doppelte(quelle: str) -> list[str]:
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
             and not ausgenommen(n))
         funde.extend(f"{ort}.{k}" for k, v in namen.items() if v > 1)
+        # Konstanten (GROSS geschrieben, auch mit führendem _) einmal zugewiesen —
+        # Anlass 26.11.2026: ein zweites `_ALIGN_CENTER_RE` weiter unten in
+        # mail_processor.py ersetzte still das der Lexware-Korrektur (andere
+        # Gruppenzahl → IndexError erst zur Laufzeit dieser Korrektur).
+        konst = collections.Counter(
+            t.id for n in body if isinstance(n, (ast.Assign, ast.AnnAssign))
+            for t in (n.targets if isinstance(n, ast.Assign) else [n.target])
+            if isinstance(t, ast.Name) and t.id.lstrip("_")[:1].isupper()
+            and t.id.lstrip("_") == t.id.lstrip("_").upper())
+        funde.extend(f"{ort}.{k}" for k, v in konst.items() if v > 1)
         for n in body:
             if isinstance(n, ast.ClassDef):
                 scan(n.body, f"{ort}.{n.name}")
@@ -47,6 +57,8 @@ def doppelte(quelle: str) -> list[str]:
 def test_erkennt_doppelte_definition():
     assert doppelte("def a():\n  pass\ndef a(x):\n  pass\n") == ["<modul>.a"]
     assert doppelte("class K:\n  def f(s): pass\n  def f(s, x): pass\n") == ["<modul>.K.f"]
+    assert doppelte("_X_RE = 1\nY = 2\n_X_RE = 3\n") == ["<modul>._X_RE"]
+    assert doppelte("log = 1\nlog = 2\n") == []          # klein = Variable, nicht geprüft
     assert doppelte("class K:\n  @property\n  def p(s): pass\n  @p.setter\n  def p(s, v): pass\n") == []
 
 

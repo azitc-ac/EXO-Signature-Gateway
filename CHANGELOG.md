@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.169 — 2026-11-26 — Notbetrieb (Vorschau): nachgerüstete Mail-Spalten mit Typ
+
+Die Ablage des Notbetriebs legt einige Spalten der Mail-Tabelle (Betreff,
+Absender, Empfänger, Anhang, Text, Exchange-Kennung) über eine Nachrüstung an.
+Eine zweite Zuweisung derselben Liste weiter unten im Code ersetzte die
+Angaben mit Typ durch die blossen Namen; so entstanden die Spalten ohne Typ —
+in jeder Datenbank, auch in neuen. SQLite nimmt das hin, die Spalte „Anhang“
+war damit aber keine Ganzzahl-Spalte. Jetzt entstehen sie mit Typ;
+bestehende Spalten bleiben, wie sie sind.
+
+Eine erweiterte Prüfung meldet künftig jede Konstante, die im selben Modul
+zweimal zugewiesen wird — gefunden hat sie genau diesen Fall.
+
+**Zu tun:** nichts.
+
 ## v1.12.168 — 2026-11-26 — Lexware: neue Vorlage linksbündig als Geschäftsbrief, Signatur unter dem Text
 
 Die aktuelle Mail-Vorlage von Lexware Office legt den Text in eine zentrierte

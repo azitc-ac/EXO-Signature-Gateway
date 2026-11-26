@@ -298,3 +298,17 @@ def test_verborgener_tab_fragt_seltener_und_sofort_beim_zurueckkehren():
     pruefen = pruefen[:pruefen.index("\n}\n")]
     assert "document.hidden && !hinweiseAn() && seit < NEUE_POST_VERBORGEN_MS" in pruefen
     assert "addEventListener('visibilitychange'" in html and "neuePostPruefen(true)" in html
+
+
+def test_zusatzspalten_der_mails_mit_typ():
+    """Die nachgerüsteten Spalten (_MAIL_ZUSATZ) entstehen MIT Typ. Bis
+    v1.12.167 überschrieb eine zweite Zuweisung die Liste mit den blossen
+    Namen — jede Datenbank, auch eine neue, bekam `anhang` ohne INTEGER.
+    Gefunden von test_keine_doppelten_definitionen (Konstanten, 26.11.2026)."""
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    notbetrieb._schema_kern(conn)
+    typen = {z[1]: z[2] for z in conn.execute("PRAGMA table_info(mails)")}
+    erwartet = {s.split()[0]: s.split()[1] for s in notbetrieb._MAIL_ZUSATZ}
+    assert erwartet and {k: typen.get(k) for k in erwartet} == erwartet, typen
+    notbetrieb._schema_kern(conn)                     # zweiter Lauf: keine doppelte Spalte
