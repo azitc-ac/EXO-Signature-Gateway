@@ -1,0 +1,29 @@
+{#
+    Zeitraum einer Abwesenheit: je eine Zeile „Von: Datum + Uhrzeit“ und
+    „Bis: Datum + Uhrzeit“, Beschriftungen in einer Spalte bündig.
+
+    EINE Quelle für die Selbstbedienung (/self, zugleich Aufgabenbereich des
+    Outlook-Add-ins) und das Bearbeiten-Fenster der Admin-Seite Abwesenheit.
+    Bis v1.12.164 standen dort vier Kästchen in einer umbrechenden Flex-Zeile;
+    in der schmalen Ansicht (Outlook iOS) rutschte die Bis-Uhrzeit allein in
+    die nächste Zeile.
+
+    Kennungen: `<von>`, `<von>-zeit`, `<von>-zeit-box` (dto. für bis). Die
+    Uhrzeit-Kästchen sind anfangs `hidden` (ganztägig); die Seite schaltet sie
+    über das Attribut `hidden` der `-zeit-box`.
+
+    Aufruf:  {% from "_zeitraum_felder.html" import zeitraum_felder %}
+             {{ zeitraum_felder("von", "bis") }}
+    Geprüft von tests/test_zeitraum_felder.py.
+#}
+{% macro zeitraum_felder(von, bis) %}
+<div style="display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 10px;align-items:center">
+  {%- for feld, text in ((von, "Von"), (bis, "Bis")) %}
+  <label for="{{ feld }}" style="margin:0">{{ text }}</label>
+  <div style="display:flex;gap:8px;align-items:center;min-width:0">
+    <input type="date" id="{{ feld }}" style="min-width:0">
+    <span id="{{ feld }}-zeit-box" hidden><select id="{{ feld }}-zeit" aria-label="Uhrzeit ({{ text|lower }})"></select></span>
+  </div>
+  {%- endfor %}
+</div>
+{% endmacro %}

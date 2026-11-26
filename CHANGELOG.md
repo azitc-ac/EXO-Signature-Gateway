@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.164 — 2026-11-26 — Abwesenheit: Zeitraum je Zeile „Von“ und „Bis“, auch in schmaler Ansicht
+
+Im Zeitraum einer Abwesenheit mit Uhrzeit standen Von-Datum, Uhrzeit und
+Bis-Datum in einer Zeile; in schmaler Ansicht (Outlook für iOS, Add-in
+„Signatur & Abwesenheit“) rutschte die Bis-Uhrzeit allein in die nächste
+Zeile. Ursache: vier Felder in einer umbrechenden Zeile, derselbe Aufbau
+zweimal von Hand — in der Selbstbedienung (zugleich Aufgabenbereich des
+Add-ins) und im Bearbeiten-Fenster der Seite Abwesenheit.
+
+Jetzt steht je Zeile „Von: Datum + Uhrzeit“ und „Bis: Datum + Uhrzeit“, die
+Beschriftungen bündig in einer Spalte. Beide Seiten nutzen dafür einen
+gemeinsamen Baustein; ein Test meldet jeden Nachbau, ein Browser-Test misst
+die Anordnung bei 320 und 393 Pixeln Breite.
+
+**Zu tun:** nichts.
+
 ## v1.12.163 — 2026-11-25 — Teams-Katalog: Ablehnung von Microsoft, Fassung trotzdem im Katalog, gilt als Erfolg
 
 Lehnt Microsoft das Hochladen einer neuen Fassung ab, liest das Gateway den

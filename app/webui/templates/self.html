@@ -1,3 +1,4 @@
+{%- from "_zeitraum_felder.html" import zeitraum_felder -%}
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -156,12 +157,7 @@
           <label style="display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;cursor:pointer">
             <input type="checkbox" id="ganztaegig" checked> ganztägig
           </label>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-            <div><label for="von">Von</label><input type="date" id="von"></div>
-            <div id="von-zeit-box" hidden><label for="von-zeit">Uhrzeit</label><select id="von-zeit"></select></div>
-            <div><label for="bis">Bis</label><input type="date" id="bis"></div>
-            <div id="bis-zeit-box" hidden><label for="bis-zeit">Uhrzeit</label><select id="bis-zeit"></select></div>
-          </div>
+          {{ zeitraum_felder("von", "bis") }}
           <div id="zeitraum-hinweis" class="hinweis err" style="margin:10px 0 0" role="alert" hidden></div>
         </div>
         <div id="oof-tpl-block">

@@ -3457,3 +3457,33 @@ def test_baukasten_verkleinert_hochgeladene_bilder(seite, monkeypatch, tmp_path,
     assert m["typ"] == ("image/jpeg" if art == "foto" else "image/png"), m
     assert m["laenge"] < 512 * 1024 * 4 / 3, m
     pg.context.close()
+
+
+@pytest.mark.parametrize("breite", [320, 393])
+def test_zeitraum_je_zeile_datum_und_uhrzeit(browser, breite):
+    """Abwesenheit, Zeitraum mit Uhrzeit (26.11.2026, Outlook iOS): je Zeile
+    „Von: Datum + Uhrzeit“ und „Bis: Datum + Uhrzeit“, Beschriftungen bündig.
+    Vorher rutschte die Bis-Uhrzeit allein in die nächste Zeile. Gemessen am
+    Baustein selbst, mit der Beschriftungsregel von self.html."""
+    from test_zeitraum_felder import baustein
+    html = ("<style>body{margin:0;padding:16px;font:16px sans-serif}"
+            "label{display:block;font-size:13px;margin:10px 0 4px}</style>"
+            + baustein("von", "bis"))
+    ctx = browser.new_context(viewport={"width": breite, "height": 600})
+    pg = ctx.new_page()
+    try:
+        pg.set_content(html)
+        pg.evaluate("['von-zeit-box','bis-zeit-box'].forEach(i => document.getElementById(i).hidden = false)")
+        box = {s: pg.locator(s).bounding_box() for s in
+               ("label[for=von]", "#von", "#von-zeit", "label[for=bis]", "#bis", "#bis-zeit")}
+        mitte = {s: b["y"] + b["height"] / 2 for s, b in box.items()}
+        for feld in ("von", "bis"):
+            assert abs(mitte[f"#{feld}"] - mitte[f"#{feld}-zeit"]) < 4, (feld, box)
+            assert abs(mitte[f"label[for={feld}]"] - mitte[f"#{feld}"]) < 6, (feld, box)
+        assert box["#bis"]["y"] >= box["#von"]["y"] + box["#von"]["height"], box
+        assert abs(box["label[for=von]"]["x"] - box["label[for=bis]"]["x"]) < 1, box
+        assert abs(box["#von"]["x"] - box["#bis"]["x"]) < 1, box
+        rechts = max(b["x"] + b["width"] for b in box.values())
+        assert rechts <= breite - 16 + 1, f"ragt über den Rand: {rechts} > {breite - 16}"
+    finally:
+        ctx.close()

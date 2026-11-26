@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "_berechtigungen.html" import berechtigungen %}
 {% from "_filterfeld.html" import filterfeld %}
+{% from "_zeitraum_felder.html" import zeitraum_felder %}
 {% block content %}
 <h1>Abwesenheit</h1>
 
@@ -210,12 +211,7 @@
         <label style="display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;cursor:pointer">
           <input type="checkbox" id="abm-ganztaegig" checked> ganztägig
         </label>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-          <div><label for="abm-von">Von</label><br><input type="date" id="abm-von"></div>
-          <div class="abm-zeit" style="display:none"><label for="abm-von-zeit">Uhrzeit</label><br><select id="abm-von-zeit"></select></div>
-          <div><label for="abm-bis">Bis</label><br><input type="date" id="abm-bis"></div>
-          <div class="abm-zeit" style="display:none"><label for="abm-bis-zeit">Uhrzeit</label><br><select id="abm-bis-zeit"></select></div>
-        </div>
+        {{ zeitraum_felder("abm-von", "abm-bis") }}
       </div>
 
       <div class="settings-row">
@@ -395,7 +391,7 @@ function abmZeiten() {
 function abmSichtbar() {
   abm('abm-zeitraum').style.display = (abmStatusWert() === 'scheduled') ? 'block' : 'none';
   var ganz = abm('abm-ganztaegig').checked;
-  document.querySelectorAll('#abm-zeitraum .abm-zeit').forEach(function (e) { e.style.display = ganz ? 'none' : 'block'; });
+  ['abm-von-zeit-box', 'abm-bis-zeit-box'].forEach(function (id) { abm(id).hidden = ganz; });
   abm('abm-ank-felder').style.display = abm('abm-ank-an').checked ? 'block' : 'none';
 }
 
