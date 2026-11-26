@@ -1622,6 +1622,86 @@ def _trennstelle(html: str, idx: int) -> tuple[int, str, str]:
     return idx, _SIG_TRENNER, "eigene Trennlinie eingefuegt"
 
 
+# ── Innerster Inhalts-Container (Werkzeug-Mails mit Layout-Box) ──────────────
+# Anlass (26.11.2026): Rechnungs-/Newsletter-Werkzeuge (hier Lexware Office,
+# Vorlage aus einem E-Mail-Baukasten) legen den Text in eine zentrierte Box
+# fester Breite mit eigenem Hintergrund, umgeben von einem farbigen Rahmen:
+#   body > div[Hintergrund] > table 100% > … > table 600px weiß > … > td (Text)
+# Vor </body> eingefügt, stand die Signatur unter dem Rahmen — ausserhalb der
+# Box, mit anderem Rand. Allgemeine Regel statt Sonderfall: Von <body> aus
+# durch die Kette EINZELNER Hüllen absteigen (keine Geschwister, kein eigener
+# Text) bis zum Element, in dem der Inhalt beginnt; enthält diese Kette eine
+# Layout-Box (Tabelle, Breite, Hintergrund), kommt die Signatur ans Ende des
+# innersten Containers. Ohne Layout-Box bleibt es bei „vor </body>“.
+_INHALT_VOID = frozenset({"area", "base", "br", "col", "embed", "hr", "img", "input",
+                          "link", "meta", "param", "source", "track", "wbr"})
+_INHALT_CONTAINER = frozenset({"div", "td", "th", "center", "section", "article", "main",
+                               "body"})
+_INHALT_HUELLE = _INHALT_CONTAINER | {"table", "tbody", "thead", "tr"}
+_INHALT_TOKEN_RE = re.compile(
+    r"<!--.*?-->|<!\[.*?\]>|<(style|script)\b[^>]*>.*?</\1\s*>"
+    r"|<(/?)([a-zA-Z][\w:.-]*)((?:\"[^\"]*\"|'[^']*'|[^'\">])*)>",
+    re.S)
+_INHALT_BOX_RE = re.compile(
+    r"\b(?:width|bgcolor|background)\s*=|style\s*=\s*[\"'][^\"']*"
+    r"\b(?:width|max-width|background(?:-color)?)\s*:", re.I)
+
+
+def _inhalts_container(html: str) -> tuple[int, str] | None:
+    """(Einfügeposition, Tag) am Ende des innersten Inhalts-Containers, oder
+    None, wenn der Inhalt in keiner Layout-Box steckt bzw. das Gerüst nicht
+    sauber verschachtelt ist (dann gilt weiter „vor </body>“)."""
+    m_body = re.search(r"<body\b[^>]*>", html, re.I)
+    if not m_body:
+        return None
+    wurzel = {"tag": "body", "attr": "", "kinder": [], "text": False,
+              "ende": None, "eltern": None}
+    knoten = wurzel
+    pos = m_body.end()
+    for m in _INHALT_TOKEN_RE.finditer(html, pos):
+        if html[pos:m.start()].replace("&nbsp;", "").strip():
+            knoten["text"] = True
+        pos = m.end()
+        if m.group(3) is None:                     # Kommentar, bedingter Block, style/script
+            continue
+        zu, tag, attr = m.group(2), m.group(3).lower(), m.group(4) or ""
+        if ":" in tag or tag in _INHALT_VOID:      # VML/Office-Namensräume, leere Tags
+            if tag in _INHALT_VOID and tag != "br":
+                knoten["text"] = True              # Bild/Linie ist sichtbarer Inhalt
+            continue
+        if not zu:
+            if attr.rstrip().endswith("/"):
+                continue
+            neu = {"tag": tag, "attr": attr, "kinder": [], "text": False,
+                   "ende": None, "eltern": knoten}
+            knoten["kinder"].append(neu)
+            knoten = neu
+            continue
+        if tag == "body":
+            if knoten is not wurzel:
+                return None                        # nicht sauber geschlossen
+            wurzel["ende"] = m.start()
+            break
+        if knoten["tag"] != tag:
+            return None                            # Verschachtelung unklar → nicht raten
+        knoten["ende"] = m.start()
+        knoten = knoten["eltern"]
+    if wurzel["ende"] is None:
+        return None
+
+    kette = [wurzel]
+    k = wurzel
+    while not k["text"] and len(k["kinder"]) == 1 and k["kinder"][0]["tag"] in _INHALT_HUELLE:
+        k = k["kinder"][0]
+        kette.append(k)
+    if not any(n["tag"] == "table" or _INHALT_BOX_RE.search(n["attr"]) for n in kette[1:]):
+        return None
+    for n in reversed(kette):
+        if n["tag"] in _INHALT_CONTAINER and n is not wurzel and n["ende"] is not None:
+            return n["ende"], n["tag"]
+    return None
+
+
 def _append_html_sig(html: str, sig_html: str, zusatz: bool = False) -> str:
     log.info("_append_html_sig: called, html_len=%d zusatz=%s", len(html), zusatz)
     lower = html.lower()
@@ -1721,6 +1801,15 @@ def _append_html_sig(html: str, sig_html: str, zusatz: bool = False) -> str:
 
     # No quote block found — fall back to inserting before </body>
     # Kein Zitat = nichts, wovon zu trennen wäre; hier NIE eine Linie setzen.
+    # Ausnahme: Steckt der ganze Inhalt in einer Layout-Box (Werkzeug-Mails
+    # mit fester Breite/Hintergrund), gehört die Signatur IN deren innersten
+    # Inhalts-Container — siehe _inhalts_container().
+    innen = _inhalts_container(html)
+    if innen is not None:
+        pos, tag = innen
+        log.info("No quote block found — signature inserted at end of innermost "
+                 "content container <%s> (pos %d, layout box)", tag, pos)
+        return html[:pos] + _mit_markern() + html[pos:]
     idx = lower.rfind("</body>")
     if idx != -1:
         log.info("No quote block found — signature inserted before </body> (new email or unrecognised format)")

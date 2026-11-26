@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.166 — 2026-11-26 — Signatur in der Layout-Box von Werkzeug-Mails statt darunter
+
+Mails aus Rechnungs- und Newsletter-Werkzeugen legen ihren Text oft in eine
+zentrierte Box fester Breite mit eigenem Hintergrund, umgeben von einem
+farbigen Rahmen. Ohne Zitat setzte das Gateway die Signatur vor `</body>` —
+unter den Rahmen, ausserhalb der Box, mit anderem Rand als der Text.
+Beobachtet an der aktuellen Vorlage von Lexware Office.
+
+Jetzt gilt allgemein: Steckt der Inhalt hinter einer Kette einzelner Hüllen,
+und ist darunter eine Layout-Box (Tabelle, feste Breite oder Hintergrund),
+kommt die Signatur ans Ende des innersten Inhalts-Containers — direkt unter
+den letzten Text, in der Box. Ist das Gerüst nicht eindeutig (mehrere Blöcke
+nebeneinander, unsauber verschachtelt), bleibt es bei „vor `</body>`“.
+Antworten mit Zitat sind nicht betroffen.
+
+**Zu tun:** nichts.
+
 ## v1.12.165 — 2026-11-26 — Kampagnen: Hinweis, dass Abwesenheitsnotizen den regulären Banner behalten
 
 Eine Banner-Kampagne ersetzt den Banner der Mails, unter die das Gateway einen
