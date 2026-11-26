@@ -484,6 +484,12 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         (_row(f"Lexware-Belege mit unbekanntem Aufbau (von {dval('lexware_belege')})",
               dval("lexware_unbekannt"), "#e67e22")
          if dval("lexware_unbekannt") else ""),
+        (_row(f"Antworten ohne erkannte Zitatgrenze (von {dval('antwort_einfuegungen')})",
+              dval("antwort_ohne_zitatgrenze"), "#e67e22")
+         if dval("antwort_ohne_zitatgrenze") else ""),
+        (_row(f"Verdacht auf Doppelsignatur (von {dval('sig_eingefuegt')})",
+              dval("doppelsignatur_verdacht"), "#e67e22")
+         if dval("doppelsignatur_verdacht") else ""),
         (_row("Zertifikate abgelehnt (ungültig)", dval("cert_ungueltig"), "#e67e22")
          if dval("cert_ungueltig") else ""),
         (_row("Zertifikate abgelehnt (widerrufen)", dval("cert_widerrufen"), "#e74c3c")

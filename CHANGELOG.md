@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.170 — 2026-11-26 — Tagesbericht: Antworten ohne erkannte Zitatgrenze und Verdacht auf Doppelsignatur
+
+Das Gateway erkennt das Zitat einer Antwort an Merkmalen der Mail-Programme
+(Outlook im Web und Desktop, Outlook mobil, Gmail, Yahoo, Thunderbird, Apple
+Mail). Ändert ein Programm sein Merkmal, rutscht die Signatur ans Ende unter
+das Zitat — bisher ohne jedes Signal. Zwei neue Zähler machen das sichtbar,
+ohne etwas an der Mail zu ändern:
+
+- **Antworten ohne erkannte Zitatgrenze (von N):** Die Mail ist eine Antwort
+  oder Weiterleitung, aber keine bekannte Zitatgrenze wurde gefunden.
+- **Verdacht auf Doppelsignatur (von N):** Vor der eingefügten Signatur steht
+  im Verfassenbereich schon ein Text, der ihr gleicht — eine Signatur des
+  Mail-Programms wurde nicht entfernt. Erkannt am Inhalt der eigenen
+  Signatur, nicht an Merkmalen der Programme.
+
+Beide erscheinen im Tagesbericht, sobald sie anschlagen, zusammen mit der
+Bezugsgröße.
+
+**Zu tun:** nichts.
+
 ## v1.12.169 — 2026-11-26 — Notbetrieb (Vorschau): nachgerüstete Mail-Spalten mit Typ
 
 Die Ablage des Notbetriebs legt einige Spalten der Mail-Tabelle (Betreff,

@@ -582,7 +582,9 @@ def inject(
             payload = _strip_client_sig_divs(payload, sig_html_cid)
         payload = _fix_lexware_format(payload, lexware=ist_lexware(msg))
         msg.set_param("charset", "utf-8")
-        _set_part_payload(msg, _append_html_sig(payload, sig_html_cid, zusatz), "utf-8")
+        _neu = _append_html_sig(payload, sig_html_cid, zusatz)
+        _waechter_nach_einfuegen(msg, payload, _neu, sig_html_cid, zusatz)
+        _set_part_payload(msg, _neu, "utf-8")
         if cid_images:
             # Wrap single-part HTML message in multipart/related so images can attach
             new_msg = email.mime.multipart.MIMEMultipart("related")
@@ -723,7 +725,9 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
             payload = _strip_client_sig_divs(payload, sig_html)
         payload = _fix_lexware_format(payload, lexware=ist_lexware(msg))
         html_part.set_param("charset", "utf-8")
-        _set_part_payload(html_part, _append_html_sig(payload, sig_html, zusatz), "utf-8")
+        _neu = _append_html_sig(payload, sig_html, zusatz)
+        _waechter_nach_einfuegen(msg, payload, _neu, sig_html, zusatz)
+        _set_part_payload(html_part, _neu, "utf-8")
 
     if txt_part is not None and sig_txt:
         src_charset = txt_part.get_content_charset() or "utf-8"
@@ -1148,7 +1152,11 @@ def _fix_lexware_baukasten(html: str) -> str:
                  "Lexware-Vorlage entfernt, Schrift auf Calibri 11pt")
     rest_fund = _RESTZENTRIERUNG_RE.search(body) or _RESTHINTERGRUND_RE.search(body)
     if rest_fund:
-        _lexware_zaehlen("lexware_unbekannt")
+        try:
+            import stats
+            stats.increment("lexware_unbekannt")
+        except Exception:                                          # noqa: BLE001
+            pass
         log.warning("_fix_lexware_baukasten: nach der Korrektur ist noch Zentrierung "
                     "oder Hintergrund übrig — vermutlich eine neue Vorlagenfassung: %s",
                     rest_fund.group(0)[:80])
@@ -1171,14 +1179,6 @@ def ist_lexware(msg: email.message.Message | None) -> bool:
     return any(str(w).strip().lower().split()[:1] == ["lxo"] for w in werte if str(w).strip())
 
 
-def _lexware_zaehlen(name: str) -> None:
-    try:
-        import stats
-        stats.increment(name)
-    except Exception:                                              # noqa: BLE001
-        pass
-
-
 def _fix_lexware_format(html: str, lexware: bool = False) -> str:
     """Alle Lexware-Formatkorrekturen anwenden, falls aktiviert.
 
@@ -1194,9 +1194,17 @@ def _fix_lexware_format(html: str, lexware: bool = False) -> str:
     if not settings_store.get("LEXWARE_FIX_FORMAT"):
         return html
     if lexware:
-        _lexware_zaehlen("lexware_belege")
+        try:
+            import stats
+            stats.increment("lexware_belege")
+        except Exception:                                          # noqa: BLE001
+            pass
         if not (_LEXWARE_MARKER_RE.search(html) or _LEXWARE_BAUKASTEN_RE.search(html)):
-            _lexware_zaehlen("lexware_unbekannt")
+            try:
+                import stats
+                stats.increment("lexware_unbekannt")
+            except Exception:                                          # noqa: BLE001
+                pass
             log.warning("Lexware-Beleg (X-Mailer lxo) mit unbekannter Vorlage — "
                         "weder templateBody noch es-wrapper, die Lexware-Korrekturen "
                         "greifen nicht. Vermutlich eine neue Vorlagenfassung.")
@@ -1800,6 +1808,118 @@ def _inhalts_container(html: str) -> tuple[int, str] | None:
     return None
 
 
+# Zitat-/Weiterleitungsgrenzen der bekannten Mail-Programme (siehe _zitatgrenze).
+_QUOTE_PATTERNS = [
+    (re.compile(r'<div\b[^>]*\bid=["\']divrplyfwdmsg["\']', re.IGNORECASE),
+     "OWA reply separator"),
+    (re.compile(r'<div\b[^>]*\bid=["\']x_divrplyfwdmsg["\']', re.IGNORECASE),
+     "OWA reply separator (Exchange x_ prefix)"),
+    (re.compile(r'<div\b[^>]*\bid=["\']divfwdmsg["\']', re.IGNORECASE),
+     "OWA forward message"),
+    # Outlook für iOS/Android klammert Strich UND Zitat in einen Container:
+    #   <div id="mail-editor-reference-message-container"><hr …><div id="divRplyFwdMsg">
+    # Vor dem Container einzufügen hält die Signatur ausserhalb des zitierten
+    # Blocks und lässt den Strich dort, wo er hingehört. Ohne diesen Eintrag
+    # gewänne `divRplyFwdMsg` — mitten im Container, hinter dem Strich.
+    # ⚠️ Nicht jede Fassung der App setzt den Container (in einer Antwort vom
+    # 14.08.2026 stand nur der blosse <hr>) — deshalb fängt `_trennstelle()`
+    # den Fall zusätzlich ab.
+    (re.compile(r'<div\b[^>]*\bid=["\'](?:x_)?mail-editor-reference-message-container["\']',
+                re.IGNORECASE),
+     "Outlook mobile reference container"),
+    # Outlook Desktop reply separator:
+    #   <div style="border:none;border-top:solid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm">
+    # Properties can appear in any order in the style attribute — use lookaheads.
+    # We require border:none AND a solid 1pt border-top to avoid matching generic
+    # decorative dividers (which typically use pixel widths or omit border:none).
+    # The padding:3pt check is intentionally omitted to handle property-order variations
+    # across Outlook versions; border:none + 1pt solid top is distinctive enough.
+    (re.compile(
+        r'<div\b[^>]*style=["\']'
+        r'(?=[^"\']*\bborder\s*:\s*none\b)'
+        r'(?=[^"\']*\bborder-top\s*:\s*solid\s+#[0-9a-fA-F]{3,6}\s+1[.\d]*pt\b)',
+        re.IGNORECASE),
+     "Outlook Desktop reply separator (border:none + 1pt solid top)"),
+    (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*gmail_quote[^"\']*["\']', re.IGNORECASE),
+     "Gmail quote"),
+    (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*yahoo_quoted[^"\']*["\']', re.IGNORECASE),
+     "Yahoo quote"),
+    # Thunderbird cite prefix (<div class="moz-cite-prefix">Gesendet von ...</div>)
+    (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*moz-cite-prefix[^"\']*["\']', re.IGNORECASE),
+     "Thunderbird cite prefix"),
+    (re.compile(r'<blockquote\b', re.IGNORECASE),
+     "blockquote (Apple Mail/Thunderbird/GMX)"),
+]
+
+def _zitatgrenze(html: str) -> tuple[int, str] | None:
+    """(Position, Art) der äußersten Zitat-/Weiterleitungsgrenze, oder None.
+
+    EINE Erkennung für das Einfügen (`_append_html_sig`) und den Wächter
+    `antwort_ohne_zitatgrenze` (`_waechter_nach_einfuegen`). Die FRÜHESTE
+    Fundstelle über alle Muster gewinnt — sonst siegte ein inneres,
+    verschachteltes Trennzeichen (Weiterleitung in einer Antwort) über die
+    echte äußere Grenze. OWA-Hülle: nur hinter eigenem Text eine Grenze
+    (_owa_huelle_als_zitat)."""
+    best_idx: int | None = _owa_huelle_als_zitat(html)
+    best_label: str = "OWA forward wrapper" if best_idx is not None else ""
+    for pattern, label in _QUOTE_PATTERNS:
+        m = pattern.search(html)
+        if m and (best_idx is None or m.start() < best_idx):
+            best_idx = m.start()
+            best_label = label
+    return (best_idx, best_label) if best_idx is not None else None
+
+
+def _waechter_nach_einfuegen(msg: email.message.Message | None, vorher: str, nachher: str,
+                             sig_html: str, zusatz: bool) -> None:
+    """Zähler, die einen still wirkungslosen Erkennungsschritt sichtbar machen —
+    ohne das Ergebnis zu ändern. Anlass (26.11.2026): Ein Vorlagenwechsel bei
+    Lexware ließ die Korrekturen wochenlang still ausfallen; dieselbe Gefahr
+    besteht überall, wo das Gateway ein fremdes Programm an einem Merkmal
+    erkennt.
+
+    * `antwort_ohne_zitatgrenze` von `antwort_einfuegungen`: Antwort/Weiterleitung
+      (In-Reply-To oder References), aber keine bekannte Zitatgrenze gefunden —
+      die Signatur rutscht dann ans Ende, unter das Zitat. Steigt der Anteil,
+      hat vermutlich ein Mail-Programm sein Zitat-Merkmal geändert (deckt die
+      OWA-Hülle mit ab: auch sie geht über _zitatgrenze).
+    * `doppelsignatur_verdacht` von `sig_eingefuegt`: Vor der eingefügten
+      Gateway-Signatur steht im Verfassenbereich schon ein Text, der ihr nach
+      dem Fingerabdruck gleicht (Signatur des Mail-Programms nicht entfernt).
+      Bewusst UNABHÄNGIG von den Merkmalen der Mail-Programme — ein Wächter an
+      denselben Merkmalen wäre beim nächsten Wechsel ebenso blind.
+      Nicht dasselbe wie `stapel_verhindert` (Signatur im ZITAT) oder
+      `geteilt_korrigiert`/`addin_korrigiert` (Add-in-Signatur ersetzt) — dort
+      wird gehandelt, hier nur gezählt, und nur bei voller Gateway-Signatur."""
+    try:
+        import stats
+    except Exception:                                              # noqa: BLE001
+        return
+    antwort = msg is not None and bool(msg.get("In-Reply-To") or msg.get("References"))
+    if antwort:
+        stats.increment("antwort_einfuegungen")
+        if _zitatgrenze(vorher) is None:
+            stats.increment("antwort_ohne_zitatgrenze")
+            log.warning("Antwort ohne erkannte Zitatgrenze — Signatur ans Ende gesetzt. "
+                        "Hat ein Mail-Programm sein Zitat-Merkmal geändert?")
+    if zusatz or not sig_html:
+        return
+    stats.increment("sig_eingefuegt")
+    pos = nachher.find(_SIG_MARKER_START)
+    m_body = re.search(r"<body\b[^>]*>", nachher[:pos] if pos != -1 else "", re.I)
+    if pos == -1:
+        return
+    verfassen = nachher[m_body.end() if m_body else 0:pos]
+    fp = _sig_fingerprint(sig_html)
+    if len(fp) < _MIN_FP_MATCH_COUNT:
+        return
+    treffer = fp & set(re.findall(r'[a-zA-Z0-9äöüÄÖÜß@.\-+]{4,}', _html_to_text(verfassen)))
+    if len(treffer) >= _MIN_FP_MATCH_COUNT and len(treffer) / len(fp) >= _MIN_FP_MATCH_RATIO:
+        stats.increment("doppelsignatur_verdacht")
+        log.warning("Doppelsignatur-Verdacht: %d/%d Merkmale der Signatur stehen schon "
+                    "im Verfassenbereich vor der eingefügten", len(treffer), len(fp))
+
+
 def _append_html_sig(html: str, sig_html: str, zusatz: bool = False) -> str:
     log.info("_append_html_sig: called, html_len=%d zusatz=%s", len(html), zusatz)
     lower = html.lower()
@@ -1809,50 +1929,7 @@ def _append_html_sig(html: str, sig_html: str, zusatz: bool = False) -> str:
     # first pattern that happens to match somewhere.  Without this, an inner
     # forward separator buried deep in a thread (e.g. Markus→KELLY inside an
     # Outlook-Desktop reply) would be picked over the true outer reply boundary.
-    #
-    # Patterns: all quote/forward wrappers from known clients.
-    # Outlook Desktop uses a border-top hr-equivalent div instead of divRplyFwdMsg.
-    _QUOTE_PATTERNS = [
-        (re.compile(r'<div\b[^>]*\bid=["\']divrplyfwdmsg["\']', re.IGNORECASE),
-         "OWA reply separator"),
-        (re.compile(r'<div\b[^>]*\bid=["\']x_divrplyfwdmsg["\']', re.IGNORECASE),
-         "OWA reply separator (Exchange x_ prefix)"),
-        (re.compile(r'<div\b[^>]*\bid=["\']divfwdmsg["\']', re.IGNORECASE),
-         "OWA forward message"),
-        # Outlook für iOS/Android klammert Strich UND Zitat in einen Container:
-        #   <div id="mail-editor-reference-message-container"><hr …><div id="divRplyFwdMsg">
-        # Vor dem Container einzufügen hält die Signatur ausserhalb des zitierten
-        # Blocks und lässt den Strich dort, wo er hingehört. Ohne diesen Eintrag
-        # gewänne `divRplyFwdMsg` — mitten im Container, hinter dem Strich.
-        # ⚠️ Nicht jede Fassung der App setzt den Container (in einer Antwort vom
-        # 14.08.2026 stand nur der blosse <hr>) — deshalb fängt `_trennstelle()`
-        # den Fall zusätzlich ab.
-        (re.compile(r'<div\b[^>]*\bid=["\'](?:x_)?mail-editor-reference-message-container["\']',
-                    re.IGNORECASE),
-         "Outlook mobile reference container"),
-        # Outlook Desktop reply separator:
-        #   <div style="border:none;border-top:solid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm">
-        # Properties can appear in any order in the style attribute — use lookaheads.
-        # We require border:none AND a solid 1pt border-top to avoid matching generic
-        # decorative dividers (which typically use pixel widths or omit border:none).
-        # The padding:3pt check is intentionally omitted to handle property-order variations
-        # across Outlook versions; border:none + 1pt solid top is distinctive enough.
-        (re.compile(
-            r'<div\b[^>]*style=["\']'
-            r'(?=[^"\']*\bborder\s*:\s*none\b)'
-            r'(?=[^"\']*\bborder-top\s*:\s*solid\s+#[0-9a-fA-F]{3,6}\s+1[.\d]*pt\b)',
-            re.IGNORECASE),
-         "Outlook Desktop reply separator (border:none + 1pt solid top)"),
-        (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*gmail_quote[^"\']*["\']', re.IGNORECASE),
-         "Gmail quote"),
-        (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*yahoo_quoted[^"\']*["\']', re.IGNORECASE),
-         "Yahoo quote"),
-        # Thunderbird cite prefix (<div class="moz-cite-prefix">Gesendet von ...</div>)
-        (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*moz-cite-prefix[^"\']*["\']', re.IGNORECASE),
-         "Thunderbird cite prefix"),
-        (re.compile(r'<blockquote\b', re.IGNORECASE),
-         "blockquote (Apple Mail/Thunderbird/GMX)"),
-    ]
+    # Erkennung: _zitatgrenze() mit _QUOTE_PATTERNS (Modulebene).
     def _mit_markern(trenner: str = "") -> str:
         """Signatur samt Markern — der Trenner steht INNERHALB.
 
@@ -1873,18 +1950,9 @@ def _append_html_sig(html: str, sig_html: str, zusatz: bool = False) -> str:
             + _SIG_MARKER_END
         )
 
-    # Find the EARLIEST match across all patterns so an inner nested separator
-    # (e.g. a forward inside a reply) does not win over the real outer boundary.
-    # OWA-Hülle: nur hinter eigenem Text eine Grenze (_owa_huelle_als_zitat).
-    best_idx: int | None = _owa_huelle_als_zitat(html)
-    best_label: str = "OWA forward wrapper" if best_idx is not None else ""
-    for pattern, label in _QUOTE_PATTERNS:
-        m = pattern.search(html)
-        if m and (best_idx is None or m.start() < best_idx):
-            best_idx = m.start()
-            best_label = label
-
-    if best_idx is not None:
+    grenze = _zitatgrenze(html)
+    if grenze is not None:
+        best_idx, best_label = grenze
         if best_idx > 8000:
             log.warning(
                 "Signature insertion point is far into the document (pos %d) — "

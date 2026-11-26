@@ -40,6 +40,10 @@ KEYS = (
     "lexware_unbekannt",
     # Bezugsgröße dazu: alle als Lexware erkannten Belege (X-Mailer lxo).
     "lexware_belege",
+    # Wächter für Erkennung an Merkmalen fremder Mail-Programme (26.11.2026),
+    # je mit Bezugsgröße — mail_processor._waechter_nach_einfuegen:
+    "antwort_einfuegungen", "antwort_ohne_zitatgrenze",
+    "sig_eingefuegt", "doppelsignatur_verdacht",
     # "antworten"         — ausgehende Mails, die in einer Kette stehen
     #                       (References/In-Reply-To vorhanden)
     # "stapel_verhindert" — davon jene, bei denen der volle Signaturblock ein
