@@ -92,6 +92,11 @@ im selben Abschnitt.
   (Abteilung, Stadt, Erweiterungsattribute …), stündlich aktuell.
 - **Banner-Kampagnen** mit Zeitfenster und Zielgruppe, gepflegt von einer
   eigenen Rolle; wählbar, ob sie auch Postfächer mit eigenem Banner erreichen.
+- **DMARC-Auswertung** *(Vorschau)*: liest die DMARC-Sammelberichte selbst
+  und zeigt Quellen und Befunde mit Empfehlung (*Einstellungen → DMARC*).
+- **EXO-Ausfallschutz** *(PREVIEW, ab Werk aus)*: Kopie der Postfächer der
+  letzten Tage, Webmail mit AD-Anmeldung und zweitem Faktor, Ein- und
+  Ausgang über das Gateway, solange Exchange Online ausfällt.
 - **Saubere Antworten:** Die Signatur steht vor dem Zitat und stapelt sich
   nicht. Die Signatur, die Outlook auf dem Handy selbst anhängt, wird
   entfernt.

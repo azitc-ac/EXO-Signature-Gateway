@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.171 — 2026-11-26 — Doku: EXO-Ausfallschutz und DMARC-Auswertung beschrieben
+
+Die Funktionsübersicht (`docs/funktionen.md`) und das README beschreiben jetzt
+den EXO-Ausfallschutz (PREVIEW, ab Werk aus: Nutzen, Einschalten über
+*Einrichtung → Betriebsart*, Voraussetzungen, Grenzen) und die DMARC-Auswertung
+(Vorschau, *Einstellungen → DMARC*). Keine Änderung am Betrieb.
+
+**Zu tun:** nichts.
+
 ## v1.12.170 — 2026-11-26 — Tagesbericht: Antworten ohne erkannte Zitatgrenze und Verdacht auf Doppelsignatur
 
 Das Gateway erkennt das Zitat einer Antwort an Merkmalen der Mail-Programme
