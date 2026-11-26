@@ -38,6 +38,8 @@ KEYS = (
     # stehen: Der Lexware-Fix lief von Juli bis August 2026 wirkungslos mit,
     # weil ein Vorlagenwechsel unbemerkt blieb.
     "lexware_unbekannt",
+    # Bezugsgröße dazu: alle als Lexware erkannten Belege (X-Mailer lxo).
+    "lexware_belege",
     # "antworten"         — ausgehende Mails, die in einer Kette stehen
     #                       (References/In-Reply-To vorhanden)
     # "stapel_verhindert" — davon jene, bei denen der volle Signaturblock ein

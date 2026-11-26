@@ -580,7 +580,7 @@ def inject(
         payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
         if not zusatz:
             payload = _strip_client_sig_divs(payload, sig_html_cid)
-        payload = _fix_lexware_format(payload)
+        payload = _fix_lexware_format(payload, lexware=ist_lexware(msg))
         msg.set_param("charset", "utf-8")
         _set_part_payload(msg, _append_html_sig(payload, sig_html_cid, zusatz), "utf-8")
         if cid_images:
@@ -721,7 +721,7 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
         payload = html_part.get_payload(decode=True).decode(src_charset, errors="replace")
         if not zusatz:
             payload = _strip_client_sig_divs(payload, sig_html)
-        payload = _fix_lexware_format(payload)
+        payload = _fix_lexware_format(payload, lexware=ist_lexware(msg))
         html_part.set_param("charset", "utf-8")
         _set_part_payload(html_part, _append_html_sig(payload, sig_html, zusatz), "utf-8")
 
@@ -1097,15 +1097,51 @@ def _fix_lexware_zeilenhoehe(html: str) -> str:
     return neu
 
 
-def _fix_lexware_format(html: str) -> str:
+def ist_lexware(msg: email.message.Message | None) -> bool:
+    """Kommt die Mail aus Lexware Office? Erkannt am Kopf `X-Mailer: lxo` der
+    GESAMTEN Mail — unabhängig vom Aufbau des HTML.
+
+    Anlass (26.11.2026): Alle Korrekturen UND ihr Wächter `lexware_unbekannt`
+    erkannten Lexware nur am Marker `id="templateBody"` der Vorlage. Die neue
+    Vorlage (E-Mail-Baukasten, `es-wrapper`) hat ihn nicht — die Korrekturen
+    liefen nicht, und der Wächter schwieg, weil er am selben Merkmal hing, das
+    sich geändert hatte. Ein Wächter darf nicht an dem hängen, was er
+    überwachen soll."""
+    if msg is None:
+        return False
+    werte = msg.get_all("X-Mailer") or []
+    return any(str(w).strip().lower().split()[:1] == ["lxo"] for w in werte if str(w).strip())
+
+
+def _lexware_zaehlen(name: str) -> None:
+    try:
+        import stats
+        stats.increment(name)
+    except Exception:                                              # noqa: BLE001
+        pass
+
+
+def _fix_lexware_format(html: str, lexware: bool = False) -> str:
     """Alle Lexware-Formatkorrekturen anwenden, falls aktiviert.
 
     Ausrichtung, Schrift, Zeilenhoehe, Padding, Leerzeilen — die Belege kommen
     aus einer Newsletter-Vorlage, deren Gestaltung fuer einen Geschaeftsbrief
     nicht passt und die sich in Lexware nicht aendern laesst.
+
+    `lexware=True` (Aufrufer hat `ist_lexware(msg)` geprüft): Fehlt der Marker
+    der bekannten Vorlage, ist das eine NEUE Vorlage — gezählt als
+    `lexware_unbekannt` (Tagesbericht, Übersicht) und gewarnt. Jeder erkannte
+    Beleg zählt als `lexware_belege` (Bezugsgröße).
     """
     if not settings_store.get("LEXWARE_FIX_FORMAT"):
         return html
+    if lexware:
+        _lexware_zaehlen("lexware_belege")
+        if not _LEXWARE_MARKER_RE.search(html):
+            _lexware_zaehlen("lexware_unbekannt")
+            log.warning("Lexware-Beleg (X-Mailer lxo) mit unbekannter Vorlage — "
+                        "kein Marker templateBody, die Lexware-Korrekturen greifen "
+                        "nicht. Vermutlich eine neue Vorlagenfassung.")
     # Defensive: falls doch schon eine Gateway-Signatur im Text steckt (z.B. bei
     # SKIP_SIG_IN_THREAD=False), lieber nichts anfassen statt versehentlich in
     # bereits zitierten/quotierten Inhalt einzugreifen.

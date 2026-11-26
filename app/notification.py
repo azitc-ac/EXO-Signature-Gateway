@@ -481,7 +481,8 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         _row("Fehler",     dval("errors"),   "#e74c3c" if dval("errors")   else ""),
         # Nur zeigen, wenn es etwas zu zeigen gibt — eine Dauerzeile mit 0
         # wuerde ueberlesen, und genau darauf kommt es hier an.
-        (_row("Belege mit unbekanntem Aufbau", dval("lexware_unbekannt"), "#e67e22")
+        (_row(f"Lexware-Belege mit unbekanntem Aufbau (von {dval('lexware_belege')})",
+              dval("lexware_unbekannt"), "#e67e22")
          if dval("lexware_unbekannt") else ""),
         (_row("Zertifikate abgelehnt (ungültig)", dval("cert_ungueltig"), "#e67e22")
          if dval("cert_ungueltig") else ""),

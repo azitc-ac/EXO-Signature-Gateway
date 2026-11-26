@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.167 — 2026-11-26 — Lexware-Belege am Absenderprogramm erkannt, neue Vorlage fällt im Tagesbericht auf
+
+Die Formatkorrekturen für Lexware-Belege (Ausrichtung, Schrift, Abstände)
+und ihr Wächter erkannten Lexware nur an einem Merkmal der Mail-Vorlage. Die
+aktuelle Vorlage von Lexware Office hat dieses Merkmal nicht mehr: Die
+Korrekturen griffen nicht, und der Wächter meldete nichts, weil er am selben
+Merkmal hing.
+
+Jetzt erkennt das Gateway Lexware am Kopf `X-Mailer: lxo`, unabhängig vom
+Aufbau der Mail. Ein so erkannter Beleg ohne bekannte Vorlage wird
+protokolliert und gezählt; der Tagesbericht zeigt „Lexware-Belege mit
+unbekanntem Aufbau (von N)“. Die Korrekturen selbst sind für die neue
+Vorlage noch nicht angepasst.
+
+**Zu tun:** nichts.
+
 ## v1.12.166 — 2026-11-26 — Signatur in der Layout-Box von Werkzeug-Mails statt darunter
 
 Mails aus Rechnungs- und Newsletter-Werkzeugen legen ihren Text oft in eine
