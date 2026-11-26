@@ -280,6 +280,19 @@ _BANNER_OHNE_KAMPAGNE = {
 }
 
 
+def test_ausnahme_abwesenheit_steht_in_hilfe_und_doku():
+    """Entscheidung 26.11.2026: Die Abwesenheitsnotiz bekommt KEINEN
+    Kampagnen-Banner. Steht die Ausnahme im Code, muss sie auch auf der
+    Kampagnen-Seite und in der Funktionsübersicht stehen — sonst fällt sie
+    wieder als Fehler auf (Vorschau der Notiz ohne Kampagnen-Banner)."""
+    from pathlib import Path
+    wurzel = Path(__file__).resolve().parents[1]
+    assert "abwesenheit.py" in _BANNER_OHNE_KAMPAGNE
+    for datei in ("app/webui/templates/kampagnen.html", "docs/funktionen.md"):
+        text = re.sub(r"<[^>]+>|\s+", " ", (wurzel / datei).read_text(encoding="utf-8"))
+        assert "nicht für Abwesenheitsnotizen" in text, datei
+
+
 def test_jede_bannerauflosung_geht_ueber_banner_fuer():
     from pathlib import Path
     app = Path(__file__).resolve().parents[1] / "app"

@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.165 — 2026-11-26 — Kampagnen: Hinweis, dass Abwesenheitsnotizen den regulären Banner behalten
+
+Eine Banner-Kampagne ersetzt den Banner der Mails, unter die das Gateway einen
+Banner setzt. Die Abwesenheitsnotiz behält dagegen den regulären Banner des
+Postfachs — in der Vorschau der Selbstbedienung wie in der Notiz, die in
+Exchange steht. Das ist beabsichtigt und steht jetzt auf der Seite
+Kampagnen und in der Funktionsübersicht.
+
+**Zu tun:** nichts.
+
 ## v1.12.164 — 2026-11-26 — Abwesenheit: Zeitraum je Zeile „Von“ und „Bis“, auch in schmaler Ansicht
 
 Im Zeitraum einer Abwesenheit mit Uhrzeit standen Von-Datum, Uhrzeit und
