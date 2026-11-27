@@ -229,6 +229,8 @@ def test_ausnahme_gilt_nur_mit_gueltiger_kennung_von_loopback(anlage, zaehler):
 
 
 def test_testmail_route_setzt_die_kennung():
-    quelle = (WURZEL / "app" / "webui" / "app.py").read_text(encoding="utf-8")
-    route = quelle.split('@app.post("/api/test-mail")', 1)[1].split("@app.", 1)[0]
+    sys.path.insert(0, str(WURZEL / "tests"))
+    from hilfen import endpunkt_block, webui_quelltext
+    route = endpunkt_block(webui_quelltext(), "post", "/api/test-mail")
+    assert route, "Route /api/test-mail nicht gefunden"
     assert "msg[testmail_kennung.KOPF] = testmail_kennung.neu()" in route

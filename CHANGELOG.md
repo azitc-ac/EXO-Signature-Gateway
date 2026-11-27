@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.187 — 2026-11-27 — Testreihe: Prüfung der Testmail-Kennung über den gemeinsamen Weg
+
+Der Test aus v1.12.185, der die Einmal-Kennung der Testmail in der Route
+prüft, las die Datei der Weboberfläche direkt statt über den gemeinsamen
+Helfer für alle Routenmodule. Eine Strukturprüfung der Testreihe verbietet
+das, weil ein solcher Test blind würde, sobald die Route umzieht. Keine
+Änderung am Produkt.
+
+**Zu tun:** nichts.
+
 ## v1.12.186 — 2026-11-27 — SMTP-Relay: Datenbankverbindungen der Geräteliste werden geschlossen
 
 Die Geräteliste des SMTP-Relays (`relay_hosts`) öffnete für jede Abfrage eine
