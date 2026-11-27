@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.186 — 2026-11-27 — SMTP-Relay: Datenbankverbindungen der Geräteliste werden geschlossen
+
+Die Geräteliste des SMTP-Relays (`relay_hosts`) öffnete für jede Abfrage eine
+SQLite-Verbindung und schloss sie nicht: `with sqlite3.connect(…)` übernimmt in
+Python nur Commit bzw. Rollback, nicht das Schließen. Die Verbindung blieb offen,
+bis die Speicherbereinigung sie fand. Unter Python 3.13 und dem Debian-Grenzwert
+von 1024 offenen Dateien lief so die Testreihe des EXO SMTP Relays (gleiche
+Datei) in „Too many open files“. Jetzt wird jede Verbindung nach ihrem Block
+geschlossen. Das Verhalten der Geräteliste ändert sich nicht.
+
+**Zu tun:** nichts.
+
 ## v1.12.185 — 2026-11-27 — Fehlerbehebung: Testmail bei strenger Herkunftsprüfung abgewiesen
 
 Mit eingeschalteter Option „Post ohne Tenant-Kennung abweisen“ (Erweitert →
