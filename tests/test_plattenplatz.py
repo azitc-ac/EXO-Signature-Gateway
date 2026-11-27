@@ -113,3 +113,21 @@ def test_mails_folgen_dem_hauptschalter_und_nennen_die_werte(monkeypatch):
     assert to == "it@firma.at" and "93 %" in betreff and "93.4 %" in html
     assert f"Ab {plattenplatz.KRIT_PCT} %" in html and f"unter {plattenplatz.ENTWARNUNG_PCT} %" in html
     assert notification.send_plattenplatz_entwarnung(_m(70.0)) is True and "Entwarnung" in gesendet[-1][1]
+
+
+def test_systeminfo_liefert_belegung_und_schwellen(tmp_path, monkeypatch):
+    """Die Route selbst aufrufen — beim Umbau auf plattenplatz.messen() fiel eine
+    Variable weg, die die Log-Größe noch brauchte (NameError, von ruff in der CI
+    gefunden, von keinem Test)."""
+    import asyncio
+    import json
+    import config
+    monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "a.log").write_text("x" * 2048)
+    from webui.routen import aktualisierung
+    r = asyncio.run(aktualisierung.api_system_info(user="admin"))
+    d = r if isinstance(r, dict) else json.loads(r.body)
+    assert d["disk_krit_pct"] == plattenplatz.KRIT_PCT and d["disk_warn_pct"] == plattenplatz.WARN_PCT
+    assert d["disk_pct"] is not None and d["disk_total_mb"] > 0
+    assert d.get("logs_size_kb") == 2.0

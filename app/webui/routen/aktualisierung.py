@@ -54,7 +54,7 @@ async def api_system_info(user: str = Depends(_require_admin)):
         db_size_kb = None
 
     # Log files total size
-    logs_path = data_path / "logs"
+    logs_path = Path(config.DATA_DIR) / "logs"
     try:
         logs_size_kb = round(sum(f.stat().st_size for f in logs_path.iterdir() if f.is_file()) / 1024, 1)
     except Exception:

@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.181 — 2026-11-27 — Fehlerbehebung: Systemangaben der Übersicht
+
+In v1.12.180 lieferte die Abfrage der Systemangaben (Kacheln „Disk“, „Logs“
+usw. der Übersicht) einen Fehler: Beim Umstellen der Plattenplatz-Messung
+fehlte der Pfad für die Größe der Protokolldateien. Behoben; v1.12.180 war
+nicht veröffentlicht.
+
+**Zu tun:** nichts.
+
 ## v1.12.180 — 2026-11-27 — Warnmail bei knappem Datenvolumen
 
 Ist das Datenvolumen des Gateways zu 90 % oder mehr belegt, bekommt die
