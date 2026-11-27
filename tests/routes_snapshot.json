@@ -1799,6 +1799,13 @@
     "name": "api_hub_order_status"
   },
   {
+    "pfad": "/api/smime/hub-order/{email}/abbrechen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_order_abbrechen"
+  },
+  {
     "pfad": "/api/smime/hub-order/{email}/abholen",
     "methoden": [
       "POST"

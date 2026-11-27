@@ -697,6 +697,38 @@ async def cert_get_order(order_id: str) -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def cert_cancel_order(order_id: str) -> dict:
+    """Offene Zertifikatsbestellung beim Hub stornieren (Hub ab 0.24.169).
+
+    Rückgabe:
+      {"ok": True, "erstattet_cents": n}                — storniert
+      {"ok": False, "ende": True, "status": s}          — nicht (mehr) offen (409)
+                                                          bzw. dem Hub unbekannt (404)
+      {"ok": False, "nachholen": True, "error": text}   — Hub nicht erreichbar, Fehler
+                                                          oder zu alt (Endpunkt fehlt)
+    """
+    base = _base()
+    if not (base and _cert_key()):
+        return {"ok": False, "nachholen": True, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/cert/order/{order_id}/stornieren",
+                             headers=_gateway_headers(_cert_key()))
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return {"ok": True, "erstattet_cents": int(data.get("erstattet_cents") or 0)}
+        if r.status_code == 409:
+            return {"ok": False, "ende": True, "status": data.get("status", "")}
+        # 404 mit „Order nicht gefunden.“ = der Hub kennt sie nicht; ein 404/405
+        # OHNE diese Meldung heisst: Endpunkt fehlt (Hub älter als 0.24.169).
+        if r.status_code == 404 and "Order nicht gefunden" in str(data.get("detail", "")):
+            return {"ok": False, "ende": True, "status": "unbekannt"}
+        return {"ok": False, "nachholen": True,
+                "error": data.get("detail") or data.get("message") or f"HTTP {r.status_code}"}
+    except Exception as exc:
+        return {"ok": False, "nachholen": True, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def cert_topup(amount_cents: int) -> dict:
     """Ask the hub to create a Stripe Checkout session for a prepaid top-up.
     Returns {"ok": True, "checkout_url": ...} — the browser opens that URL."""

@@ -931,6 +931,18 @@ function _hubOrderEl(email) {
 // [style*="#hex"] und würden dann nicht mehr passen — die Box leuchtete im
 // Dunkelmodus. Gefärbt wird deshalb per CSS über [data-zustand].
 function _hubOrderText(d) {
+  if (!d.aktiv && d.beendet) {
+    // Zuletzt beendete Bestellung — sonst verschwände die Anzeige wortlos.
+    const am = new Date(d.beendet.am);
+    const wann = isNaN(am) ? '' : ' am ' + am.toLocaleDateString('de-DE');
+    return [(d.beendet.art === 'abgelehnt' ? '✗ Letzte Bestellung abgelehnt' : 'Letzte Bestellung storniert')
+            + wann + (d.beendet.text ? ': ' + esc(d.beendet.text) : '') + '. Neu bestellen ist möglich.',
+            d.beendet.art === 'abgelehnt' ? 'fehler' : 'unklar'];
+  }
+  if (d.haengt)
+    return ['<strong>Hängt bei der Zertifizierungsstelle</strong> — seit ' + esc(String(d.alter_tage))
+            + ' Tagen ohne Ausstellung' + (d.ca_zustand ? ' (letzte Meldung: ' + esc(d.ca_zustand) + ')' : '')
+            + '. Bestellung abbrechen und neu bestellen.', 'unklar'];
   if (d.status === 'issued')
     return ['✓ Zertifikat ausgestellt — wird eingespielt.', 'ok'];
   if (d.status === 'rejected')
@@ -960,6 +972,7 @@ function _hubOrderText(d) {
     return ['<strong>Wartet auf Bestätigung durch den Postfachinhaber.</strong><br>' +
             'Die Zertifizierungsstelle hat eine E-Mail an <strong>' + esc(d.email) + '</strong> geschickt. ' +
             'Erst nach dem Klick darin wird ausgestellt — das dauert dann wenige Minuten.' +
+            (d.bestaetigung_fehler ? '<br>Letzter Bestätigungsversuch gescheitert: ' + esc(d.bestaetigung_fehler) : '') +
             knopf, 'wartet'];
   }
   return ['Bestellung läuft (Zustand: ' + esc(d.status) + ').', 'laeuft'];
@@ -968,23 +981,58 @@ function _hubOrderText(d) {
 function _renderHubOrder(email, d) {
   const el = _hubOrderEl(email);
   if (!el) return;
-  if (!d || !d.aktiv) { el.style.display = 'none'; return; }
+  if (!d || (!d.aktiv && !d.beendet)) { el.style.display = 'none'; return; }
   d.email = email;
   const [text, zustand] = _hubOrderText(d);
   // ⚠️ Der Zeitstempel kommt in UTC. Zeichen herauszuschneiden ergab im Sommer
   // eine um zwei Stunden zurückliegende Uhrzeit — als Datum geparst und lokal
   // formatiert stimmt sie in jeder Zeitzone und über die Zeitumstellung hinweg.
+  // Mit Datum: „seit 17:42 Uhr“ allein liess eine 18 Tage alte Bestellung
+  // frisch aussehen (Prod, 27.11.2026).
   let seit = '';
-  if (d.seit) {
+  if (d.aktiv && d.seit) {
     const ts = new Date(d.seit);
     if (!isNaN(ts)) {
-      seit = ' · seit ' + ts.toLocaleTimeString('de-DE',
-               {hour: '2-digit', minute: '2-digit'}) + ' Uhr';
+      const heute = new Date().toDateString() === ts.toDateString();
+      seit = ' · seit ' + (heute ? '' : ts.toLocaleDateString('de-DE') + ', ')
+           + ts.toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'}) + ' Uhr'
+           + (d.alter_tage >= 1 ? ' (' + anzahlText(d.alter_tage, 'Tag', 'Tagen') + ')' : '');
     }
   }
+  const abbrechen = d.aktiv && d.status !== 'issued'
+    ? '<div style="margin-top:8px"><button type="button" class="btn danger btn-sm" '
+      + 'onclick="hubOrderAbbrechen(\'' + escJsAttr(email) + '\', this)">Bestellung abbrechen</button>'
+      + ' <span class="hub-abbruch-msg"></span></div>'
+    : '';
   el.style.display = '';
   el.dataset.zustand = zustand;
-  el.innerHTML = text + '<span style="opacity:.7">' + seit + '</span>';
+  el.dataset.storno = d.storno_erstattung_cents == null ? '' : String(d.storno_erstattung_cents);
+  el.dataset.preis = String(d.preis_cents || 0);
+  el.innerHTML = text + '<span style="opacity:.7">' + seit + '</span>' + abbrechen;
+}
+
+// Rückfrage nennt, was erstattet wird (Hub ab 0.24.169 liefert den Betrag).
+function _stornoText(el) {
+  const preis = Number(el.dataset.preis || 0);
+  if (el.dataset.storno === '') {
+    return preis ? 'Ob der Preis erstattet wird, meldet der Betreiber-Hub nicht (ältere Fassung).' : '';
+  }
+  const betrag = Number(el.dataset.storno);
+  if (betrag > 0) return 'Erstattet werden ' + (betrag / 100).toFixed(2).replace('.', ',') + ' €.';
+  return preis ? 'Keine Erstattung — die Zertifizierungsstelle hat die Bestellung bereits angenommen.'
+               : 'Die Bestellung war kostenlos.';
+}
+
+async function hubOrderAbbrechen(email, knopf) {
+  const el = _hubOrderEl(email);
+  if (!confirm('Bestellung für ' + email + ' abbrechen?\n\n' + _stornoText(el)
+               + '\n\nDanach kann sofort neu bestellt werden.')) return;
+  const d = await knopfAktion(knopf, 'Breche ab…', () =>
+    postJSON('/api/smime/hub-order/' + encodeURIComponent(email) + '/abbrechen', {}),
+    {gesperrtLassen: true});
+  showMsg(knopf.parentElement.querySelector('.hub-abbruch-msg'), d.ok ? d.message : errText(d), d.ok);
+  if (_hubTimer[email]) { clearTimeout(_hubTimer[email]); delete _hubTimer[email]; }
+  setTimeout(() => location.reload(), 1800);
 }
 
 async function _pollHubOrder(email, versuch) {

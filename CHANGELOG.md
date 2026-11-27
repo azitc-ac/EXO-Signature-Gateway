@@ -5,6 +5,45 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.177 — 2026-11-27 — Zertifikatsbestellung abbrechen; keine hängende Bestellung mehr ohne Ende
+
+Eine offene Zertifikatsbestellung über den Betreiber-Hub ließ sich bisher weder
+abbrechen noch beenden. Wartete die Zertifizierungsstelle nicht mehr auf den
+Postfachinhaber, stellte aber auch nicht aus, blieb sie unbegrenzt offen und
+blockierte das erneute Bestellen.
+
+- **Bestellung abbrechen:** Unter *S/MIME* steht an jeder offenen Bestellung der
+  Knopf **Bestellung abbrechen**. Die Rückfrage nennt, was erstattet wird: den
+  vollen Preis, solange die Zertifizierungsstelle die Bestellung noch nicht
+  angenommen hat, danach nichts. Der Abbruch storniert die Bestellung beim
+  Betreiber-Hub und räumt sie im Gateway auf; danach kann sofort neu bestellt
+  werden. Ist der Hub gerade nicht erreichbar, wird trotzdem aufgeräumt und
+  der Storno beim Hub automatisch nachgeholt. Ist die Bestellung inzwischen
+  ausgestellt, wird das Zertifikat eingespielt statt verworfen.
+- **Bestätigung erkannt:** Hat die Zertifizierungsstelle die E-Mail-Bestätigung
+  bereits (etwa nach einem Klick direkt in ihrer Mail), zeigt die Seite nicht
+  mehr „Wartet auf Bestätigung durch den Postfachinhaber“ an. Sie bietet dann
+  auch keinen Bestätigungslink mehr an und schickt keine weiteren
+  Bestätigungsversuche an die Stelle. Bisher löste jeder Aufruf der Seite einen
+  solchen Versuch aus, und die Stelle lehnte ihn ab.
+- **Alter sichtbar:** „seit …“ nennt das Datum und das Alter in Tagen, nicht nur
+  die Uhrzeit.
+- **Zeitlimit:** Nach 14 Tagen ohne Ausstellung heißt die Bestellung „hängt bei
+  der Zertifizierungsstelle“, mit dem Hinweis, abzubrechen und neu zu bestellen.
+  Abgebrochen wird nicht automatisch, weil nach der Annahme durch die Stelle
+  nicht mehr erstattet wird.
+- **Ende sichtbar:** Wird eine Bestellung abgelehnt oder storniert, steht das
+  noch 14 Tage am Postfach („Letzte Bestellung abgelehnt am …: Grund. Neu
+  bestellen ist möglich.“), statt dass die Anzeige wortlos verschwindet.
+- **Bestätigungsfehler sichtbar:** Ein gescheiterter Bestätigungsversuch
+  erscheint mit seiner Meldung an der Bestellung.
+
+Der Storno beim Hub braucht Hub 0.24.169; mit einer älteren Fassung wird im
+Gateway aufgeräumt, und der Storno beim Hub wird nachgeholt, sobald er möglich
+ist.
+
+**Zu tun:** nichts.
+
 ## v1.12.176 — 2026-11-27 — Mail-Protokoll und Mail-Listen: einzeilig, Spalten ziehbar
 
 Im Mail-Protokoll der Übersicht brachen Absender und Empfänger in mehrere

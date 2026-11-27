@@ -18,6 +18,8 @@ import os
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import re
+
 import config
 
 log = logging.getLogger(__name__)
@@ -33,7 +35,7 @@ _DIR = Path(config.DATA_DIR) / "hub_orders"
 # Zwei Mengen, nicht eine: Holte der Hintergrundlauf gerade ab, wiese eine
 # gemeinsame Sperre die Bestätigung der Seite ab, und die Bestellung wartete
 # bis zum nächsten Durchgang.
-_laeuft: dict[str, set[str]] = {"bestaetigen": set(), "abholen": set()}
+_laeuft: dict[str, set[str]] = {"bestaetigen": set(), "abholen": set(), "abbrechen": set()}
 _laeuft_lock = threading.Lock()
 
 
@@ -50,7 +52,69 @@ def _freigeben(art: str, order_id: str) -> None:
     with _laeuft_lock:
         _laeuft[art].discard(order_id)
 
-STALE_DAYS = 30  # danach warnen wir im Log (Keys werden NIE automatisch gelöscht)
+# Zeitlimit: Meldet die Zertifizierungsstelle so lange keinen Fortschritt,
+# gilt die Bestellung als hängend — Anzeige „hängt bei der Stelle, abbrechen
+# und neu bestellen“ und eine Warnung im Protokoll. Bewusst KEIN automatischer
+# Storno: Nach der Annahme durch die Stelle erstattet der Hub nicht mehr, das
+# entscheidet ein Mensch. (Bis v1.12.176: nur eine Logzeile nach 30 Tagen.)
+HAENGT_TAGE = 14
+STALE_DAYS = HAENGT_TAGE  # alter Name (Log-Warnung)
+
+# Certum meldet „Order-Status: ACCEPTED“, sobald der Inhaber bestätigt hat;
+# ENROLLED = ausgestellt. Der Hub liefert ab 0.24.169 zusätzlich `ca_angenommen`.
+_CA_ANGENOMMEN = re.compile(r"Order-Status:\s*(ACCEPTED|ENROLLED)\b", re.I)
+
+
+def ca_hat_angenommen(hub_antwort: dict) -> bool:
+    """Hat die Zertifizierungsstelle die Bestätigung schon (E-Mail geklickt)?
+    Dann wartet die Bestellung NICHT mehr auf den Postfachinhaber — ein
+    weiterer Klick endet bei Certum mit „The order is being processed“."""
+    if hub_antwort.get("ca_angenommen") is True:
+        return True
+    return bool(_CA_ANGENOMMEN.search(hub_antwort.get("ca_zustand") or ""))
+
+
+def alter_tage(meta: dict) -> int | None:
+    try:
+        return (datetime.now(timezone.utc) - datetime.fromisoformat(meta["created"])).days
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
+# ── Ende einer Bestellung merken (für die Anzeige „abgelehnt/storniert …“) ───
+# Nach dem Aufräumen ist die Metadatei weg; die Seite zeigte dann gar nichts
+# mehr, und wer nicht hinsah, wusste nicht, warum kein Zertifikat kam.
+_ENDE_TAGE = 14
+
+
+def _ende_pfad(email: str) -> Path:
+    return _DIR / "beendet" / (re.sub(r"[^a-z0-9@._-]", "_", (email or "").lower()) + ".json")
+
+
+def _ende_merken(email: str, art: str, text: str) -> None:
+    try:
+        pfad = _ende_pfad(email)
+        pfad.parent.mkdir(parents=True, exist_ok=True)
+        pfad.write_text(json.dumps({"art": art, "text": text,
+                                    "am": datetime.now(timezone.utc).isoformat()}))
+    except OSError as exc:
+        log.warning("hub_orders: Ende für %s nicht gemerkt: %s", email, exc)
+
+
+def letztes_ende(email: str) -> dict | None:
+    """{art: abgelehnt|storniert, text, am} der letzten beendeten Bestellung,
+    höchstens _ENDE_TAGE alt — sonst None."""
+    try:
+        d = json.loads(_ende_pfad(email).read_text())
+        if (datetime.now(timezone.utc) - datetime.fromisoformat(d["am"])).days > _ENDE_TAGE:
+            return None
+        return d
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def _ende_vergessen(email: str) -> None:
+    _ende_pfad(email).unlink(missing_ok=True)
 
 
 def _init() -> None:
@@ -71,6 +135,8 @@ def save_pending(order_id: str, email: str, provider: str,
     key_path = _DIR / f"{order_id}.key"
     key_path.write_bytes(key_pem)
     os.chmod(key_path, 0o600)
+    # Neue Bestellung: ein gemerktes Ende („abgelehnt …“) ist überholt.
+    _ende_vergessen(email)
     (_DIR / f"{order_id}.json").write_text(json.dumps({
         "order_id": order_id,
         "email": email,
@@ -167,16 +233,26 @@ async def _abholen(meta: dict) -> int:
         log.warning("hub_orders: Order %s für %s abgelehnt: %s",
                     order_id, email, res.get("note", ""))
         _remove(order_id)
+        _ende_merken(email, "abgelehnt", res.get("note", "") or "von der Zertifizierungsstelle abgelehnt")
         _notify_rejected(email, meta.get("provider", ""), res.get("note", ""))
+        return 1
+    elif status == "storniert":
+        # Am Hub storniert (anderes Gateway derselben Anbindung, Betreiber):
+        # lokal nachziehen, sonst bliebe die Bestellung hier ewig offen.
+        log.info("hub_orders: Order %s für %s ist am Hub storniert — lokal aufgeräumt",
+                 order_id, email)
+        _remove(order_id)
+        _ende_merken(email, "storniert", "am Hub storniert")
         return 1
     else:
         # pending/processing — liegen lassen; bei alten Orders warnen
         try:
             created = datetime.fromisoformat(meta["created"])
             age_days = (datetime.now(timezone.utc) - created).days
-            if age_days >= STALE_DAYS:
-                log.warning("hub_orders: Order %s für %s ist seit %d Tagen offen",
-                            order_id, email, age_days)
+            if age_days >= HAENGT_TAGE:
+                log.warning("hub_orders: Order %s für %s ist seit %d Tagen offen "
+                            "(Stelle meldet: %s) — abbrechen und neu bestellen?",
+                            order_id, email, age_days, res.get("ca_zustand") or status or "?")
         except (KeyError, ValueError):
             pass
     return 0
@@ -454,6 +530,12 @@ async def _bestaetigen(meta: dict) -> tuple[bool, str]:
     # „auf Verdacht" wäre ein Zugriff auf ein fremdes System ohne Anlass.
     if (res.get("status") or "") not in ("submitted", "pending", "waiting"):
         return False, "Die Bestellung wartet nicht auf eine Bestätigung."
+    if ca_hat_angenommen(res):
+        # Die Stelle hat die Bestätigung schon (z. B. Klick direkt in der Mail
+        # oder vor v1.10.96 ohne Merker). Ein weiterer Aufruf endet mit HTTP 400
+        # „being processed“ — stattdessen den Merker nachtragen.
+        _merken_bestaetigt(meta["order_id"])
+        return True, "Bereits bestätigt (Zertifizierungsstelle hat angenommen)."
     link = await bestaetigungslink(adresse, res.get("ref", ""), meta.get("created", ""))
     if not link:
         return False, "Keine Bestätigungsmail gefunden."
@@ -461,7 +543,21 @@ async def _bestaetigen(meta: dict) -> tuple[bool, str]:
     log.info("hub_orders: Bestätigung für %s (%s): %s", adresse, meta["order_id"], meldung)
     if ok:
         _merken_bestaetigt(meta["order_id"])
+    else:
+        # Für die Anzeige: Der Fehler stand bis v1.12.176 nur im Protokoll.
+        _merken(meta["order_id"], bestaetigung_fehler=meldung,
+                bestaetigung_fehler_am=datetime.now(timezone.utc).isoformat())
     return ok, meldung
+
+
+def _merken(order_id: str, **felder) -> None:
+    pfad = _DIR / f"{order_id}.json"
+    try:
+        daten = json.loads(pfad.read_text())
+        daten.update(felder)
+        pfad.write_text(json.dumps(daten))
+    except Exception as exc:
+        log.warning("hub_orders: Merkposten für %s nicht geschrieben: %s", order_id, exc)
 
 
 def _merken_bestaetigt(order_id: str) -> None:
@@ -473,3 +569,88 @@ def _merken_bestaetigt(order_id: str) -> None:
         pfad.write_text(json.dumps(daten))
     except Exception as exc:
         log.warning("hub_orders: Merkposten für %s nicht geschrieben: %s", order_id, exc)
+
+
+# ── Abbrechen (Storno) ────────────────────────────────────────────────────────
+# EIN Weg für den Knopf „Bestellung abbrechen“ und den Nachhol-Lauf. Reihenfolge:
+# erst beim Hub stornieren, dann lokal aufräumen. Ein Hub-Fehler verhindert das
+# lokale Aufräumen NICHT — der Storno wird dann vorgemerkt und im
+# Hintergrundlauf nachgeholt (`stornos_nachholen`). Einzige Ausnahme: Der Hub
+# meldet die Bestellung als AUSGESTELLT — dann wird abgeholt statt verworfen
+# (der Schlüssel liegt nur hier).
+
+def _nachhol_pfad(order_id: str) -> Path:
+    return _DIR / "storno_nachholen" / f"{order_id}.json"
+
+
+async def abbrechen(order_id: str, actor: str = "") -> dict:
+    """Bestellung abbrechen. Rückgabe {ok, meldung, erstattet_cents?, nachholen?}."""
+    import hub_client
+    meta_pfad = _DIR / f"{order_id}.json"
+    if not meta_pfad.exists():
+        return {"ok": False, "meldung": "Keine offene Bestellung."}
+    if not _beanspruchen("abbrechen", order_id):
+        return {"ok": False, "meldung": "Abbruch läuft bereits."}
+    # Nicht gleichzeitig mit einem Abholen: das könnte gerade einspielen.
+    if not _beanspruchen("abholen", order_id):
+        _freigeben("abbrechen", order_id)
+        return {"ok": False, "meldung": "Die Bestellung wird gerade abgefragt — bitte gleich noch einmal."}
+    try:
+        meta = json.loads(meta_pfad.read_text())
+        email = meta.get("email", "")
+        if meta.get("source") == "digicert_direct":
+            res = {"ok": False, "ende": True, "status": "unbekannt"}
+            hinweis = " Die Bestellung im eigenen DigiCert-Konto bitte dort stornieren."
+        else:
+            res = await hub_client.cert_cancel_order(order_id)
+            hinweis = ""
+        if res.get("ende") and res.get("status") == "issued":
+            # Inzwischen ausgestellt: abholen statt verwerfen.
+            fertig = await _abholen(meta)
+            return {"ok": False, "meldung": "Die Bestellung ist bereits ausgestellt"
+                    + (" und wurde eingespielt." if fertig else " — Einspielen folgt.")}
+        _remove(order_id)
+        if res.get("ok"):
+            betrag = int(res.get("erstattet_cents") or 0)
+            meldung = "Bestellung storniert." + (f" Erstattet: {betrag / 100:.2f} €." if betrag else "")
+        elif res.get("nachholen"):
+            _nachhol_pfad(order_id).parent.mkdir(parents=True, exist_ok=True)
+            _nachhol_pfad(order_id).write_text(json.dumps(
+                {"order_id": order_id, "email": email, "am": datetime.now(timezone.utc).isoformat()}))
+            meldung = ("Bestellung hier abgebrochen. Der Betreiber-Hub war nicht erreichbar ("
+                       + str(res.get("error", ""))[:120] + "); der Storno dort wird nachgeholt.")
+        else:
+            meldung = "Bestellung abgebrochen (beim Hub nicht mehr offen)." + hinweis
+        _ende_merken(email, "storniert", "abgebrochen" + (f" von {actor}" if actor else ""))
+        log.info("hub_orders: Order %s für %s abgebrochen von %s: %s", order_id, email,
+                 actor or "?", meldung)
+        return {"ok": True, "meldung": meldung, "erstattet_cents": int(res.get("erstattet_cents") or 0),
+                "nachholen": bool(res.get("nachholen"))}
+    finally:
+        _freigeben("abholen", order_id)
+        _freigeben("abbrechen", order_id)
+
+
+async def stornos_nachholen() -> int:
+    """Vorgemerkte Stornos beim Hub nachholen (Hintergrundlauf). Rückgabe: erledigt."""
+    import hub_client
+    erledigt = 0
+    for pfad in sorted((_DIR / "storno_nachholen").glob("*.json")):
+        try:
+            oid = json.loads(pfad.read_text())["order_id"]
+        except (OSError, ValueError, KeyError):
+            pfad.unlink(missing_ok=True)
+            continue
+        res = await hub_client.cert_cancel_order(oid)
+        if res.get("ok") or res.get("ende"):
+            pfad.unlink(missing_ok=True)
+            erledigt += 1
+            log.info("hub_orders: Storno von %s beim Hub nachgeholt (%s)", oid,
+                     "storniert" if res.get("ok") else f"nicht mehr offen: {res.get('status')}")
+        else:
+            log.warning("hub_orders: Storno von %s beim Hub weiter offen: %s", oid, res.get("error"))
+    return erledigt
+
+
+def stornos_offen() -> int:
+    return len(list((_DIR / "storno_nachholen").glob("*.json")))

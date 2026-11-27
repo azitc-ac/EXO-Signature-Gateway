@@ -698,6 +698,11 @@ def _poll_hub_orders() -> None:
         import hub_orders
         if hub_client.cert_is_registered():
             asyncio.run(hub_catalog.refresh())
+            # Stornos, die beim Abbrechen den Hub nicht erreichten (hub_orders.abbrechen)
+            if hub_orders.stornos_offen():
+                s = asyncio.run(hub_orders.stornos_nachholen())
+                if s:
+                    log.info("scheduler: %d Storno(s) beim Hub nachgeholt", s)
             if hub_orders.list_pending():
                 # ⚠️ ERST bestätigen, DANN abfragen. Ohne Bestätigung bleibt eine
                 # Bestellung liegen, und das Abfragen fände nichts Neues. Bis

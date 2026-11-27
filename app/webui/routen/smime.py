@@ -1050,16 +1050,20 @@ async def api_hub_order_status(email: str, user: str = Depends(_require_admin)):
     offen = [m for m in hub_orders.list_pending()
              if (m.get("email") or "").lower() == adresse]
     if not offen:
-        return JSONResponse({"ok": True, "aktiv": False})
+        # Zuletzt beendet (abgelehnt/storniert)? Dann das sagen, statt die
+        # Anzeige kommentarlos verschwinden zu lassen.
+        return JSONResponse({"ok": True, "aktiv": False, "beendet": hub_orders.letztes_ende(adresse)})
 
     meta = sorted(offen, key=lambda m: m.get("created") or "")[-1]
     order_id = meta["order_id"]
+    alter = hub_orders.alter_tage(meta)
     try:
         res = await hub_client.cert_get_order(order_id)
     except Exception as exc:
         log.warning("Hub-Bestellung %s nicht abfragbar: %s", order_id, exc)
         return JSONResponse({"ok": True, "aktiv": True, "status": "unbekannt",
-                             "seit": meta.get("created", ""),
+                             "seit": meta.get("created", ""), "alter_tage": alter,
+                             "haengt": alter is not None and alter >= hub_orders.HAENGT_TAGE,
                              "hinweis": "Der Betreiber-Hub ist gerade nicht erreichbar."})
 
     status = (res.get("status") or "unbekannt") if res.get("ok") else "unbekannt"
@@ -1067,6 +1071,13 @@ async def api_hub_order_status(email: str, user: str = Depends(_require_admin)):
     # Der Hub kennt nur „submitted“ für beides — die Unterscheidung steht in
     # der Metadatei (hub_orders.bestaetigen).
     bestaetigt = meta.get("bestaetigt_am", "")
+    if not bestaetigt and res.get("ok") and hub_orders.ca_hat_angenommen(res):
+        # Die Stelle hat die Bestätigung längst (ACCEPTED), nur der Merker fehlt
+        # (Klick direkt in der Mail; vor v1.10.96 bestätigt). Ohne dies zeigte
+        # die Seite „wartet auf den Postfachinhaber“, bot den Link an, und die
+        # Automatik schickte bei jedem Seitenaufruf einen Bestätigungs-POST an
+        # die Stelle — Antwort HTTP 400 (Prod, Bestellung vom 09.11.2026).
+        bestaetigt = res.get("ca_zustand_seit") or meta.get("created", "")
     wartet = status in _WARTET_AUF_BESTAETIGUNG and not bestaetigt
 
     # Nur im Wartefall im Postfach nachsehen: Ein Abruf je Nachfassen wäre
@@ -1091,7 +1102,33 @@ async def api_hub_order_status(email: str, user: str = Depends(_require_admin)):
         "bestaetigungslink": link,
         "einwilligung": bool(__import__("einwilligung").liegt_vor(adresse)),
         "hinweis": res.get("note", "") if status == "rejected" else "",
+        "alter_tage": alter,
+        # Zeitlimit: so lange ohne Ausstellung gilt sie als hängend; Abbrechen anbieten.
+        "haengt": alter is not None and alter >= hub_orders.HAENGT_TAGE and status not in ("issued", "rejected"),
+        # Letzter gescheiterter Bestätigungsversuch (stand bis v1.12.176 nur im Protokoll).
+        "bestaetigung_fehler": meta.get("bestaetigung_fehler", "") if wartet else "",
+        # Für die Rückfrage am Knopf „Bestellung abbrechen“ (Hub ab 0.24.169;
+        # None = älterer Hub, Betrag unbekannt).
+        "storno_erstattung_cents": res.get("storno_erstattung_cents"),
+        "preis_cents": int(meta.get("price_cents") or res.get("price_cents") or 0),
     })
+
+
+@router.post("/api/smime/hub-order/{email}/abbrechen")
+async def api_hub_order_abbrechen(email: str, user: str = Depends(_require_admin)):
+    """Offene Bestellung abbrechen (Knopf mit Rückfrage). EIN Weg:
+    hub_orders.abbrechen — Storno beim Hub, lokal aufräumen, bei Hub-Fehler
+    nachholen. Danach ist „Zertifikat bestellen“ sofort wieder möglich."""
+    import hub_orders
+    adresse = (email or "").strip().lower()
+    offen = [m for m in hub_orders.list_pending() if (m.get("email") or "").lower() == adresse]
+    if not offen:
+        return JSONResponse({"ok": False, "error": "Keine offene Bestellung."}, status_code=404)
+    ergebnisse = [await hub_orders.abbrechen(m["order_id"], actor=user) for m in offen]
+    ok = all(e.get("ok") for e in ergebnisse)
+    meldung = " ".join(e.get("meldung", "") for e in ergebnisse)
+    log.info("Bestellung(en) für %s abgebrochen durch %s: %s", adresse, user, meldung)
+    return JSONResponse({"ok": ok, "message": meldung, **({} if ok else {"error": meldung})})
 
 
 # ── Sammelbestellung: Vorschau ───────────────────────────────────────────────
