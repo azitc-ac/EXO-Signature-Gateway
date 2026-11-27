@@ -444,9 +444,11 @@
     </div>
     <p id="coex-vorgaenge-hinweis" class="hint" style="margin:4px 0 8px"></p>
     <div class="tabellen-rollbereich">
-      <table class="config-table" style="min-width:640px">
+      <table id="coex-vorgaenge-tabelle" class="config-table" style="min-width:640px;width:100%">
         <thead>
-          <tr><th>Zeit</th><th>Absender</th><th>Empfänger</th><th>Größe</th><th>Ergebnis</th></tr>
+          <tr><th data-breite="200px">Zeit</th><th data-spalte="absender" data-anpassbar>Absender</th>
+              <th data-spalte="empfaenger" data-anpassbar>Empfänger</th><th data-breite="80px">Größe</th>
+              <th data-spalte="ergebnis" data-anpassbar>Ergebnis</th></tr>
         </thead>
         <tbody id="coex-vorgaenge-body"></tbody>
       </table>
@@ -1003,6 +1005,7 @@ function coexVorgaengeZu() {
 }
 
 async function coexVorgaengeZeigen(knopf) {
+  protokollTabelle(document.getElementById('coex-vorgaenge-tabelle'), 'direktversand-vorgaenge');
   // Zweiter Klick auf dieselbe Zahl klappt wieder zu.
   if (knopf.getAttribute('aria-expanded') === 'true') { coexVorgaengeZu(); return; }
   coexVorgaengeZu();
@@ -1045,13 +1048,13 @@ async function coexVorgaengeZeigen(knopf) {
       ? '<span style="color:#166534">zugestellt</span>'
       : '<span style="color:#991b1b">' + esc(e.fehler || 'Fehler') + '</span>';
     const kennung = e.kennung
-      ? '<br><span class="hint">Mail ' + esc(e.kennung) + (e.versuch > 1 ? ' · Versuch ' + e.versuch : '') + '</span>'
+      ? ' <span class="hint">· Mail ' + esc(e.kennung) + (e.versuch > 1 ? ' · Versuch ' + e.versuch : '') + '</span>'
       : '';
     return '<tr>'
-      + '<td style="white-space:nowrap;font-size:12px">' + zeit + kennung + '</td>'
+      + '<td style="font-size:12px">' + zeit + kennung + '</td>'
       + '<td><code>' + esc(e.absender || '—') + '</code></td>'
       + '<td><code>' + esc(e.empfaenger || '—') + '</code></td>'
-      + '<td style="white-space:nowrap">' + volumenText(e.bytes || 0) + '</td>'
+      + '<td>' + volumenText(e.bytes || 0) + '</td>'
       + '<td style="font-size:12px">' + ergebnis + '</td></tr>';
   }).join('');
 }

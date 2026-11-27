@@ -1065,12 +1065,12 @@ smtpCertLaden();
         // Absender, Empfänger und Betreff stammen aus der Mail — also von außen.
         var an = (m.to_addrs||[]).join(", "), id = m.id;
         return '<tr>' +
-          '<td style="font-size:12px;color:#78716c;white-space:nowrap">' + ts + '</td>' +
-          '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escAttr(m.from_addr) + '">' + esc(m.from_addr) + '</td>' +
-          '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escAttr(an) + '">' + esc(an) + '</td>' +
-          '<td style="font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escAttr(m.subject||'') + '">' + esc(m.subject || '(kein Betreff)') + '</td>' +
-          '<td style="font-size:12px;white-space:nowrap">' + (m.reason === 'delivery_failed' ? (m.aufgegeben ? '⚠ Zustellfehler · aufgegeben' : '⚠ Zustellfehler') : m.reason === 'ruecklauf' ? '⚠ Rücklauf' : 'Wartung') + '</td>' +
-          '<td style="white-space:nowrap">' +
+          '<td style="font-size:12px;color:#78716c">' + ts + '</td>' +
+          '<td style="font-size:13px" title="' + escAttr(m.from_addr) + '">' + esc(m.from_addr) + '</td>' +
+          '<td style="font-size:13px" title="' + escAttr(an) + '">' + esc(an) + '</td>' +
+          '<td style="font-size:13px" title="' + escAttr(m.subject||'') + '">' + esc(m.subject || '(kein Betreff)') + '</td>' +
+          '<td style="font-size:12px">' + (m.reason === 'delivery_failed' ? (m.aufgegeben ? '⚠ Zustellfehler · aufgegeben' : '⚠ Zustellfehler') : m.reason === 'ruecklauf' ? '⚠ Rücklauf' : 'Wartung') + '</td>' +
+          '<td>' +
             '<button class="btn secondary btn-sm" onclick="openPreview(\'' + escJsAttr(id) + '\',this)" style="margin-right:4px">Preview</button>' +
             '<button class="btn secondary btn-sm" onclick="releaseSingle(\'' + escJsAttr(id) + '\',this)" style="margin-right:4px">Zustellen</button>' +
             '<button class="btn danger btn-sm" onclick="deleteSingle(\'' + escJsAttr(id) + '\',this)">Löschen</button>' +
@@ -1087,15 +1087,16 @@ smtpCertLaden();
       container.innerHTML = '<div class="tabellen-rollbereich">' +
         '<table style="width:100%;min-width:800px;border-collapse:collapse;font-size:13px">' +
         '<thead><tr>' +
-          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Zeit</th>' +
-          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Von</th>' +
-          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">An</th>' +
-          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Betreff</th>' +
-          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Grund</th>' +
-          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Aktionen</th>' +
+          '<th data-breite="140px" style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Zeit</th>' +
+          '<th data-spalte="absender" data-anpassbar style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Von</th>' +
+          '<th data-spalte="empfaenger" data-anpassbar style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">An</th>' +
+          '<th data-spalte="betreff" data-anpassbar style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Betreff</th>' +
+          '<th data-breite="190px" style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Grund</th>' +
+          '<th class="ganz" data-breite="260px" style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Aktionen</th>' +
         '</tr></thead>' +
         '<tbody>' + rows.join('') + '</tbody>' +
         '</table></div>';
+      protokollTabelle(container.querySelector('table'), 'warteschlange');
     } catch(e) {
       console.error('loadHeldMails error:', e);
     }

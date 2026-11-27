@@ -3531,3 +3531,64 @@ def test_vorschau_links_oeffnen_im_neuen_tab(seite):
     assert neu.value.url == "https://ziel.example/nb"
     neu.value.close()
     ctx.close()
+
+
+# ── Mail-Protokoll: einzeilig, Spaltenbreite ziehbar und gemerkt ────────────
+
+def test_mail_protokoll_einzeilig_und_spalten_ziehbar(seite, monkeypatch):
+    """Bis v1.12.175 brach der Absender um („max.mustermann@bei / spiel.at“), der
+    Betreff nicht. Jetzt: jede Zeile gleich hoch (einzeilig), Langes gekürzt mit
+    vollem Text im title; die Absenderspalte lässt sich ziehen, die Breite gilt
+    nach dem Neuladen weiter (localStorage)."""
+    lang = "max.mustermann.mit.einem.sehr.langen.namen@beispiel-firma-mit-langem-namen.at"
+    an = ", ".join(f"empfaenger{i}.mit.langer.adresse@firma.at" for i in range(6))
+    events = [
+        {"ts": "2026-01-02T10:00:00Z", "sender": lang, "recipients": an.split(", "),
+         "subject": "Ein sehr langer Betreff " * 8, "error": "Zustellung fehlgeschlagen: " + "x" * 120,
+         "action": "signed", "processing_ms": 12},
+        {"ts": "2026-01-02T10:01:00Z", "sender": "a@firma.at", "recipients": ["b@firma.at"],
+         "subject": "kurz", "action": "signed", "processing_ms": 3},
+        {"ts": "2026-01-02T10:02:00Z", "sender": "c@firma.at", "recipients": [], "subject": "",
+         "action": "passthrough", "processing_ms": 1},
+    ]
+
+    def oeffnen(pg):
+        pg.route("**/api/audit/events*", lambda r: r.fulfill(json={"ok": True, "total": 3, "events": events}))
+        # Monatsansicht (älterer Zeitraum) — aus dem heutigen Datum, kein festes Datum im Test
+        pg.evaluate("() => openAuditModal(new Date().toISOString().slice(0, 7), '')")
+        pg.wait_for_selector("#auditTableBody tr:nth-child(3)")
+
+    import settings_store
+    echt = settings_store.get
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a, **kw: True if k == "SETUP_COMPLETE" else echt(k, *a, **kw))
+    pg = seite("/", breite=1280)
+    oeffnen(pg)
+    hoehen = pg.evaluate("() => [...document.querySelectorAll('#auditTableBody tr')]"
+                         ".map(tr => tr.getBoundingClientRect().height)")
+    assert max(hoehen) <= min(hoehen) + 2, f"Zeilen unterschiedlich hoch (Umbruch?): {hoehen}"
+    zelle = pg.evaluate("""() => { const td = document.querySelector('#auditTableBody tr td:nth-child(2)');
+      return {gekuerzt: td.scrollWidth > td.clientWidth, title: td.title}; }""")
+    assert zelle["gekuerzt"] and zelle["title"] == lang
+    assert pg.get_attribute("#auditTableBody tr td:nth-child(3)", "title") == an
+
+    th = "#auditTable th[data-spalte=absender]"
+    vorher = pg.evaluate(f"() => document.querySelector('{th}').getBoundingClientRect().width")
+    griff = pg.locator(f"{th} .spalten-griff").bounding_box()
+    pg.mouse.move(griff["x"] + griff["width"] / 2, griff["y"] + griff["height"] / 2)
+    pg.mouse.down()
+    pg.mouse.move(griff["x"] + 140, griff["y"] + griff["height"] / 2, steps=6)
+    pg.mouse.up()
+    nachher = pg.evaluate(f"() => document.querySelector('{th}').getBoundingClientRect().width")
+    assert nachher >= vorher + 100, (vorher, nachher)
+    gemerkt = pg.evaluate("() => JSON.parse(localStorage.getItem('protokollSpalten:mail-protokoll'))")
+    assert abs(gemerkt["absender"] - nachher) <= 2
+
+    pg.reload(wait_until="domcontentloaded")
+    oeffnen(pg)
+    wieder = pg.evaluate(f"() => document.querySelector('{th}').getBoundingClientRect().width")
+    assert abs(wieder - nachher) <= 2, (nachher, wieder)
+    hoehen = pg.evaluate("() => [...document.querySelectorAll('#auditTableBody tr')]"
+                         ".map(tr => tr.getBoundingClientRect().height)")
+    assert max(hoehen) <= min(hoehen) + 2, hoehen
+    pg.context.close()

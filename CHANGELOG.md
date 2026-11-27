@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.176 — 2026-11-27 — Mail-Protokoll und Mail-Listen: einzeilig, Spalten ziehbar
+
+Im Mail-Protokoll der Übersicht brachen Absender und Empfänger in mehrere
+Zeilen um, während der Betreff mit „…“ gekürzt wurde. Ob eine Ansicht
+einzeilig oder mehrzeilig aussah, hing deshalb nur von den Adressen ab, nicht
+vom Zeitraum. Jetzt gilt für alle Listen mit Absender, Empfänger und Betreff:
+
+- jede Zeile ist einzeilig, zu Langes endet mit „…“, der volle Text erscheint
+  beim Darüberfahren;
+- die Spalten Absender, Empfänger und Betreff (bzw. Grund/Ergebnis) lassen
+  sich am rechten Spaltenrand breiter oder schmaler ziehen; die Breite merkt
+  sich der Browser je Liste;
+- eine Fehlermeldung steht in derselben Zeile hinter dem Betreff.
+
+Betroffen: Mail-Protokoll der Übersicht (alle Zeiträume), Relay-Protokoll und
+abgewiesene Einlieferungen, Zustellvorgänge des Direktversands,
+Portal-Nachrichten und die Warteschlange. Alle laufen über denselben Baustein.
+
+**Zu tun:** nichts.
+
 ## v1.12.175 — 2026-11-27 — Links in Vorschauen öffnen in einem neuen Tab
 
 Ein Klick auf einen Link in einer HTML-Vorschau öffnete die Seite bisher im

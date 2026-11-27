@@ -1,0 +1,20 @@
+/* Protokoll- und Mail-Listen: einzeilig, Kürzung „…“, Spaltenbreite ziehbar.
+ * Gemeinsamer Weg für alle Tabellen mit Absender/Empfänger/Betreff — Aufbau und
+ * Regeln in protokoll_tabelle.js. Eigene Datei, weil style.css und
+ * dark-mode.css mit dem Relay gespiegelt sind. Keine Farben ausser dem
+ * gedämpften Griff (Palette, in beiden Modi lesbar). */
+table.protokoll-tabelle { table-layout: fixed; border-collapse: collapse; }
+table.protokoll-tabelle th,
+table.protokoll-tabelle td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Knöpfe und Marken nicht abschneiden */
+table.protokoll-tabelle th.ganz,
+table.protokoll-tabelle td.ganz { overflow: visible; text-overflow: clip; }
+/* Hinweiszeile über alle Spalten („Noch keine …“, Fehler) darf umbrechen */
+table.protokoll-tabelle td[colspan] { white-space: normal; overflow: visible; }
+table.protokoll-tabelle th { position: relative; }
+table.protokoll-tabelle .spalten-griff {
+  position: absolute; top: 0; right: 0; width: 7px; height: 100%;
+  cursor: col-resize; touch-action: none; user-select: none; z-index: 1;
+}
+table.protokoll-tabelle .spalten-griff:hover,
+table.protokoll-tabelle .spalten-griff.zieht { border-right: 2px solid #94a3b8; }

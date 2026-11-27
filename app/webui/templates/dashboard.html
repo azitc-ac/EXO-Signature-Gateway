@@ -659,15 +659,15 @@ function openInFlightInfo(active, maintHeld, dfCount) {
     <div style="padding:16px 20px">
       <div id="auditLoading" style="text-align:center;color:#888;padding:20px">Laden…</div>
       <div id="auditContent" style="display:none">
-        <div class="tabellen-rollbereich"><table style="min-width:760px;width:100%;border-collapse:collapse;font-size:12px">
+        <div class="tabellen-rollbereich"><table id="auditTable" style="min-width:760px;width:100%;border-collapse:collapse;font-size:12px">
           <thead>
             <tr style="border-bottom:2px solid #e2e8f0;background:#f8f7f6">
-              <th style="text-align:left;padding:6px 8px;color:#555;white-space:nowrap">Zeitpunkt</th>
-              <th style="text-align:left;padding:6px 8px;color:#555">Absender</th>
-              <th style="text-align:left;padding:6px 8px;color:#555">Empfänger</th>
-              <th style="text-align:left;padding:6px 8px;color:#555">Betreff</th>
-              <th style="text-align:left;padding:6px 8px;color:#555;white-space:nowrap">Aktion</th>
-              <th style="text-align:right;padding:6px 8px;color:#555;white-space:nowrap">ms</th>
+              <th data-breite="150px" style="text-align:left;padding:6px 8px;color:#555">Zeitpunkt</th>
+              <th data-spalte="absender" data-anpassbar style="text-align:left;padding:6px 8px;color:#555">Absender</th>
+              <th data-spalte="empfaenger" data-anpassbar style="text-align:left;padding:6px 8px;color:#555">Empfänger</th>
+              <th data-spalte="betreff" data-anpassbar style="text-align:left;padding:6px 8px;color:#555">Betreff</th>
+              <th class="ganz" data-breite="150px" style="text-align:left;padding:6px 8px;color:#555">Aktion</th>
+              <th data-breite="60px" style="text-align:right;padding:6px 8px;color:#555">ms</th>
             </tr>
           </thead>
           <tbody id="auditTableBody"></tbody>
@@ -685,6 +685,7 @@ function openInFlightInfo(active, maintHeld, dfCount) {
 <script>
 let _auditParams = {date: '', date_from: '', date_to: '', action: '', offset: 0, limit: 100};
 let _auditTotal = 0;
+protokollTabelle(document.getElementById('auditTable'), 'mail-protokoll');
 
 document.querySelectorAll('.audit-link').forEach(el => {
   el.addEventListener('click', e => {
@@ -779,13 +780,15 @@ function renderAuditTable(events) {
     const ts = e.ts ? e.ts.replace('T', ' ').replace('Z', '') : '';
     const rcpts = (e.recipients || []).join(', ');
     const subj  = e.subject ? esc(e.subject) : '<span style="color:#aaa">—</span>';
-    const err   = e.error   ? '<br><span style="color:#dc2626;font-size:11px">' + esc(e.error) + '</span>' : '';
+    // Fehler in derselben Zeile hinter dem Betreff (einzeilig, voller Text im title).
+    const err   = e.error   ? ' <span style="color:#dc2626;font-size:11px">· ' + esc(e.error) + '</span>' : '';
+    const titel = [e.subject || '', e.error || ''].filter(Boolean).join(' · ');
     return `<tr style="border-bottom:1px solid #f5f5f5">
-      <td style="padding:5px 8px;white-space:nowrap;color:#78716c">${esc(ts)}</td>
-      <td style="padding:5px 8px;word-break:break-all">${esc(e.sender || '')}</td>
-      <td style="padding:5px 8px;word-break:break-all;color:#555">${esc(rcpts)}</td>
-      <td style="padding:5px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.subject||'')}">${subj}${err}</td>
-      <td style="padding:5px 8px;white-space:nowrap">${aktionMarke(e.action)}</td>
+      <td style="padding:5px 8px;color:#78716c">${esc(ts)}</td>
+      <td style="padding:5px 8px" title="${escAttr(e.sender || '')}">${esc(e.sender || '')}</td>
+      <td style="padding:5px 8px;color:#555" title="${escAttr(rcpts)}">${esc(rcpts)}</td>
+      <td style="padding:5px 8px" title="${escAttr(titel)}">${subj}${err}</td>
+      <td style="padding:5px 8px">${aktionMarke(e.action)}</td>
       <td style="padding:5px 8px;text-align:right;color:#aaa">${e.processing_ms || ''}</td>
     </tr>`;
   }).join('');

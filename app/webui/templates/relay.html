@@ -214,11 +214,13 @@
     sie an der Absender- oder Zielbeschränkung abgewiesen; der Grund steht daneben.
   </p>
   <div class="tabellen-rollbereich">
-    <table class="config-table" style="min-width:700px">
+    <table id="abgewiesen-tabelle" class="config-table" style="min-width:760px;width:100%">
       <thead>
         <tr>
-          <th>Adresse</th><th>Absender</th><th>An</th><th>Grund</th>
-          <th>Zuletzt</th><th style="text-align:right">Versuche</th><th></th>
+          <th data-breite="130px">Adresse</th><th data-spalte="absender" data-anpassbar>Absender</th>
+          <th data-spalte="empfaenger" data-anpassbar>An</th><th data-spalte="grund" data-anpassbar>Grund</th>
+          <th data-breite="110px">Zuletzt</th><th data-breite="80px" style="text-align:right">Versuche</th>
+          <th class="ganz" data-breite="190px"></th>
         </tr>
       </thead>
       <tbody id="abgewiesen-body">
@@ -247,11 +249,12 @@
     <a href="/dashboard">Dashboard</a>.
   </p>
   <div class="tabellen-rollbereich" id="proto-scroll">
-    <table class="config-table" style="min-width:760px">
+    <table id="proto-tabelle" class="config-table" style="min-width:760px;width:100%">
       <thead>
         <tr>
-          <th>Zeit</th><th>Quelle</th><th>Absender</th><th>An</th>
-          <th>Betreff</th><th>Aktion</th>
+          <th data-breite="110px">Zeit</th><th data-spalte="quelle" data-anpassbar data-breite="150px">Quelle</th>
+          <th data-spalte="absender" data-anpassbar>Absender</th><th data-spalte="empfaenger" data-anpassbar>An</th>
+          <th data-spalte="betreff" data-anpassbar>Betreff</th><th class="ganz" data-breite="150px">Aktion</th>
         </tr>
       </thead>
       <tbody id="proto-body">
@@ -721,6 +724,7 @@ function zeichneGeraete(liste) {
 
 function zeichneAbgewiesen(liste) {
   const tb = document.getElementById('abgewiesen-body');
+  protokollTabelle(document.getElementById('abgewiesen-tabelle'), 'relay-abgewiesen');
   _anzahlZeigen('abgewiesen-anzahl', liste.length, 'Adresse', 'n');
   if (!liste.length) {
     tabelleHinweis(tb, 7, 'Nichts abgewiesen.');
@@ -731,11 +735,11 @@ function zeichneAbgewiesen(liste) {
   liste.forEach(function (a) {
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td style="white-space:nowrap"><code>' + esc(a.ip) + '</code></td>'
+      '<td><code>' + esc(a.ip) + '</code></td>'
       + '<td style="font-size:12px">' + esc(a.absender || '—') + '</td>'
       + '<td style="font-size:12px">' + esc(a.empfaenger || '—') + '</td>'
       + '<td style="font-size:12px;color:#64748b">' + esc(a.grund || '—') + '</td>'
-      + '<td style="white-space:nowrap;font-size:12px">' + esc(zeitKurz(a.zuletzt)) + '</td>'
+      + '<td style="font-size:12px">' + esc(zeitKurz(a.zuletzt)) + '</td>'
       + '<td style="text-align:right">' + esc(String(a.anzahl)) + '</td>'
       + '<td style="white-space:nowrap">'
         + (bekannt.has(a.ip)
@@ -900,6 +904,7 @@ function statsMehr(a) {
 let _protoOffset = 0;
 const _PROTO_LIMIT = 100;
 
+protokollTabelle(document.getElementById('proto-tabelle'), 'relay-protokoll');
 async function protokollLaden() {
   const r = await getJSON('/api/audit/events?nur_relay=1&limit=' + _PROTO_LIMIT
                               + '&offset=' + _protoOffset);
@@ -936,15 +941,12 @@ async function protokollLaden() {
           ? ' <span style="color:#94a3b8;font-size:11px">' + esc(e.relay_ip) + '</span>' : '')
       : '<code>' + esc(e.relay_ip || '—') + '</code>';
     return '<tr>'
-      + '<td style="white-space:nowrap;font-size:12px;color:#78716c">' + esc(zeitKurz(e.ts)) + '</td>'
-      + '<td style="white-space:nowrap">' + quelle + '</td>'
-      + '<td style="font-size:12px;max-width:190px;overflow:hidden;text-overflow:ellipsis;'
-        + 'white-space:nowrap" title="' + escAttr(e.sender || '') + '">' + esc(e.sender || '—') + '</td>'
-      + '<td style="font-size:12px;max-width:210px;overflow:hidden;text-overflow:ellipsis;'
-        + 'white-space:nowrap;color:#555" title="' + escAttr(rcpts || '') + '">' + esc(rcpts || '—') + '</td>'
-      + '<td style="font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;'
-        + 'white-space:nowrap" title="' + escAttr(e.subject || e.error || '') + '">' + betreff + '</td>'
-      + '<td style="white-space:nowrap">' + aktionMarke(e.action) + '</td>'
+      + '<td style="font-size:12px;color:#78716c">' + esc(zeitKurz(e.ts)) + '</td>'
+      + '<td>' + quelle + '</td>'
+      + '<td style="font-size:12px" title="' + escAttr(e.sender || '') + '">' + esc(e.sender || '—') + '</td>'
+      + '<td style="font-size:12px;color:#555" title="' + escAttr(rcpts || '') + '">' + esc(rcpts || '—') + '</td>'
+      + '<td style="font-size:12px" title="' + escAttr(e.subject || e.error || '') + '">' + betreff + '</td>'
+      + '<td>' + aktionMarke(e.action) + '</td>'
       + '</tr>';
   }).join('');
 }

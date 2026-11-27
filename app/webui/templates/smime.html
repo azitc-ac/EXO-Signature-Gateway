@@ -1925,16 +1925,16 @@ async function migrateSlotToKv(email, slotId, btn) {
     <div class="portal-stat"><div class="l">Aufbewahrung</div><div class="n" id="portal-stat-retention">–</div></div>
   </div>
   <div id="portal-msg-wrap" style="display:none;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px">
-    <table class="config-table" style="min-width:640px;width:100%">
+    <table id="portal-msg-tabelle" class="config-table" style="min-width:760px;width:100%">
       <thead>
         <tr>
-          <th>Empfänger</th>
-          <th>Absender</th>
-          <th>Betreff</th>
-          <th>Erstellt</th>
-          <th>Läuft ab</th>
-          <th>Status</th>
-          <th></th>
+          <th data-spalte="empfaenger" data-anpassbar>Empfänger</th>
+          <th data-spalte="absender" data-anpassbar>Absender</th>
+          <th data-spalte="betreff" data-anpassbar>Betreff</th>
+          <th data-breite="130px">Erstellt</th>
+          <th data-breite="130px">Läuft ab</th>
+          <th class="ganz" data-breite="100px">Status</th>
+          <th class="ganz" data-breite="110px"></th>
         </tr>
       </thead>
       <tbody id="portal-msg-tbody"></tbody>
@@ -1947,6 +1947,7 @@ async function migrateSlotToKv(email, slotId, btn) {
   </div>
 </div>
 <script>
+protokollTabelle(document.getElementById('portal-msg-tabelle'), 'portal-nachrichten');
 async function loadPortalAdmin() {
   try {
     var d = await getJSON('/api/portal/admin/list');
@@ -1985,9 +1986,9 @@ async function loadPortalAdmin() {
       return '<tr>'
         + '<td>' + esc(m.recipient_email) + '</td>'
         + '<td>' + esc(m.sender_email) + '</td>'
-        + '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(m.subject) + '">' + esc(m.subject) + '</td>'
-        + '<td style="white-space:nowrap">' + fmtDate(m.created_at) + '</td>'
-        + '<td style="white-space:nowrap">' + fmtDate(m.expires_at) + '</td>'
+        + '<td title="' + escAttr(m.subject) + '">' + esc(m.subject) + '</td>'
+        + '<td>' + fmtDate(m.created_at) + '</td>'
+        + '<td>' + fmtDate(m.expires_at) + '</td>'
         + '<td>' + status + '</td>'
         + '<td><button class="btn secondary btn-sm" onclick="revokePortalMsg(\'' + escJsAttr(m.token) + '\', this)">Widerrufen</button></td>'
         + '</tr>';
