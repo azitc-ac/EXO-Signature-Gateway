@@ -18,7 +18,6 @@ from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
                                RedirectResponse, StreamingResponse)
 
 import os
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -39,16 +38,13 @@ async def api_system_info(user: str = Depends(_require_admin)):
     import mail_audit as _audit_mod
     import handler as _handler_mod
 
-    # Disk usage of /app/data
-    data_path = Path("/app/data")
-    try:
-        du = shutil.disk_usage(str(data_path))
-        disk_total_mb  = round(du.total / 1024 / 1024, 1)
-        disk_used_mb   = round(du.used  / 1024 / 1024, 1)
-        disk_free_mb   = round(du.free  / 1024 / 1024, 1)
-        disk_pct       = round(du.used / du.total * 100, 1) if du.total else 0
-    except Exception:
-        disk_total_mb = disk_used_mb = disk_free_mb = disk_pct = None
+    # Belegung des Datenvolumens — dieselbe Messung und dieselben Schwellen wie
+    # die Warnmail (plattenplatz.py). Bis v1.12.179 fest "/app/data" und die
+    # Schwellen 75/90 als Zahlen im JavaScript der Übersicht.
+    import plattenplatz
+    _m = plattenplatz.messen()
+    disk_total_mb, disk_used_mb, disk_free_mb, disk_pct = (
+        (_m["total_mb"], _m["used_mb"], _m["free_mb"], _m["pct"]) if _m else (None, None, None, None))
 
     # SQLite DB size
     db_path = _audit_mod.DB_PATH
@@ -106,6 +102,8 @@ async def api_system_info(user: str = Depends(_require_admin)):
         "disk_used_mb":     disk_used_mb,
         "disk_free_mb":     disk_free_mb,
         "disk_pct":         disk_pct,
+        "disk_warn_pct":    plattenplatz.WARN_PCT,
+        "disk_krit_pct":    plattenplatz.KRIT_PCT,
         "db_size_kb":       db_size_kb,
         "logs_size_kb":     logs_size_kb,
         "rss_mb":           rss_mb,

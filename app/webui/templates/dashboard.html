@@ -646,7 +646,8 @@ function openInFlightInfo(active, maintHeld, dfCount) {
           + '<div class="sys-sub">Systemdaten nicht abrufbar: ' + esc(errText(d)) + '</div></div>';
         return;
       }
-      const diskClass = d.disk_pct >= 90 ? 'sys-disk-crit' : d.disk_pct >= 75 ? 'sys-disk-warn' : '';
+      // Schwellen vom Server (plattenplatz.py) — dieselben wie für die Warnmail.
+      const diskClass = d.disk_pct >= d.disk_krit_pct ? 'sys-disk-crit' : d.disk_pct >= d.disk_warn_pct ? 'sys-disk-warn' : '';
       const heldCount = d.held_mail_count || 0;
       const dfCount   = d.delivery_failed_count || 0;   // Zustellfehler-Teilmenge
       // Je Grund — der Rest war bis v1.12.148 pauschal „Wartungsmodus“, enthielt

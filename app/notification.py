@@ -751,6 +751,50 @@ def send_cert_expiry_alert(cert_info: dict) -> bool:
     return _graph_send(to, subj, html)
 
 
+def _groesse(mb: float) -> str:
+    return f"{mb / 1024:.1f} GB" if mb >= 1024 else f"{mb:.0f} MB"
+
+
+def send_plattenplatz_warnung(m: dict) -> bool:
+    """Datenvolumen ≥ plattenplatz.KRIT_PCT belegt (höchstens einmal pro Tag,
+    plattenplatz.pruefen). Folgt dem Hauptschalter der Benachrichtigungen;
+    eigener Schalter bewusst nicht — ein volles Volumen hält den Mailfluss an."""
+    if settings_store.get("NOTIFICATIONS_ENABLED") is False:
+        return False
+    to = _get_notify_to()
+    if not to:
+        return False
+    import plattenplatz
+    belegt = f"{m['pct']:.1f} %"
+    body = (f'<table>'
+            f'{_row("Belegt", belegt, "#dc2626")}'
+            f'{_row("Frei", _groesse(m["free_mb"]))}'
+            f'{_row("Gesamt", _groesse(m["total_mb"]))}'
+            f'{_row("Verzeichnis", m["pfad"])}'
+            f'</table>'
+            f'<p>Ab {plattenplatz.KRIT_PCT} % wird gewarnt. Läuft das Volumen voll, können '
+            'Warteschlange, Mail-Protokoll und Notbetrieb-Kopie nicht mehr schreiben. '
+            'Bitte Platz schaffen oder das Volumen vergrößern. Diese Erinnerung kommt '
+            f'höchstens einmal am Tag; unter {plattenplatz.ENTWARNUNG_PCT} % folgt eine Entwarnung.</p>')
+    html = _html_wrap("⚠ Datenvolumen fast voll", "#dc2626", body)
+    return _graph_send(to, f"⚠ Datenvolumen zu {m['pct']:.0f} % belegt", html)
+
+
+def send_plattenplatz_entwarnung(m: dict) -> bool:
+    if settings_store.get("NOTIFICATIONS_ENABLED") is False:
+        return False
+    to = _get_notify_to()
+    if not to:
+        return False
+    belegt = f"{m['pct']:.1f} %"
+    body = (f'<table>'
+            f'{_row("Belegt", belegt, "#15803d")}'
+            f'{_row("Frei", _groesse(m["free_mb"]))}'
+            f'</table>')
+    html = _html_wrap("✓ Datenvolumen wieder im grünen Bereich", "#15803d", body)
+    return _graph_send(to, f"✓ Entwarnung: Datenvolumen zu {m['pct']:.0f} % belegt", html)
+
+
 def send_le_renewed(domain: str, new_expiry: str) -> bool:
     if not _should_notify("NOTIFY_LE_EVENTS"):
         return False

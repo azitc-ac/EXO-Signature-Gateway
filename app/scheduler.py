@@ -49,6 +49,8 @@ _last_dyn_gruppen_run: float = _NIE     # monotonic; _NIE = nie gelaufen (trigge
 _DYN_GRUPPEN_INTERVAL = 60 * 60        # Entra-Schnappschuss der dynamischen Gruppen
                                        # (dynamische_gruppen.py): stündlich, nur wenn es welche gibt
 _last_dmarc_run: float = _NIE           # monotonic; _NIE = nie gelaufen
+_last_plattenplatz_run: float = _NIE
+_PLATTENPLATZ_INTERVAL = 60 * 60        # Datenvolumen prüfen (plattenplatz.py): stündlich
 _DMARC_INTERVAL = 15 * 60              # DMARC-Berichte (dmarc_berichte.py): alle 15 min nachsehen,
                                        # ob ein Abruf fällig ist (TAKT_H) — abgerufen wird seltener
 _last_ooo_run: float = _NIE             # monotonic; _NIE = nie gelaufen (triggers run on first tick)
@@ -949,6 +951,19 @@ def _dmarc_berichte() -> None:
         _last_dmarc_run = time.monotonic()
 
 
+def _plattenplatz() -> None:
+    """Belegung des Datenvolumens prüfen; ≥ KRIT_PCT → Mail (höchstens einmal
+    pro Tag), unter ENTWARNUNG_PCT → Entwarnung."""
+    global _last_plattenplatz_run
+    try:
+        import plattenplatz
+        plattenplatz.pruefen()
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("scheduler: Plattenplatz-Prüfung fehlgeschlagen: %s", exc)
+    finally:
+        _last_plattenplatz_run = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -993,6 +1008,8 @@ def _loop() -> None:
                 _dynamische_gruppen()
             if time.monotonic() - _last_dmarc_run > _DMARC_INTERVAL:
                 _dmarc_berichte()
+            if time.monotonic() - _last_plattenplatz_run > _PLATTENPLATZ_INTERVAL:
+                _plattenplatz()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

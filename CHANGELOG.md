@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.180 — 2026-11-27 — Warnmail bei knappem Datenvolumen
+
+Ist das Datenvolumen des Gateways zu 90 % oder mehr belegt, bekommt die
+Verwaltung jetzt eine Mail an die Benachrichtigungsadresse, auf demselben Weg
+wie die Zertifikatswarnungen. Die Mail nennt Belegung, freien Platz und
+Gesamtgröße. Sie kommt höchstens einmal am Tag, solange der Zustand anhält.
+Fällt die Belegung unter 85 %, folgt eine Entwarnung; dazwischen bleibt es
+ruhig, damit eine Belegung knapp an der Schwelle nicht täglich hin und her
+meldet. Geprüft wird stündlich.
+
+Bisher färbte nur die Kachel „Disk belegt“ der Übersicht ab 75 % orange und ab
+90 % rot. Kachel und Mail nutzen jetzt dieselben Schwellen aus einer Quelle.
+Gemessen wird das Datenverzeichnis, in dem auch die Notbetrieb-Kopie und die
+Daten des Mailservers für den Direktversand liegen. Die Warnmail folgt dem
+Hauptschalter der Benachrichtigungen.
+
+**Zu tun:** nichts.
+
 ## v1.12.179 — 2026-11-27 — Übersicht: Diagramme für heute, Zahlentabelle eingeklappt
 
 - **Zwei Diagramme oben:** „Heute gesendet“ (S/MIME verschlüsselt, S/MIME
