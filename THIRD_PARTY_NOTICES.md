@@ -8,7 +8,8 @@ unter ihrer eigenen Lizenz; diese geht für die jeweiligen Dateien vor.
 
 - **Herkunft:** EXO SMTP Relay — <https://github.com/azitc-ac/exo-smtp-relay>,
   Ordner `app/dns_provider/`, Katalogfassung laut `app/dns_provider/KATALOG_VERSION`
-  (übernommen aus dem Relay-Stand v0.2.57-beta).
+  (übernommen aus dem Relay-Stand v0.2.58-beta), samt Fassungsregister
+  `FASSUNGEN` und Ablauf für Katalogänderungen `LIESMICH.md`.
 - **Lizenz:** Apache License, Version 2.0 — vollständiger Text in
   `LICENSES/Apache-2.0.txt`. Jede Datei trägt den Kopf
   `SPDX-License-Identifier: Apache-2.0`.

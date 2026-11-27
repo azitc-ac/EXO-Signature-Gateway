@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.174 — 2026-11-27 — DNS-Provider-Katalog: Fassungsregister aus dem Relay
+
+`app/dns_provider/` enthält jetzt auch `FASSUNGEN` (Register jeder
+veröffentlichten Katalogfassung mit dem Fingerabdruck ihres Manifests, wird nur
+ergänzt) und `LIESMICH.md` (Ablauf bei einer Katalogänderung: im Relay ändern,
+Fassung hochzählen, Gateway übernimmt den Ordner unverändert). Übernommen aus
+dem Relay-Stand v0.2.58-beta; der Katalog selbst bleibt Fassung 1.0.0,
+unverändert.
+
+Der Gleichlauftest prüft zusätzlich: Die laufende Fassung steht als letzte im
+Register und trägt genau diesen Inhalt, die Fassungen steigen, jede je
+committete Fassung hat noch denselben Fingerabdruck wie im Register, und beide
+neuen Dateien gleichen dem Relay-Stand. Damit kann ein geänderter Inhalt nicht
+unter einer schon vergebenen Fassungsnummer auftauchen.
+
+**Zu tun:** nichts.
+
 ## v1.12.173 — 2026-11-27 — Fußzeile „Über“ in der Weboberfläche
 
 Jede Seite der Verwaltung zeigt unten, wer die Software herausgibt: Logo,
