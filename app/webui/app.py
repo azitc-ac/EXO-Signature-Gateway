@@ -583,6 +583,9 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "stats_year_label": str(now.year),
             "stats_prev_year_label": str(prev_year),
             "today": now.strftime("%Y-%m-%d"),
+            # Diagramme „Heute gesendet/empfangen“ — Zählung im Mail-Protokoll
+            # wie die Klicklisten (heute_verteilung.py).
+            "heute_verteilung": __import__("heute_verteilung").verteilung(now.strftime("%Y-%m-%d")),
             "today_month": now.strftime("%Y-%m"),
             "today_year": str(now.year),
             "prev_month_1": f"{m1y:04d}-{m1m:02d}",

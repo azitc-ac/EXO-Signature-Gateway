@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.179 — 2026-11-27 — Übersicht: Diagramme für heute, Zahlentabelle eingeklappt
+
+- **Zwei Diagramme oben:** „Heute gesendet“ (S/MIME verschlüsselt, S/MIME
+  signiert, über das Portal, nur Signatur, Zustellfehler) und „Heute
+  empfangen“ (S/MIME verschlüsselt, S/MIME signiert), jeweils nach Ortszeit.
+  Jede Mail zählt genau einmal, nach ihrer höchsten Stufe: Eine signierte und
+  verschlüsselte Mail zählt unter „verschlüsselt“. Beide Diagramme zusammen
+  ergeben die Zahl „Verarbeitet“ von heute. Die Legende nennt die Zahlen; ein
+  Klick auf ein Stück oder einen Legendeneintrag öffnet die Liste dieser Mails.
+  Ohne Mails steht dort ein Hinweis statt eines leeren Kreises.
+- Empfangene Mails ohne S/MIME erscheinen nicht: Sie erreichen das Gateway
+  nicht, weil nur S/MIME-Post von außen über die Regeln zum Gateway geht.
+- **Zahlentabelle eingeklappt:** Sichtbar bleiben „Verarbeitet“, „Fehler
+  (Gateway)“ mit seinen „davon“-Zeilen und „Antworten in Ketten / davon Stapel
+  verhindert“ (diese Schutzzahl bleibt immer sichtbar). **Alle Zeilen** klappt
+  den Rest auf; der Browser merkt sich die Wahl.
+
+**Zu tun:** nichts.
+
 ## v1.12.178 — 2026-11-27 — Fußzeile: Datenschutz verweist auf die Erklärung des Produkts
 
 Der Link „Datenschutz“ in der Fußzeile der Weboberfläche führte zur

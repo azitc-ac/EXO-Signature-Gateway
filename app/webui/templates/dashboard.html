@@ -88,14 +88,18 @@ function dismissWelcome() {
 {# Eine Kennzahl-Zeile aus ihrem stats-Schlüssel. `action` = Aktion oder Gruppe
    (mail_audit.AKTIONSGRUPPEN, „@verarbeitet“) — Zahl und Klickliste meinen
    dieselben Mails (tests/test_uebersicht_zahlen.py). `art`: "" | "warn" | "fehler". #}
-{% macro kz(label, k, action, art="") %}
+{#- `immer`: Zeile auch im eingeklappten Zustand (Standard) — Verarbeitet,
+    Fehler samt „davon“, und die Schutzzeilen „Antworten in Ketten / davon
+    Stapel verhindert“ (CLAUDE.md Regel 8: wo die Null die Meldung ist, muss
+    die Zeile immer erscheinen). Alles andere hinter „Alle Zeilen“. -#}
+{% macro kz(label, k, action, art="", immer=false) %}
 {{ stat_row(label, stats_daily[k], stats_3d[k], stats_monthly_m2[k], stats_monthly_m1[k],
-            stats_monthly[k], stats_prev_yearly[k], stats_yearly[k], action, art) }}
+            stats_monthly[k], stats_prev_yearly[k], stats_yearly[k], action, art, immer) }}
 {% endmacro %}
 
-{% macro stat_row(label, d, d3, m2, m1, m, py, y, action, art="") %}
+{% macro stat_row(label, d, d3, m2, m1, m, py, y, action, art="", immer=false) %}
 {% set _f = {"fehler": "#dc2626", "warn": "#d97706"}.get(art, "") %}
-<tr style="border-bottom:1px solid #f0f0f0">
+<tr style="border-bottom:1px solid #f0f0f0"{% if not immer %} class="kz-mehr"{% endif %}>
   <td style="padding:7px 0;font-size:13px;color:{{ _f or '#44403c' }};font-weight:500">{{ label }}</td>
   <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:{{ _f or '#1c1917' }}">{{ stat_cell(d, action, today) }}</td>
   <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:{{ _f or '#44403c' }}">{{ stat_cell_3d(d3, action) }}</td>
@@ -114,16 +118,84 @@ function dismissWelcome() {
 @media (max-width: 520px) { .col-m2, .col-m1 { display:none; } }
 @media (max-width: 480px) { .col-y  { display:none; } }
 @media (max-width: 420px) { .col-py { display:none; } }
+/* Zahlentabelle eingeklappt (Standard): nur Zeilen mit immer=true */
+#kz-tabelle.eingeklappt tr.kz-mehr { display:none; }
+/* Diagramme „Heute gesendet/empfangen“ — Farben je Stück, hell und dunkel */
+.donut-reihe { display:flex; gap:12px; flex-wrap:wrap; margin:0 0 18px; }
+.donut-karte { flex:1 1 300px; padding:12px 16px; margin:0; }
+.donut-titel { font-size:13px; font-weight:600; color:#334155; margin-bottom:8px; }
+.donut-inhalt { display:flex; align-items:center; gap:16px; }
+.donut { width:110px; height:110px; flex:0 0 110px; }
+.donut-grund { stroke:#f1f5f9; }
+.donut-teil { cursor:pointer; }
+.donut-summe { font-size:8px; font-weight:700; fill:#1e293b; pointer-events:none; }
+.donut-legende { list-style:none; margin:0; padding:0; font-size:13px; }
+.donut-legende li { margin:3px 0; display:flex; align-items:center; gap:6px; }
+.donut-legende a { color:inherit; text-decoration:none; border-bottom:1px dotted #94a3b8; }
+.donut-punkt { display:inline-block; width:10px; height:10px; border-radius:2px; }
+.donut-teil[data-teil="verschluesselt"] { stroke:#7c3aed; } .donut-punkt[data-teil="verschluesselt"] { background:#7c3aed; }
+.donut-teil[data-teil="smime_signiert"], .donut-teil[data-teil="signiert"] { stroke:#0284c7; }
+.donut-punkt[data-teil="smime_signiert"], .donut-punkt[data-teil="signiert"] { background:#0284c7; }
+.donut-teil[data-teil="portal"] { stroke:#d97706; } .donut-punkt[data-teil="portal"] { background:#d97706; }
+.donut-teil[data-teil="signatur"] { stroke:#15803d; } .donut-punkt[data-teil="signatur"] { background:#15803d; }
+.donut-teil[data-teil="zustellfehler"] { stroke:#dc2626; } .donut-punkt[data-teil="zustellfehler"] { background:#dc2626; }
+[data-theme="dark"] .donut-grund { stroke:#1e293b; }
+[data-theme="dark"] .donut-summe { fill:#e2e8f0; }
+[data-theme="dark"] .donut-titel { color:#cbd5e1; }
+[data-theme="dark"] .donut-teil[data-teil="verschluesselt"] { stroke:#a78bfa; } [data-theme="dark"] .donut-punkt[data-teil="verschluesselt"] { background:#a78bfa; }
+[data-theme="dark"] .donut-teil[data-teil="smime_signiert"], [data-theme="dark"] .donut-teil[data-teil="signiert"] { stroke:#38bdf8; }
+[data-theme="dark"] .donut-punkt[data-teil="smime_signiert"], [data-theme="dark"] .donut-punkt[data-teil="signiert"] { background:#38bdf8; }
+[data-theme="dark"] .donut-teil[data-teil="portal"] { stroke:#fbbf24; } [data-theme="dark"] .donut-punkt[data-teil="portal"] { background:#fbbf24; }
+[data-theme="dark"] .donut-teil[data-teil="signatur"] { stroke:#4ade80; } [data-theme="dark"] .donut-punkt[data-teil="signatur"] { background:#4ade80; }
+[data-theme="dark"] .donut-teil[data-teil="zustellfehler"] { stroke:#f87171; } [data-theme="dark"] .donut-punkt[data-teil="zustellfehler"] { background:#f87171; }
 /* Vorjahr ohne Daten: Spalte weg (Übersicht-Prüfung 20.11.2026, „2025“ überall 0). */
 .ohne-vorjahr .col-py { display:none; }
 </style>
+
+{#- Diagramm „Heute …“: Stücke überschneidungsfrei (je Mail EINE Aktion, höchste
+    Stufe), Summe = Verarbeitet heute (tests/test_heute_verteilung.py). Klick auf
+    Stück oder Legende öffnet die Mail-Liste derselben Aktionen. -#}
+{% macro donut(titel, d, leer) %}
+<div class="settings-card donut-karte" data-diagramm="{{ titel }}">
+  <div class="donut-titel">{{ titel }}</div>
+  {% if d.summe %}
+  <div class="donut-inhalt">
+    <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="{{ titel }}: {{ d.summe }} Mails">
+      <circle class="donut-grund" cx="21" cy="21" r="15.915" fill="none" stroke-width="6"></circle>
+      {% for t in d.teile if t.anzahl %}
+      <circle class="donut-teil audit-link" data-teil="{{ t.schluessel }}" data-date="{{ heute_verteilung.datum }}"
+              data-action="{{ t.aktion }}" data-titel="{{ t.beschriftung }}"
+              cx="21" cy="21" r="15.915" fill="none" stroke-width="6" pathLength="100"
+              stroke-dasharray="{{ t.anteil }} {{ 100 - t.anteil }}" stroke-dashoffset="{{ 25 - t.start }}"><title>{{ t.beschriftung }}: {{ t.anzahl }}</title></circle>
+      {% endfor %}
+      <text class="donut-summe" x="21" y="24" text-anchor="middle">{{ d.summe }}</text>
+    </svg>
+    <ul class="donut-legende">
+      {% for t in d.teile %}
+      <li><span class="donut-punkt" data-teil="{{ t.schluessel }}"></span>
+        {% if t.anzahl %}<a href="#" class="audit-link" data-date="{{ heute_verteilung.datum }}" data-action="{{ t.aktion }}"
+           data-titel="{{ t.beschriftung }}">{{ t.beschriftung }}</a>{% else %}{{ t.beschriftung }}{% endif %}
+        <strong data-teil="{{ t.schluessel }}">{{ t.anzahl }}</strong></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <p class="hint" style="margin:0">{{ leer }}</p>
+  {% endif %}
+</div>
+{% endmacro %}
+
+<div class="donut-reihe">
+  {{ donut("Heute gesendet", heute_verteilung.gesendet, "Heute noch keine Mail gesendet.") }}
+  {{ donut("Heute empfangen", heute_verteilung.empfangen, "Heute noch keine S/MIME-Mail empfangen.") }}
+</div>
 
 <div style="display:flex;align-items:baseline;gap:16px;margin:0 0 10px">
   <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0">Mails</h3>
   <span style="font-size:12px;color:#aaa">Heute · 3 Tage · {{ stats_month_m2_label }} bis {{ stats_month_label }} · {{ stats_year_label }} ab 1. Januar{% if vorjahr_zeigen %} · Vorjahr{% endif %}</span>
 </div>
 <div class="settings-card" style="padding:0 16px;overflow-x:auto">
-  <table class="{% if not vorjahr_zeigen %}ohne-vorjahr{% endif %}" style="width:100%;border-collapse:collapse;min-width:300px">
+  <table id="kz-tabelle" class="eingeklappt {% if not vorjahr_zeigen %}ohne-vorjahr{% endif %}" style="width:100%;border-collapse:collapse;min-width:300px">
     <thead>
       <tr style="border-bottom:2px solid #e2e8f0">
         <th style="text-align:left;padding:8px 0;font-size:12px;color:#78716c;font-weight:600"></th>
@@ -140,7 +212,7 @@ function dismissWelcome() {
       {#- Verarbeitet = jede Mail, die das Gateway bearbeitet oder geprüft hat
           (Signatur, S/MIME, Portal, Prüfung eingehender Signaturen), je
           SMTP-Übergabe — eine von Exchange aufgeteilte Mail zählt je Teil. -#}
-      {{ kz("Verarbeitet", "processed", "@verarbeitet") }}
+      {{ kz("Verarbeitet", "processed", "@verarbeitet", immer=true) }}
       {#- S/MIME-Zeilen nur, wenn S/MIME hier genutzt wird (oder im Jahr gezählt). -#}
       {% if zeilen_zeigen.smime or stats_yearly.smime_signed or stats_yearly.smime_encrypted or stats_yearly.smime_decrypted or stats_yearly.smime_signiert_empfangen or stats_yearly.certs_harvested %}
       {{ kz("S/MIME signiert", "smime_signed", "@smime_signiert") }}
@@ -158,8 +230,8 @@ function dismissWelcome() {
           (normal). Erst im Verhaeltnis wird daraus eine Aussage.
           Anlass: Genau diese Erkennung lief vom 29.07. bis 10.08.2026 zwoelf
           Tage wirkungslos mit, ohne dass es irgendwo sichtbar wurde. -#}
-      {{ kz("Antworten in Ketten", "antworten", "") }}
-      {{ kz("davon Stapel verhindert", "stapel_verhindert", "") }}
+      {{ kz("Antworten in Ketten", "antworten", "", immer=true) }}
+      {{ kz("davon Stapel verhindert", "stapel_verhindert", "", immer=true) }}
       {#- Korrekturen von Add-in-Signaturen: Schutzzeilen, sobald das Add-in an ist.
           „Add-in-Signatur ersetzt“ zählt nur bei ANTWORT_LETZTES_WORT=gateway. -#}
       {% if zeilen_zeigen.addin or stats_yearly.addin_korrigiert or stats_yearly.intern_korrigiert or stats_yearly.geteilt_entwurf %}
@@ -184,13 +256,41 @@ function dismissWelcome() {
       {#- Fehler (Gateway) = echte Ausfälle: Verarbeitung abgebrochen,
           Ver-/Entschlüsselung gescheitert, Tenant-Weiterleitung gescheitert,
           Zustellfehler (in der Warteschlange). Die Teile darunter, wenn sie vorkamen. -#}
-      {{ kz("Fehler (Gateway)", "fehler_gateway", "@fehler", "fehler") }}
+      {{ kz("Fehler (Gateway)", "fehler_gateway", "@fehler", "fehler", immer=true) }}
       {% for _k, _label, _a in [("fallback", "davon Fallback (Original zugestellt)", "fallback"), ("smime_encrypt_fehler", "davon Verschlüsselung gescheitert", "smime_encrypt_fehler"), ("smime_decrypt_fehler", "davon Entschlüsselung gescheitert", "smime_decrypt_fehler"), ("tenant_fehler", "davon Tenant-Weiterleitung gescheitert", "tenant_fehler"), ("delivery_queued", "davon Zustellfehler → Warteschlange", "zustellfehler")] %}
-      {% if stats_yearly[_k] or stats_prev_yearly[_k] %}{{ kz(_label, _k, _a, "warn") }}{% endif %}
+      {% if stats_yearly[_k] or stats_prev_yearly[_k] %}{{ kz(_label, _k, _a, "warn", immer=true) }}{% endif %}
       {% endfor %}
     </tbody>
   </table>
+  <div style="padding:6px 0 10px">
+    <button type="button" id="kz-alle-btn" class="btn secondary btn-sm" aria-expanded="false"
+            onclick="kzAlleZeilen()">Alle Zeilen</button>
+  </div>
 </div>
+<script>
+// Eingeklappt ist Standard; der Zustand gilt je Browser (localStorage, abgesichert).
+function _kzZeigen(alle) {
+  document.getElementById('kz-tabelle').classList.toggle('eingeklappt', !alle);
+  const b = document.getElementById('kz-alle-btn');
+  b.textContent = alle ? 'Weniger Zeilen' : 'Alle Zeilen';
+  b.setAttribute('aria-expanded', alle ? 'true' : 'false');
+}
+function kzAlleZeilen() {
+  const alle = document.getElementById('kz-tabelle').classList.contains('eingeklappt');
+  _kzZeigen(alle);
+  try { localStorage.setItem('uebersichtAlleZeilen', alle ? '1' : '0'); } catch (e) { /* privat/gesperrt */ }
+}
+(function () {
+  // Nichts einzuklappen (neue Installation): kein Knopf, der nichts tut.
+  if (!document.querySelector('#kz-tabelle tr.kz-mehr')) {
+    document.getElementById('kz-alle-btn').hidden = true;
+    return;
+  }
+  let alle = false;
+  try { alle = localStorage.getItem('uebersichtAlleZeilen') === '1'; } catch (e) { /* privat/gesperrt */ }
+  _kzZeigen(alle);
+})();
+</script>
 
 <!-- Graph-Zustellung — nur in den Graph-Modi (im SMTP-Modus immer 0).
      Key Vault steht als „davon über Key Vault“ unter „S/MIME signiert“. -->
@@ -690,7 +790,7 @@ protokollTabelle(document.getElementById('auditTable'), 'mail-protokoll');
 document.querySelectorAll('.audit-link').forEach(el => {
   el.addEventListener('click', e => {
     e.preventDefault();
-    openAuditModal(el.dataset.date || '', el.dataset.action || '');
+    openAuditModal(el.dataset.date || '', el.dataset.action || '', null, el.dataset.titel || '');
   });
 });
 
@@ -718,13 +818,13 @@ function _fmtPeriod(date) {
   return date;                                    // YYYY
 }
 
-function openAuditModal(date, action, hour) {
+function openAuditModal(date, action, hour, titel) {
   const stunde = (hour != null && hour !== 'null' && hour !== '') ? String(Number(hour)) : '';
   // Die Stunde FILTERT (bis v1.12.148 stand sie nur im Titel — der Peak-Klick zeigte den ganzen Tag).
   _auditParams = {date: date || '', date_from: '', date_to: '', action: action || '', stunde, offset: 0, limit: 100};
   document.getElementById('auditModal').style.display = 'block';
   document.body.style.overflow = 'hidden';
-  const actionLabel = action ? (' — ' + aktionText(action)) : '';
+  const actionLabel = titel ? ' — ' + titel : (action ? (' — ' + aktionText(action)) : '');
   const hourStr = (hour != null && hour !== 'null' && hour !== '') ? ' — ' + hour + ':00 Uhr' : '';
   document.getElementById('auditModalTitle').textContent =
     'Mail-Protokoll — ' + _fmtPeriod(date) + actionLabel + hourStr;

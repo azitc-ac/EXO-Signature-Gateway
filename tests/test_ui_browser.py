@@ -3592,3 +3592,106 @@ def test_mail_protokoll_einzeilig_und_spalten_ziehbar(seite, monkeypatch):
                          ".map(tr => tr.getBoundingClientRect().height)")
     assert max(hoehen) <= min(hoehen) + 2, hoehen
     pg.context.close()
+
+
+# ── Übersicht: Zahlentabelle eingeklappt, Diagramme „Heute …“ ───────────────
+
+def _uebersicht(seite, monkeypatch, verteilung, smime_im_jahr=True):
+    import heute_verteilung
+    import settings_store
+    import stats
+    if smime_im_jahr:                                   # sonst gibt es nichts einzuklappen
+        echte_periode = stats.get_period
+        monkeypatch.setattr(stats, "get_period", lambda *a: (
+            {**echte_periode(*a), "smime_signed": 1} if len(a) == 1 else echte_periode(*a)))
+    echt = settings_store.get
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a, **kw: True if k == "SETUP_COMPLETE" else echt(k, *a, **kw))
+    monkeypatch.setattr(heute_verteilung, "verteilung", lambda datum=None: verteilung)
+    return seite("/", breite=1280)
+
+
+def _teile(stuecke, zahlen):
+    summe, start, aus = sum(zahlen), 0.0, []
+    for (k, b, a), n in zip(stuecke, zahlen):
+        anteil = 100.0 * n / summe if summe else 0.0
+        aus.append({"schluessel": k, "beschriftung": b, "aktion": ",".join(a), "anzahl": n,
+                    "anteil": anteil, "start": start})
+        start += anteil
+    return {"summe": summe, "teile": aus}
+
+
+def test_uebersicht_eingeklappt_und_diagramme(seite, monkeypatch):
+    import heute_verteilung as hv
+    v = {"datum": "2026-01-02", "gesendet": _teile(hv.GESENDET, [2, 3, 0, 5, 0]),
+         "empfangen": _teile(hv.EMPFANGEN, [0, 0])}
+    pg = _uebersicht(seite, monkeypatch, v)
+    pg.evaluate("() => { try { localStorage.removeItem('uebersichtAlleZeilen'); } catch (e) {} }")
+    pg.reload(wait_until="domcontentloaded")
+    # eingeklappt: nur immer-Zeilen sichtbar
+    sichtbar = pg.evaluate("""() => [...document.querySelectorAll('#kz-tabelle tbody tr')]
+        .filter(tr => tr.offsetParent !== null).map(tr => tr.cells[0].innerText.trim())""")
+    assert "Verarbeitet" in sichtbar and "Fehler (Gateway)" in sichtbar
+    assert "Antworten in Ketten" in sichtbar and "davon Stapel verhindert" in sichtbar
+    assert pg.evaluate("() => document.querySelectorAll('#kz-tabelle tr.kz-mehr').length") > 0
+    assert all(pg.evaluate("() => [...document.querySelectorAll('#kz-tabelle tr.kz-mehr')].map(tr => tr.offsetParent === null)"))
+    pg.click("#kz-alle-btn")
+    assert pg.inner_text("#kz-alle-btn") == "Weniger Zeilen"
+    assert not any(pg.evaluate("() => [...document.querySelectorAll('#kz-tabelle tr.kz-mehr')].map(tr => tr.offsetParent === null)"))
+    pg.reload(wait_until="domcontentloaded")                    # Zustand gemerkt
+    assert pg.inner_text("#kz-alle-btn") == "Weniger Zeilen"
+    # Diagramm gesendet: 3 Stücke (Nullen ohne Bogen), Legende mit Zahlen, Summe
+    karte = '[data-diagramm="Heute gesendet"]'
+    assert pg.locator(f"{karte} circle.donut-teil").count() == 3
+    # Farbe je Stück aus dem Stylesheet (data-teil), nicht schwarz/leer
+    assert pg.evaluate(f"""() => [...document.querySelectorAll('{karte} circle.donut-teil')]
+        .every(c => getComputedStyle(c).stroke !== 'none' && getComputedStyle(c).stroke !== 'rgb(0, 0, 0)')""")
+    assert pg.text_content(f"{karte} .donut-summe") == "10"
+    assert pg.inner_text(f'{karte} strong[data-teil="signatur"]') == "5"
+    # empfangen: leerer Zustand statt leerer Torte
+    assert pg.locator('[data-diagramm="Heute empfangen"] svg').count() == 0
+    assert "keine S/MIME-Mail" in pg.inner_text('[data-diagramm="Heute empfangen"]')
+    # Klick auf ein Stück öffnet die Liste genau dieser Aktionen
+    anfragen = []
+    pg.route("**/api/audit/events*", lambda r: (anfragen.append(r.request.url),
+                                                 r.fulfill(json={"ok": True, "total": 0, "events": []})))
+    # Auf den Bogen klicken, nicht in die Mitte: „verschlüsselt“ beginnt bei 12 Uhr
+    # (20 % → 0°…72°), Punkt bei 18° auf dem Ring (viewBox 42, Radius 15.915).
+    import math
+    box = pg.locator(f"{karte} svg.donut").bounding_box()
+    s = box["width"] / 42
+    x, y = 21 + 15.915 * math.sin(math.radians(18)), 21 - 15.915 * math.cos(math.radians(18))
+    pg.mouse.click(box["x"] + x * s, box["y"] + y * s)
+    pg.wait_for_function("() => document.getElementById('auditModal').style.display === 'block'")
+    assert "action=smime_encrypted%2Csmime_signiert_verschluesselt" in anfragen[-1]
+    assert "S/MIME verschlüsselt" in pg.inner_text("#auditModalTitle")
+    pg.context.close()
+
+
+def test_uebersicht_ohne_einklappbares_ohne_knopf(seite, monkeypatch):
+    import heute_verteilung as hv
+    v = {"datum": "2026-01-02", "gesendet": _teile(hv.GESENDET, [0] * 5),
+         "empfangen": _teile(hv.EMPFANGEN, [0, 0])}
+    pg = _uebersicht(seite, monkeypatch, v, smime_im_jahr=False)
+    assert pg.evaluate("() => document.querySelectorAll('#kz-tabelle tr.kz-mehr').length") == 0
+    assert not pg.is_visible("#kz-alle-btn")
+    assert "keine Mail gesendet" in pg.inner_text('[data-diagramm="Heute gesendet"]')
+    pg.context.close()
+
+
+def test_uebersicht_diagramme_mobil_ohne_quer_scrollen(seite, monkeypatch):
+    import heute_verteilung as hv
+    v = {"datum": "2026-01-02", "gesendet": _teile(hv.GESENDET, [2, 3, 1, 5, 1]),
+         "empfangen": _teile(hv.EMPFANGEN, [4, 7])}
+    import settings_store
+    echt = settings_store.get
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a, **kw: True if k == "SETUP_COMPLETE" else echt(k, *a, **kw))
+    monkeypatch.setattr(hv, "verteilung", lambda datum=None: v)
+    pg = seite("/", breite=393)
+    breiten = pg.evaluate("""() => [...document.querySelectorAll('.donut-karte')].map(k => {
+        const r = k.getBoundingClientRect(); return [r.left, r.right, k.scrollWidth, k.clientWidth]; })""")
+    assert len(breiten) == 2
+    for links, rechts, sw, cw in breiten:
+        assert links >= 0 and rechts <= 393 + 0.5 and sw <= cw + 1, breiten
+    pg.context.close()
