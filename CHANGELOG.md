@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.185 — 2026-11-27 — Fehlerbehebung: Testmail bei strenger Herkunftsprüfung abgewiesen
+
+Mit eingeschalteter Option „Post ohne Tenant-Kennung abweisen“ (Erweitert →
+Quell-IP-Allowlist) wies das Gateway die eigene Testmail aus der Oberfläche ab:
+„554 5.7.1 Access denied: message carries no tenant identifier“. Die Testmail
+wird an den eigenen Listener eingeliefert, kommt also nicht aus Exchange und
+trägt keine Tenant-Kennung. Ohne die Option zählte jede Testmail als „Post ohne
+Kennung“ — genau die Zahl, nach der die Abnahme die strenge Prüfung empfiehlt.
+
+Jetzt trägt die Testmail eine Einmal-Kennung, die nur der laufende Dienst kennt,
+einmal gilt, nach fünf Minuten verfällt und nur von der eigenen Loopback-Adresse
+angenommen wird. Genau diese Nachricht ist von der Herkunftsprüfung ausgenommen;
+alle andere Post ohne Tenant-Kennung wird bei eingeschalteter Option weiterhin
+abgewiesen.
+
+**Zu tun:** nichts. Wer die Option vorübergehend ausgeschaltet hat, um die
+Testmail zu senden, kann sie nach dem Update wieder einschalten.
+
 ## v1.12.184 — 2026-11-27 — Kontaktadresse: support@zarenko.net
 
 Lizenzanfragen (README, LICENSE.md, auch für die Nonprofit-Lizenz) und

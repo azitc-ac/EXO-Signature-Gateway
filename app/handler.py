@@ -862,7 +862,15 @@ class SignatureHandler:
             # `not _ident`: Eine angemeldete Einlieferung (587) kommt von einem
             # Gerät, nicht aus Exchange — sie trägt nie eine Tenant-Kennung und
             # gehört weder in die Zählung noch unter die strenge Prüfung.
+            # `_eigene_testmail`: die Testmail aus der Oberfläche (/api/test-mail) über
+            # 127.0.0.1 — Einmal-Kennung, siehe testmail_kennung.py. Sie kommt nicht aus
+            # Exchange; bis v1.12.184 wies STRENG sie ab, sonst zählte sie als ohne Kopf.
+            import testmail_kennung
+            _eigene_testmail = testmail_kennung.einloesen(msg, peer_ip)
+            if _eigene_testmail:
+                log.info("SMTP: Testmail aus der Oberfläche (%s) — Herkunftsprüfung entfällt", peer_ip)
             if (peer_ip and not aus_relay_netz and not _ident and not _notfall_eingang
+                    and not _eigene_testmail
                     and settings_store.get("RELAY_TENANT_CHECK") is not False):
                 _own_tenant = (config.TENANT_ID or settings_store.get("TENANT_ID")
                                or "").strip().lower()

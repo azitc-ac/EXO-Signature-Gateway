@@ -896,6 +896,10 @@ async def api_test_mail(request: Request, user: str = Depends(_require_admin)):
     msg["Subject"] = f"Test-Mail ({mail_type}) – Signaturprüfung"
     msg["From"] = from_email
     msg["To"] = to_email
+    # Einmal-Kennung: Die Testmail kommt nicht aus Exchange und trägt keine
+    # CrossTenant-Id; das Tenant-Gate nimmt genau sie aus (testmail_kennung.py).
+    import testmail_kennung
+    msg[testmail_kennung.KOPF] = testmail_kennung.neu()
 
     # Ohne Prüfung, bewusst: Ziel ist der eigene Listener auf 127.0.0.1, dessen
     # Zertifikat auf den öffentlichen Namen lautet, nicht auf die Loopback-Adresse.

@@ -193,3 +193,42 @@ def test_angemeldete_einlieferung_587_ist_ausgenommen(anlage, zaehler, monkeypat
         None, sitzung, _Umschlag(_nachricht(None))))
     assert not antwort.startswith("554"), antwort
     assert "tenant_ohne_kopf" not in zaehler
+
+
+# ── Testmail aus der Oberfläche (v1.12.185) ──────────────────────────────────
+# Prod 27.11.2026: Mit RELAY_TENANT_STRENG wies das Gate die eigene Testmail ab
+# („554 … carries no tenant identifier“, zweimal von 127.0.0.1 im Protokoll).
+
+def _testmail(kennung: str | None) -> bytes:
+    import testmail_kennung
+    kopf = "Subject: Test-Mail\r\n"
+    if kennung is not None:
+        kopf += f"{testmail_kennung.KOPF}: {kennung}\r\n"
+    return (kopf + "\r\nText\r\n").encode()
+
+
+def test_streng_laesst_die_testmail_der_oberflaeche_durch(anlage, zaehler):
+    import testmail_kennung
+    anlage["RELAY_TENANT_STRENG"] = True
+    antwort = _lauf(_testmail(testmail_kennung.neu()), ip="127.0.0.1")
+    assert antwort.startswith("250"), antwort
+    assert anlage["_zugestellt"], "Testmail muss zugestellt werden"
+    assert "tenant_ohne_kopf" not in zaehler, "Testmail verfälscht die Zahl für die Abnahme"
+
+
+def test_ausnahme_gilt_nur_mit_gueltiger_kennung_von_loopback(anlage, zaehler):
+    """Kein Freibrief für Loopback, keiner für den Kopf allein."""
+    import testmail_kennung
+    anlage["RELAY_TENANT_STRENG"] = True
+    assert _lauf(_testmail(None), ip="127.0.0.1").startswith("554"), "Loopback ohne Kennung"
+    assert _lauf(_testmail("erfunden"), ip="127.0.0.1").startswith("554"), "erfundene Kennung"
+    k = testmail_kennung.neu()
+    assert _lauf(_testmail(k), ip="40.92.10.10").startswith("554"), "Kennung von aussen"
+    assert _lauf(_testmail(k), ip="127.0.0.1").startswith("250")
+    assert _lauf(_testmail(k), ip="127.0.0.1").startswith("554"), "Kennung gilt nur einmal"
+
+
+def test_testmail_route_setzt_die_kennung():
+    quelle = (WURZEL / "app" / "webui" / "app.py").read_text(encoding="utf-8")
+    route = quelle.split('@app.post("/api/test-mail")', 1)[1].split("@app.", 1)[0]
+    assert "msg[testmail_kennung.KOPF] = testmail_kennung.neu()" in route
