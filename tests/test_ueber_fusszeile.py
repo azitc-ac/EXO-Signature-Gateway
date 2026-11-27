@@ -6,8 +6,8 @@ Invarianten:
    Werte aus ueber.py) — auch die Anmeldeseite.
 2. Die Fassung ist die laufende: `VERSION` im Repository == config.VERSION ==
    Anzeige.
-3. Die Links sind genau Produktseite, Blog, Impressum, Datenschutz der
-   Produktwebseite, alle https, in neuem Tab ohne Opener. Keine Mail-Adresse
+3. Die Links sind genau Produktseite, Blog, Impressum der Produktwebseite und
+   die Datenschutzerklärung des Produkts (Hub, /legal/product-privacy), alle https, in neuem Tab ohne Opener. Keine Mail-Adresse
    (Support-Adresse entscheidet der Herausgeber gesondert).
 """
 import re
@@ -23,7 +23,7 @@ ERWARTET = [
     ("Produktseite", "https://exogateway.zarenko.net/"),
     ("Blog", "https://blog.zarenko.net/"),
     ("Impressum", "https://exogateway.zarenko.net/impressum.html"),
-    ("Datenschutz", "https://exogateway.zarenko.net/datenschutz.html"),
+    ("Datenschutz (Produkt)", "https://sighub.zarenko.net/legal/product-privacy"),
 ]
 
 

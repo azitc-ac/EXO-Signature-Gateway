@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.178 — 2026-11-27 — Fußzeile: Datenschutz verweist auf die Erklärung des Produkts
+
+Der Link „Datenschutz“ in der Fußzeile der Weboberfläche führte zur
+Datenschutzerklärung der Produktwebseite. Er heißt jetzt „Datenschutz
+(Produkt)“ und führt zur Datenschutzerklärung des Produkts (Gateway und Hub),
+derselben, der beim Anbinden an den Betreiber-Hub zugestimmt wird. Das
+Impressum bleibt auf der Webseite.
+
+**Zu tun:** nichts.
+
 ## v1.12.177 — 2026-11-27 — Zertifikatsbestellung abbrechen; keine hängende Bestellung mehr ohne Ende
 
 Eine offene Zertifikatsbestellung über den Betreiber-Hub ließ sich bisher weder
