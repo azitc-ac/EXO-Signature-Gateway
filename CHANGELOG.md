@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.173 — 2026-11-27 — Fußzeile „Über“ in der Weboberfläche
+
+Jede Seite der Verwaltung zeigt unten, wer die Software herausgibt: Logo,
+„Alexander Zarenko – IT Consulting“, Produkt und laufende Fassung sowie Links
+zu Produktseite, Blog, Impressum und Datenschutz (jeweils in neuem Tab). Die
+Angaben stehen an einer Stelle (`app/ueber.py`); die Fassung kommt aus
+`VERSION`. Die Seiten für Nutzer (Self-Service, Portal, Add-ins) bleiben ohne
+Fußzeile.
+
+**Zu tun:** nichts.
+
 ## v1.12.172 — 2026-11-27 — Let's Encrypt DNS-01 über einen DNS-Provider (IONOS, Azure DNS vorbereitet)
 
 Bisher ging Let's Encrypt ohne offenen Port 80 nur von Hand: TXT-Record selbst

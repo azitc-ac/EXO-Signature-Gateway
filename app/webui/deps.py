@@ -65,6 +65,9 @@ templates.env.globals["anzahl"] = _texte.zahl
 # Liste, aus der settings_store Vorgaben und Geheimnisse bildet.
 import tls_acme_dns as _tls_acme_dns  # noqa: E402
 templates.env.globals["dns01_katalog"] = _tls_acme_dns.katalog
+# Fußzeile „Über“ (Herausgeber, Produkt, Links) — eine Quelle: ueber.py
+import ueber as _ueber  # noqa: E402
+templates.env.globals["ueber"] = _ueber
 # {{ name|vorlage }}: Anzeigename („default“ → „Standard“), signature_engine.anzeigename
 templates.env.filters["vorlage"] = signature_engine.anzeigename
 
