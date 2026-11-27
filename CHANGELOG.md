@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.183 — 2026-11-27 — Dokumentation: kommerzielle Lizenz auch über den Hub
+
+README und LICENSE.md nennen jetzt beide Wege zur kommerziellen Lizenz: per
+Mail an den Lizenzgeber oder online über die optionale Anbindung an den EXO
+Signature Hub (Einstellungen → Anbindung & Lizenzen → Lizenz). Den Online-Weg
+gab es schon; beschrieben war er nur in der Oberfläche. Für den Online-Kauf
+gelten ergänzend die Lizenzbedingungen und die Preisliste des Hubs. Geprüft
+wird die Lizenz in beiden Fällen offline im Gateway.
+
+**Zu tun:** nichts.
+
 ## v1.12.182 — 2026-11-27 — Platzhalter in Eingabefeldern blasser
 
 Platzhalter wie „z. B. 203.0.113.10“ hatten den Standardton des Browsers und
@@ -13,7 +24,7 @@ unterscheiden. Sie stehen jetzt in allen Eingabefeldern in einem eigenen,
 gedämpften Ton (`#94a3b8`, hell wie dunkel). Die Regel liegt im gemeinsamen
 Stylesheet und gilt gleich im EXO SMTP Relay.
 
-Zu tun: nichts.
+**Zu tun:** nichts.
 
 ## v1.12.181 — 2026-11-27 — Fehlerbehebung: Systemangaben der Übersicht
 

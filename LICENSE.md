@@ -8,7 +8,11 @@ mailboxes with signature and/or S/MIME processing enabled, within one
 organization).
 
 Organizations exceeding 100 mailboxes require a separate, paid Commercial
-License from the licensor. Contact alexander@zarenko.net to obtain one.
+License from the licensor. Contact alexander@zarenko.net to obtain one, or
+purchase it online through the optional connection to the EXO Signature Hub
+(in the web interface: Einstellungen → Anbindung & Lizenzen → Lizenz). A
+license purchased online is the same Commercial License; the supplementary
+license terms and the price list published by the Hub apply to the purchase.
 
 This limit is in addition to, and does not relax, the restrictions in the
 PolyForm Internal Use License below — redistribution remains prohibited

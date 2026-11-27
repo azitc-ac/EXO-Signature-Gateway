@@ -265,8 +265,11 @@ Voraussetzungen, Azure-VM per Vorlage oder Skript, Betrieb vor Ort und Berechtig
 [PolyForm Internal Use License 1.0.0](LICENSE.md) (Community Edition): frei
 nutzbar für eigene und interne Zwecke, auch im Unternehmen, für **bis zu 100
 Postfächer**. Darüber hinaus ist eine kostenpflichtige kommerzielle Lizenz
-erforderlich, Kontakt: alexander@zarenko.net. Unabhängig von der Größe nicht
-erlaubt ist die Weiterverteilung.
+erforderlich, Kontakt: alexander@zarenko.net. Alternativ schließt du sie online
+über die optionale Anbindung an den EXO Signature Hub ab (Einstellungen →
+Anbindung & Lizenzen → Lizenz); dafür gelten ergänzend die Lizenzbedingungen und
+die Preisliste des Hubs. Geprüft wird die Lizenz in beiden Fällen offline im
+Gateway selbst. Unabhängig von der Größe nicht erlaubt ist die Weiterverteilung.
 
 **Betrieb:** In der eigenen Umgebung der Organisation (eigene Server oder ein
 Cloud-Abonnement auf ihren Namen) betreibt sie das Gateway selbst oder lässt es
