@@ -12,6 +12,14 @@ geladen, die mit einer DURCHGESETZTEN Content-Security-Policy ausgeliefert wird
 `INHALT_CSP`), dazu `sandbox` am Rahmen. Externe Bilder würden sonst beim
 Öffnen nach Hause telefonieren. Eingebettete Bilder (cid:) werden als data:-URI
 eingesetzt.
+
+Links öffnen in einem neuen Tab (seit v1.12.175): `mit_neuem_tab()` setzt
+`<base target="_blank">` in das ausgelieferte Dokument, Sandbox (Rahmen und
+CSP) erlauben dafür NUR `allow-popups allow-popups-to-escape-sandbox`. Das ist
+hier ohne Filter vertretbar, anders als bei den Vorschauen mit gleichem
+Ursprung (static/sig_preview.js): Der Rahmen hat keinen Zugriff auf den
+Ursprung des Gateways, und ein `javascript:`-Link liefe auch im neuen Tab
+nicht — der erbt die CSP ohne Skript.
 """
 from __future__ import annotations
 
@@ -29,7 +37,24 @@ import notbetrieb
 log = logging.getLogger(__name__)
 
 INHALT_CSP = ("default-src 'none'; img-src data:; style-src 'unsafe-inline'; "
-              "font-src data:; form-action 'none'; base-uri 'none'; sandbox")
+              "font-src data:; form-action 'none'; base-uri 'none'; "
+              "sandbox allow-popups allow-popups-to-escape-sandbox")
+NEUER_TAB = '<base target="_blank">'
+
+
+def mit_neuem_tab(inhalt: str) -> str:
+    """`NEUER_TAB` an den Anfang des Kopfes (sonst hinter <html> bzw. den
+    Doctype, sonst ganz vorn — vor einem Doctype schaltete er den Quirks-Modus
+    ein). Ein `<base>` der Mail selbst steht dahinter und zählt nicht mehr:
+    maßgeblich ist das erste mit `target`."""
+    m = None
+    for muster in (r"(?is)<head(?:\s[^>]*)?>", r"(?is)<html(?:\s[^>]*)?>", r"(?is)<!doctype[^>]*>"):
+        m = re.search(muster, inhalt)
+        if m:
+            break
+    if not m:
+        return NEUER_TAB + inhalt
+    return inhalt[:m.end()] + NEUER_TAB + inhalt[m.end():]
 SEITE = 50
 # Erhöhen, wenn sich die Ermittlung der Kopfdaten ändert (z. B. was als Anhang
 # zählt): Gemerkte Kopfdaten werden dann einmal neu gelesen.

@@ -2,6 +2,7 @@
 {% from "_zustimmung.html" import zustimmung_dialog %}
 {% from "_testmail.html" import testmail %}
 {% block content %}
+<script src="/static/sig_preview.js?v={{ version }}"></script>
 <h1>Einstellungen</h1>
 
 {% set nav_aktiv = "erweitert" %}
@@ -946,7 +947,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
         <button class="btn secondary btn-sm" onclick="closePreview()">Schließen</button>
       </div>
     </div>
-    <iframe id="preview-iframe" style="flex:1;border:none;width:100%;min-height:500px" sandbox="allow-same-origin"></iframe>
+    <iframe id="preview-iframe" style="flex:1;border:none;width:100%;min-height:500px" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" onload="vorschauLinksNeuerTab(this.contentDocument)"></iframe>
   </div>
 </div>
 

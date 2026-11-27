@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.175 — 2026-11-27 — Links in Vorschauen öffnen in einem neuen Tab
+
+Ein Klick auf einen Link in einer HTML-Vorschau öffnete die Seite bisher im
+Vorschaurahmen selbst. Jetzt öffnet er in einem neuen Tab. Das gilt für alle
+Vorschauen: Vorlagen-Editor (Signatur, Banner, Disclaimer, Abwesenheit),
+Signaturvorschau und Richtlinienergebnis, Self-Service und Einstell-Add-in,
+zurückgehaltene Mails, Selbsttest, Portal und Notbetrieb (Lesebereich und
+Vorschau beim Senden). Die gespeicherten Vorlagen bleiben unverändert; geändert
+wird nur das angezeigte Dokument.
+
+Der neue Tab verlässt die Sandbox des Rahmens, sonst liefen dort keine Skripte.
+Damit daraus keine Lücke wird, gehen nur `http(s)`- und `mailto`-Links in den
+neuen Tab. Alle anderen (etwa `javascript:`) bleiben im Rahmen, auch wenn die
+Vorlage oder Mail selbst ein Ziel vorgibt. Im Rahmen laufen weiterhin keine
+Skripte und keine Formulare. Im Notbetrieb liefert der Server das Dokument mit
+`<base target="_blank">` aus; die durchgesetzte Content-Security-Policy bleibt
+ohne Skript und wird nur um die beiden Popup-Rechte der Sandbox ergänzt.
+
+**Zu tun:** nichts.
+
 ## v1.12.174 — 2026-11-27 — DNS-Provider-Katalog: Fassungsregister aus dem Relay
 
 `app/dns_provider/` enthält jetzt auch `FASSUNGEN` (Register jeder

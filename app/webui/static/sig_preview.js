@@ -14,13 +14,53 @@
  * rohes HTML; über innerHTML führte etwa ein `<img onerror=…>` seinen Code in
  * der Oberfläche aus. Im Rahmen läuft nichts davon. `allow-same-origin`
  * bleibt, sonst käme man an die Höhe des Inhalts nicht heran.
+ *
+ * LINKS IN EINEM NEUEN TAB (seit v1.12.175)
+ * -----------------------------------------
+ * Ein Klick auf einen Link der Vorschau öffnete die Seite IM Rahmen. Jetzt geht
+ * er in einen neuen Tab — für ALLE Vorschauen mit gleichem Ursprung über
+ * `vorschauLinksNeuerTab()` und `VORSCHAU_SANDBOX` (Warteschlange, Selbsttest,
+ * Portal laden diese Datei dafür mit). Die Vorlage selbst bleibt unverändert;
+ * umgeschrieben wird nur das angezeigte Dokument.
+ *
+ * ⚠️ Warum nicht einfach <base target="_blank">: Der neue Tab muss die Sandbox
+ * verlassen (`allow-popups-to-escape-sandbox`), sonst laufen dort keine Skripte
+ * und viele Seiten bleiben leer. Mit `allow-same-origin` hätte ein Tab, der aus
+ * einem `javascript:`-Link entsteht, dann den Ursprung des Gateways — eine
+ * fremde Mail in Warteschlange oder Portal könnte so Code in der Oberfläche
+ * ausführen. Deshalb bekommen NUR http(s)- und mailto-Links `_blank`, jeder
+ * andere wird auf `_self` gezwungen (auch gegen ein `target` oder `<base>` aus
+ * der Vorlage) und bleibt im skriptlosen Rahmen. `allow-scripts`, `allow-forms`
+ * und `allow-top-navigation` kommen nie hinzu (tests/test_vorschau_links.py).
+ * Die Notbetrieb-Rahmen (`sandbox=""`, CSP ohne Skripte, fremder Ursprung)
+ * lösen das serverseitig: notbetrieb_lesen.mit_neuem_tab().
  */
 'use strict';
+
+const VORSCHAU_SANDBOX = 'allow-same-origin allow-popups allow-popups-to-escape-sandbox';
+const _VORSCHAU_NEUER_TAB = /^(https?:|mailto:)/i;
+
+/* Links eines Vorschau-Dokuments: http(s)/mailto → neuer Tab, alles andere
+ * bleibt im Rahmen. Liefert die Zahl der umgestellten Links. */
+function vorschauLinksNeuerTab(doc) {
+  if (!doc || !doc.querySelectorAll) return 0;
+  let n = 0;
+  doc.querySelectorAll('a[href], area[href]').forEach(a => {
+    if (_VORSCHAU_NEUER_TAB.test((a.getAttribute('href') || '').trim())) {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener noreferrer');
+      n++;
+    } else {
+      a.setAttribute('target', '_self');
+    }
+  });
+  return n;
+}
 
 function sigVorschau(box, html) {
   if (!box) return;
   const rahmen = document.createElement('iframe');
-  rahmen.setAttribute('sandbox', 'allow-same-origin');
+  rahmen.setAttribute('sandbox', VORSCHAU_SANDBOX);
   rahmen.setAttribute('title', 'Signatur-Vorschau');
   rahmen.style.cssText = 'width:100%;border:0;background:#fff;display:block;min-height:60px';
   rahmen.srcdoc =
@@ -42,7 +82,10 @@ function sigVorschau(box, html) {
       rahmen.style.height = '260px';   // Notmaß, falls der Zugriff scheitert
     }
   };
-  rahmen.addEventListener('load', () => { anpassen(); setTimeout(anpassen, 400); });
+  rahmen.addEventListener('load', () => {
+    try { vorschauLinksNeuerTab(rahmen.contentDocument); } catch (e) { /* kein Zugriff: Links bleiben im Rahmen */ }
+    anpassen(); setTimeout(anpassen, 400);
+  });
   // Unsichtbar gefüllt (z. B. im geschlossenen <details>) misst scrollHeight 0
   // und der Rahmen blieb bei 60 px, auch nach dem Aufklappen. Der Beobachter
   // misst neu, sobald der Rahmen sichtbar wird oder seine Breite ändert; setzt

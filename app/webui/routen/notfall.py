@@ -535,7 +535,8 @@ async def notfall_inhalt(postfach: str, id: str, markieren: str = "", benutzer: 
         raise HTTPException(404)
     # frame-ancestors: Im Teams-Reiter ist Microsoft 365 die oberste Seite;
     # geprüft wird die GANZE Kette, „self“ allein schlösse den Reiter aus.
-    return HTMLResponse(inhalt, headers={"Content-Security-Policy": notbetrieb_lesen.INHALT_CSP + "; "
+    return HTMLResponse(notbetrieb_lesen.mit_neuem_tab(inhalt),
+                        headers={"Content-Security-Policy": notbetrieb_lesen.INHALT_CSP + "; "
                                          + frame_ancestors(),
                                          "X-Frame-Options": "SAMEORIGIN",
                                          "Cache-Control": "no-store"})
@@ -658,7 +659,8 @@ async def notfall_vorschau_inhalt(k: str, benutzer: str = Depends(_sender)):
     eintrag = _vorschauen.get(k)
     if not eintrag or eintrag[0] != benutzer:
         raise HTTPException(404)
-    return HTMLResponse(eintrag[1], headers={"Content-Security-Policy": notbetrieb_lesen.INHALT_CSP + "; "
+    return HTMLResponse(notbetrieb_lesen.mit_neuem_tab(eintrag[1]),
+                        headers={"Content-Security-Policy": notbetrieb_lesen.INHALT_CSP + "; "
                                              + frame_ancestors(),
                                              "X-Frame-Options": "SAMEORIGIN", "Cache-Control": "no-store"})
 

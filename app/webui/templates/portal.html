@@ -161,6 +161,7 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Se
     </div>
   </div>
 </div>
+<script src="/static/sig_preview.js?v={{ version }}"></script>
 <script>
 (function(){
 function b64uDecode(s) {
@@ -382,11 +383,12 @@ async function loadMessage(){
     var bodyEl = document.getElementById('body-content');
     if(payload.html){
       var iframe = document.createElement('iframe');
-      iframe.sandbox = 'allow-same-origin';
+      iframe.setAttribute('sandbox', VORSCHAU_SANDBOX);
       iframe.style.cssText = 'width:100%;border:none;background:#fff;border-radius:6px';
       bodyEl.appendChild(iframe);
       var doc = iframe.contentDocument || iframe.contentWindow.document;
       doc.open(); doc.write(payload.html); doc.close();
+      vorschauLinksNeuerTab(doc);
       var resize = function(){ iframe.style.height = (doc.documentElement.scrollHeight||doc.body.scrollHeight) + 8 + 'px'; };
       iframe.addEventListener('load', resize);
       setTimeout(resize, 200);

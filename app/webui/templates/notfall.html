@@ -1398,9 +1398,10 @@ async function mailOeffnen(id) {
          + datumKurz(w.empfangen) + '</div>').join('') + '</div>' : '')
     + '</div>'
     + (d.html
-       // sandbox ohne Rechte: kein Skript, kein Formular, kein Zugriff auf diese Seite.
+       // sandbox nur mit Popups (Links im neuen Tab): kein Skript, kein Formular, kein
+       // Zugriff auf diese Seite.
        // Zusätzlich liefert der Server den Inhalt mit durchgesetzter CSP.
-       ? '<iframe sandbox="" referrerpolicy="no-referrer" src="/notfall/inhalt?' + escAttr(p + (w.length ? '&' + q({markieren: w.join(' ')}) : '')) + '" title="Nachricht"></iframe>'
+       ? '<iframe sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" src="/notfall/inhalt?' + escAttr(p + (w.length ? '&' + q({markieren: w.join(' ')}) : '')) + '" title="Nachricht"></iframe>'
        : '<pre>' + markiert(d.text, w) + '</pre>') + '</div>';
   ansicht('lesen');
   document.getElementById('lesen-betreff').focus();   // Screenreader und Tastatur landen bei der Mail
@@ -1593,7 +1594,7 @@ function zitatVorschau(z, art, postfach, id) {
       : 'Die ursprüngliche Nachricht wird unten angefügt') + '</summary>'
     + '<div class="kopf">' + z.kopf.map(k => '<b>' + esc(k.feld) + ':</b> ' + esc(k.wert)).join('<br>') + '</div>'
     + (z.html
-       ? '<iframe sandbox="" referrerpolicy="no-referrer" title="Ursprüngliche Nachricht" loading="lazy" src="/notfall/inhalt?'
+       ? '<iframe sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" title="Ursprüngliche Nachricht" loading="lazy" src="/notfall/inhalt?'
          + escAttr(q({postfach: postfach, id: id})) + '"></iframe>'
        : '<pre>' + esc(z.text || '') + '</pre>')
     + '</details>';
@@ -1625,7 +1626,7 @@ async function sigVorschau() {
     nichts: 'Es wird nichts angehängt',
     verschluesselt: 'Die Mail wird verschlüsselt',
     nicht_gesendet: 'So würde die Mail nicht gesendet'}[d.zustand] + (d.smime ? ' · S/MIME-signiert' : '');
-  inhalt.innerHTML = (d.url ? '<iframe sandbox="" referrerpolicy="no-referrer" title="Vorschau: was angehängt wird" src="'
+  inhalt.innerHTML = (d.url ? '<iframe sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" title="Vorschau: was angehängt wird" src="'
                        + escAttr(d.url) + '"></iframe>' : '')
     + (d.zustand === 'nichts' ? hinweis('Für dieses Postfach und diese Empfänger hängt das Gateway weder Signatur '
                                           + 'noch Banner oder Disclaimer an.') : '')

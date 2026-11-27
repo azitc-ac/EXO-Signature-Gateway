@@ -225,6 +225,9 @@ def test_inhalt_mit_durchgesetzter_csp(client):
     assert "default-src 'none'" in csp and "sandbox" in csp and "script-src" not in csp
     assert "img-src data:" in csp          # externe Bilder (Tracker) bleiben draußen
     assert r.headers["x-frame-options"] == "SAMEORIGIN"
+    # Links im neuen Tab: <base target> im Dokument, Sandbox NUR um Popups erweitert.
+    assert r.text.count('<base target="_blank">') == 1
+    assert "sandbox allow-popups allow-popups-to-escape-sandbox;" in csp + ";"
 
 
 
@@ -934,6 +937,7 @@ def test_vorschau_und_gelesen_endpunkte(client, postfix):
     assert d["ok"] and d["zustand"] == "angehaengt" and "html" not in d
     r = client.get(d["url"])
     assert r.status_code == 200 and "SIG Anna Muster" in r.text
+    assert r.text.count('<base target="_blank">') == 1      # Links der Vorschau im neuen Tab
     assert "sandbox" in r.headers["content-security-policy"] and "img-src data:" in r.headers["content-security-policy"]
     assert client.get("/notfall/vorschau", params={"k": "erfunden"}).status_code == 404
     assert client.post("/notfall/api/vorschau", json={"postfach": "team@firma.at"}).status_code == 400

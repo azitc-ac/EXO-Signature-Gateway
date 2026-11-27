@@ -2157,7 +2157,7 @@ def test_notfall_befehlsleiste_antworten_und_ungelesen(browser, server, monkeypa
     pg.wait_for_function("() => (document.getElementById('vf-sig-titel') || {textContent: ''}).textContent.startsWith('Diese')")
     assert pg.inner_text("#vf-sig-titel") == "Diese Signatur, Banner und Disclaimer werden angehängt · S/MIME-signiert"
     assert pg.get_attribute("#vf-sig iframe", "src") == "/notfall/vorschau?k=probe"
-    assert pg.get_attribute("#vf-sig iframe", "sandbox") == ""
+    assert pg.get_attribute("#vf-sig iframe", "sandbox") == "allow-popups allow-popups-to-escape-sandbox"
     erste = [r for t, r in pg.gesendet if t == "vorschau"]
     assert erste[0]["art"] == "antwort" and erste[0]["bezug"] == "m1"
     # Text tippen rechnet nicht neu, Empfänger ändern schon.
@@ -3487,3 +3487,47 @@ def test_zeitraum_je_zeile_datum_und_uhrzeit(browser, breite):
         assert rechts <= breite - 16 + 1, f"ragt über den Rand: {rechts} > {breite - 16}"
     finally:
         ctx.close()
+
+
+# ── Links in Vorschauen: neuer Tab, Sandbox bleibt dicht ────────────────────
+
+def test_vorschau_links_oeffnen_im_neuen_tab(seite):
+    """Klick auf einen http-Link in der Vorschau öffnet einen neuen Tab (vorher:
+    Navigation im Rahmen); ein javascript:-Link öffnet nichts und führt nichts aus.
+    Zweiter Rahmen wie im Notbetrieb: ohne Ursprung, Inhalt vom Server mit
+    INHALT_CSP (base-uri 'none'!) und <base target="_blank">."""
+    import notbetrieb_lesen as nl
+    pg = seite("/preview", breite=1280)
+    ctx = pg.context
+    ctx.route("https://ziel.example/**", lambda r: r.fulfill(body="<p>Ziel</p>", content_type="text/html"))
+    ctx.route("**/probe-notbetrieb", lambda r: r.fulfill(
+        body=nl.mit_neuem_tab('<html><head></head><body><a id="nb" href="https://ziel.example/nb">nb</a>'
+                              '<a id="js" href="javascript:top.__xss=1">js</a></body></html>'),
+        content_type="text/html",
+        headers={"Content-Security-Policy": nl.INHALT_CSP}))
+    pg.evaluate("""() => {
+      const box = document.createElement('div'); box.id = 'probe-vorschau'; document.body.prepend(box);
+      sigVorschau(box, '<a id="l" href="https://ziel.example/sig">sig</a> '
+                     + '<a id="js" target="_top" href="javascript:top.__xss=1">js</a>');
+      const nb = document.createElement('div'); nb.innerHTML =
+        '<iframe id="nb-rahmen" sandbox="allow-popups allow-popups-to-escape-sandbox" src="/probe-notbetrieb"></iframe>';
+      document.body.prepend(nb);
+    }""")
+    rahmen = pg.frame_locator("#probe-vorschau iframe")
+    pg.wait_for_function("() => { const f = document.querySelector('#probe-vorschau iframe');"
+                         " return f && f.contentDocument && f.contentDocument.querySelector('#l[target=\"_blank\"]'); }")
+    with ctx.expect_page(timeout=5000) as neu:
+        rahmen.locator("#l").click()
+    assert neu.value.url == "https://ziel.example/sig"
+    neu.value.close()
+    seiten = len(ctx.pages)
+    rahmen.locator("#js").click()
+    pg.wait_for_timeout(600)
+    assert len(ctx.pages) == seiten and pg.evaluate("window.__xss || 0") == 0
+    # Notbetrieb-Weg
+    nb = pg.frame_locator("#nb-rahmen")
+    with ctx.expect_page(timeout=5000) as neu:
+        nb.locator("#nb").click()
+    assert neu.value.url == "https://ziel.example/nb"
+    neu.value.close()
+    ctx.close()
