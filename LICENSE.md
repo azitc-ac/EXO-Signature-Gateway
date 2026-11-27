@@ -8,7 +8,7 @@ mailboxes with signature and/or S/MIME processing enabled, within one
 organization).
 
 Organizations exceeding 100 mailboxes require a separate, paid Commercial
-License from the licensor. Contact alexander@zarenko.net to obtain one, or
+License from the licensor. Contact support@zarenko.net to obtain one, or
 purchase it online through the optional connection to the EXO Signature Hub
 (in the web interface: Einstellungen → Anbindung & Lizenzen → Lizenz). A
 license purchased online is the same Commercial License; the supplementary
@@ -33,7 +33,7 @@ limit**, on the following terms:
 
 2. **Nonprofit License.** Use above 100 mailboxes requires a Nonprofit
    License, which the licensor issues at no charge on proof of eligibility.
-   Request it at alexander@zarenko.net. It is valid for twelve months and is
+   Request it at support@zarenko.net. It is valid for twelve months and is
    renewed on renewed proof of eligibility.
 
 3. **Scope.** The Nonprofit License covers all functions of the software.

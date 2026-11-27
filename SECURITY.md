@@ -1,13 +1,13 @@
 # Sicherheit
 
-*English: to report a security issue, email **alexander@zarenko.net** with a
+*English: to report a security issue, email **support@zarenko.net** with a
 description, the affected version and — if possible — a proof of concept. Please
 do **not** open a public issue.*
 
 ## Ein Sicherheitsproblem melden
 
 Bitte **kein öffentliches GitHub-Issue** für Sicherheitslücken. Melde sie
-vertraulich per E-Mail an **alexander@zarenko.net** — mit Beschreibung,
+vertraulich per E-Mail an **support@zarenko.net** — mit Beschreibung,
 betroffener Version (Fußzeile der Oberfläche bzw. `VERSION`) und, wenn möglich,
 einem Proof of Concept.
 

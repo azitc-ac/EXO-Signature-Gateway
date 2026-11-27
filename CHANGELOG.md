@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.184 — 2026-11-27 — Kontaktadresse: support@zarenko.net
+
+Lizenzanfragen (README, LICENSE.md, auch für die Nonprofit-Lizenz) und
+Sicherheitsmeldungen (SECURITY.md) gehen jetzt an support@zarenko.net, wie auf
+der Produktwebseite.
+
+**Zu tun:** nichts.
+
 ## v1.12.183 — 2026-11-27 — Dokumentation: kommerzielle Lizenz auch über den Hub
 
 README und LICENSE.md nennen jetzt beide Wege zur kommerziellen Lizenz: per
