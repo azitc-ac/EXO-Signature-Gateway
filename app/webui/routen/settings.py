@@ -350,7 +350,7 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
             clean["HOSTS_EINTRAEGE"] = namensaufloesung.normalisieren(str(clean["HOSTS_EINTRAEGE"] or ""))
         except ValueError as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-    fehler = _ews_onprem_pruefen(clean)
+    fehler = _ews_onprem_pruefen(clean) or _dns01_pruefen(clean)
     if fehler:
         return JSONResponse({"ok": False, "error": fehler}, status_code=400)
     import health_check
@@ -372,6 +372,41 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
     aufgaben.vergessen()        # der Sammelpunkt soll die Änderung gleich zeigen
     log.info("Settings updated by %s: %s", user, list(clean.keys()))
     return JSONResponse({"ok": True})
+
+
+def _dns01_pruefen(clean: dict) -> str:
+    """DNS-01 (TLS-Zertifikat): Methode und Provider prüfen, Werte trimmen.
+    Ein leeres oder maskiertes Geheimnis heißt „unverändert“ — es wird nicht
+    geschrieben (die Seite zeigt Geheimnisse nie, nur einen Platzhalter).
+    Fehlertext oder ""."""
+    import dns_provider
+    for k in [k for k in clean if k.startswith("DNS01_") or k == "LE_METHODE"]:
+        v = clean[k]
+        if k == "DNS01_WARTEN_S":
+            continue
+        v = v if isinstance(v, str) else ""
+        if any(c in v for c in "\r\n"):
+            return "Kein Zeilenumbruch in den Feldern von DNS-01"
+        if k in settings_store.DNS01_GEHEIM:
+            if v == "" or v == settings_store.MASK:
+                del clean[k]
+            continue
+        clean[k] = v.strip()
+    if "LE_METHODE" in clean and clean["LE_METHODE"] not in ("http01", "dns01"):
+        return "Methode muss http01 oder dns01 sein."
+    if "DNS01_PROVIDER" in clean:
+        clean["DNS01_PROVIDER"] = clean["DNS01_PROVIDER"].lower()
+        if clean["DNS01_PROVIDER"] not in ("", *dns_provider.PROVIDER):
+            return "Unbekannter DNS-Provider."
+    if "DNS01_WARTEN_S" in clean:
+        try:
+            w = int(clean["DNS01_WARTEN_S"])
+        except (TypeError, ValueError):
+            return "Wartezeit auf DNS in Sekunden angeben."
+        if not 30 <= w <= 3600:
+            return "Wartezeit auf DNS: 30 bis 3600 Sekunden."
+        clean["DNS01_WARTEN_S"] = w
+    return ""
 
 
 def _ews_onprem_pruefen(clean: dict) -> str:

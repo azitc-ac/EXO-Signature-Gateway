@@ -108,9 +108,12 @@ def _try_le_renewal(domain: str, days_left: int, expiry_str: str) -> None:
         return
     _le_renewed_date = today
 
-    import le_certbot
-    log.info("scheduler: TLS cert expires in %d days, running certbot renew…", days_left)
-    status, info = le_certbot.erneuern()
+    if (settings_store.get("LE_METHODE") or "http01") == "dns01":
+        status, info = _dns01_erneuern(days_left)
+    else:
+        import le_certbot
+        log.info("scheduler: TLS cert expires in %d days, running certbot renew…", days_left)
+        status, info = le_certbot.erneuern()
 
     if status == "renewed":
         log.info("scheduler: TLS cert renewed – new expiry %s. Restarting to load it.", info)
@@ -126,6 +129,52 @@ def _try_le_renewal(domain: str, days_left: int, expiry_str: str) -> None:
     if settings_store.get("NOTIFY_LE_EVENTS") is not False:
         import notification
         notification.send_le_expiry_alert(domain, days_left, expiry_str)
+
+
+def _dns01_erneuern(days_left: int) -> tuple[str, str]:
+    """DNS-01 über die DNS-API erneuern — DIESELBE Funktion wie die Ausstellung
+    (`tls_acme_dns.automatisch`); certbot wird bei `LE_METHODE = dns01` gar nicht
+    gefragt. Nur, wenn das ausgelieferte Zertifikat von Let's Encrypt ist und
+    alle Namen aus LE_DOMAIN trägt — ein bewusst importiertes Zertifikat wird
+    nicht überschrieben. Rückgabe wie `le_certbot.erneuern`: (status, info)."""
+    import asyncio
+    import config
+    import tls_acme_dns
+    from cryptography import x509
+    provider = (settings_store.get("DNS01_PROVIDER") or "").strip()
+    try:
+        namen = tls_acme_dns.namen_aus(settings_store.get("LE_DOMAIN")
+                                       or settings_store.get("PUBLIC_HOSTNAME") or "")
+    except ValueError as exc:
+        return "error", str(exc)
+    try:
+        cert = x509.load_pem_x509_certificate(Path(config.SMTP_TLS_CERT).read_bytes())
+        aussteller = cert.issuer.rfc4514_string()
+        san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        vorhanden = {n.lower() for n in san.get_values_for_type(x509.DNSName)}
+    except Exception as exc:                                  # noqa: BLE001
+        return "error", f"Zertifikat nicht lesbar: {exc}"
+    lets_encrypt = "Let's Encrypt" in aussteller
+    if not provider or not namen or not lets_encrypt or not set(namen) <= vorhanden:
+        log.warning("scheduler: TLS-Zertifikat läuft in %d Tagen ab und wird nicht automatisch "
+                    "erneuert (DNS-01 ohne DNS-Provider bzw. kein passendes Let's-Encrypt-"
+                    "Zertifikat) — bitte selbst erneuern", days_left)
+        return "not_managed", "DNS-01 ohne DNS-Provider"
+    log.info("scheduler: TLS-Zertifikat läuft in %d Tagen ab — Erneuerung über DNS-01 (%s)",
+             days_left, provider)
+    try:
+        info = asyncio.run(tls_acme_dns.automatisch(
+            namen, (settings_store.get("LE_EMAIL") or "").strip(), staging="(STAGING)" in aussteller))
+    except Exception as exc:                                  # noqa: BLE001
+        log.error("scheduler: Erneuerung des TLS-Zertifikats über DNS-01 (%s) fehlgeschlagen: %s",
+                  provider, exc)
+        return "error", str(exc)
+    bis = info.get("not_after") or ""
+    try:
+        bis = datetime.fromisoformat(bis).strftime("%d.%m.%Y")
+    except ValueError:
+        bis = bis[:10] or "?"
+    return "renewed", bis
 
 
 def _check_tls_cert() -> None:

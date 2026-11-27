@@ -217,7 +217,7 @@
           <button class="btn secondary btn-sm" id="le-renew-btn" data-wache-hinweis="le-renew-result" data-wache="le-auto-renew,le-renew-days" onclick="saveLeRenew()">Speichern</button>
           <span id="le-renew-result" style="font-size:12px"></span>
         </div>
-        <p class="hint" style="margin-top:6px">Erneuert wird nur dieser Weg automatisch (DNS-01 und Import nicht). Nach einer automatischen Erneuerung ist ein Neustart nötig, damit das neue Zertifikat ausgeliefert wird — eine Benachrichtigung weist darauf hin.</p>
+        <p class="hint" style="margin-top:6px">Erneuert werden dieser Weg und DNS-01 über einen DNS-Provider automatisch (DNS-01 von Hand und Import nicht). Nach einer automatischen Erneuerung ist ein Neustart nötig, damit das neue Zertifikat ausgeliefert wird — eine Benachrichtigung weist darauf hin.</p>
       </div>
     </details>
 
@@ -247,29 +247,92 @@
       </div>
     </details>
 
-    <!-- Weg 3: Let's Encrypt DNS-01 (manuell) -->
-    <details style="margin-top:12px">
+    <!-- Weg 3: Let's Encrypt DNS-01 — über einen DNS-Provider oder von Hand -->
+    {% set dns01_kat = dns01_katalog() %}
+    <details {% if s.LE_METHODE == 'dns01' %}open{% endif %} style="margin-top:12px">
       <summary style="cursor:pointer;font-weight:600;font-size:13px">3 · Let's Encrypt über DNS-01 (ohne Port 80)</summary>
       <div style="margin-top:10px">
         <p class="hint" style="margin-bottom:8px">
-          Ohne offenen Port 80 und ohne vorhandenes Zertifikat: Du setzt einen
-          TXT-Record im DNS, danach stellt Let's Encrypt aus.
+          Ohne offenen Port 80: Let's Encrypt prüft einen TXT-Record im DNS. Mit einem
+          DNS-Provider legt das Gateway ihn selbst an, wartet, bis er auf allen
+          autoritativen Nameservern steht, und entfernt ihn danach wieder — auch bei der
+          automatischen Erneuerung. Fremde TXT-Records bleiben unberührt. Ohne Provider
+          setzt du ihn von Hand.
         </p>
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;font-size:12px;color:#92400e;margin-bottom:10px">
-          ⚠️ <strong>Manuell:</strong> Die Erneuerung (~alle 90 Tage) musst du auf
-          diesem Weg jedes Mal wiederholen. Wo möglich ist Weg 1 oder ein
-          importiertes Zertifikat pflegeleichter.
+        <div id="dns01-api-felder">
+        <div class="settings-row">
+          <label for="dns01-provider">DNS-Provider</label>
+          <div class="settings-control">
+            <select id="dns01-provider" onchange="dns01ProviderZeigen()">
+              <option value="" {% if not s.DNS01_PROVIDER %}selected{% endif %}>keiner — TXT-Record von Hand setzen</option>
+              {% for p in dns01_kat %}<option value="{{ p.name }}" {% if s.DNS01_PROVIDER == p.name %}selected{% endif %}>{{ p.titel }}{% if p.vorbereitet %} (vorbereitet, nicht erprobt){% endif %}</option>{% endfor %}
+            </select>
+          </div>
         </div>
-        <label class="checkbox-label" style="margin-bottom:8px">
-          <input type="checkbox" id="dns01-staging"> Nur testen (Let's-Encrypt-Staging, kein gültiges Zertifikat)
-        </label>
-        <div id="dns01-record" style="display:none;margin:8px 0"></div>
-        <div id="dns01-result" style="margin-top:8px;display:none"></div>
-        <div class="actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn secondary" id="dns01-start-btn" onclick="dns01Start(this)">TXT-Record anfordern</button>
-          <button class="btn primary" id="dns01-finish-btn" onclick="dns01Finish(this)" style="display:none">Record gesetzt — jetzt ausstellen</button>
+        {% for p in dns01_kat %}
+        <div class="dns01-felder" id="dns01-felder-{{ p.name }}" {% if s.DNS01_PROVIDER != p.name %}hidden{% endif %}>
+          {% for f in p.felder %}
+          <div class="settings-row">
+            <label for="{{ f.id }}">{{ f.titel }}</label>
+            <div class="settings-control">
+              {% if f.auswahl %}
+              <select id="{{ f.id }}">{% for a in f.auswahl %}<option {% if s[f.id] == a %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+              {% elif f.geheim %}
+              <input type="password" id="{{ f.id }}" style="width:280px" autocomplete="new-password" autocapitalize="off" spellcheck="false" placeholder="{% if s[f.id] %}gespeichert — leer lassen = unverändert{% endif %}">
+              {% else %}
+              <input type="text" id="{{ f.id }}" value="{{ s[f.id] }}" style="width:280px" autocomplete="off" autocapitalize="off" spellcheck="false">
+              {% endif %}
+              {% if f.hinweis %}<span class="hint">{{ f.hinweis }}</span>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+        <div class="settings-row" id="dns01-warten-zeile" {% if not s.DNS01_PROVIDER %}hidden{% endif %}>
+          <label for="DNS01_WARTEN_S">Warten auf DNS</label>
+          <div class="settings-control"><input type="number" id="DNS01_WARTEN_S" value="{{ s.DNS01_WARTEN_S or 300 }}" min="30" max="3600" style="width:90px"> Sekunden, bis der Record auf allen autoritativen Nameservern steht</div>
+        </div>
+        </div>
+        <div class="actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn secondary btn-sm" id="dns01-save-btn" data-wache-hinweis="dns01-save-result" data-wache-container="#dns01-api-felder" onclick="dns01Speichern()">Speichern</button>
+          <button class="btn secondary btn-sm" id="dns01-test-btn" onclick="dns01Testen(this)" {% if not s.DNS01_PROVIDER %}hidden{% endif %}>Verbindung testen</button>
+          <span id="dns01-save-result" style="font-size:12px"></span>
+          <span id="dns01-test-result" style="font-size:12px"></span>
+        </div>
+
+        <div id="dns01-auto" {% if not s.DNS01_PROVIDER %}hidden{% endif %} style="margin-top:12px">
+          <p class="hint" style="margin-bottom:8px">
+            Erst speichern und „Verbindung testen“, dann ausstellen — dauert meist ein bis
+            drei Minuten. Unter <em>Domain</em> oben sind hier auch mehrere Namen (durch
+            Komma getrennt) und Wildcards (<code>*.example.com</code>) möglich.
+          </p>
+          <label class="checkbox-label" style="margin-bottom:8px">
+            <input type="checkbox" id="dns01-auto-staging"> Nur testen (Let's-Encrypt-Staging, kein gültiges Zertifikat)
+          </label>
+          <div id="dns01-auto-result" style="margin-top:8px;display:none"></div>
+          <div class="actions" style="margin-top:8px">
+            <button class="btn primary" id="dns01-auto-btn" onclick="dns01Auto(this)">Zertifikat über DNS-01 ausstellen</button>
+          </div>
+        </div>
+
+        <div id="dns01-manuell" {% if s.DNS01_PROVIDER %}hidden{% endif %} style="margin-top:12px">
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;font-size:12px;color:#92400e;margin-bottom:10px">
+            ⚠️ <strong>Von Hand:</strong> Die Erneuerung (~alle 90 Tage) musst du auf
+            diesem Weg jedes Mal wiederholen. Pflegeleichter sind ein DNS-Provider oben,
+            Weg 1 oder ein importiertes Zertifikat.
+          </div>
+          <label class="checkbox-label" style="margin-bottom:8px">
+            <input type="checkbox" id="dns01-staging"> Nur testen (Let's-Encrypt-Staging, kein gültiges Zertifikat)
+          </label>
+          <div id="dns01-record" style="display:none;margin:8px 0"></div>
+          <div id="dns01-result" style="margin-top:8px;display:none"></div>
+          <div class="actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn secondary" id="dns01-start-btn" onclick="dns01Start(this)">TXT-Record anfordern</button>
+            <button class="btn primary" id="dns01-finish-btn" onclick="dns01Finish(this)" style="display:none">Record gesetzt — jetzt ausstellen</button>
+          </div>
         </div>
       </div>
+      <script>const DNS01_KATALOG = {{ dns01_kat|tojson }};</script>
     </details>
 
     {% if e.cert_exists %}
@@ -1393,6 +1456,68 @@ async function dns01Start(btn) {
     '<code>' + esc(d.record_name) + '</code> = <code>' + esc(d.record_value) + '</code>' +
     '<button class="copy-btn" data-copy="' + escAttr(d.record_value) + '" title="Wert kopieren" type="button">Kopieren</button>';
   document.getElementById('dns01-finish-btn').style.display = '';
+}
+
+// ── Weg 3 mit DNS-Provider (Katalog dns_provider, seit v1.12.172) ─────────────
+function dns01ProviderZeigen() {
+  const p = feldWert('dns01-provider');
+  document.querySelectorAll('.dns01-felder').forEach(el => { el.hidden = el.id !== 'dns01-felder-' + p; });
+  ['dns01-warten-zeile', 'dns01-test-btn', 'dns01-auto'].forEach(id => { document.getElementById(id).hidden = !p; });
+  document.getElementById('dns01-manuell').hidden = !!p;
+}
+
+function _dns01Felder(p) {
+  const eintrag = DNS01_KATALOG.find(k => k.name === p);
+  return eintrag ? eintrag.felder : [];
+}
+
+// Geheimnisse nur, wenn eingegeben — leer heißt „unverändert“ (der Server
+// verwirft leere und maskierte Werte ebenfalls).
+function _dns01Werte(p) {
+  const werte = {};
+  _dns01Felder(p).forEach(f => {
+    const w = feldWert(f.id);
+    if (!f.geheim || w) werte[f.id] = w;
+  });
+  return werte;
+}
+
+async function dns01Speichern() {
+  const p = feldWert('dns01-provider');
+  const ok = await savePartial(Object.assign({
+    DNS01_PROVIDER: p,
+    DNS01_WARTEN_S: parseInt(feldWert('DNS01_WARTEN_S'), 10) || 300,
+  }, _dns01Werte(p)), 'dns01-save-result');
+  wacheFertig('dns01-save-btn', ok);
+  if (ok) _dns01Felder(p).forEach(f => {
+    const el = document.getElementById(f.id);
+    if (f.geheim && el.value) { el.value = ''; el.placeholder = 'gespeichert — leer lassen = unverändert'; }
+  });
+  return ok;
+}
+
+async function dns01Testen(btn) {
+  const p = feldWert('dns01-provider');
+  const d = await knopfAktion(btn, 'Prüft…', () => postJSON('/api/setup/tls/dns01/test',
+                                                         {provider: p, werte: _dns01Werte(p)}));
+  showMsg('dns01-test-result', d.ok ? ('Verbunden — ' + anzahlText(d.zonen.length, 'Zone', 'Zonen') + ': ' + d.zonen.join(', '))
+                                    : errText(d), !!d.ok);
+}
+
+async function dns01Auto(btn) {
+  const res = document.getElementById('dns01-auto-result');
+  hideAlert(res);
+  const d = await knopfAktion(btn, 'TXT-Record, DNS, Let\'s Encrypt (einige Minuten)…', async () => {
+    if (!await dns01Speichern()) return {ok: false, error: 'Einstellungen nicht gespeichert.'};
+    return postJSON('/api/setup/tls/dns01/auto', {
+      domain: feldWert('le-domain'),
+      email: feldWert('le-email'),
+      staging: document.getElementById('dns01-auto-staging').checked,
+    });
+  });
+  if (!d.ok) { showAlert(res, 'error', 'Fehler: ' + esc(errText(d))); return; }
+  showAlert(res, 'success', 'Zertifikat ausgestellt (' + esc((d.hostnames || []).join(', ')) +
+    ', gültig bis ' + esc((d.not_after || '?').slice(0, 10)) + '). <strong>Neustart erforderlich.</strong>');
 }
 
 async function dns01Finish(btn) {

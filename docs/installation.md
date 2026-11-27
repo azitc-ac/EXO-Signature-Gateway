@@ -103,7 +103,10 @@ Der Wizard bietet drei Wege zum Zertifikat:
   außen** auf. Voraussetzung: Der DNS-Name zeigt bereits auf diese IP **und** Port 80
   ist aus dem Internet erreichbar.
 - **Let's Encrypt DNS-01**: Prüfung über einen TXT-Record, **ohne** eingehenden Port —
-  für NAT/rein interne Hosts. ⚠️ Erneuerung ~alle 90 Tage manuell.
+  für NAT/rein interne Hosts. Hier setzt du den Record von Hand; ⚠️ die Erneuerung
+  ~alle 90 Tage dann ebenso. Mit einem DNS-Provider (IONOS; Azure DNS vorbereitet)
+  erledigt das Gateway Ausstellen und Erneuern selbst — einzurichten danach in der
+  Weboberfläche unter *Einrichtung → TLS-Zertifikat → Let's Encrypt über DNS-01*.
 - **PFX-Import**: eigenes Zertifikat hochladen (auch Wildcard oder interne CA).
 
 Jeder Weg verlangt das Kennwort der Weboberfläche: `admin`, auf einer VM aus der
@@ -258,8 +261,14 @@ docker compose ps                   # exo-signature-gateway "healthy"?
 Ist Port 80 nicht von außen erreichbar (NAT, rein intern), im First-Run-Wizard
 statt Let's Encrypt HTTP-01 einen der beiden anderen Wege wählen:
 **Let's Encrypt DNS-01** (validiert per DNS-TXT, kein eingehender Port) oder
-**PFX-Import** (eigenes Zertifikat hochladen). ⚠️ DNS-01 muss ~alle 90 Tage
-manuell erneuert werden.
+**PFX-Import** (eigenes Zertifikat hochladen). ⚠️ DNS-01 von Hand muss ~alle 90 Tage
+manuell erneuert werden. Liegt deine Zone bei einem unterstützten DNS-Provider, wähle
+ihn danach unter *Einrichtung → TLS-Zertifikat → Let's Encrypt über DNS-01*, speichere
+die Zugangsdaten und prüfe sie mit **Verbindung testen**: Das Gateway legt den
+TXT-Record dann selbst an, wartet, bis er auf allen autoritativen Nameservern steht,
+entfernt ihn nach der Prüfung wieder und erneuert so auch automatisch. Fremde
+TXT-Records (SPF, Domänennachweise) bleiben unberührt. Nur dort gehen auch mehrere
+Namen und Wildcards (`*.example.com`).
 
 ### DNS
 

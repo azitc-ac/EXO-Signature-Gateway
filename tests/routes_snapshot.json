@@ -1638,6 +1638,13 @@
     "name": "api_test_graph"
   },
   {
+    "pfad": "/api/setup/tls/dns01/auto",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_tls_dns01_auto"
+  },
+  {
     "pfad": "/api/setup/tls/dns01/finish",
     "methoden": [
       "POST"
@@ -1650,6 +1657,13 @@
       "POST"
     ],
     "name": "api_tls_dns01_start"
+  },
+  {
+    "pfad": "/api/setup/tls/dns01/test",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_tls_dns01_test"
   },
   {
     "pfad": "/api/setup/tls/import-pfx",

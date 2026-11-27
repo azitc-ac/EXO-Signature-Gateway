@@ -303,6 +303,59 @@ async def api_tls_dns01_finish(user: str = Depends(_require_admin)):
                          **info})
 
 
+# ── DNS-01 über eine DNS-API (seit v1.12.172, aus dem Relay 0.2.57-beta) ─────
+# Ausstellen hier und Erneuern im Zeitplaner gehen durch tls_acme_dns.automatisch
+# — mit den GESPEICHERTEN Einstellungen (die Seite speichert vorher über POST /settings).
+
+@router.post("/api/setup/tls/dns01/test")
+async def api_tls_dns01_test(request: Request, user: str = Depends(_require_admin)):
+    """Nur lesend: Zonen des Kontos auflisten. Nimmt die Formularwerte
+    (ungespeichert); ein leeres oder maskiertes Geheimnis steht für das
+    gespeicherte. Antwort und Protokoll ohne Geheimnis."""
+    import dns_provider
+    import tls_acme_dns
+    data = await request.json()
+    name = (data.get("provider") or "").strip().lower()
+    try:
+        p = tls_acme_dns.provider_aus_einstellungen(name, data.get("werte") or {})
+        zonen = await asyncio.to_thread(p.zonen)
+    except dns_provider.DnsProviderFehler as exc:
+        log.warning("DNS-Provider-Test (%s) durch %s: %s", name or "-", user, exc)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
+    log.info("DNS-Provider-Test (%s) durch %s: %d Zone(n)", name, user, len(zonen))
+    return JSONResponse({"ok": True, "provider": name, "zonen": zonen})
+
+
+@router.post("/api/setup/tls/dns01/auto")
+async def api_tls_dns01_auto(request: Request, user: str = Depends(_require_admin)):
+    """TXT-Record über den gespeicherten DNS-Provider anlegen, ausstellen, aufräumen."""
+    import tls_acme_dns
+    data = await request.json()
+    domain = (data.get("domain") or settings_store.get("LE_DOMAIN")
+              or settings_store.get("PUBLIC_HOSTNAME") or "").strip()
+    email = (data.get("email") or settings_store.get("LE_EMAIL") or "").strip()
+    try:
+        namen = tls_acme_dns.namen_aus(domain)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    if not namen:
+        return JSONResponse({"ok": False, "error": "Domain fehlt."}, status_code=400)
+    provider = settings_store.get("DNS01_PROVIDER") or ""
+    if not provider:
+        return JSONResponse({"ok": False, "error": "Kein DNS-Provider gewählt und gespeichert."},
+                            status_code=400)
+    settings_store.update({"LE_DOMAIN": ", ".join(namen), "LE_EMAIL": email})
+    staging = bool(data.get("staging"))
+    try:
+        info = await tls_acme_dns.automatisch(namen, email, staging)
+    except Exception as exc:                                  # noqa: BLE001
+        log.error("DNS-01 (%s) für %s fehlgeschlagen: %s", provider, ", ".join(namen), exc)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
+    log.info("Let's-Encrypt-Zertifikat (DNS-01, %s) für %s durch %s übernommen%s",
+             provider, ", ".join(namen), user, " (Testumgebung)" if staging else "")
+    return JSONResponse({"ok": True, "detail": "Zertifikat ausgestellt. Neustart erforderlich.", **info})
+
+
 @router.post("/api/setup/auth-paste")
 async def api_auth_paste(request: Request, user: str = Depends(_require_admin)):
     """

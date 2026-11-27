@@ -78,6 +78,8 @@ Exchange Online (EXO) → Zustellung an Empfänger
 | **443** | HTTPS | `login.microsoftonline.com` | Azure AD Token-Endpunkt | alle |
 | **443** | HTTPS | `acme.castle.cloud` | CASTLE ACME (S/MIME-Zertifikate) | bei CASTLE-Enrollment |
 | **443** | HTTPS | `acme-v02.api.letsencrypt.org` | Let's Encrypt TLS-Zertifikat | bei Let's Encrypt |
+| **443** | HTTPS | `api.hosting.ionos.com` bzw. `management.azure.com` | DNS-API: TXT-Record für DNS-01 anlegen und entfernen | bei DNS-01 über einen DNS-Provider |
+| **53** | DNS (UDP, TCP) | Wurzel- und autoritative Nameserver der Zone | Prüfen, ob der TXT-Record überall steht. Gesperrt: Das Gateway löst nach der eingestellten Wartezeit trotzdem aus | bei DNS-01 über einen DNS-Provider |
 | **993** | IMAPS | `outlook.office365.com` | IMAP APPEND (Inbox-Inject ohne Draft-Flag) | `graph_plus` |
 | **587** | SMTP (STARTTLS + XOAUTH2) | `smtp.office365.com` | Submission als Absender: bifurkierte gemischte Empfänger + eingehende externe Post | `graph_plus` |
 | **25** | SMTP | `<tenant>.mail.protection.outlook.com` | Re-inject via SMTP | `smtp` (nicht Azure-kompatibel) |

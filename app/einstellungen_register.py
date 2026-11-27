@@ -137,6 +137,11 @@ REGISTER: dict[str, E] = {
     "LE_EMAIL": E(art=OPTION, ort="setup.html"),
     "LE_AUTO_RENEW": E(art=OPTION, ort="setup.html"),
     "LE_RENEW_DAYS": E(art=OPTION, ort="setup.html"),
+    # Gesetzt vom Weg, über den zuletzt ausgestellt wurde (HTTP-01 → http01,
+    # DNS-01 → dns01) — die Wahl IST der Ausstell-Knopf; der Zeitplaner folgt ihr.
+    "LE_METHODE": E(art=ZUSTAND),
+    "DNS01_PROVIDER": E(art=OPTION, ort="setup.html"),
+    "DNS01_WARTEN_S": E(art=OPTION, ort="setup.html"),
     "LICENSE_KEY": E(art=GEHEIMNIS),
     "LOG_LEVEL": E(art=OPTION, ort="advanced.html"),
     "LOG_RETENTION_DAYS": E(art=OPTION, ort="advanced.html"),
@@ -347,6 +352,21 @@ REGISTER: dict[str, E] = {
     "USER_WEBSITES": E(art=STRUKTUR, ort="settings_signature.html"),
     "WEBSITE_URL": E(art=OPTION, ort="settings_signature.html"),
 }
+
+
+def _dns01_katalog_felder() -> dict[str, E]:
+    """Zugangsdaten der DNS-Provider (DNS-01): die Felder kommen aus dem Katalog
+    `dns_provider`, die Einrichtung rendert sie aus derselben Liste und speichert
+    sie über POST /settings. Als Ort steht deshalb der Schreibweg; dass jedes
+    Katalogfeld in setup.html erscheint und gespeichert wird, prüft
+    tests/test_dns01_gateway.py (das Muster `SCHLÜSSEL:` gibt es hier nicht)."""
+    import settings_store
+    return {k: E(art=GEHEIMNIS) if k in settings_store.DNS01_GEHEIM else E(art=OPTION, ort="/settings")
+            for k in settings_store.DEFAULTS
+            if k.startswith("DNS01_") and k not in ("DNS01_PROVIDER", "DNS01_WARTEN_S")}
+
+
+REGISTER.update(_dns01_katalog_felder())
 
 
 def nach_art(art: str) -> list[str]:

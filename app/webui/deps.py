@@ -61,6 +61,10 @@ templates.env.globals["version"] = config.VERSION
 import texte as _texte  # noqa: E402
 templates.env.globals["wort"] = _texte.wort
 templates.env.globals["anzahl"] = _texte.zahl
+# DNS-Provider-Katalog (DNS-01, TLS-Zertifikat) für die Einrichtung — dieselbe
+# Liste, aus der settings_store Vorgaben und Geheimnisse bildet.
+import tls_acme_dns as _tls_acme_dns  # noqa: E402
+templates.env.globals["dns01_katalog"] = _tls_acme_dns.katalog
 # {{ name|vorlage }}: Anzeigename („default“ → „Standard“), signature_engine.anzeigename
 templates.env.filters["vorlage"] = signature_engine.anzeigename
 

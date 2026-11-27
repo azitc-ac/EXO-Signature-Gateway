@@ -20,6 +20,11 @@ _VERWEIS = re.compile(r"→ „([^“\"\n\d]{1,50})“")
 def _verweise() -> dict[str, list[str]]:
     aus: dict[str, list[str]] = {}
     for p in APP.rglob("*.py"):
+        # Der DNS-Provider-Katalog (aus dem Relay, unverändert) beschreibt die
+        # Oberflächen der PROVIDER („API Keys“ → „Create New Key“ bei IONOS),
+        # nicht die des Gateways.
+        if "dns_provider" in p.parts:
+            continue
         for name in _VERWEIS.findall(p.read_text("utf-8")):
             aus.setdefault(name, []).append(p.relative_to(APP).as_posix())
     return aus

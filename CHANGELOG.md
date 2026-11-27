@@ -5,6 +5,51 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.172 — 2026-11-27 — Let's Encrypt DNS-01 über einen DNS-Provider (IONOS, Azure DNS vorbereitet)
+
+Bisher ging Let's Encrypt ohne offenen Port 80 nur von Hand: TXT-Record selbst
+setzen, und das bei jeder Erneuerung (~alle 90 Tage) wieder. Jetzt kann das
+Gateway den Record über die API deines DNS-Providers selbst setzen — beim
+Ausstellen und bei der automatischen Erneuerung.
+
+- **Einrichten:** *Einrichtung → TLS-Zertifikat → 3 · Let's Encrypt über DNS-01*.
+  DNS-Provider wählen, Zugangsdaten eintragen, **Speichern**, dann **Verbindung
+  testen** (listet nur die Zonen, ändert nichts) und **Zertifikat über DNS-01
+  ausstellen**. Danach ist ein Neustart nötig, wie bei den anderen Wegen.
+- **Ablauf:** Das Gateway legt den TXT-Wert an, wartet, bis er auf jedem
+  autoritativen Nameserver der Zone steht (Wartezeit einstellbar, Vorgabe 300 s),
+  löst erst dann die Prüfung bei Let's Encrypt aus und entfernt seinen Wert
+  danach immer wieder — auch wenn etwas scheitert. Fremde TXT-Records unter
+  demselben Namen (SPF, Domänennachweise, ein anderer ACME-Client) bleiben
+  stehen. Mehrere Namen (durch Komma getrennt) und Wildcards (`*.example.com`)
+  gehen auf diesem Weg.
+- **Erneuerung:** Die Einstellung *Methode* (`LE_METHODE`) entscheidet, wer
+  erneuert. Sie wird beim Ausstellen gesetzt — über HTTP-01 auf certbot, über
+  DNS-01 auf den DNS-Provider. Vorher hätte nach einem Wechsel zu DNS-01 certbot
+  weiter die alte Linie erneuert. Ein importiertes Zertifikat oder eines mit
+  anderen Namen wird nicht überschrieben; dann meldet das Gateway den nahenden
+  Ablauf wie bisher.
+- **Provider:** IONOS (DNS API, API-Key aus Präfix und Geheimnis) und Azure DNS
+  (App-Registrierung oder verwaltete Identität) — Azure DNS ist vorbereitet,
+  aber noch nicht gegen den echten Dienst erprobt und als solches markiert.
+- **Geheimnisse:** Die Zugangsdaten liegen geschützt in den Einstellungen, die
+  Seite zeigt sie nie (nur „gespeichert“), Meldungen, Protokoll und Antworten
+  enthalten sie nicht — auch dann nicht, wenn der Provider den Schlüssel in
+  seiner Fehlermeldung wiederholt. Ein leeres Feld beim Speichern lässt das
+  gespeicherte Geheimnis unverändert.
+- **Netz:** ausgehend 443 zur DNS-API und 53 (UDP/TCP) zu den Nameservern der
+  Zone. Ist 53 gesperrt, löst das Gateway nach der Wartezeit trotzdem aus
+  (siehe *Betrieb*, ausgehende Verbindungen).
+
+Der Provider-Katalog (`app/dns_provider/`) stammt unverändert aus dem EXO SMTP
+Relay und steht unter der Apache License 2.0 (`THIRD_PARTY_NOTICES.md`,
+`LICENSES/Apache-2.0.txt`, beides auch im Image). Ein Test hält ihn auf dem
+Stand des Relays: Prüfsummen und Fassung (1.0.0) gegen den übernommenen Stand
+und gegen das aktuelle Relay. Eine eigene DNS-Abfrage aus der
+Standardbibliothek — keine neue Abhängigkeit.
+
+**Zu tun:** nichts. DNS-01 von Hand und HTTP-01 laufen unverändert weiter.
+
 ## v1.12.171 — 2026-11-26 — Doku: EXO-Ausfallschutz und DMARC-Auswertung beschrieben
 
 Die Funktionsübersicht (`docs/funktionen.md`) und das README beschreiben jetzt

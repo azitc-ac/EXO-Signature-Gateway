@@ -400,7 +400,15 @@ DEFAULTS: dict = {
     "DAILY_REPORT_ENABLED": False,   # Send daily stats email
     "DAILY_REPORT_TIME": "08:00",    # HH:MM in LOG_TIMEZONE
     "CERT_WARN_DAYS": 14,            # Warn this many days before S/MIME cert expiry
-    "LE_AUTO_RENEW": True,           # HTTP-01 cert: let the scheduler auto-renew via certbot
+    "LE_AUTO_RENEW": True,           # Zeitplaner erneuert (HTTP-01 über certbot, DNS-01 über die DNS-API)
+    # Methodenschalter (seit v1.12.172): http01 = certbot/Port 80, dns01 = TXT-Record
+    # über DNS01_PROVIDER. Gilt für die automatische Erneuerung (scheduler._try_le_renewal);
+    # gesetzt beim Ausstellen über den jeweiligen Weg der Einrichtung.
+    "LE_METHODE": "http01",
+    # DNS-01 über eine DNS-API (Katalog app/dns_provider). "" = von Hand.
+    # Die Felder je Provider (DNS01_<PROVIDER>_<FELD>) kommen unten aus dem Katalog.
+    "DNS01_PROVIDER": "",
+    "DNS01_WARTEN_S": 300,           # so lange auf den TXT-Record bei allen autoritativen NS warten
     "LE_RENEW_DAYS": 14,             # Attempt LE renewal this many days before expiry
     "NOTIFY_STARTUP": None,          # None/True = send; False = suppress startup notification
     "NOTIFY_SMIME_EXPIRY": None,     # None/True = send; False = suppress S/MIME expiry admin alert
@@ -531,6 +539,26 @@ DEFAULTS: dict = {
 # sämtliche Vorlagen. Keine gab ein Geheimnis aus (geprüft, und `driftcheck.py`
 # hält das fest), aber ein einziges `{{ s.CLIENT_SECRET }}` hätte gereicht.
 
+def _dns01_felder() -> tuple[dict, set]:
+    """Einstellungen je Provider-Feld aus dem DNS-Katalog — EINE Quelle für
+    Vorgaben, Geheimnisliste und Oberfläche (setup.html rendert dieselbe Liste
+    über tls_acme_dns.katalog()). Namensbildung wie tls_acme_dns.feld_schluessel
+    (hier nachgebildet, weil tls_acme_dns settings_store importiert;
+    tests/test_dns01_gateway.py prüft beide gegeneinander)."""
+    import dns_provider
+    vorgaben, geheim = {}, set()
+    for name, cls in dns_provider.PROVIDER.items():
+        for f in cls.FELDER:
+            k = f"DNS01_{name.upper()}_{f.schluessel.upper()}"
+            vorgaben[k] = f.auswahl[0] if f.auswahl else ""
+            if f.geheim:
+                geheim.add(k)
+    return vorgaben, geheim
+
+
+_DNS01_VORGABEN, DNS01_GEHEIM = _dns01_felder()
+DEFAULTS.update(_DNS01_VORGABEN)
+
 SECRET_KEYS = frozenset({
     "ADMIN_PASSWORD_HASH",        # pbkdf2-Hash des Web-UI-Passworts
     "APP_POOL",                   # Liste von {client_id, client_secret, label}
@@ -549,7 +577,7 @@ SECRET_KEYS = frozenset({
     "SMTP_SUBMIT_PASSWORD",
     "SSO_SESSION_SECRET",         # signiert die Sitzungs-Cookies
     "WATCHDOG_TOKEN_HASH",        # PBKDF2-Hash des Wächter-Heartbeat-Tokens
-})
+} | DNS01_GEHEIM)                 # Zugangsdaten der DNS-Provider (DNS-01)
 
 # Laufzeitzustand, den der Dienst selbst über force_update() schreibt. Nicht in
 # DEFAULTS, aber legitim — hier deklariert, damit er nicht als verwaist gilt.

@@ -111,6 +111,10 @@ COPY app/ .
 COPY legal/ /app/legal/
 COPY VERSION /app/VERSION
 COPY CHANGELOG.md /app/CHANGELOG.md
+# Lizenz und Hinweise zu Drittanbieter-Code (app/dns_provider/ ist Apache-2.0) —
+# gehören mit ins Image, das ist die Weitergabe (Apache-2.0 Abschnitt 4).
+COPY LICENSE.md THIRD_PARTY_NOTICES.md /app/
+COPY LICENSES/ /app/LICENSES/
 # Function-Quellcode des Bypass-Wächters (Azure-Variante) — der In-Gateway-Installer
 # (watchdog_deploy.build_function_zip) zippt daraus und lädt ihn per ARM/Kudu hoch.
 COPY azure/watchdog/ /app/watchdog_function/

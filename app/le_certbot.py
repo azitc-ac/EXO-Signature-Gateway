@@ -18,10 +18,13 @@ KEIN root nötig — alle Pfade liegen unter `DATA_DIR` (UID des Containers). De
 funktionierte die Ausstellung als `appuser` und deshalb funktioniert jetzt auch
 der Renew als `appuser`.
 
-Der manuelle **DNS-01**-Weg (`tls_acme_dns.py`, für Betreiber ohne offenen Port 80)
-bleibt bewusst getrennt: ohne DNS-API ist dort keine automatische Erneuerung
-möglich; die Oberfläche weist darauf hin. Ob ein Zertifikat über DIESEN certbot-Weg
-verwaltet wird, sagt `verwaltet()`.
+Der **DNS-01**-Weg (`tls_acme_dns.py`, für Betreiber ohne offenen Port 80) bleibt
+getrennt: von Hand ohne automatische Erneuerung, über einen DNS-Provider mit
+(seit v1.12.172). Welcher Weg erneuert, sagt `LE_METHODE` — `ausstellen()` setzt
+ihn bei Erfolg auf ``http01``, die DNS-01-Wege auf ``dns01``. Sonst erneuerte
+certbot nach einem Wechsel zu DNS-01 still die alte Linie und überschriebe das
+neue Zertifikat. Ob ein Zertifikat über DIESEN certbot-Weg verwaltet wird, sagt
+`verwaltet()`.
 """
 from __future__ import annotations
 
@@ -116,9 +119,12 @@ def ausstellen(hostname: str, email: str) -> tuple[bool, str]:
     if res.returncode != 0:
         return False, (res.stderr or res.stdout or "certbot error").strip()
     try:
-        return True, uebernehmen()
+        bis = uebernehmen()
     except OSError as exc:
         return False, f"certbot OK, aber Kopieren fehlgeschlagen: {exc}"
+    import settings_store
+    settings_store.update({"LE_METHODE": "http01"})
+    return True, bis
 
 
 def erneuern(force: bool = False) -> tuple[str, str]:
