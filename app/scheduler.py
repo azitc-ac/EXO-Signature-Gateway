@@ -31,6 +31,8 @@ _last_health_run: float = _NIE          # monotonic; _NIE = nie gelaufen (trigge
 _HEALTH_INTERVAL = 30 * 60             # Postfach-Gesundheit periodisch, damit die Übersicht
                                        # auch ohne Knopfdruck einen aktuellen Stand zeigt
 _last_retry_run: float = _NIE           # monotonic; _NIE = nie gelaufen (triggers run on first tick)
+_last_vorbereitung_run: float = _NIE
+_VORBEREITUNG_INTERVAL = 20 * 60       # Regelprobe für vorbereitete, noch nicht belegte Postfächer
 _RETRY_INTERVAL = 60                   # jede Minute — feinste Exchange-Retry-Stufe ist 1 min
                                        # (Glitch); die eigentliche Kadenz steckt pro Mail in
                                        # held_mails.next_retry
@@ -744,6 +746,37 @@ def _refresh_mailbox_health() -> None:
         _last_health_run = time.monotonic()
 
 
+def _vorbereitung_pruefen() -> None:
+    """Regelprobe für Postfächer mit Haken „Verarbeitung“, deren Exchange-Seite
+    noch nicht belegt ist (verarbeitung.offen). Erst eine angekommene Probe gibt
+    Signatur und S/MIME frei — ohne diesen Takt müsste jemand bis zu ~3 h lang
+    immer wieder „Regel prüfen“ drücken.
+
+    Die Proben laufen in einem eigenen Faden: Eine dauert bis zu
+    regel_probe.GESAMT_FRIST_S, und dieser Takt darf den Zustell-Retry
+    (jede Minute) nicht aufhalten. Bereits laufende Adressen überspringt
+    regel_probe.anmelden."""
+    global _last_vorbereitung_run
+    try:
+        import regel_probe
+        import verarbeitung
+        offen = verarbeitung.offen(settings_store.get("MAILBOX_CONFIG") or {},
+                                   settings_store.get("MAILBOX_HEALTH") or {})
+        offen = offen[:regel_probe.SAMMEL_MAX]
+        if offen:
+            neu, _schon = regel_probe.anmelden(offen)
+            if neu:
+                import asyncio
+                log.info("scheduler: Regelprobe für %d vorbereitete(s) Postfach/Postfächer: %s",
+                         len(neu), ", ".join(neu))
+                threading.Thread(target=lambda: asyncio.run(regel_probe.sammeln(neu)),
+                                 daemon=True, name="vorbereitung-probe").start()
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("scheduler: Regelprobe der Vorbereitung fehlgeschlagen: %s", exc)
+    finally:
+        _last_vorbereitung_run = time.monotonic()
+
+
 def _retry_held_deliveries() -> None:
     """Auto-Retry für Post, die nach Verarbeitung/Entschlüsselung nicht zustellbar
     war und im Fallnetz liegt (Grund „delivery_failed"). Die Kadenz ist an Exchanges
@@ -990,6 +1023,8 @@ def _loop() -> None:
                 _refresh_mailbox_health()
             if time.monotonic() - _last_retry_run > _RETRY_INTERVAL:
                 _retry_held_deliveries()
+            if time.monotonic() - _last_vorbereitung_run > _VORBEREITUNG_INTERVAL:
+                _vorbereitung_pruefen()
             if time.monotonic() - _last_mailuser_run > _MAILUSER_INTERVAL:
                 _refresh_onprem_mailusers()
             if time.monotonic() - _last_teams_katalog_run > _TEAMS_KATALOG_INTERVAL:

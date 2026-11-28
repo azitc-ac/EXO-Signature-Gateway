@@ -25,6 +25,7 @@ in-place um. Nichts wird hart kodiert — der Name variiert je System.
 from __future__ import annotations
 
 import settings_store
+import verarbeitung
 import waechter_regel
 
 
@@ -64,15 +65,24 @@ def _adresse(entry: dict) -> str:
 
 
 def partitioniere(mailbox_config: dict | None, mit_hybrid: bool | None = None) -> dict:
-    """Teilt die AKTIVEN Postfächer nach Verschlüsselungs-Fähigkeit auf.
+    """Mitglieder der beiden Verteilerlisten.
 
     Rückgabe: {"signatur": [addr, …], "smime": [addr, …]} (primäre Adressen,
     sortiert, dedupliziert).
 
-    Kriterium (spiegelt die Verschlüsselungs-Gate in handler.py):
-      - `smime` gesetzt  → S/MIME-Weg (Warte-Regel; kann verschlüsseln).
-      - sonst nur `sig`  → Signatur-Weg (bypass-fähig; kann NIE verschlüsseln).
-      - weder noch       → inaktiv, in keiner Liste.
+    Kriterium (seit v1.12.188 OBERMENGE statt Aufteilung):
+      - verarbeitet (Haken „Verarbeitung“, verarbeitung.verarbeitet) → IMMER
+        Signatur-Weg. Er bringt die Post zum Gateway — auch für S/MIME-Postfächer.
+      - `smime` gesetzt → ZUSÄTZLICH S/MIME-Weg (Warte-Regel). Beide Regeln
+        leiten zum selben Gateway; fällt es aus, schaltet der Wächter nur die
+        Signatur-Regel ab, und die S/MIME-Regel hält die Post zurück.
+      - nicht verarbeitet → in keiner Liste.
+      Warum Obermenge: Bis v1.12.187 wechselte ein Postfach beim Einschalten von
+      S/MIME die Liste und wartete erneut bis zu ~3 h auf die FromMemberOf-Regel
+      (verarbeitung.py). Jetzt ändert sich beim Ein-/Ausschalten von Signatur
+      und S/MIME die Signatur-Liste nie; nur der Ausfallschutz (S/MIME-Liste)
+      kommt verzögert. Zudem nahm die Gesundheitsprüfung jedes Postfach in die
+      Signatur-Liste auf und dieser Abgleich S/MIME-Postfächer wieder heraus.
       - Hybrid-Nutzer (`hybrid`) nur, solange die Option wirkt
         (`exo_mailboxes.hybrid_aktiv()`, Vorgabe für `mit_hybrid=None`) —
         sonst käme ihre Post ans Gateway, das sie nicht zurückgeben kann.
@@ -91,18 +101,19 @@ def partitioniere(mailbox_config: dict | None, mit_hybrid: bool | None = None) -
         addr = _adresse(entry)
         if not addr:
             continue
+        if not verarbeitung.verarbeitet(entry):
+            continue
+        signatur.append(addr)
         if entry.get("smime"):
             smime.append(addr)
-        elif entry.get("sig"):
-            signatur.append(addr)
-        # weder sig noch smime → nicht aktiv, überspringen
     return {"signatur": sorted(set(signatur)), "smime": sorted(set(smime))}
 
 
 def aktive_adressen(mailbox_config: dict | None) -> list[str]:
-    """Alle AKTIVEN Postfächer (sig ODER smime aktiviert), sortiert/dedupliziert.
+    """Alle VERARBEITETEN Postfächer (verarbeitung.verarbeitet), sortiert/dedupliziert.
     Maßgeblich für den IMAP-FullAccess-Grant (Least Privilege: nur diese, nicht
-    tenantweit alle Postfächer). Ohne Hybrid-Nutzer: Sie haben kein
+    tenantweit alle Postfächer) — schon ab der Vorbereitung, damit beim
+    Einschalten nichts mehr fehlt. Ohne Hybrid-Nutzer: Sie haben kein
     EXO-Postfach, auf das sich FullAccess setzen ließe."""
     p = partitioniere(mailbox_config, mit_hybrid=False)
     return sorted(set(p["signatur"]) | set(p["smime"]))

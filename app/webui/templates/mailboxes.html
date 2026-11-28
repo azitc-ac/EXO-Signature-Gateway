@@ -341,6 +341,12 @@ async function ankerAnwenden() {
     <div id="mb-aktionen-feld" class="mb-klappfeld mb-aktionen" hidden>
       <p class="hint" style="margin:0">Wirkt auf alle <strong>sichtbaren</strong> Zeilen (Suche und Filter
         grenzen ein). Gespeichert wird erst mit „Speichern“ — außer der Regelprüfung.</p>
+      <div class="mb-aktion"
+           title="Signatur und S/MIME lassen sich erst einschalten, wenn Exchange das Postfach erfasst hat.">
+        <span class="mb-aktion-name">Verarbeitung aktivieren</span>
+        <button class="btn secondary btn-sm" onclick="setAllVisible('verarb', true)">Alle</button>
+        <button class="btn secondary btn-sm" onclick="setAllVisible('verarb', false)">Kein</button>
+      </div>
       <div class="mb-aktion">
         <span class="mb-aktion-name">Signatur aktivieren</span>
         <button class="btn secondary btn-sm" onclick="setAllVisible('sig', true)">Alle</button>
@@ -391,6 +397,11 @@ async function ankerAnwenden() {
         <tr style="border-bottom:2px solid #e2e8f0">
           <th id="th-status" style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:70px;display:none">Status</th>
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px"
+              title="Nimmt das Postfach in die Verteilerliste und die Zugriffsfreigabe auf — noch ohne Signatur und S/MIME. Exchange übernimmt das verzögert (bis zu ~3 h); Signatur und S/MIME lassen sich einschalten, sobald eine Regelprobe das bestätigt hat.">
+            Verarbeitung
+            <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block;margin-top:2px">zuerst, dann freigeschaltet</span>
+          </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:90px">Signatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Standardsignatur</th>
@@ -1450,7 +1461,7 @@ function showHealthModal(mb) {
   // Regelprobe (regel_probe.py): nur auf Knopfdruck, nie in „Status aktualisieren“.
   var regelHtml = '<div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">' +
     '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">Transportregel</div>';
-  if (mb.sig || mb.smime) {
+  if (mb.verarbeiten) {
     regelHtml += '<div style="font-size:11px;color:#64748b;margin-bottom:6px">' +
       (mb.type === 'hybrid'
         ? 'Sendet über Exchange lokal eine Prüfmail an das Absender-Postfach der Benachrichtigungen. '
@@ -1461,8 +1472,8 @@ function showHealthModal(mb) {
       '<button class="btn secondary btn-sm" id="regel-probe-btn" onclick="regelPruefenEins(\'' +
       escJsAttr(mb.email) + '\')">Regel prüfen</button> <span id="regel-probe-ergebnis" hidden></span>';
   } else {
-    regelHtml += '<div style="font-size:11px;color:#888">Nur für aktivierte Postfächer ' +
-      '(Signatur oder S/MIME, gespeichert) — nur sie stehen in der Verteilerliste.</div>';
+    regelHtml += '<div style="font-size:11px;color:#888">Nur für Postfächer mit gespeicherter ' +
+      'Verarbeitung — nur sie stehen in der Verteilerliste.</div>';
   }
   regelHtml += '</div>';
 
@@ -1511,6 +1522,11 @@ function renderMailboxTable(mailboxes) {
   var HYBRID_SMIME_OHNE_EWS = 'Zertifikat nur über „Importieren“ (S/MIME-Seite) — für den Bezug '
     + 'über eine Zertifizierungsstelle fehlt die Anbindung an Exchange lokal';
   var REGEL_WARTET_TIPP = 'Exchange übernimmt neue Mitglieder der Verteilerliste mit Verzögerung — meist schneller, verlassen kann man sich darauf nicht';
+  var BEREIT_TIPP = 'Exchange hat das Postfach noch nicht erfasst (Transportregel bis zu ~3 h, Zugriffsfreigabe ebenfalls verzögert). '
+    + 'Das Gateway prüft alle 20 Minuten mit einer Prüfmail; kommt sie an, lassen sich Signatur und S/MIME einschalten.';
+  var AUSFALL_TIPP = 'S/MIME wirkt bereits. Nur der Ausfallschutz (Post wartet, wenn das Gateway ausfällt) greift erst, '
+    + 'wenn Exchange das Postfach in die S/MIME-Verteilerliste übernommen hat.';
+  var GESPERRT_TIPP = 'Erst „Verarbeitung“ anhaken und speichern — freigeschaltet, sobald Exchange das Postfach erfasst hat';
   mailboxes.forEach(function(mb, i) {
     mb._idx = i;
     var isResource = (mb.type === 'room' || mb.type === 'equipment');
@@ -1529,10 +1545,23 @@ function renderMailboxTable(mailboxes) {
     var badge = _typeBadge[mb.type] || '';
     // Frisch aktiviert: Die Transportregel erfasst neue Mitglieder der
     // Verteilerliste erst nach bis zu ~3 h (Server: regel_wartet).
-    if (mb.regel_wartet) badge += '<span class="mb-marke" data-marke="wartet" title="' + REGEL_WARTET_TIPP + '">wirkt in bis zu 3 h</span>';
+    // Verarbeitung vorgemerkt, Exchange-Seite noch nicht belegt (verarbeitung.bereit):
+    // Signatur und S/MIME bleiben gesperrt, bis eine Regelprobe ankommt.
+    if (mb.verarbeiten && !mb.bereit) badge += '<span class="mb-marke" data-marke="wartet" title="' + BEREIT_TIPP + '">wartet auf Exchange</span>';
+    else if (mb.ausfallschutz_wartet) badge += '<span class="mb-marke" data-marke="wartet" title="' + AUSFALL_TIPP + '">Ausfallschutz wirkt in bis zu 3 h</span>';
+    else if (mb.regel_wartet) badge += '<span class="mb-marke" data-marke="wartet" title="' + REGEL_WARTET_TIPP + '">wirkt in bis zu 3 h</span>';
     tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' + badge +
       (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '') +
       (isResource ? '<br><span style="color:#94a3b8;font-size:10px">zählt nicht zur Lizenz</span>' : '');
+
+    // Verarbeitung (verarbeitung.py) — Voraussetzung für Signatur und S/MIME.
+    // Dieselbe Regel wie der Server: aktiv (Signatur oder S/MIME) heisst
+    // verarbeitet UND bereit (verarbeitung.verarbeitet/bereit).
+    var mbAktiv = !!(mb.sig || mb.smime);
+    var verarbGespeichert = !!mb.verarbeiten || mbAktiv;
+    var bereitGespeichert = !!mb.bereit || mbAktiv;
+    var tdVerarb = _hakenZelle('mb-verarb', i, verarbGespeichert, isResource);
+    var verarbCb = tdVerarb.firstChild;
 
     // Standardsignatur checkbox
     var tdSig = _hakenZelle('mb-sig', i, mb.sig, isResource);
@@ -1606,9 +1635,22 @@ function renderMailboxTable(mailboxes) {
         : (!_addinEnabled ? 'Outlook Add-in nicht aktiviert (Einstellungen → Outlook Add-in)'
            : (isHybrid ? HYBRID_ADDIN : ''));
     }
+    // Stufe „Verarbeitung“: Signatur/S/MIME nur bei gespeicherter, BELEGTER
+    // Verarbeitung (Server: mb.bereit; der Speicherweg setzt dieselbe Sperre durch).
+    function _stufeAnwenden() {
+      if (!verarbCb.checked) { sigCb.checked = false; smimeCb.checked = false; }
+      var frei = !isResource && verarbCb.checked && verarbGespeichert && bereitGespeichert;
+      [sigCb, smimeCb].forEach(function(cb) {
+        cb.disabled = !frei && !cb.checked;
+        if (!isResource && cb.disabled) cb.title = GESPERRT_TIPP;
+        else if (cb.title === GESPERRT_TIPP) cb.title = '';
+      });
+      _hakenAnwenden();
+    }
+    verarbCb.addEventListener('change', _stufeAnwenden);
     sigCb.addEventListener('change', _hakenAnwenden);
     smimeCb.addEventListener('change', _hakenAnwenden);   // Abwesenheit gilt auch für S/MIME-only
-    _hakenAnwenden();
+    _stufeAnwenden();
 
     if (isResource) {
       tplSel.disabled = true; tplSel.style.opacity = '0.4';
@@ -1624,9 +1666,10 @@ function renderMailboxTable(mailboxes) {
       oofSel.disabled = true; oofSel.style.opacity = '0.4'; oofSel.title = HYBRID_HINWEIS;
     }
 
-    // Column order: Status, Postfach, Signatur, S/MIME, Standardsignatur, Antwort-, interne Signatur, Banner, Disclaimer, Abwesenheit, Outlook Add-In
+    // Column order: Status, Postfach, Verarbeitung, Signatur, S/MIME, Standardsignatur, Antwort-, interne Signatur, Banner, Disclaimer, Abwesenheit, Outlook Add-In
     tr.appendChild(tdStatus);
     tr.appendChild(tdEmail);
+    tr.appendChild(tdVerarb);
     tr.appendChild(tdSig);
     tr.appendChild(tdSmime);
     tr.appendChild(tdTpl);
@@ -1821,7 +1864,7 @@ function massenRuhendVerwerfen() {
 
 function setAllVisible(type, state) {
   // Nur Zeilen, die aktuell nicht durch den Filter ausgeblendet sind (tr.style.display !== 'none')
-  var cls = type === 'sig' ? '.mb-sig' : '.mb-smime';
+  var cls = type === 'sig' ? '.mb-sig' : (type === 'verarb' ? '.mb-verarb' : '.mb-smime');
   var boxes = Array.from(document.querySelectorAll(cls)).filter(function(cb) {
     var tr = cb.closest('tr');
     return tr && tr.style.display !== 'none' && !cb.disabled;
@@ -1894,7 +1937,7 @@ async function regelPruefenSichtbare() {
     var mb = cb ? _mbData[parseInt(cb.dataset.idx)] : null;
     // Gespeicherter Stand zählt: Nur er steht in der Verteilerliste.
     // Hybrid-Nutzer gehen über Exchange lokal; geht das nicht, nennt der Server den Grund.
-    if (mb && (mb.sig || mb.smime)) emails.push(mb.email);
+    if (mb && mb.verarbeiten) emails.push(mb.email);
   });
   if (!emails.length) {
     showMsg('regel-probe-alle-status', 'Keine sichtbaren aktivierten Postfächer.', false);
@@ -1968,6 +2011,7 @@ async function saveMailboxes() {
   var result = document.getElementById('mb-result');
   var sigBoxes = document.querySelectorAll('.mb-sig');
   var smimeBoxes = document.querySelectorAll('.mb-smime');
+  var verarbBoxes = document.querySelectorAll('.mb-verarb');
   var templateSelects = document.querySelectorAll('.mb-template');
   var minSigSelects = document.querySelectorAll('.mb-min-sig');
   var internSelects = document.querySelectorAll('.mb-intern');
@@ -1998,6 +2042,7 @@ async function saveMailboxes() {
                                                   function(r) { return r.dataset.feld; }) : [];
     payload.push({
       email: _mbData[idx].email,
+      verarbeiten: verarbBoxes[i].checked,
       sig: cb.checked,
       smime: smimeBoxes[i].checked,
       template: templateSelects[i] ? templateSelects[i].value : 'default',
@@ -2025,6 +2070,14 @@ async function saveMailboxes() {
   var d = await knopfAktion('mb-save-btn', 'Wird gespeichert… (EXO, kann 2 Min. dauern)', function() {
     return postJSON('/api/mailboxes/save', {mailboxes: payload, update_dg: true});
   });
+  // Gespeicherte Verarbeitung nachführen: Regelprobe im Detailfenster und
+  // „Sichtbare prüfen“ richten sich nach dem GESPEICHERTEN Stand.
+  if (d.ok) payload.forEach(function(p) {
+    var mb = (_mbData || []).find(function(m) { return m.email === p.email; });
+    if (!mb) return;
+    if (!p.verarbeiten) mb.bereit = false;
+    mb.verarbeiten = !!p.verarbeiten || !!p.sig || !!p.smime;
+  });
   if (d.ok && d.dg_running) {
     // Der LOKALE Teil ist durch → Wache SOFORT schliessen ("noch nicht
     // gespeichert" weg), damit nicht der Eindruck entsteht, das Speichern
@@ -2036,12 +2089,14 @@ async function saveMailboxes() {
     refreshFairUse();
     wacheFertig('mb-save-btn', true);
     result.className = 'alert';
-    result.innerHTML = 'Gespeichert. Die Verteilerliste wird im Hintergrund aktualisiert, neu aktivierte Postfächer wirken nach bis zu ~3 h.';
+    result.innerHTML = 'Gespeichert. Die Verteilerliste wird im Hintergrund aktualisiert. Neu zur Verarbeitung '
+      + 'vorgemerkte Postfächer erfasst Exchange verzögert (bis zu ~3 h); das Gateway prüft das alle 20 Minuten '
+      + 'und gibt Signatur und S/MIME danach frei.' + _zurueckgestelltText(d);
     result.style.display = 'block';
-    _pollDgStatus(result);
+    _pollDgStatus(result, d);
   } else if (d.ok) {
     result.className = 'alert success';
-    result.innerHTML = 'Gespeichert.';
+    result.innerHTML = 'Gespeichert.' + _zurueckgestelltText(d);
     result.style.display = 'block';
     refreshFairUse();
     wacheFertig('mb-save-btn', true);
@@ -2053,6 +2108,16 @@ async function saveMailboxes() {
   }
 }
 
+// Signatur/S/MIME verlangt, Postfach noch nicht bereit — der Server hat nur die
+// Verarbeitung gespeichert (verarbeitung.py). Gilt für Massenaktionen und für
+// eine Seite, die noch den alten Stand anzeigt.
+function _zurueckgestelltText(d) {
+  var z = (d && d.zurueckgestellt) || [];
+  if (!z.length) return '';
+  return '<br>Noch nicht von Exchange erfasst, Signatur und S/MIME deshalb nicht eingeschaltet: '
+    + z.map(esc).join(', ') + '. Die Verarbeitung ist gespeichert.';
+}
+
 // Pollt den Hintergrundlauf der Verteilerlisten-Aktualisierung. Läuft, bis der
 // Server "done" meldet: 160 s lang alle 2 s, danach alle 10 s bis ~20 min — bei
 // hunderten Postfächern braucht der Lauf Minuten (Server: dg_zeitlimit). Der
@@ -2060,7 +2125,7 @@ async function saveMailboxes() {
 // ohne es als Fehler zu werten — der Lauf kann serverseitig weiterlaufen, und
 // bis die Transportregel neue Mitglieder erfasst, vergehen ohnehin bis zu
 // ~3 Stunden, oft weniger.
-async function _pollDgStatus(result) {
+async function _pollDgStatus(result, gespeichert) {
   for (var i = 0; i < 190; i++) {
     await warten(i < 80 ? 2000 : 10000);
     // Netzhaken/HTTP-Fehler liefern {ok:false, error} ohne `state` → weiterversuchen.
@@ -2073,7 +2138,7 @@ async function _pollDgStatus(result) {
     if (s.ok) {
       var out = s.output ? '<br><code style="font-size:11px">' + esc(s.output).replace(/\n/g, '<br>') + '</code>' : '';
       result.className = 'alert success';
-      result.innerHTML = 'Gespeichert (lokal + Verteilerliste aktualisiert).' + out;
+      result.innerHTML = 'Gespeichert (lokal + Verteilerliste aktualisiert).' + _zurueckgestelltText(gespeichert) + out;
     } else {
       result.className = 'alert error';
       result.innerHTML = 'Lokal gespeichert, aber die Verteilerliste konnte nicht aktualisiert werden: ' + esc(s.output || 'Unbekannt');

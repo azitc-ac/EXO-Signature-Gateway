@@ -81,6 +81,7 @@ from datetime import datetime, timezone
 
 import ps_text
 import settings_store
+import verarbeitung
 
 log = logging.getLogger("ews_bereich")
 
@@ -212,9 +213,9 @@ def letzte_aenderungen(anzahl: int = 8) -> list[dict]:
 def soll_mitglieder(mailbox_cfg: dict | None = None) -> set[str]:
     """Primäradressen der Hybrid-Nutzer mit Signatur ODER S/MIME.
 
-    MAILBOX_CONFIG enthält nur aktive Einträge (Speicherweg verwirft „beides
-    aus“); geprüft wird trotzdem ausdrücklich, damit ein Eintrag mit sig=False
-    und smime=False nie hineinkommt. Hybrid = Kennzeichen `hybrid` am Eintrag
+    Mitglied ist jeder VERARBEITETE Eintrag (verarbeitung.verarbeitet, seit
+    v1.12.188 auch nur vorbereitete): Die Regelprobe eines Hybrid-Nutzers sendet
+    per EWS aus seinem Postfach und braucht die Gruppe schon vor dem Einschalten. Hybrid = Kennzeichen `hybrid` am Eintrag
     oder `exo_mailboxes.ist_hybrid` — dieselbe Weiche wie ews_onprem.zustaendig."""
     import exo_mailboxes
     cfg = settings_store.get("MAILBOX_CONFIG") if mailbox_cfg is None else mailbox_cfg
@@ -222,7 +223,7 @@ def soll_mitglieder(mailbox_cfg: dict | None = None) -> set[str]:
     for key, e in (cfg or {}).items():
         if not isinstance(e, dict):
             continue
-        if not (e.get("sig") or e.get("smime") or e.get("smime_sign") or e.get("smime_encrypt")):
+        if not (verarbeitung.verarbeitet(e) or e.get("smime_sign") or e.get("smime_encrypt")):
             continue
         adresse = (key if "@" in key else (e.get("primary") or "")).strip().lower()
         if not adresse:

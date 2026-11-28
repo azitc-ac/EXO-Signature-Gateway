@@ -5,8 +5,10 @@ WOFÜR
 Ein neues Mitglied der Verteilerliste erfasst die FromMemberOf-Regel erst nach
 bis zu ~3 Stunden (gemessen 17.11.2026, siehe webui/routen/mailboxes.py
 `REGEL_VERZOEGERUNG`). Ob es schon so weit ist, zeigt nur ein echter Durchlauf.
-Diese Probe liefert ihn auf Knopfdruck — nie von selbst (kein Takt, kein
-Aufruf aus der Gesundheitsprüfung).
+Diese Probe liefert ihn auf Knopfdruck und — seit v1.12.188 — von selbst für
+Postfächer, deren Verarbeitung vorbereitet, aber noch nicht belegt ist
+(scheduler._vorbereitung_pruefen, verarbeitung.offen). Aus der
+Gesundheitsprüfung wird sie nie aufgerufen.
 
 ABLAUF
 ------
@@ -351,7 +353,8 @@ def aktuell(probe: dict | None, cfg: dict) -> bool:
     """Gilt ein gespeichertes Probe-Ergebnis noch? Nur für ein aktives Postfach,
     und nur, wenn die Probe NACH der letzten Aktivierung lief — ein „greift“
     von vor einer Deaktivierung sagt über die neue Mitgliedschaft nichts."""
-    if not probe or not isinstance(cfg, dict) or not (cfg.get("sig") or cfg.get("smime")):
+    import verarbeitung
+    if not probe or not verarbeitung.verarbeitet(cfg):
         return False
     seit = cfg.get("aktiviert_seit")
     if not seit:
@@ -465,8 +468,9 @@ def _plan(adresse: str) -> tuple[str, dict | None]:
     wohin die Probe geht (`ziel`: Umschlag-Empfänger beim Senden; `postfach`:
     dort wird gesucht und gelöscht) und woran die Kennung gebunden wird."""
     cfg = _cfg(adresse)
-    if not (cfg.get("sig") or cfg.get("smime")):
-        return ("Postfach nicht aktiviert (Signatur und S/MIME aus) — die Regel gilt nur "
+    import verarbeitung
+    if not verarbeitung.verarbeitet(cfg):
+        return ("Verarbeitung für dieses Postfach nicht aktiviert — die Regel gilt nur "
                 "für Mitglieder der Verteilerliste"), None
     import exo_mailboxes
     if not exo_mailboxes.ist_hybrid(adresse):

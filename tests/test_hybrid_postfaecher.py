@@ -325,6 +325,13 @@ def test_speichern_verankert_hybrid_an_guid_mit_smime(speicher, monkeypatch):
     Verschlüsseln, Entschlüsseln laufen am Gateway). Seit v1.12.69 bleibt auch die
     Add-in-Auswahl stehen (Bereitstellung in Exchange lokal)."""
     store, _ = speicher
+    # Verarbeitung schon belegt (verarbeitung.bereit) — sonst stellt der
+    # Speicherweg Signatur und S/MIME zurück (tests/test_verarbeitung.py).
+    store["MAILBOX_CONFIG"] = {
+        GUID_HYBRID: {"verarbeiten": True, "bereit": True, "hybrid": True,
+                      "primary": HYBRID, "known_addresses": [HYBRID]},
+        GUID_CLOUD: {"verarbeiten": True, "bereit": True,
+                     "primary": CLOUD, "known_addresses": [CLOUD]}}
     cfg, dg = _speichern(monkeypatch, store, [
         {"email": HYBRID, "sig": True, "smime": True, "addin_templates": ["X"]},
         {"email": CLOUD, "sig": True, "smime": False}])

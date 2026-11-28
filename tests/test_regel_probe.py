@@ -417,7 +417,9 @@ def test_belegte_regel_nimmt_wartemarke(monkeypatch):
 
 
 def test_nur_die_route_startet_proben():
-    """Nichts ändert sich ohne Knopf: kein Takt, keine Gesundheitsprüfung."""
+    """Proben starten nur der Knopf (Route) und — seit v1.12.188 — der Takt für
+    vorbereitete, noch nicht belegte Postfächer (scheduler._vorbereitung_pruefen,
+    verarbeitung.offen). Nie die Gesundheitsprüfung."""
     aufrufer = []
     for datei in (WURZEL / "app").rglob("*.py"):
         if datei.name == "regel_probe.py":
@@ -427,7 +429,8 @@ def test_nur_die_route_startet_proben():
             if (isinstance(knoten, ast.Attribute) and knoten.attr in ("starten", "sammeln", "pruefen")
                     and isinstance(knoten.value, ast.Name) and knoten.value.id == "regel_probe"):
                 aufrufer.append(f"{datei.relative_to(WURZEL)}:{knoten.attr}")
-    assert aufrufer == ["app/webui/routen/mailboxes.py:starten"], aufrufer
+    assert sorted(aufrufer) == ["app/scheduler.py:sammeln",
+                                "app/webui/routen/mailboxes.py:starten"], aufrufer
 
 
 # ── Graph-Aufrufe (httpx ersetzt) ────────────────────────────────────────────

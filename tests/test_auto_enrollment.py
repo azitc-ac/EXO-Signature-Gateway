@@ -157,8 +157,13 @@ def speicherweg(monkeypatch):
     from webui import app as wa
     from webui.routen import mailboxes as mbr
 
+    # Beide Postfächer mit belegter Verarbeitung (verarbeitung.bereit) — sonst
+    # stellt der Speicherweg S/MIME zurück, und nichts würde bestellt.
     laden = {"SMIME_AUTO_ENROLL": True, "SMIME_AUTO_ENROLL_CA": "castle_acme",
-             "MAILBOX_CONFIG": {}, "CLIENT_ID": "", "TENANT_DOMAIN": ""}
+             "MAILBOX_CONFIG": {
+                 g: {"verarbeiten": True, "bereit": True, "primary": a, "known_addresses": [a]}
+                 for g, a in (("g1", "a@x.de"), ("g2", "b@x.de"))},
+             "CLIENT_ID": "", "TENANT_DOMAIN": ""}
     gestartet = []
 
     monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: laden.get(k))

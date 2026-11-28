@@ -39,6 +39,7 @@ import config
 import gruppen
 import policies as _pol
 import settings_store
+import verarbeitung
 
 from webui.deps import (
     templates, log, _gateway_name, _check_auth, _require_admin,
@@ -52,16 +53,37 @@ router = APIRouter()
 # steht nach Minuten in der Liste, die FromMemberOf-Regel greift aber erst nach
 # bis zu ~3 Stunden. In diesem Fenster ist „kommt nicht am Gateway an" kein
 # Fehler. Bestandseinträge ohne `aktiviert_seit` gelten als lange aktiv.
-REGEL_VERZOEGERUNG = timedelta(hours=3)
+# `aktiviert_seit` = Beginn der VERARBEITUNG (Eintritt in die Verteilerliste),
+# seit v1.12.188 nicht mehr das Einschalten von Signatur/S/MIME (verarbeitung.py).
+REGEL_VERZOEGERUNG = verarbeitung.REGEL_VERZOEGERUNG
 
 
 def _ist_aktiv(eintrag) -> bool:
-    """Aktiv = Signatur oder S/MIME an (nur dann ist das Postfach in der Liste)."""
-    return isinstance(eintrag, dict) and bool(eintrag.get("sig") or eintrag.get("smime"))
+    """In der Verteilerliste = verarbeitet (verarbeitung.verarbeitet)."""
+    return verarbeitung.verarbeitet(eintrag)
+
+
+def ausfallschutz_wartet(eintrag, jetzt: datetime | None = None) -> bool:
+    """S/MIME frisch eingeschaltet: Die Warte-Regel (S/MIME-Verteilerliste)
+    erfasst das Postfach erst verzögert. Bis dahin ginge seine Post bei einem
+    Gateway-Ausfall am Gateway vorbei (regel_split.partitioniere)."""
+    if not (isinstance(eintrag, dict) and eintrag.get("smime")):
+        return False
+    seit = eintrag.get("smime_seit")
+    if not isinstance(seit, str) or not seit:
+        return False
+    try:
+        t = datetime.fromisoformat(seit.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    jetzt = jetzt or datetime.now(timezone.utc)
+    return timedelta(0) <= jetzt - t < REGEL_VERZOEGERUNG
 
 
 def regel_wartet(eintrag, jetzt: datetime | None = None) -> bool:
-    """True, solange ein aktives Postfach jünger als REGEL_VERZOEGERUNG ist."""
+    """True, solange ein verarbeitetes Postfach jünger als REGEL_VERZOEGERUNG ist."""
     if not _ist_aktiv(eintrag):
         return False
     seit = eintrag.get("aktiviert_seit")
@@ -119,6 +141,14 @@ async def _run_dg_update_bg(app_id: str, tenant_domain: str,
 async def api_dg_status(_=Depends(_require_admin)):
     return dict(_dg_status)
 
+
+
+def _verarbeitung_felder(cfg: dict, gesundheit: dict | None) -> dict:
+    """Stufe „Verarbeitung“ je Zeile (verarbeitung.py): Die Liste gibt Signatur
+    und S/MIME erst frei, wenn `bereit`."""
+    return {"verarbeiten": verarbeitung.verarbeitet(cfg),
+            "bereit": verarbeitung.bereit(cfg, gesundheit),
+            "ausfallschutz_wartet": ausfallschutz_wartet(cfg)}
 
 
 @router.get("/api/mailboxes")
@@ -186,6 +216,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
             "aktiviert_seit": cfg.get("aktiviert_seit"),
             # Eine Probe hat schon belegt, dass die Regel greift → nichts mehr zu warten.
             "regel_wartet": regel_wartet(cfg) and not regel_probe.greift(h, cfg),
+            **_verarbeitung_felder(cfg, h),
         })
     # Also include configured mailboxes Graph didn't return (removed users / guid-keyed).
     gezeigt = {r["email"] for r in result}
@@ -222,6 +253,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 # Es gibt nichts, worauf zu warten wäre.
                 "regel_wartet": (regel_wartet(cfg) and not cfg.get("hybrid")
                                  and not regel_probe.greift(h, cfg)),
+                **_verarbeitung_felder(cfg, h),
             })
     result.sort(key=lambda r: _namens_schluessel(r.get("name") or r["email"]))
     import abwesenheit
@@ -423,6 +455,10 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     config_map: dict = {}
     enabled_members: list[str] = []
     hybrid_mitglieder: set[str] = set()
+    # Signatur/S/MIME verlangt, Postfach aber noch nicht bereit (verarbeitung.py):
+    # Die Verarbeitung wird gespeichert, die Haken nicht — Liste in der Antwort.
+    zurueckgestellt: list[str] = []
+    gesundheit_alle: dict = settings_store.get("MAILBOX_HEALTH") or {}
     # Feste Slots (policies.festgeschrieben), gemessen am Stand VOR dem
     # Speichern — derselbe, den die Liste angezeigt hat. Für sie zählt der
     # geschickte Wert nicht: Die ruhende eigene Wahl bleibt, wie sie war — außer
@@ -446,9 +482,12 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         # für jede ihrer Mails. Nur der Zertifikatsbezug liest ihr Postfach —
         # das sperrt einwilligung.verlangen ohne Anbindung an Exchange lokal.
         smime = bool(m.get("smime", False))
-        if not (sig or smime):
-            continue    # both off → passthrough by default, not stored
-        entry: dict = {"sig": sig, "smime": smime}
+        # Haken „Verarbeitung“ (verarbeitung.py). Eine Seite von vor v1.12.188
+        # schickt das Feld nicht — dort zählt Signatur/S/MIME als Verarbeitung.
+        verarbeiten = bool(m.get("verarbeiten", False)) or sig or smime
+        if not verarbeiten:
+            continue    # nicht verarbeitet → passthrough by default, not stored
+        entry: dict = {"sig": sig, "smime": smime, "verarbeiten": True}
         # Jeder Slot ist Postfach-Wahl (policies.py): STANDARD_WAHL → kein Feld
         # (folgt Gruppe/Standardrichtlinie), "" → ausdrücklich keine (Add-in:
         # Liste oder "*"), sonst die Vorlage. Fehlt der Schlüssel in der Anfrage
@@ -524,6 +563,23 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
             entry["aktiviert_seit"] = jetzt_iso
         elif _vor.get("aktiviert_seit"):
             entry["aktiviert_seit"] = _vor["aktiviert_seit"]
+        # ⚠️ Sperre: Signatur/S/MIME erst, wenn die Exchange-Seite belegt ist
+        # (verarbeitung.bereit) — gemessen am Stand VOR dem Speichern. Schon
+        # aktive Postfächer sind bereit; ihre Haken bleiben frei.
+        _h = gesundheit_alle.get((entry.get("primary") or email).lower()) or gesundheit_alle.get(email)
+        _vor_bereit = verarbeitung.bereit(_vor, _h)
+        if (sig or smime) and not _vor_bereit:
+            sig = smime = False
+            entry["sig"] = entry["smime"] = False
+            zurueckgestellt.append(email)
+        elif _vor_bereit:
+            entry["bereit"] = True      # bleibt, solange die Verarbeitung bleibt
+        # Ausfallschutz (S/MIME-Verteilerliste) wirkt verzögert — ab wann?
+        if smime:
+            if not (isinstance(_vor, dict) and _vor.get("smime")):
+                entry["smime_seit"] = jetzt_iso
+            elif _vor.get("smime_seit"):
+                entry["smime_seit"] = _vor["smime_seit"]
         for _f in ("ooo_calendar", "oof_announce", "oof_announce_mode",
                    "oof_announce_x", "oof_announce_privat", "oof_announce_extern",
                    "self_templates", *_ohne_angabe):
@@ -537,6 +593,9 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         if key in config_map:    # two addresses of the same mailbox → OR the flags
             config_map[key]["sig"] = config_map[key].get("sig") or sig
             config_map[key]["smime"] = config_map[key].get("smime") or smime
+            for _f in ("bereit", "smime_seit"):
+                if _f in entry and _f not in config_map[key]:
+                    config_map[key][_f] = entry[_f]
         else:
             config_map[key] = entry
         # In die Verteilerliste nur, solange die Option wirkt (Rückweg smtp) —
@@ -589,8 +648,9 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         asyncio.create_task(
             _run_dg_update_bg(app_id, tenant_domain, enabled_members))
         return {"ok": True, "saved": True, "dg_running": True,
-                "auto_enrollment": auto}
-    return {"ok": True, "saved": True, "auto_enrollment": auto}
+                "auto_enrollment": auto, "zurueckgestellt": zurueckgestellt}
+    return {"ok": True, "saved": True, "auto_enrollment": auto,
+            "zurueckgestellt": zurueckgestellt}
 
 
 @router.post("/api/mailboxes/fetch-bookings-urls")

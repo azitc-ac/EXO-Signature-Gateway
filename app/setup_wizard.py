@@ -18,6 +18,7 @@ import httpx
 
 import config
 import settings_store
+import verarbeitung
 import graph_client as _gc
 
 log = logging.getLogger(__name__)
@@ -1430,8 +1431,10 @@ def run_rule_split_setup(app_id: str, tenant_domain: str,
 
 def _app_scope_adressen() -> list[str]:
     """Postfächer, auf die das Gateway per Graph/IMAP zugreift — Grundlage der
-    ApplicationAccessPolicy-Scope-Gruppe (Least Privilege): **aktive** Postfächer
-    (MAILBOX_CONFIG, sig ODER smime) plus das Notification-Postfach.
+    ApplicationAccessPolicy-Scope-Gruppe (Least Privilege): **verarbeitete**
+    Postfächer (verarbeitung.verarbeitet — schon ab dem Haken „Verarbeitung“, damit
+    die verzögert wirkende Freigabe beim Einschalten von Signatur/S/MIME steht)
+    plus das Notification-Postfach.
 
     ACME-Poll-Postfächer sind bewusst NICHT gesondert enthalten: ACME-Enrollment
     läuft auf bereits S/MIME-aktiven Postfächern, die damit schon in der aktiven
@@ -1440,7 +1443,7 @@ def _app_scope_adressen() -> list[str]:
     """
     adr: set[str] = set()
     for v in (settings_store.get("MAILBOX_CONFIG") or {}).values():
-        if isinstance(v, dict) and (v.get("sig") or v.get("smime")):
+        if verarbeitung.verarbeitet(v):
             a = (v.get("primary") or v.get("email") or "").strip().lower()
             if a:
                 adr.add(a)

@@ -82,7 +82,9 @@ def test_gueltiges_token_wird_angenommen(umgebung):
     {"scp": "access_as_user_x"},                            # Teilwort reicht nicht
     {"scp": None},
     {"exp": int(time.time()) - 300},
-], ids=lambda d: ",".join(f"{k}={v}" for k, v in d.items()))
+# Kennung ohne die Uhrzeit: Sonst sammeln parallele Läufe (pytest -n) je Arbeiter
+# eine andere Kennung, und xdist bricht mit „Different tests were collected“ ab.
+], ids=lambda d: ",".join(f"{k}={'abgelaufen' if k == 'exp' else v}" for k, v in d.items()))
 def test_jede_abweichung_wird_abgewiesen(umgebung, abweichung):
     assert sso.verify_access_token(_token(**abweichung)) is None
 

@@ -5,6 +5,53 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.188 — 2026-11-28 — Postfächer: erst „Verarbeitung“, dann Signatur und S/MIME
+
+Exchange erfasst ein neues Mitglied der Verteilerliste in der Transportregel
+erst nach bis zu rund drei Stunden, und eine neue Zugriffsfreigabe für die
+Gateway-App wirkt ebenfalls verzögert. Bisher schaltete man Signatur oder S/MIME
+ein und wusste nicht, ab wann es greift. In dieser Zeit lief die Post unsigniert
+vorbei, oder das Gateway bekam beim Versand ein 403 und legte die Mail in die
+Warteschlange.
+
+Neu ist die Spalte **Verarbeitung** in der Postfachliste. Sie nimmt das
+Postfach in die Verteilerliste und in die Zugriffsfreigabe auf, noch ohne
+Signatur und S/MIME. Solange beides aus ist, gibt das Gateway die Post des
+Postfachs unverändert weiter. Das Gateway prüft danach alle 20 Minuten mit
+einer Regelprobe (Prüfmail des Postfachs an sich selbst), ob Exchange es
+erfasst hat. Erst wenn eine Probe am Gateway ankommt, lassen sich Signatur und
+S/MIME anhaken. Die Probe belegt beides zugleich: Sie geht per Graph als das
+Postfach hinaus (Zugriffsfreigabe wirkt) und erreicht das Gateway nur über die
+Transportregel. Bis dahin steht am Postfach „wartet auf Exchange“.
+Durchgesetzt wird die Sperre beim Speichern, nicht nur in der Oberfläche.
+Verlangt ein Speichervorgang Signatur oder S/MIME für ein Postfach, das noch
+nicht bereit ist, wird nur die Verarbeitung gespeichert, und die Meldung nennt
+das Postfach.
+
+Die beiden Verteilerlisten sind jetzt eine Obermenge statt einer Aufteilung.
+Die Signatur-Liste enthält jedes verarbeitete Postfach, die S/MIME-Liste
+zusätzlich die S/MIME-Postfächer. Bisher wechselte ein Postfach beim Einschalten
+von S/MIME die Liste und wartete erneut auf Exchange. Außerdem nahm die
+Gesundheitsprüfung jedes Postfach in die Signatur-Liste auf, und die
+Listenpflege nahm S/MIME-Postfächer wieder heraus. Beide Regeln leiten zum
+selben Gateway. Fällt es aus, schaltet der Wächter weiterhin nur die
+Signatur-Regel ab, und die S/MIME-Regel hält die Post der S/MIME-Postfächer
+zurück. Verzögert ist nach dem Einschalten von S/MIME nur noch dieser
+Ausfallschutz; die Liste zeigt das als „Ausfallschutz wirkt in bis zu 3 h“.
+
+Hybrid-Nutzer, für die keine Regelprobe möglich ist, gelten drei Stunden nach
+Beginn der Verarbeitung als bereit.
+
+Bestehende Postfächer mit Signatur oder S/MIME gelten als verarbeitet und
+bereit. Ihre Haken bleiben frei. Wer nur Signatur und S/MIME abschaltet und die
+Verarbeitung behält, bleibt bereit. Wer die Verarbeitung abschaltet, verlässt
+die Verteilerliste und wartet beim nächsten Mal wieder.
+
+**Zu tun:** nichts. S/MIME-Postfächer kommen beim nächsten Speichern der
+Postfachliste zusätzlich in die Signatur-Verteilerliste; die Gesundheitsprüfung
+trägt sie ohnehin nach. Neue Postfächer zuerst mit „Verarbeitung“ speichern,
+Signatur und S/MIME anhaken, sobald „wartet auf Exchange“ verschwunden ist.
+
 ## v1.12.187 — 2026-11-27 — Testreihe: Prüfung der Testmail-Kennung über den gemeinsamen Weg
 
 Der Test aus v1.12.185, der die Einmal-Kennung der Testmail in der Route

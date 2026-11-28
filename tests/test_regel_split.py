@@ -27,14 +27,16 @@ def test_smime_postfach_kommt_in_die_warte_liste(rs):
     }
     p = rs.partitioniere(cfg)
     assert p["smime"] == ["enc@zarenko.net"]
-    assert p["signatur"] == ["sig@zarenko.net"]
+    # Obermenge seit v1.12.188: Die Signatur-Liste bringt JEDE Post zum Gateway
+    # (tests/test_verarbeitung.py); die S/MIME-Liste nur den Ausfallschutz.
+    assert p["signatur"] == ["enc@zarenko.net", "sig@zarenko.net"]
 
 
 def test_smime_only_ohne_sig_ist_trotzdem_warte(rs):
-    """smime=True, sig=False → kann verschlüsseln → Warte-Liste."""
+    """smime=True, sig=False → kann verschlüsseln → Warte-Liste (und Signatur-Liste)."""
     p = rs.partitioniere({"g": {"sig": False, "smime": True, "primary": "a@x.de"}})
     assert p["smime"] == ["a@x.de"]
-    assert p["signatur"] == []
+    assert p["signatur"] == ["a@x.de"]
 
 
 def test_inaktive_postfaecher_in_keiner_liste(rs):
@@ -95,8 +97,8 @@ def test_dg_update_delegiert_an_split_wenn_aktiv(monkeypatch):
                         lambda app, tenant, sig, smime: captured.update(sig=sig, smime=smime) or {"ok": True, "output": ""})
     r = setup_wizard.run_mailbox_dg_update("app", "t.onmicrosoft.com", ["enc@x.de", "sig@x.de"])
     assert r["ok"]
-    assert captured["sig"] == ["sig@x.de"]      # reine Signatur → bypass-fähig
-    assert captured["smime"] == ["enc@x.de"]    # verschlüsselungsfähig → Warte-Weg
+    assert captured["sig"] == ["enc@x.de", "sig@x.de"]   # alle verarbeiteten → Weg zum Gateway
+    assert captured["smime"] == ["enc@x.de"]    # verschlüsselungsfähig → zusätzlich Warte-Weg
 
 
 def test_split_wrapper_uebergibt_regelnamen_als_parameter(monkeypatch):

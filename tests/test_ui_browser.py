@@ -1490,6 +1490,43 @@ def test_self_im_aufgabenbereich_folgt_dem_outlook_design(browser, server, farbe
         ctx.close()
 
 
+def test_signatur_und_smime_erst_nach_bereitschaft(seite):
+    """Stufe „Verarbeitung“ (v1.12.188, verarbeitung.py): Signatur und S/MIME
+    sind gesperrt, bis die gespeicherte Verarbeitung belegt ist; Abwählen der
+    Verarbeitung nimmt beide Haken heraus."""
+    pg = seite("/mailboxes", breite=1280)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      document.getElementById('mb-table-wrap').style.display = 'block';
+      renderMailboxTable([
+        {email: 'neu@contoso.example', name: 'N', type: 'user', sig: false, smime: false},
+        {email: 'wartet@contoso.example', name: 'W', type: 'shared', sig: false, smime: false,
+         verarbeiten: true, bereit: false},
+        {email: 'bereit@contoso.example', name: 'B', type: 'user', sig: false, smime: false,
+         verarbeiten: true, bereit: true},
+        {email: 'aktiv@contoso.example', name: 'A', type: 'user', sig: true, smime: true},
+      ]); }""")
+
+    def zustand():
+        return pg.evaluate("""() => Array.from(document.querySelectorAll('#mb-tbody tr')).map(tr => [
+            tr.dataset.search.split(' ')[0],
+            tr.querySelector('.mb-verarb').checked,
+            tr.querySelector('.mb-sig').disabled, tr.querySelector('.mb-smime').disabled])""")
+    z = {r[0]: r[1:] for r in zustand()}
+    assert z["neu@contoso.example"] == [False, True, True]
+    assert z["wartet@contoso.example"] == [True, True, True]
+    assert z["bereit@contoso.example"] == [True, False, False]
+    assert z["aktiv@contoso.example"] == [True, False, False]
+    assert "wartet auf Exchange" in pg.inner_text("#mb-tbody tr:nth-child(2)")
+    # Frisch angehakte Verarbeitung gibt NICHTS frei — erst speichern, dann belegen
+    pg.locator("#mb-tbody tr:nth-child(1) .mb-verarb").check()
+    assert pg.locator("#mb-tbody tr:nth-child(1) .mb-sig").is_disabled()
+    # Verarbeitung ab → Haken eines aktiven Postfachs gehen mit
+    pg.locator("#mb-tbody tr:nth-child(4) .mb-verarb").uncheck()
+    assert not pg.locator("#mb-tbody tr:nth-child(4) .mb-sig").is_checked()
+    assert not pg.locator("#mb-tbody tr:nth-child(4) .mb-smime").is_checked()
+
+
 def test_postfachfilter_signatur_und_smime(seite):
     """Filter „Signatur“ und „S/MIME“ (v1.9.175): nach dem Haken in der Zeile,
     zusammen mit Text- und Typfilter, Zähler „x von y“."""
