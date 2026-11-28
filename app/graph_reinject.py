@@ -44,13 +44,27 @@ _MAX_RETRY_AFTER_S = 30  # cap for Retry-After header on 429 responses
 _letzter_fehler: dict[str, str] = {}
 
 
+def zugriff_verweigert_text(adresse: str) -> str:
+    """EIN Wortlaut für „Graph 403, Zugriffsfreigabe“ — Warteschlange, Freigabe
+    und Postfachprüfung (health_check._check_graph_postfach). Häufigste Ursache
+    zuerst: frisch aktiviertes Postfach, die Freigabe wirkt verzögert (gemessen
+    28.11.2026 an einem neuen geteilten Postfach: rund 1½ h). Danach die
+    seltenere: Premium-Lizenz verlangt RBAC for Applications."""
+    return (f"Exchange verweigert der Gateway-App den Zugriff auf {adresse} (HTTP 403). "
+            "Ist das Postfach unter Postfächer → Aktiviert eingeschaltet, wirkt die "
+            "Freigabe nach dem Einschalten verzögert (gemessen rund 1½ Stunden). Hält es "
+            "länger an: Postfächer mit Premium-Lizenz (z. B. Copilot) verlangen RBAC for "
+            "Applications — Postfächer → Speichern legt die Zuweisung an.")
+
+
+def ist_zugriff_verweigert(status: int, text: str) -> bool:
+    return status == 403 and any(k in (text or "") for k in ("RAOP", "AccessPolicy", "ErrorAccessDenied"))
+
+
 def _fehler_merken(absender: str, status: int, text: str) -> None:
     a = (absender or "").strip().lower()
-    if status == 403 and ("RAOP" in text or "AccessPolicy" in text or "ErrorAccessDenied" in text):
-        _letzter_fehler[a] = (
-            f"Exchange verweigert der Gateway-App den Zugriff auf {a} (HTTP 403, "
-            "Zugriffsfreigabe). Das Postfach unter Postfächer → Aktiviert einschalten; "
-            "eine neue Freigabe wirkt verzögert")
+    if ist_zugriff_verweigert(status, text):
+        _letzter_fehler[a] = zugriff_verweigert_text(a)
     else:
         _letzter_fehler[a] = f"Graph sendMail für {a}: HTTP {status} {text[:160]}".strip()
 

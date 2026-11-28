@@ -151,6 +151,19 @@
   <a href="/abwesenheit" style="color:#92400e;font-weight:700;margin-left:auto">Zur Abwesenheit</a>
 </div>
 {% endif %}
+{% set _takt = scheduler_steht() %}
+{% if _takt %}
+<div id="scheduler-banner"
+     style="background:#fef2f2;border-bottom:2px solid #fca5a5;padding:9px 16px;
+            font-size:13px;color:#991b1b;display:flex;gap:10px;
+            align-items:center;flex-wrap:wrap">
+  <strong>Hintergrundaufgaben stehen seit {{ _takt }} Minuten</strong>
+  <span>Nachstellen zurückgehaltener Post, Statusprüfung, Regelprüfung und
+    Zertifikatsprüfungen laufen nicht. Ein Neustart des Gateways behebt das meist;
+    die Ursache steht im Protokoll.</span>
+  <a href="/log" style="color:#991b1b;font-weight:700;margin-left:auto">Zum Protokoll</a>
+</div>
+{% endif %}
 {% set _waechter = waechter_gemeldet() %}
 {% if _waechter %}
 <div id="waechter-banner"

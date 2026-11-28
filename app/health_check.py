@@ -711,10 +711,11 @@ async def _check_graph_postfach(email: str, token: str | None) -> dict:
         return _make_result("ok", "Graph darf auf das Postfach zugreifen")
     text = _graph_fehlertext(resp)
     if resp.status_code == 403:
-        hilfe = ("Bei Postfächern mit Premium-Lizenz (z. B. Copilot) verlangt Exchange "
-                 "RBAC for Applications: Postfächer → Speichern legt die Zuweisung an, "
-                 "wenn die App-Zugriffsbeschränkung eingeschaltet ist.")
-        return _make_result("error", f"Graph verweigert den Zugriff (403): {text} — {hilfe}")
+        # Derselbe Wortlaut wie in Warteschlange und Freigabe; die rohe
+        # Exchange-Meldung („Access to OData is disabled: [RAOP] …“) steht im Protokoll.
+        import graph_reinject
+        log.info("Graph-Zugriff %s: 403 %s", email, text)
+        return _make_result("error", graph_reinject.zugriff_verweigert_text(email))
     return _make_result("warn", f"Graph antwortet {resp.status_code}: {text}")
 
 

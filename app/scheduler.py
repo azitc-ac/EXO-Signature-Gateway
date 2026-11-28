@@ -1025,8 +1025,28 @@ def _plattenplatz() -> None:
         _last_plattenplatz_run = time.monotonic()
 
 
+# Herzschlag des Scheduler-Fadens. ALLE Hintergrundaufgaben laufen in diesem
+# EINEN Faden — Nachstellen zurückgehaltener Post, Statusprüfung, Regelprüfung,
+# Zertifikatsprüfungen. Hängt er (etwa an einem PowerShell-Aufruf ohne
+# Zeitgrenze), fallen alle zugleich aus, und bis v1.12.197 zeigte das nichts an.
+# Gesetzt zu Beginn jedes Durchlaufs; deps._scheduler_steht macht daraus das Band.
+_takt_zuletzt: float | None = None
+STILLSTAND_MIN = 60     # ein Durchlauf mit Statusprüfung vieler Postfächer dauert Minuten
+
+
+def stillstand_min(jetzt: float | None = None) -> int | None:
+    """Minuten seit dem letzten Durchlauf, wenn das länger als STILLSTAND_MIN
+    her ist — sonst None (auch, wenn der Scheduler nie gestartet wurde)."""
+    if _takt_zuletzt is None:
+        return None
+    alter = ((jetzt if jetzt is not None else time.monotonic()) - _takt_zuletzt) / 60
+    return int(alter) if alter > STILLSTAND_MIN else None
+
+
 def _loop() -> None:
+    global _takt_zuletzt
     while True:
+        _takt_zuletzt = time.monotonic()
         try:
             # Einmaliger Nachlauf über den Empfängerbestand nach einer
             # Regelverschärfung (smime_harvest.NACHLAUF_KENNUNG).

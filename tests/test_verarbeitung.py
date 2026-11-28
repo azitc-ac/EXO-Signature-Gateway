@@ -214,3 +214,27 @@ def test_spalte_heisst_aktiviert_mit_erklaerung():
     assert kopf, "Spaltenkopf „Aktiviert“ mit Tooltip fehlt"
     assert "3 Stunden" in kopf.group(1) and "Signatur und S/MIME" in kopf.group(1)
     assert "zuerst, dann freigeschaltet" not in html
+
+
+def test_raum_und_geraet_werden_nicht_aktiviert(monkeypatch):
+    """Die Liste sperrt ihre Haken; der Speicherweg muss das ebenso tun."""
+    gespeichert: dict = {}
+
+    async def fake_auto(neu):
+        return {}
+    store = {"MAILBOX_CONFIG": {}, "USER_BOOKINGS": {}, "MAILBOX_HEALTH": {}}
+    monkeypatch.setattr(mbroute.settings_store, "get", lambda k, d=None: store.get(k, d))
+    monkeypatch.setattr(mbroute.settings_store, "get_all", lambda: {})
+    monkeypatch.setattr(mbroute.settings_store, "update", lambda patch: gespeichert.update(patch))
+    import exo_mailboxes
+    monkeypatch.setattr(exo_mailboxes, "list_mailboxes", lambda _a: [
+        {"guid": "g-raum", "primary": "raum@firma.at", "addresses": ["raum@firma.at"], "type": "RoomMailbox"},
+        {"guid": "g-geraet", "primary": "beamer@firma.at", "addresses": ["beamer@firma.at"],
+         "type": "EquipmentMailbox"},
+        {"guid": "g-user", "primary": "max@firma.at", "addresses": ["max@firma.at"], "type": "UserMailbox"}])
+    monkeypatch.setattr(mbroute, "_auto_enrollment_anstossen", fake_auto)
+    zeilen = [{"email": e, "verarbeiten": True, "sig": False, "smime": False}
+              for e in ("raum@firma.at", "beamer@firma.at", "max@firma.at")]
+    r = asyncio.run(mbroute.api_save_mailboxes({"mailboxes": zeilen, "update_dg": False}))
+    assert r["ok"] is True
+    assert set(gespeichert["MAILBOX_CONFIG"]) == {"g-user"}

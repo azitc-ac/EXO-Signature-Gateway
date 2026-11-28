@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.197 — 2026-11-28 — Band bei stehenden Hintergrundaufgaben, Raum- und Gerätepostfächer, lesbarer 403
+
+**Stehende Hintergrundaufgaben werden gemeldet.** Nachstellen zurückgehaltener
+Post, Statusprüfung, Regelprüfung und Zertifikatsprüfungen laufen nacheinander
+in einem gemeinsamen Hintergrundablauf. Blieb er hängen, etwa an einem
+Exchange-Aufruf, fielen alle zugleich aus, ohne dass es irgendwo zu sehen war.
+Jetzt erscheint auf jeder Seite ein rotes Band, wenn er seit über 60 Minuten
+keinen Durchlauf mehr begonnen hat.
+
+**Raum- und Gerätepostfächer lassen sich nicht aktivieren.** Die Postfachliste
+sperrte ihre Haken schon, der Speicherweg nahm sie aber trotzdem an, etwa aus
+einer Sammelaktion einer älteren Seite. Dann kamen sie in Verteilerliste und
+Zugriffsfreigabe. Jetzt weist auch der Speicherweg sie ab.
+
+**Verweigerter Graph-Zugriff in Worten.** Das Statusfenster eines Postfachs
+zeigte bei HTTP 403 die rohe Exchange-Meldung und nannte als Ursache nur
+Premium-Lizenzen. Jetzt steht dort derselbe Text wie in Warteschlange und
+Freigabe, die häufigste Ursache zuerst: Nach dem Einschalten unter „Aktiviert“
+wirkt die Freigabe verzögert. Die rohe Meldung steht im Protokoll.
+
+**Zu tun:** nichts.
+
 ## v1.12.196 — 2026-11-28 — Outlook-Add-ins: geteilte Postfächer kein Zuweisungsfehler
 
 Die Aufgabe „Verfassen-Add-in im Admin Center aktualisieren“ meldete geteilte

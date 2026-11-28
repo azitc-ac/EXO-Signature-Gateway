@@ -281,6 +281,18 @@ def _ooo_zugriff_gemeldet() -> dict | None:
 
 templates.env.globals["ooo_zugriff_gemeldet"] = _ooo_zugriff_gemeldet
 
+def _scheduler_steht() -> int | None:
+    """Minuten, seit der Scheduler-Faden keinen Durchlauf mehr begonnen hat
+    (scheduler.stillstand_min) — sonst None. Fürs Band."""
+    try:
+        import scheduler
+        return scheduler.stillstand_min()
+    except Exception:                                       # noqa: BLE001
+        return None
+
+
+templates.env.globals["scheduler_steht"] = _scheduler_steht
+
 # Der Wächter meldet sich alle 5 Minuten; nach 15 gilt er als verstummt.
 WAECHTER_STILL_MIN = 15
 

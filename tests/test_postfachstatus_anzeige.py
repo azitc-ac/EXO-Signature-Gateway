@@ -262,7 +262,10 @@ def test_graph_postfach_ok_und_raop(monkeypatch):
     _graph(monkeypatch, _Antwort(403, {"error": {"message": "Access to OData is disabled: [RAOP]"}}))
     r = asyncio.run(health_check._check_graph_postfach("a@contoso.example", "tok"))
     assert r["status"] == "error"
-    assert "[RAOP]" in r["detail"] and "RBAC for Applications" in r["detail"]
+    # Lesbar statt roh (v1.12.197): EIN Wortlaut mit Warteschlange und Freigabe
+    import graph_reinject
+    assert r["detail"] == graph_reinject.zugriff_verweigert_text("a@contoso.example")
+    assert "[RAOP]" not in r["detail"] and "verzögert" in r["detail"] and "RBAC for Applications" in r["detail"]
     assert asyncio.run(health_check._check_graph_postfach("a@x", None))["status"] == "skip"
 
 

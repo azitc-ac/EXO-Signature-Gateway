@@ -58,6 +58,9 @@ router = APIRouter()
 REGEL_VERZOEGERUNG = verarbeitung.REGEL_VERZOEGERUNG
 
 
+RESSOURCEN_TYPEN = ("RoomMailbox", "EquipmentMailbox")
+
+
 def _ist_aktiv(eintrag) -> bool:
     """In der Verteilerliste = verarbeitet (verarbeitung.verarbeitet)."""
     return verarbeitung.verarbeitet(eintrag)
@@ -491,6 +494,13 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         verarbeiten = bool(m.get("verarbeiten", False)) or sig or smime
         if not verarbeiten:
             continue    # nicht verarbeitet → passthrough by default, not stored
+        # Raum- und Gerätepostfächer senden keine Post; die Liste sperrt ihre
+        # Haken. Bis v1.12.196 nahm der Speicherweg sie trotzdem an (Sammelaktion
+        # aus einer alten Seite, direkter Aufruf) — dann kamen sie in Verteiler-
+        # liste und Zugriffsfreigabe und zählten zur Lizenz. Jetzt auch hier.
+        if mb and mb.get("type") in RESSOURCEN_TYPEN:
+            log.info("Postfach speichern: %s ist ein Raum-/Gerätepostfach — nicht aktiviert", email)
+            continue
         entry: dict = {"sig": sig, "smime": smime, "verarbeiten": True}
         # Jeder Slot ist Postfach-Wahl (policies.py): STANDARD_WAHL → kein Feld
         # (folgt Gruppe/Standardrichtlinie), "" → ausdrücklich keine (Add-in:
