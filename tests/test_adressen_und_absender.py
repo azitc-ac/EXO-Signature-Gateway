@@ -112,3 +112,31 @@ def test_testmail_absender(monkeypatch, modus, eintrag, gesperrt):
     assert bool(grund) is gesperrt
     if gesperrt:
         assert "Verarbeitung" in grund
+
+
+@pytest.mark.parametrize("refresh,erwartet", [(True, 1), (False, 0)])
+def test_postfaecher_laden_fuehrt_adressen_nach(monkeypatch, refresh, erwartet):
+    """„Postfächer laden“ (refresh=1) nimmt denselben Weg wie der 45-Minuten-
+    Abgleich; das stille Laden beim Seitenaufruf nicht (es nutzt den Cache)."""
+    import exo_mailboxes
+    from webui.routen import mailboxes as mbroute
+    aufrufe = []
+    monkeypatch.setattr(exo_mailboxes, "mit_hybrid", lambda frisch: [])
+    monkeypatch.setattr(mailbox_match, "adressen_nachfuehren_speichern",
+                        lambda liste: aufrufe.append(liste) or False)
+    store = {"MAILBOX_CONFIG": {}}
+    monkeypatch.setattr(mbroute.settings_store, "get", lambda k, d=None: store.get(k, d))
+    r = asyncio.run(mbroute.api_get_mailboxes(refresh=refresh))
+    assert r["mailboxes"] == []
+    assert len(aufrufe) == erwartet
+
+
+def test_scheduler_nimmt_denselben_weg(monkeypatch):
+    import exo_mailboxes
+    import scheduler
+    aufrufe = []
+    monkeypatch.setattr(exo_mailboxes, "list_mailboxes", lambda force=False: [{"guid": "g"}])
+    monkeypatch.setattr(mailbox_match, "adressen_nachfuehren_speichern",
+                        lambda liste: aufrufe.append(liste) or False)
+    scheduler._refresh_mailbox_cache()
+    assert aufrufe == [[{"guid": "g"}]]

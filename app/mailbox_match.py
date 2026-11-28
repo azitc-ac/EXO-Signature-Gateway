@@ -120,3 +120,16 @@ def adressen_nachfuehren(mailbox_config: dict, exo_liste: list[dict]) -> dict | 
             neu[key] = {**cfg, **soll}
             geaendert = True
     return neu if geaendert else None
+
+
+def adressen_nachfuehren_speichern(exo_liste: list[dict]) -> bool:
+    """`adressen_nachfuehren` anwenden und speichern — der EINE Schreibweg für
+    den Abgleich alle 45 Minuten (scheduler._refresh_mailbox_cache) und
+    „Postfächer laden“ (GET /api/mailboxes?refresh=1). True, wenn geändert."""
+    import settings_store
+    with settings_store._lock:          # Lesen und Schreiben als ein Schritt
+        neu = adressen_nachfuehren(settings_store.get("MAILBOX_CONFIG") or {}, exo_liste)
+        if neu is None:
+            return False
+        settings_store.update({"MAILBOX_CONFIG": neu})
+    return True

@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.191 — 2026-11-28 — „Postfächer laden“ führt auch die Adressen der Einträge nach
+
+Der Knopf „Postfächer laden“ fragt Exchange frisch ab, frischte bisher aber
+nur die angezeigte Liste auf. Die Adressen der gespeicherten Einträge, nach
+denen das Gateway Absender zuordnet, wurden seit v1.12.190 nur beim Abgleich
+alle 45 Minuten nachgeführt. Jetzt nimmt der Knopf denselben Weg: Eine in
+Exchange entfernte Nebenadresse verschwindet damit sofort aus dem Eintrag. Das
+Laden beim Öffnen der Seite nutzt weiter den Zwischenspeicher und schreibt
+nichts.
+
+**Zu tun:** nichts.
+
 ## v1.12.190 — 2026-11-28 — Fehlerbehebungen: Adresszuordnung, Testmail-Absender, Zustellfehler in Worten
 
 **Adresse gehörte zwei Postfächern.** Wurde eine Nebenadresse in Exchange aus

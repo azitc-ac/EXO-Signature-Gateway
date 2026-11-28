@@ -166,6 +166,10 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
     # Hybrid-Nutzer (Postfach in der lokalen Organisation) nur, solange die
     # Option wirkt — exo_mailboxes.mit_hybrid; list_mailboxes allein kennt sie nicht.
     raw = await asyncio.to_thread(exo_mailboxes.mit_hybrid, bool(refresh))
+    # „Postfächer laden“ (frisch aus Exchange) führt die Adressen der Einträge
+    # nach — derselbe Weg wie der Abgleich alle 45 Minuten im Scheduler.
+    if refresh and await asyncio.to_thread(mailbox_match.adressen_nachfuehren_speichern, raw):
+        log.info("Postfächer laden: Adressen der Postfach-Einträge aus Exchange nachgeführt")
     _type_map = {"UserMailbox": "user", "SharedMailbox": "shared",
                  "RoomMailbox": "room", "EquipmentMailbox": "equipment",
                  exo_mailboxes.HYBRID_TYP: "hybrid"}
