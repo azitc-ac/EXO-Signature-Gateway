@@ -452,8 +452,10 @@ def _senden(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
             except Exception as exc:                          # noqa: BLE001
                 _fail_delivery(mail_from, rcpt_tos, content_bytes, f"graph+smtp: {exc}", queue_on_failure)
         else:
+            _grund = graph_reinject.fehlergrund(mail_from)
             _fail_delivery(mail_from, rcpt_tos, content_bytes,
-                           "Graph fehlgeschlagen, SMTP-Fallback aus", queue_on_failure)
+                           "Graph fehlgeschlagen, SMTP-Fallback aus"
+                           + (f" — {_grund}" if _grund else ""), queue_on_failure)
     elif mode == "graph_plus":
         import email as _em
         # ── Absender im Tenant → Graph sendMail ──────────────────────────────
@@ -474,8 +476,10 @@ def _senden(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
             imap_failed = [r for r in rcpt_tos
                            if not _eingang_ablegen(r, content_bytes, mail_from)]
             if imap_failed:
+                _grund = graph_reinject.fehlergrund(mail_from)
                 _fail_delivery(mail_from, imap_failed, content_bytes,
-                               "Graph sendMail und Ablage im Posteingang fehlgeschlagen",
+                               "Graph sendMail und Ablage im Posteingang fehlgeschlagen"
+                               + (f" — {_grund}" if _grund else ""),
                                queue_on_failure)
             return None
         # ── Absender außerhalb → IMAP APPEND ─────────────────────────────────

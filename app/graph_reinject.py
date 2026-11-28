@@ -37,6 +37,28 @@ log = logging.getLogger(__name__)
 GRAPH = "https://graph.microsoft.com/v1.0"
 _MAX_RETRY_AFTER_S = 30  # cap for Retry-After header on 429 responses
 
+# Letzter Fehlschlag von Graph sendMail je Absender, in Worten — für Warteschlange
+# und Freigabe (reinject._fail_delivery). Vorher stand dort nur „Graph sendMail
+# und Ablage im Posteingang fehlgeschlagen“; dass Exchange der App den Zugriff
+# verweigert (403, Postfach nicht in der Zugriffsfreigabe), sah man nur im Log.
+_letzter_fehler: dict[str, str] = {}
+
+
+def _fehler_merken(absender: str, status: int, text: str) -> None:
+    a = (absender or "").strip().lower()
+    if status == 403 and ("RAOP" in text or "AccessPolicy" in text or "ErrorAccessDenied" in text):
+        _letzter_fehler[a] = (
+            f"Exchange verweigert der Gateway-App den Zugriff auf {a} (HTTP 403, "
+            "Zugriffsfreigabe). Das Postfach unter Postfächer → Verarbeitung aufnehmen; "
+            "eine neue Freigabe wirkt verzögert")
+    else:
+        _letzter_fehler[a] = f"Graph sendMail für {a}: HTTP {status} {text[:160]}".strip()
+
+
+def fehlergrund(absender: str) -> str:
+    """Letzter gemerkter Graph-Fehler für diesen Absender, sonst ''."""
+    return _letzter_fehler.get((absender or "").strip().lower(), "")
+
 
 def _post_with_429_retry(client: httpx.Client, url: str, **kwargs) -> httpx.Response:
     """POST with one automatic retry on HTTP 429 (Graph API throttling)."""
@@ -807,6 +829,7 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
 
         if resp.status_code == 202:
             _sendmail_vormerken(mid, rcpt_tos, msg, mail_from, content_bytes)
+            _letzter_fehler.pop((from_addr or "").strip().lower(), None)
             log.info("Graph MIME re-inject OK: from=%s to=%s", from_addr, rcpt_tos)
             return True
 
@@ -839,6 +862,9 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
 
         log.error("Graph sendMail (MIME) failed: HTTP %s — %s",
                   resp.status_code, resp.text[:400])
+        _fehler_merken(from_addr, resp.status_code, resp.text or "")
+        if (from_addr or "").strip().lower() != (mail_from or "").strip().lower():
+            _fehler_merken(mail_from, resp.status_code, resp.text or "")
         return False
 
     except Exception as exc:

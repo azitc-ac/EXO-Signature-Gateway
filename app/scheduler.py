@@ -671,8 +671,16 @@ def _refresh_mailbox_cache() -> None:
     global _last_mailbox_refresh
     try:
         import exo_mailboxes
-        n = len(exo_mailboxes.list_mailboxes(force=True))
-        log.info("scheduler: mailbox cache pre-warmed (%d mailboxes)", n)
+        liste = exo_mailboxes.list_mailboxes(force=True)
+        log.info("scheduler: mailbox cache pre-warmed (%d mailboxes)", len(liste))
+        # Adress-Zwischenspeicher der Einträge nachführen (mailbox_match.adressen_nachfuehren).
+        import mailbox_match
+        with settings_store._lock:          # Lesen und Schreiben als ein Schritt
+            neu = mailbox_match.adressen_nachfuehren(
+                settings_store.get("MAILBOX_CONFIG") or {}, liste)
+            if neu is not None:
+                settings_store.update({"MAILBOX_CONFIG": neu})
+                log.info("scheduler: Adressen der Postfach-Einträge aus Exchange nachgeführt")
     except Exception as exc:
         log.warning("scheduler: mailbox cache pre-warm failed: %s", exc)
     finally:

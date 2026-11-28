@@ -181,7 +181,10 @@ async def api_held_mail_release(mail_id: str, _: str = Depends(_require_admin)):
             None, lambda: _reinject.send(from_addr, to_addrs, raw_bytes, queue_on_failure=False)
         )
     except Exception as exc:
-        raise HTTPException(500, f"Zustellung fehlgeschlagen: {exc}")
+        # 502, nicht 500: Nicht das Gateway ist kaputt, der Zustellweg hat
+        # abgelehnt. Der Grund steht im Text (graph_reinject.fehlergrund).
+        log.warning("Freigabe von %s gescheitert: %s", mail_id, exc)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
     _held_mails_mod.delete(mail_id)
     _sent_items_nach_freigabe_aufraeumen(from_addr, to_addrs, raw_bytes)
     return JSONResponse({"ok": True})

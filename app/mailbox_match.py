@@ -13,21 +13,14 @@ seconds). Loops build the index ONCE: `build_address_index` / `build_key_index`.
 
 
 def build_address_index(mailbox_config: dict) -> dict:
-    """address(lower) → cfg, from an e-mail-, guid-, or mixed-keyed config."""
-    idx: dict[str, dict] = {}
-    for key, cfg in (mailbox_config or {}).items():
-        if not isinstance(cfg, dict):
-            continue
-        if "@" in key:                      # e-mail-keyed: the key is the address
-            idx[key.lower()] = cfg
-        else:                               # guid-keyed: match on the address cache
-            for a in cfg.get("known_addresses", []):
-                if a:
-                    idx[str(a).lower()] = cfg
-            primary = (cfg.get("primary") or "").lower()
-            if primary:
-                idx[primary] = cfg
-    return idx
+    """address(lower) → cfg, from an e-mail-, guid-, or mixed-keyed config.
+
+    Dieselbe Zuordnung wie `build_key_index` (eine Regel für alle drei
+    Zugriffe): Haupt- vor Nebenadresse. Bis v1.12.189 gewann hier der LETZTE
+    Eintrag, in `match_sender_key` der ERSTE — trug ein Eintrag eine veraltete
+    Nebenadresse (Adresse inzwischen ein eigenes Postfach), landete dieselbe
+    Adresse je nach Aufrufer in zwei verschiedenen Einträgen."""
+    return {a: mailbox_config[k] for a, k in build_key_index(mailbox_config).items()}
 
 
 def match_sender(mailbox_config: dict, sender: str) -> dict:
@@ -42,45 +35,30 @@ def match_sender_key(mailbox_config: dict, sender: str) -> str:
     """Return the MAILBOX_CONFIG key (ExchangeGuid or email) for a sender, or '' if not found."""
     if not mailbox_config or not sender:
         return ""
-    sender_l = sender.lower()
-    for key, cfg in mailbox_config.items():
-        if not isinstance(cfg, dict):
-            continue
-        if "@" in key:
-            if key.lower() == sender_l:
-                return key
-        else:
-            if (cfg.get("primary") or "").lower() == sender_l:
-                return key
-            if sender_l in [str(a).lower() for a in cfg.get("known_addresses", [])]:
-                return key
-    return ""
+    return build_key_index(mailbox_config).get(sender.lower(), "")
 
 
 def build_key_index(mailbox_config: dict) -> dict[str, str]:
-    """address(lower) → MAILBOX_CONFIG-Schlüssel, EINMAL gebaut — für Schleifen
-    über viele Postfächer (Postfachliste, Gesundheitsprüfung).
+    """address(lower) → MAILBOX_CONFIG-Schlüssel — die EINE Zuordnungsregel.
 
-    Liefert für jede Adresse genau das, was `match_sender_key` liefern würde:
-    Dort gewinnt der ERSTE Eintrag in Einfügereihenfolge, der die Adresse
-    trägt (Primäradresse vor den bekannten Adressen desselben Eintrags) —
-    deshalb `setdefault`. `build_address_index` dagegen lässt den LETZTEN
-    gewinnen; beide Regeln bleiben, wie sie sind (tests/test_postfach_index.py).
+    Vorrang: Schlüssel-Adresse bzw. Hauptadresse (`primary`) eines Eintrags vor
+    jeder Nebenadresse (`known_addresses`) eines ANDEREN Eintrags; innerhalb
+    einer Stufe gewinnt der erste Eintrag. Anlass (28.11.2026): Eine Adresse
+    wurde aus einem Postfach entfernt und als eigenes geteiltes Postfach
+    angelegt; der alte Eintrag führte sie noch als Nebenadresse, und
+    `match_sender_key` ordnete sie dem alten Postfach zu.
 
-    Anlass (18.11.2026): `match_sender`/`match_sender_key` bauen bei JEDEM
-    Aufruf den ganzen Index neu. In einer Schleife über n Postfächer ist das
-    n² — gemessen 700 Postfächer: 3,7 s für GET /api/mailboxes auf dem Raspi,
-    im Event-Loop des Webservers."""
+    Einmal gebaut für Schleifen über viele Postfächer (18.11.2026: je Zeile neu
+    gebaut war n², 700 Postfächer 3,7 s auf dem Raspi)."""
     idx: dict[str, str] = {}
-    for key, cfg in (mailbox_config or {}).items():
-        if not isinstance(cfg, dict):
-            continue
+    eintraege = [(k, c) for k, c in (mailbox_config or {}).items() if isinstance(c, dict)]
+    for key, cfg in eintraege:
+        haupt = key.lower() if "@" in key else (cfg.get("primary") or "").lower()
+        if haupt:
+            idx.setdefault(haupt, key)
+    for key, cfg in eintraege:
         if "@" in key:
-            idx.setdefault(key.lower(), key)
             continue
-        primary = (cfg.get("primary") or "").lower()
-        if primary:
-            idx.setdefault(primary, key)
         for a in cfg.get("known_addresses", []):
             a = str(a).lower()
             if a:
@@ -111,3 +89,34 @@ def configured_addresses(mailbox_config: dict) -> list[str]:
         if addr and addr not in out:
             out.append(addr)
     return out
+
+
+def adressen_nachfuehren(mailbox_config: dict, exo_liste: list[dict]) -> dict | None:
+    """Adress-Zwischenspeicher der ExchangeGuid-Einträge (`known_addresses`,
+    `primary`, `display_name`) an den aktuellen EXO-Stand angleichen. Rein:
+    liefert die neue Konfiguration oder None, wenn sich nichts ändert.
+
+    Bis v1.12.189 wurde der Zwischenspeicher nur beim Speichern der
+    Postfachliste neu geschrieben. Wurde eine Nebenadresse in Exchange entfernt
+    (etwa, weil sie ein eigenes Postfach wurde), führte der Eintrag sie weiter.
+
+    Nur Einträge, deren GUID in der Liste steht — eine leere oder unvollständige
+    Liste (EXO nicht erreichbar, Hybrid-Nutzer ohne Option) ändert nichts."""
+    nach_guid = {m.get("guid"): m for m in (exo_liste or []) if isinstance(m, dict) and m.get("guid")}
+    if not nach_guid:
+        return None
+    neu = dict(mailbox_config or {})
+    geaendert = False
+    for key, cfg in (mailbox_config or {}).items():
+        if "@" in key or not isinstance(cfg, dict) or key not in nach_guid:
+            continue
+        mb = nach_guid[key]
+        soll = {"known_addresses": list(mb.get("addresses") or []),
+                "primary": mb.get("primary") or cfg.get("primary", ""),
+                "display_name": mb.get("display_name") or cfg.get("display_name", "")}
+        if not soll["known_addresses"]:
+            continue
+        if any(cfg.get(f) != w for f, w in soll.items()):
+            neu[key] = {**cfg, **soll}
+            geaendert = True
+    return neu if geaendert else None

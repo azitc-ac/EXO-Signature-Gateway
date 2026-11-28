@@ -5,6 +5,37 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.190 — 2026-11-28 — Fehlerbehebungen: Adresszuordnung, Testmail-Absender, Zustellfehler in Worten
+
+**Adresse gehörte zwei Postfächern.** Wurde eine Nebenadresse in Exchange aus
+einem Postfach entfernt und als eigenes (etwa geteiltes) Postfach angelegt,
+führte der Eintrag des alten Postfachs sie weiter. Der Adress-Zwischenspeicher
+wurde nur beim Speichern der Postfachliste erneuert. Je nach Stelle ordnete das
+Gateway die Adresse dann dem alten oder dem neuen Postfach zu: Die
+Signaturzuordnung nahm den letzten passenden Eintrag, die übrigen Zuordnungen
+den ersten. Jetzt gilt überall dieselbe Regel: Die Hauptadresse eines Postfachs
+geht der Nebenadresse eines anderen vor. Außerdem führt das Gateway die
+Adressen der Einträge bei jedem Abgleich mit Exchange (alle 45 Minuten) nach.
+
+**Testmail mit einem Absender, als der das Gateway nicht senden darf.** In
+den Modi Graph-only und Graph++ sendet das Gateway die Testmail als der
+angegebene Absender. Für ein Postfach ohne Verarbeitung verweigert Exchange
+das (HTTP 403, Zugriffsfreigabe). Die Oberfläche meldete trotzdem „an das
+Gateway übergeben“, und die Mail lag danach in der Warteschlange. Jetzt weist
+die Testmail einen solchen Absender gleich ab und nennt den Grund. Im Modus
+SMTP Port 25 gilt das nicht, dort geht jeder Absender über den Smarthost.
+
+**Zustellfehler in Worten.** Scheiterte Graph sendMail, stand in Warteschlange
+und Protokoll nur „Graph sendMail und Ablage im Posteingang fehlgeschlagen“.
+Jetzt steht der Grund dabei, bei verweigertem Zugriff mit dem Hinweis auf die
+Verarbeitung in der Postfachliste. Die Freigabe einer solchen Mail antwortet
+mit 502 und diesem Grund statt mit einem internen Serverfehler (500).
+
+Beim Zusammenführen von Einträgen (Umstellung auf ExchangeGuid) bleiben die
+Verarbeitung und deren Bereitschaft aus v1.12.188 jetzt erhalten.
+
+**Zu tun:** nichts.
+
 ## v1.12.189 — 2026-11-28 — Postfächer: Erklärung der Haken und des Ausfallschutzes
 
 Der aufklappbare Hinweis über der Postfachliste („Was bewirken die Haken?“)

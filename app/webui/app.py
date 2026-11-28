@@ -879,6 +879,27 @@ def _testmail_rumpf(art: str):
     return msg
 
 
+def testmail_absender_hinderung(absender: str) -> str:
+    """Grund, warum die Testmail mit diesem Absender nicht zugestellt werden
+    kann, sonst ''. In den Graph-Modi sendet das Gateway ALS der Absender —
+    das darf es nur für Postfächer mit Verarbeitung (Zugriffsfreigabe,
+    verarbeitung.verarbeitet). Anlass (27.11.2026): Testmail mit einem eben
+    angelegten geteilten Postfach als Absender; Graph lehnte mit 403 ab, die
+    Mail lag still in der Warteschlange und die Oberfläche meldete „übergeben“.
+    Im Modus smtp geht jeder Absender über den Smarthost — keine Hinderung."""
+    if settings_store.reinject_mode() == "smtp":
+        return ""
+    import mailbox_match
+    import verarbeitung
+    eintrag = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, absender)
+    if verarbeitung.verarbeitet(eintrag):
+        return ""
+    return (f"{absender} ist im Gateway nicht zur Verarbeitung aufgenommen. Im Graph-Modus "
+            "sendet das Gateway als dieser Absender und darf das nur für Postfächer mit "
+            "Verarbeitung (Postfächer → Verarbeitung). Sonst liegt die Testmail danach in "
+            "der Warteschlange.")
+
+
 @app.post("/api/test-mail")
 async def api_test_mail(request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
@@ -891,6 +912,9 @@ async def api_test_mail(request: Request, user: str = Depends(_require_admin)):
         raise HTTPException(400, f"Unbekanntes Format: {mail_type}")
     if not from_email or not to_email:
         raise HTTPException(400, "from_email und to_email sind erforderlich")
+    hinderung = testmail_absender_hinderung(from_email)
+    if hinderung:
+        raise HTTPException(400, hinderung)
 
     msg = _testmail_rumpf(mail_type)
     msg["Subject"] = f"Test-Mail ({mail_type}) – Signaturprüfung"

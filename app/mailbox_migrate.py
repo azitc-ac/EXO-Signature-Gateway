@@ -24,7 +24,9 @@ log = logging.getLogger("mailbox_migrate")
 # Policy flags that are OR-merged when two e-mail entries map to the same mailbox.
 # ⚠️ Ohne `use_policy` (seit v1.12.99 entfallen): Das ODER setzte den Schlüssel
 # sonst neu — und vorlagen_typ.use_policy_nachziehen deutete ihn beim Start um.
-_POLICY_BOOLS = ("sig", "smime")
+# Seit v1.12.190 auch die Stufe „Verarbeitung“ (verarbeitung.py): Ein nur
+# vorbereiteter Eintrag verlöre beim Zusammenführen sonst seine Mitgliedschaft.
+_POLICY_BOOLS = ("sig", "smime", "verarbeiten", "bereit")
 _MANAGED = ("known_addresses", "primary", "display_name", "_orphan")
 
 
