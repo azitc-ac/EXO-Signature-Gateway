@@ -775,7 +775,7 @@ def _regelzustand_pruefen() -> None:
 
 
 def _vorbereitung_pruefen() -> None:
-    """Regelprobe für Postfächer mit Haken „Verarbeitung“, deren Exchange-Seite
+    """Regelprobe für Postfächer mit Haken „Aktiviert“, deren Exchange-Seite
     noch nicht belegt ist (verarbeitung.offen). Erst eine angekommene Probe gibt
     Signatur und S/MIME frei — ohne diesen Takt müsste jemand bis zu ~3 h lang
     immer wieder „Regel prüfen“ drücken.

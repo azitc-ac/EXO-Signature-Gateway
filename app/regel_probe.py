@@ -470,7 +470,7 @@ def _plan(adresse: str) -> tuple[str, dict | None]:
     cfg = _cfg(adresse)
     import verarbeitung
     if not verarbeitung.verarbeitet(cfg):
-        return ("Verarbeitung für dieses Postfach nicht aktiviert — die Regel gilt nur "
+        return ("Postfach nicht aktiviert — die Regel gilt nur "
                 "für Mitglieder der Verteilerliste"), None
     import exo_mailboxes
     if not exo_mailboxes.ist_hybrid(adresse):

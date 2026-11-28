@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.195 — 2026-11-28 — Postfachliste: Spalte „Aktiviert“ statt „Verarbeitung“
+
+Die Spalte aus v1.12.188 heißt jetzt „Aktiviert“, ohne die Unterzeile. Der
+Hinweis auf der Spaltenüberschrift erklärt: Der Haken aktiviert für das
+Postfach die Verarbeitung durch das Gateway, Exchange braucht bis zu drei
+Stunden, um das zu übernehmen, und erst dann lassen sich Signatur und S/MIME
+anhaken. Meldungen, Sammelaktion, Testmail-Hinweis und `docs/betrieb.md`
+verweisen auf die Spalte unter diesem Namen.
+
+**Zu tun:** nichts.
+
 ## v1.12.194 — 2026-11-28 — Postfachliste: Statusanzeige auf dem Telefon, lesbare Meldungen, „wirkt in bis zu 3 h“ nach bestätigter Regel
 
 In der Statusspalte der Postfachliste rutschte auf dem Telefon bei gesunden

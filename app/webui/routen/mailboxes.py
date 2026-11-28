@@ -486,7 +486,7 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         # für jede ihrer Mails. Nur der Zertifikatsbezug liest ihr Postfach —
         # das sperrt einwilligung.verlangen ohne Anbindung an Exchange lokal.
         smime = bool(m.get("smime", False))
-        # Haken „Verarbeitung“ (verarbeitung.py). Eine Seite von vor v1.12.188
+        # Haken „Aktiviert“ (verarbeitung.py). Eine Seite von vor v1.12.188
         # schickt das Feld nicht — dort zählt Signatur/S/MIME als Verarbeitung.
         verarbeiten = bool(m.get("verarbeiten", False)) or sig or smime
         if not verarbeiten:

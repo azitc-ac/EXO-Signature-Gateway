@@ -71,7 +71,7 @@ def partitioniere(mailbox_config: dict | None, mit_hybrid: bool | None = None) -
     sortiert, dedupliziert).
 
     Kriterium (seit v1.12.188 OBERMENGE statt Aufteilung):
-      - verarbeitet (Haken „Verarbeitung“, verarbeitung.verarbeitet) → IMMER
+      - verarbeitet (Haken „Aktiviert“, verarbeitung.verarbeitet) → IMMER
         Signatur-Weg. Er bringt die Post zum Gateway — auch für S/MIME-Postfächer.
       - `smime` gesetzt → ZUSÄTZLICH S/MIME-Weg (Warte-Regel). Beide Regeln
         leiten zum selben Gateway; fällt es aus, schaltet der Wächter nur die

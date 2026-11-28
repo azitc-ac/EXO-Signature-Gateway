@@ -202,3 +202,15 @@ def test_liste_schickt_verarbeitung_und_sperrt_haken():
     assert "var frei = !isResource && verarbCb.checked && verarbGespeichert && bereitGespeichert;" in html
     assert "var bereitGespeichert = !!mb.bereit || mbAktiv;" in html
     assert "tr.appendChild(tdVerarb);" in html
+
+
+def test_spalte_heisst_aktiviert_mit_erklaerung():
+    """Spaltenkopf „Aktiviert“ (Alex 28.11.2026), der Hinweis im Tooltip nennt
+    die Verzögerung und dass Signatur/S/MIME erst danach verfügbar sind."""
+    import re
+    from pathlib import Path
+    html = (Path(__file__).resolve().parent.parent / "app/webui/templates/mailboxes.html").read_text()
+    kopf = re.search(r'<th[^>]*title="([^"]*)">\s*Aktiviert\s*</th>', html)
+    assert kopf, "Spaltenkopf „Aktiviert“ mit Tooltip fehlt"
+    assert "3 Stunden" in kopf.group(1) and "Signatur und S/MIME" in kopf.group(1)
+    assert "zuerst, dann freigeschaltet" not in html

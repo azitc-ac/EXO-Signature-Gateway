@@ -300,7 +300,7 @@ async function ankerAnwenden() {
   <details class="feld-gruppe" style="margin-bottom:8px">
     <summary>Was bewirken die Haken?</summary>
     <p class="hint" style="margin:4px 0 0">
-      <strong>Verarbeitung</strong> nimmt das Postfach in <code>{{ gateway_name }} - Enabled Mailboxes</code> und in die Zugriffsfreigabe des Gateways auf. Die Transportregel leitet nur Mitglieder dieser Gruppe über das Gateway; bis Signatur oder S/MIME an ist, fließt ihre Post unverändert durch. Postfächer ohne Haken berührt das Gateway nicht.<br>
+      <strong>Aktiviert</strong> schaltet für das Postfach die Verarbeitung durch das Gateway ein: Es kommt in <code>{{ gateway_name }} - Enabled Mailboxes</code> und in die Zugriffsfreigabe des Gateways auf. Die Transportregel leitet nur Mitglieder dieser Gruppe über das Gateway; bis Signatur oder S/MIME an ist, fließt ihre Post unverändert durch. Postfächer ohne Haken berührt das Gateway nicht.<br>
       Exchange übernimmt neue Mitglieder verzögert (bis zu ~3 h). Das Gateway prüft das alle 20 Minuten mit einer Prüfmail; bis sie ankommt, steht am Postfach „wartet auf Exchange“, und <strong>Signatur</strong> und <strong>S/MIME</strong> lassen sich noch nicht anhaken. Danach wirken beide sofort.<br>
       <strong>Ausfallschutz</strong> (nur mit eingerichtetem Bypass-Wächter, Erweitert → Bypass-Wächter; ohne ihn wartet bei einem Ausfall jede Post in Exchange): Fällt das Gateway aus, geht die Post reiner Signatur-Postfächer unsigniert direkt hinaus. Post von S/MIME-Postfächern wartet dagegen in Exchange, damit nichts unverschlüsselt hinausgeht. Dafür steht ein S/MIME-Postfach zusätzlich in <code>{{ gateway_name }} - SMIME Mailboxes</code>, und auch diese Aufnahme übernimmt Exchange verzögert. Fällt das Gateway in den ersten Stunden nach dem Einschalten von S/MIME aus, ginge die Post dieses Postfachs noch unverschlüsselt hinaus. Die Liste zeigt dieses Fenster als „Ausfallschutz wirkt in bis zu 3 h“.
     </p>
@@ -355,7 +355,7 @@ async function ankerAnwenden() {
         grenzen ein). Gespeichert wird erst mit „Speichern“ — außer der Regelprüfung.</p>
       <div class="mb-aktion"
            title="Signatur und S/MIME lassen sich erst einschalten, wenn Exchange das Postfach erfasst hat.">
-        <span class="mb-aktion-name">Verarbeitung aktivieren</span>
+        <span class="mb-aktion-name">Aktivieren</span>
         <button class="btn secondary btn-sm" onclick="setAllVisible('verarb', true)">Alle</button>
         <button class="btn secondary btn-sm" onclick="setAllVisible('verarb', false)">Kein</button>
       </div>
@@ -410,9 +410,8 @@ async function ankerAnwenden() {
           <th id="th-status" style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:70px;display:none">Status</th>
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px"
-              title="Nimmt das Postfach in die Verteilerliste und die Zugriffsfreigabe auf — noch ohne Signatur und S/MIME. Exchange übernimmt das verzögert (bis zu ~3 h); Signatur und S/MIME lassen sich einschalten, sobald eine Regelprobe das bestätigt hat.">
-            Verarbeitung
-            <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block;margin-top:2px">zuerst, dann freigeschaltet</span>
+              title="Aktiviert für dieses Postfach die Verarbeitung durch das Gateway. Exchange braucht bis zu 3 Stunden, um das zu übernehmen. Erst dann lassen sich Signatur und S/MIME anhaken.">
+            Aktiviert
           </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:90px">Signatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
@@ -1484,8 +1483,8 @@ function showHealthModal(mb) {
       '<button class="btn secondary btn-sm" id="regel-probe-btn" onclick="regelPruefenEins(\'' +
       escJsAttr(mb.email) + '\')">Regel prüfen</button> <span id="regel-probe-ergebnis" hidden></span>';
   } else {
-    regelHtml += '<div style="font-size:11px;color:#888">Nur für Postfächer mit gespeicherter ' +
-      'Verarbeitung — nur sie stehen in der Verteilerliste.</div>';
+    regelHtml += '<div style="font-size:11px;color:#888">Nur für aktivierte Postfächer ' +
+      '(gespeichert) — nur sie stehen in der Verteilerliste.</div>';
   }
   regelHtml += '</div>';
 
@@ -1538,7 +1537,7 @@ function renderMailboxTable(mailboxes) {
     + 'Das Gateway prüft alle 20 Minuten mit einer Prüfmail; kommt sie an, lassen sich Signatur und S/MIME einschalten.';
   var AUSFALL_TIPP = 'S/MIME wirkt bereits. Nur der Ausfallschutz (Post wartet, wenn das Gateway ausfällt) greift erst, '
     + 'wenn Exchange das Postfach in die S/MIME-Verteilerliste übernommen hat.';
-  var GESPERRT_TIPP = 'Erst „Verarbeitung“ anhaken und speichern — freigeschaltet, sobald Exchange das Postfach erfasst hat';
+  var GESPERRT_TIPP = 'Erst „Aktiviert“ anhaken und speichern — verfügbar, sobald Exchange das Postfach übernommen hat (bis zu 3 Stunden)';
   mailboxes.forEach(function(mb, i) {
     mb._idx = i;
     var isResource = (mb.type === 'room' || mb.type === 'equipment');
@@ -2101,9 +2100,9 @@ async function saveMailboxes() {
     refreshFairUse();
     wacheFertig('mb-save-btn', true);
     result.className = 'alert';
-    result.innerHTML = 'Gespeichert. Die Verteilerliste wird im Hintergrund aktualisiert. Neu zur Verarbeitung '
-      + 'vorgemerkte Postfächer erfasst Exchange verzögert (bis zu ~3 h); das Gateway prüft das alle 20 Minuten '
-      + 'und gibt Signatur und S/MIME danach frei.' + _zurueckgestelltText(d);
+    result.innerHTML = 'Gespeichert. Die Verteilerliste wird im Hintergrund aktualisiert. Neu aktivierte '
+      + 'Postfächer übernimmt Exchange verzögert (bis zu 3 Stunden); das Gateway prüft das alle 20 Minuten, '
+      + 'danach lassen sich Signatur und S/MIME anhaken.' + _zurueckgestelltText(d);
     result.style.display = 'block';
     _pollDgStatus(result, d);
   } else if (d.ok) {
@@ -2127,7 +2126,7 @@ function _zurueckgestelltText(d) {
   var z = (d && d.zurueckgestellt) || [];
   if (!z.length) return '';
   return '<br>Noch nicht von Exchange erfasst, Signatur und S/MIME deshalb nicht eingeschaltet: '
-    + z.map(esc).join(', ') + '. Die Verarbeitung ist gespeichert.';
+    + z.map(esc).join(', ') + '. Die Verarbeitung ist aktiviert und gespeichert.';
 }
 
 // Pollt den Hintergrundlauf der Verteilerlisten-Aktualisierung. Läuft, bis der

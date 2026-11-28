@@ -59,7 +59,7 @@ def test_403_wird_benannt():
     graph_reinject._fehler_merken("Hilfe@firma.at", 403,
                                   '{"error":{"code":"ErrorAccessDenied","message":"[RAOP] AccessPolicy"}}')
     g = graph_reinject.fehlergrund("hilfe@firma.at")
-    assert "verweigert" in g and "Verarbeitung" in g and "hilfe@firma.at" in g
+    assert "verweigert" in g and "Aktiviert" in g and "hilfe@firma.at" in g
 
 
 def test_warteschlangengrund_nennt_graph_fehler(monkeypatch):
@@ -111,7 +111,7 @@ def test_testmail_absender(monkeypatch, modus, eintrag, gesperrt):
     grund = wa.testmail_absender_hinderung("max@firma.at")
     assert bool(grund) is gesperrt
     if gesperrt:
-        assert "Verarbeitung" in grund
+        assert "Aktiviert" in grund
 
 
 @pytest.mark.parametrize("refresh,erwartet", [(True, 1), (False, 0)])

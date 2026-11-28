@@ -49,7 +49,7 @@ def _fehler_merken(absender: str, status: int, text: str) -> None:
     if status == 403 and ("RAOP" in text or "AccessPolicy" in text or "ErrorAccessDenied" in text):
         _letzter_fehler[a] = (
             f"Exchange verweigert der Gateway-App den Zugriff auf {a} (HTTP 403, "
-            "Zugriffsfreigabe). Das Postfach unter Postfächer → Verarbeitung aufnehmen; "
+            "Zugriffsfreigabe). Das Postfach unter Postfächer → Aktiviert einschalten; "
             "eine neue Freigabe wirkt verzögert")
     else:
         _letzter_fehler[a] = f"Graph sendMail für {a}: HTTP {status} {text[:160]}".strip()

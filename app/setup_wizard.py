@@ -1433,7 +1433,7 @@ def run_rule_split_setup(app_id: str, tenant_domain: str,
 def _app_scope_adressen() -> list[str]:
     """Postfächer, auf die das Gateway per Graph/IMAP zugreift — Grundlage der
     ApplicationAccessPolicy-Scope-Gruppe (Least Privilege): **verarbeitete**
-    Postfächer (verarbeitung.verarbeitet — schon ab dem Haken „Verarbeitung“, damit
+    Postfächer (verarbeitung.verarbeitet — schon ab dem Haken „Aktiviert“, damit
     die verzögert wirkende Freigabe beim Einschalten von Signatur/S/MIME steht)
     plus das Notification-Postfach.
 

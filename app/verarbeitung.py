@@ -11,7 +11,7 @@ einschaltet, wusste bisher nicht, ab wann es greift.
 Die Exchange-Seite (langsam) ist deshalb von der Gateway-Seite (sofort)
 getrennt:
 
-* **verarbeitet** — Haken „Verarbeitung“: Das Postfach steht in der
+* **verarbeitet** — Haken „Aktiviert“: Das Postfach steht in der
   Signatur-Verteilerliste (Routing zum Gateway) und in der App-Scope-Gruppe
   (Zugriffsrecht). Das Gateway gibt seine Post unverändert weiter, solange
   weder Signatur noch S/MIME an ist (handler.py: „not in active MAILBOX_CONFIG“).
@@ -48,7 +48,7 @@ def aktiv(eintrag) -> bool:
 
 
 def verarbeitet(eintrag) -> bool:
-    """In Verteilerliste und App-Scope-Gruppe: Haken „Verarbeitung“ ODER aktiv
+    """In Verteilerliste und App-Scope-Gruppe: Haken „Aktiviert“ ODER aktiv
     (Bestand und alte Seiten ohne das Feld)."""
     return isinstance(eintrag, dict) and bool(eintrag.get("verarbeiten") or aktiv(eintrag))
 

@@ -34,14 +34,15 @@ Exchange Online (EXO) → Zustellung an Empfänger
 3. Das Gateway schlägt den Absender per Microsoft Graph API nach und injiziert die Jinja2-Signatur (HTML + Plaintext) – auch bei Nur-Text- und TNEF-Mails (Outlook RTF).
 4. Die signierte Mail wird je nach `REINJECT_MODE` zurück an Exchange übergeben (Details unten).
 
-### Postfächer einschalten: erst Verarbeitung, dann Signatur und S/MIME
+### Postfächer einschalten: erst „Aktiviert“, dann Signatur und S/MIME
 
 Exchange übernimmt ein neues Mitglied der Verteilerliste in der Transportregel
 erst nach bis zu rund drei Stunden, und die Zugriffsfreigabe für die
 Gateway-App wirkt ebenfalls verzögert. Deshalb gibt es auf der Seite
 *Postfächer* zwei Schritte:
 
-1. **Verarbeitung** anhaken und speichern. Das Postfach kommt in die
+1. **Aktiviert** anhaken und speichern. Damit verarbeitet das Gateway die Post
+   des Postfachs. Das Postfach kommt in die
    Verteilerliste *… - Enabled Mailboxes* und in die Zugriffsfreigabe. Seine
    Post läuft dann über das Gateway, aber unverändert.
 2. Das Gateway sendet alle 20 Minuten eine Prüfmail des Postfachs an sich

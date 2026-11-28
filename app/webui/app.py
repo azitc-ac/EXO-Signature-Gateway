@@ -894,10 +894,9 @@ def testmail_absender_hinderung(absender: str) -> str:
     eintrag = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, absender)
     if verarbeitung.verarbeitet(eintrag):
         return ""
-    return (f"{absender} ist im Gateway nicht zur Verarbeitung aufgenommen. Im Graph-Modus "
-            "sendet das Gateway als dieser Absender und darf das nur für Postfächer mit "
-            "Verarbeitung (Postfächer → Verarbeitung). Sonst liegt die Testmail danach in "
-            "der Warteschlange.")
+    return (f"{absender} ist im Gateway nicht aktiviert. Im Graph-Modus sendet das Gateway "
+            "als dieser Absender und darf das nur für aktivierte Postfächer (Postfächer → "
+            "Aktiviert). Sonst liegt die Testmail danach in der Warteschlange.")
 
 
 @app.post("/api/test-mail")
