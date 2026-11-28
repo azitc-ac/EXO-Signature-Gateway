@@ -117,6 +117,17 @@
      30 px nur 14 px für die Schrift — Unterstrich und Unterlängen fehlten. */
   .mb-zeile select { height: var(--wahl-h); box-sizing: border-box; padding-top: 0; padding-bottom: 0 }
   .mb-zeile > td.mb-mitte { line-height: var(--wahl-h) }
+  /* Status: Zeichen und ℹ in EINER Zeile. Das ● (16 px) ist breiter als ✗;
+     in der 70-px-Spalte rutschte das ℹ bei gesunden Postfächern in eine zweite
+     Zeile — die Liste stand auf zwei Höhen (Telefon, 28.11.2026). */
+  .mb-zeile > td.mb-status-zelle { white-space: nowrap }
+  /* Statusfenster auf dem Telefon: Prüfung und Ergebnis in einer Zeile, der
+     Text darunter über die volle Breite. In drei Spalten lief er Wort für Wort
+     untereinander (28.11.2026). */
+  @media (max-width: 600px) {
+    tr.gesundheit-zeile { display: grid; grid-template-columns: 1fr auto }
+    tr.gesundheit-zeile > td:nth-child(3) { grid-column: 1 / -1; padding-top: 0 }
+  }
   .mb-zeile > td.mb-mitte > input[type=checkbox] { vertical-align: middle; margin-top: 0; margin-bottom: 0 }
   /* Ausnahme: Ein Wahl-Slot weicht vom Standard ab (JS setzt nur data-ausnahme
      am Select, _ausnahmeStand). Die Marke steht direkt dahinter und erscheint nur
@@ -1435,7 +1446,7 @@ function showHealthModal(mb) {
     var key = entry[0]; var c = entry[1];
     var sColor = _STATUS_FARBE[c.status] || '#888';
     var sSym = _STATUS_TEXT[c.status] || c.status;
-    return '<tr style="border-bottom:1px solid #f0f0f0">' +
+    return '<tr class="gesundheit-zeile" style="border-bottom:1px solid #f0f0f0">' +
       '<td style="padding:6px 10px;font-size:12px;font-weight:600;' + (c.name ? 'min-width:110px' : 'white-space:nowrap') + '">' +
         esc(c.name || _CHECK_LABELS[key] || key) + '</td>' +
       '<td style="padding:6px 8px;font-size:12px;color:' + sColor + ';white-space:nowrap;font-weight:700">' + sSym + '</td>' +
@@ -2137,9 +2148,10 @@ async function _pollDgStatus(result, gespeichert) {
     // WÄHREND der Hintergrund-Aktualisierung gemacht hat, fälschlich als
     // gespeichert markieren.
     if (s.ok) {
-      var out = s.output ? '<br><code style="font-size:11px">' + esc(s.output).replace(/\n/g, '<br>') + '</code>' : '';
+      // Die PowerShell-Ausgabe gehört ins Protokoll, nicht unter „Gespeichert“
+      // (Warnungen wie „no settings … were modified“ lasen sich als Fehler).
       result.className = 'alert success';
-      result.innerHTML = 'Gespeichert (lokal + Verteilerliste aktualisiert).' + _zurueckgestelltText(gespeichert) + out;
+      result.innerHTML = 'Gespeichert (lokal + Verteilerliste aktualisiert).' + _zurueckgestelltText(gespeichert);
     } else {
       result.className = 'alert error';
       result.innerHTML = 'Lokal gespeichert, aber die Verteilerliste konnte nicht aktualisiert werden: ' + esc(s.output || 'Unbekannt');

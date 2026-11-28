@@ -39,3 +39,16 @@ def kommentar(wert) -> str:
 def array(werte) -> str:
     """PowerShell-Array aus Literalen: `@('a', 'b')`."""
     return "@(" + ", ".join(quoted(w) for w in werte) + ")"
+
+
+_FARBCODE = __import__("re").compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def ausgabe(proc) -> str:
+    """stdout + stderr eines PowerShell-Laufs, ohne ANSI-Farbcodes.
+
+    pwsh färbt Warnungen auch bei umgeleiteter Ausgabe; in der Oberfläche
+    erschienen sie roh („[33;1mWARNING: The command completed successfully
+    but no settings … have been modified“, 28.11.2026). EIN Weg für alle
+    Aufrufer — tests/test_ps_ausgabe.py verbietet das Zusammensetzen von Hand."""
+    return _FARBCODE.sub("", ((proc.stdout or "") + "\n" + (proc.stderr or ""))).strip()

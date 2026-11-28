@@ -1527,6 +1527,33 @@ def test_signatur_und_smime_erst_nach_bereitschaft(seite):
     assert not pg.locator("#mb-tbody tr:nth-child(4) .mb-smime").is_checked()
 
 
+def test_statuszelle_einzeilig_auf_dem_telefon(seite):
+    """● bzw. ✗ und ℹ stehen in der Statusspalte nebeneinander. Auf dem iPhone
+    (Safari, breiteres ●) rutschte das ℹ in eine zweite Zeile; Chromium setzt die
+    Zeichen schmaler und bricht hier nicht um. Geprüft wird deshalb, dass die
+    Zelle nicht umbrechen DARF — und dass beide in einer Zeile stehen."""
+    pg = seite("/mailboxes", breite=393)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      document.getElementById('mb-table-wrap').style.display = 'block';
+      document.getElementById('th-status').style.display = '';
+      _hasHealthData = true;
+      renderMailboxTable([
+        {email: 'gesund@contoso.example', name: 'G', type: 'user', sig: true, smime: false,
+         health_overall: 'ok', health_checks: {}},
+        {email: 'krank@contoso.example', name: 'K', type: 'shared', sig: true, smime: false,
+         health_overall: 'error', health_checks: {}},
+      ]); }""")
+    zellen = pg.evaluate("""() => Array.from(document.querySelectorAll('.mb-status-zelle')).map(td => {
+        const z = td.querySelector('span'), k = td.querySelector('button');
+        return [getComputedStyle(td).whiteSpace,
+                Math.round(z.getBoundingClientRect().top), Math.round(k.getBoundingClientRect().top)];
+      })""")
+    for umbruch, zeichen, knopf in zellen:
+        assert umbruch == "nowrap", zellen
+        assert abs(zeichen - knopf) <= 4, zellen
+
+
 def test_postfachfilter_signatur_und_smime(seite):
     """Filter „Signatur“ und „S/MIME“ (v1.9.175): nach dem Haken in der Zeile,
     zusammen mit Text- und Typfilter, Zähler „x von y“."""

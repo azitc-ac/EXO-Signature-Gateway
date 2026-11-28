@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.194 — 2026-11-28 — Postfachliste: Statusanzeige auf dem Telefon, lesbare Meldungen, „wirkt in bis zu 3 h“ nach bestätigter Regel
+
+In der Statusspalte der Postfachliste rutschte auf dem Telefon bei gesunden
+Postfächern das ℹ unter das grüne ●, weil das ● breiter ist als das ✗. Die
+Zeilen standen damit auf zwei Höhen. Zeichen und ℹ stehen jetzt immer
+nebeneinander.
+
+Die Marke „wirkt in bis zu 3 h“ an frisch aktivierten Postfächern blieb bisher
+die vollen drei Stunden stehen, sofern niemand von Hand „Regel prüfen“
+drückte. Die automatische Regelprobe aus v1.12.188 prüft jetzt auch diese
+Postfächer. Kommt die Prüfmail am Gateway an, verschwindet die Marke.
+
+Im Statusfenster eines Postfachs standen Prüfung, Ergebnis und Erklärung auf
+dem Telefon in drei schmalen Spalten; der Text lief Wort für Wort untereinander.
+Jetzt steht die Erklärung unter Prüfung und Ergebnis über die volle Breite.
+
+Ist ein Outlook-Add-in einem Postfach nicht ausgeliefert, etwa einem geteilten
+Postfach, stand dort die rohe Exchange-Meldung („Get-App: ||The operation
+couldn't be performed because object … couldn't be found.“). Das ist jetzt
+„Nicht installiert“. Andere Abfragefehler stehen als „Exchange-Abfrage
+fehlgeschlagen: …“.
+
+Nach dem Speichern der Postfachliste stand unter „Gespeichert“ die Ausgabe des
+PowerShell-Abgleichs, samt Farbsteuerzeichen („[33;1mWARNING: …“). Die Ausgabe
+gehört ins Protokoll; die Meldung lautet nur noch „Gespeichert“. Ausgaben von
+PowerShell werden überall ohne Farbsteuerzeichen weitergegeben, auch in den
+Fehlermeldungen der Einrichtung und des Bypass-Wächters.
+
+**Zu tun:** nichts.
+
 ## v1.12.193 — 2026-11-28 — Bypass-Wächter: Regelzustand stündlich statt täglich geprüft
 
 Unabhängig vom externen Wächter liest das Gateway selbst aus, ob die

@@ -100,6 +100,18 @@ def test_offen_listet_nur_unbelegte():
     assert verarbeitung.offen(mc, {}) == ["a@firma.at"]
 
 
+def test_offen_auch_frisch_aktive_ohne_probe():
+    seit = JETZT - timedelta(hours=1)
+    e = {"primary": "a@firma.at", "sig": True, "aktiviert_seit": _iso(seit)}
+    assert verarbeitung.offen({"g": e}, {}, JETZT) == ["a@firma.at"]
+    # Probe belegt → nichts mehr zu prüfen
+    h = {"a@firma.at": _probe("greift", seit + timedelta(minutes=10))}
+    assert verarbeitung.offen({"g": e}, h, JETZT) == []
+    # älter als die Verzögerung → nicht mehr frisch
+    alt = dict(e, aktiviert_seit=_iso(JETZT - timedelta(hours=4)))
+    assert verarbeitung.offen({"g": alt}, {}, JETZT) == []
+
+
 def test_verzoegerung_eine_quelle():
     assert mbroute.REGEL_VERZOEGERUNG == verarbeitung.REGEL_VERZOEGERUNG
 

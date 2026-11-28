@@ -80,9 +80,21 @@ def bereit(eintrag, gesundheit: dict | None, jetzt: datetime | None = None) -> b
     return False
 
 
-def offen(mailbox_config: dict | None, gesundheit_alle: dict | None) -> list[str]:
-    """Adressen verarbeiteter, noch nicht bereiter Postfächer — für die
-    automatische Regelprobe (scheduler._vorbereitung_pruefen)."""
+def _frisch(eintrag, jetzt: datetime | None = None) -> bool:
+    """Verarbeitung jünger als REGEL_VERZOEGERUNG (Anzeige „wirkt in bis zu 3 h“)."""
+    seit = _zeit(eintrag.get("aktiviert_seit"))
+    jetzt = jetzt or datetime.now(timezone.utc)
+    return seit is not None and timedelta(0) <= jetzt - seit < REGEL_VERZOEGERUNG
+
+
+def offen(mailbox_config: dict | None, gesundheit_alle: dict | None,
+          jetzt: datetime | None = None) -> list[str]:
+    """Adressen für die automatische Regelprobe (scheduler._vorbereitung_pruefen):
+    verarbeitete, noch nicht bereite Postfächer — und frisch verarbeitete, für
+    die noch keine Probe belegt hat, dass die Regel greift. Sonst stünde bei
+    einem schon aktiven Postfach bis zum Ablauf der drei Stunden „wirkt in bis
+    zu 3 h“, auch wenn die Regel längst greift."""
+    import regel_probe
     aus: list[str] = []
     for key, e in (mailbox_config or {}).items():
         if not verarbeitet(e):
@@ -90,6 +102,7 @@ def offen(mailbox_config: dict | None, gesundheit_alle: dict | None) -> list[str
         adresse = (e.get("primary") or (key if "@" in key else "")).strip().lower()
         if not adresse:
             continue
-        if not bereit(e, (gesundheit_alle or {}).get(adresse)):
+        h = (gesundheit_alle or {}).get(adresse)
+        if not bereit(e, h, jetzt) or (_frisch(e, jetzt) and not regel_probe.greift(h, e)):
             aus.append(adresse)
     return sorted(set(aus))

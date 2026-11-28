@@ -196,7 +196,7 @@ def test_abfragefehler_ist_nicht_nicht_installiert(stand, monkeypatch):
     „entfällt“."""
     _uhr(monkeypatch, T0)
     r = health_check._check_addins({VERF: "!Der Vorgang wurde gedrosselt", KNOPF: "1.9.163"})
-    assert r["verfassen"]["status"] == "skip" and "Get-App" in r["verfassen"]["detail"]
+    assert r["verfassen"]["status"] == "skip" and "Abfrage fehlgeschlagen" in r["verfassen"]["detail"]
     assert "soll" not in r["verfassen"], "ein Abfragefehler ist kein Befund gegen das Soll"
     stand["MAILBOX_HEALTH"] = {"a@x.de": {"checks": {"addin_verfassen": r["verfassen"]}}}
     assert abnahme._addin_fassung()["zustand"] == abnahme.UNBEKANNT

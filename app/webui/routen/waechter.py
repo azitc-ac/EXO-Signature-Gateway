@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 import config
+import ps_text
 import settings_store
 import waechter_state
 import waechter_register
@@ -253,7 +254,7 @@ async def watchdog_grant_role(request: Request, user: str = Depends(_require_adm
            "-WatchdogAppId", app_id, "-WatchdogObjectId", obj_id]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-        out = (proc.stdout + "\n" + proc.stderr).strip()
+        out = ps_text.ausgabe(proc)
         ok = proc.returncode == 0 and "GRANT-ROLE-OK" in proc.stdout
         if ok:
             log.info("Watchdog-Rolle 'Transport Rules' zugewiesen von %s (MI %s)", user, app_id)

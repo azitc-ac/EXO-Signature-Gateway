@@ -18,6 +18,7 @@ import httpx
 
 import config
 import settings_store
+import ps_text
 import verarbeitung
 import graph_client as _gc
 
@@ -1106,7 +1107,7 @@ def run_smime_rules_setup(
 
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-        output = (proc.stdout + "\n" + proc.stderr).strip()
+        output = ps_text.ausgabe(proc)
         if proc.returncode == 0:
             import regel_soll
             # Angewendeter Stand des Regel-Solls: Ändert sich das Soll (z. B. die
@@ -1172,7 +1173,7 @@ def run_exo_connector_setup(
 
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-        output = (proc.stdout + "\n" + proc.stderr).strip()
+        output = ps_text.ausgabe(proc)
         if proc.returncode == 0:
             settings_store.update({"EXO_CONNECTOR_CREATED": True})
             log.info("EXO connector setup succeeded")
@@ -1305,7 +1306,7 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
             ["pwsh", "-NoProfile", "-NonInteractive", "-File", ps_path],
             capture_output=True, text=True, timeout=180,
         )
-        output = (proc.stdout + "\n" + proc.stderr).strip()
+        output = ps_text.ausgabe(proc)
         ok = proc.returncode == 0
         if ok:
             settings_store.update({"IMAP_ACCESS_CONFIGURED": True})
@@ -1371,7 +1372,7 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
 
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=dg_zeitlimit(180, len(members)))
-        output = (proc.stdout + "\n" + proc.stderr).strip()
+        output = ps_text.ausgabe(proc)
         if proc.returncode == 0:
             log.info("Mailbox DG update succeeded (%d members)", len(members))
             import waechter_regel
@@ -1416,7 +1417,7 @@ def run_rule_split_setup(app_id: str, tenant_domain: str,
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=dg_zeitlimit(
             300, len(sig_members) + len(smime_members)))
-        output = (proc.stdout + "\n" + proc.stderr).strip()
+        output = ps_text.ausgabe(proc)
         if proc.returncode == 0:
             log.info("Rule split ok (sig=%d, smime=%d)", len(sig_members), len(smime_members))
             import waechter_regel
@@ -1495,7 +1496,7 @@ def run_app_access_policy_sync(app_id: str, tenant_domain: str) -> dict:
         # wie die Verteilerliste (gleicher Abgleich dg_mitglieder.ps1).
         proc = subprocess.run(cmd, capture_output=True, text=True,
                               timeout=dg_zeitlimit(180, len(members)))
-        output = (proc.stdout + "\n" + proc.stderr).strip()
+        output = ps_text.ausgabe(proc)
         ok = proc.returncode == 0
         (log.info if ok else log.error)(
             "App-Access-Policy-Sync rc=%d (%d Postfächer im Scope)", proc.returncode, len(members))
@@ -1550,7 +1551,7 @@ Disconnect-ExchangeOnline -Confirm:$false
             ["pwsh", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
             capture_output=True, text=True, timeout=120,
         )
-        output = (proc.stdout + "\n" + proc.stderr).strip()
+        output = ps_text.ausgabe(proc)
         if proc.returncode != 0:
             return {"ok": False, "urls": {}, "output": output}
 
@@ -1642,7 +1643,7 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
             ["pwsh", "-NoProfile", "-NonInteractive", "-Command", ps_script],
             capture_output=True, text=True, timeout=180,
         )
-        output = (proc.stdout + "\n" + proc.stderr).strip()
+        output = ps_text.ausgabe(proc)
         import json as _json
         for line in proc.stdout.strip().splitlines():
             line = line.strip()
@@ -1704,7 +1705,7 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
             ["pwsh", "-NoProfile", "-NonInteractive", "-Command", ps_script],
             capture_output=True, text=True, timeout=120,
         )
-        output = (proc.stdout + "\n" + proc.stderr).strip()
+        output = ps_text.ausgabe(proc)
         import json as _json
         for line in proc.stdout.strip().splitlines():
             line = line.strip()
@@ -1785,7 +1786,7 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
             ["pwsh", "-NoProfile", "-NonInteractive", "-Command", ps_script],
             capture_output=True, text=True, timeout=120,
         )
-        output = (proc.stdout + "\n" + proc.stderr).strip()
+        output = ps_text.ausgabe(proc)
         import json as _json
         for line in proc.stdout.strip().splitlines():
             line = line.strip()

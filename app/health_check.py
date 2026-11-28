@@ -12,6 +12,7 @@ Public API:
 import asyncio
 import hashlib
 import json
+import re
 import logging
 import subprocess
 import tempfile
@@ -457,6 +458,9 @@ def _katalog_merken(katalog: dict) -> None:
             av.katalog_gelesen(a["art"], v.strip())
 
 
+_NICHT_GEFUNDEN = re.compile(r"couldn'?t be found|could not be found|wurde nicht gefunden", re.I)
+
+
 def _check_addins(installiert: dict | None) -> dict[str, dict]:
     """Fassung der Outlook-Add-ins, die Exchange dem Postfach ausgeliefert hat,
     gegen die Fassung, die das Gateway ausliefert — EIN Ergebnis je Add-in
@@ -483,9 +487,16 @@ def _check_addins(installiert: dict | None) -> dict[str, dict]:
             ergebnis[art] = _make_result("skip", "Nicht abgefragt (PowerShell-Fehler)")
             continue
         ist = (installiert.get(a["id"]) or "").strip()
+        if ist.startswith("!") and _NICHT_GEFUNDEN.search(ist):
+            # „Objekt nicht gefunden“ heisst: dem Postfach nicht ausgeliefert. Das
+            # REST-Modul liefert dafür nicht immer ManagementObjectNotFoundException
+            # (gesehen 28.11.2026 an einem geteilten Postfach), der Text ist eindeutig.
+            ist = ""
         if ist.startswith("!"):
             # Abfrage gescheitert — weder „nicht installiert“ noch eine Fassung.
-            ergebnis[art] = _make_result("skip", "Nicht abgefragt (Get-App: " + ist[1:][:120] + ")")
+            grund = ist[1:].lstrip("|").strip()
+            ergebnis[art] = _make_result(
+                "skip", "Nicht abgefragt — Exchange-Abfrage fehlgeschlagen: " + grund[:120])
             continue
         # EINE Einordnung für Postfachprüfung und Aufgabe (addin_verteilung):
         # Ist die Soll-Fassung schon bei einem Postfach angekommen, ist das
