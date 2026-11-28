@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.199 — 2026-11-28 — Regelprüfung: „wartet“ bleibt nicht stehen
+
+Die automatische Regelprüfung frisch aktivierter Postfächer lief nur innerhalb
+der ersten 3 Stunden nach dem Aktivieren. Ergab die letzte Probe in diesem
+Zeitraum „Regel greift noch nicht“, blieb dieses vorläufige Ergebnis danach
+stehen. Es ist als Hinweis eingestuft und zählt nicht in den Postfachstatus, der
+deshalb grün zeigte, obwohl keine Probe je angekommen war. Betroffen waren
+Postfächer, die schon vorher Signatur oder S/MIME hatten.
+
+Jetzt prüft der Takt (alle 20 Minuten) weiter, solange die letzte Probe
+„wartet“ lautet. Die erste Probe nach Ablauf der 3 Stunden liefert ein
+endgültiges Ergebnis: „greift“ (grün) oder „greift nicht“ (rot). Danach wird
+nicht weiter geprüft.
+
+**Zu tun:** nichts. Betroffene Postfächer werden beim nächsten Takt erneut
+geprüft.
+
 ## v1.12.198 — 2026-11-28 — Testreihe: Browser-Test der Übersicht unabhängig von anderen Tests
 
 Der Browser-Test „Übersicht ohne einklappbare Zeilen“ las die echten

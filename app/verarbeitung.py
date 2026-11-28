@@ -87,6 +87,19 @@ def _frisch(eintrag, jetzt: datetime | None = None) -> bool:
     return seit is not None and timedelta(0) <= jetzt - seit < REGEL_VERZOEGERUNG
 
 
+def _vorlaeufig(eintrag, gesundheit: dict | None) -> bool:
+    """Steht als letzte gültige Probe „wartet“? Das Ergebnis ist vorläufig (nur
+    innerhalb von REGEL_VERZOEGERUNG vergeben, Status „Hinweis“, zählt nicht in
+    die Ampel) und muss aufgelöst werden: Die nächste Probe nach Ablauf der Frist
+    ergibt „greift“ (ok) oder „greift_nicht“ (Fehler) — beides endgültig, danach
+    wird nicht weiter geprobt. Ohne diese Bedingung blieb ein bereits aktives
+    Postfach nach Ablauf der Frist stumm auf „wartet“ stehen, und die Ampel
+    zeigte grün, obwohl keine Probe je angekommen war."""
+    import regel_probe
+    probe = (gesundheit or {}).get("regel_probe")
+    return regel_probe.aktuell(probe, eintrag) and probe.get("ergebnis") == "wartet"
+
+
 def offen(mailbox_config: dict | None, gesundheit_alle: dict | None,
           jetzt: datetime | None = None) -> list[str]:
     """Adressen für die automatische Regelprobe (scheduler._vorbereitung_pruefen):
@@ -103,6 +116,7 @@ def offen(mailbox_config: dict | None, gesundheit_alle: dict | None,
         if not adresse:
             continue
         h = (gesundheit_alle or {}).get(adresse)
-        if not bereit(e, h, jetzt) or (_frisch(e, jetzt) and not regel_probe.greift(h, e)):
+        if (not bereit(e, h, jetzt) or (_frisch(e, jetzt) and not regel_probe.greift(h, e))
+                or _vorlaeufig(e, h)):
             aus.append(adresse)
     return sorted(set(aus))

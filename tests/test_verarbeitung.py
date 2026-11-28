@@ -112,6 +112,23 @@ def test_offen_auch_frisch_aktive_ohne_probe():
     assert verarbeitung.offen({"g": alt}, {}, JETZT) == []
 
 
+def test_offen_loest_vorlaeufiges_wartet_auf():
+    """Aktives Postfach, letzte Probe „wartet“ aus der Frist, Frist abgelaufen:
+    weiter proben, bis „greift“ oder „greift_nicht“ feststeht — sonst bleibt der
+    Hinweis stehen und die Ampel zeigt grün ohne Beleg."""
+    seit = JETZT - timedelta(hours=4)
+    e = {"primary": "a@firma.at", "sig": True, "bereit": True, "aktiviert_seit": _iso(seit)}
+    h = {"a@firma.at": _probe("wartet", seit + timedelta(hours=2, minutes=50))}
+    assert verarbeitung.offen({"g": e}, h, JETZT) == ["a@firma.at"]
+    # endgültige Ergebnisse beenden das Proben (kein Dauertakt bei kaputter Regel)
+    for erg in ("greift", "greift_nicht"):
+        h = {"a@firma.at": _probe(erg, seit + timedelta(hours=3, minutes=10))}
+        assert verarbeitung.offen({"g": e}, h, JETZT) == [], erg
+    # „wartet“ von VOR der Aktivierung gilt nicht
+    h = {"a@firma.at": _probe("wartet", seit - timedelta(minutes=5))}
+    assert verarbeitung.offen({"g": e}, h, JETZT) == []
+
+
 def test_verzoegerung_eine_quelle():
     assert mbroute.REGEL_VERZOEGERUNG == verarbeitung.REGEL_VERZOEGERUNG
 
