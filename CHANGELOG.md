@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.193 — 2026-11-28 — Bypass-Wächter: Regelzustand stündlich statt täglich geprüft
+
+Unabhängig vom externen Wächter liest das Gateway selbst aus, ob die
+Signatur-Transportregel abgeschaltet ist. So fällt ein hängender Bypass auch
+dann auf, wenn der Wächter selbst ausgefallen ist. Diese Prüfung lief nur
+einmal am Tag. Außerdem verwirft jedes Speichern der Postfachliste ihr letztes
+Ergebnis, weil sich die Regel dabei ändern kann. Ein hängender Bypass bei
+totem Wächter konnte so bis zu 24 Stunden unbemerkt bleiben.
+
+Jetzt läuft die Prüfung stündlich, nach einem verworfenen Ergebnis schon nach
+zehn Minuten wieder. Wie bisher nur mit eingerichtetem Bypass-Wächter.
+
+**Zu tun:** nichts.
+
 ## v1.12.192 — 2026-11-28 — Bypass-Wächter: veraltete Herzschlagfelder entfernt
 
 Seit es das Register für mehrere Wächter gibt, steht der Herzschlag jedes

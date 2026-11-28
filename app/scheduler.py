@@ -33,6 +33,9 @@ _HEALTH_INTERVAL = 30 * 60             # Postfach-Gesundheit periodisch, damit d
 _last_retry_run: float = _NIE           # monotonic; _NIE = nie gelaufen (triggers run on first tick)
 _last_vorbereitung_run: float = _NIE
 _VORBEREITUNG_INTERVAL = 20 * 60       # Regelprobe für vorbereitete, noch nicht belegte Postfächer
+_last_regelzustand_run: float = _NIE
+_REGELZUSTAND_INTERVAL = 60 * 60       # Signatur-Regelzustand (Bypass ohne Wächter erkennen): stündlich
+_REGELZUSTAND_NACH_RESET = 10 * 60     # nach einem Zurücksetzen frühestens so bald erneut
 _RETRY_INTERVAL = 60                   # jede Minute — feinste Exchange-Retry-Stufe ist 1 min
                                        # (Glitch); die eigentliche Kadenz steckt pro Mail in
                                        # held_mails.next_retry
@@ -571,16 +574,8 @@ def _run_daily() -> None:
     _check_smime_lifecycle()
     _check_license_expiry()
 
-    # Unabhängige, NUR LESENDE Prüfung des Signatur-Regelzustands — nur wenn der
-    # Bypass-Wächter eingerichtet ist (sonst gibt es keinen Bypass zu erkennen,
-    # und wir ersparen allen anderen Gateways den täglichen EXO-Login). Fängt
-    # einen aktiven Bypass auch dann, wenn der Wächter selbst tot ist.
-    if settings_store.get("WATCHDOG_ENABLED") is True:
-        try:
-            import waechter_regel
-            waechter_regel.pruefe_und_merke()
-        except Exception as exc:                            # noqa: BLE001
-            log.warning("scheduler: Regelzustand-Prüfung fehlgeschlagen: %s", exc)
+    # Die Prüfung des Signatur-Regelzustands lief bis v1.12.192 hier, also
+    # einmal täglich — seither eigener Takt (_regelzustand_pruefen).
 
     # Portal cleanup
     try:
@@ -748,6 +743,35 @@ def _refresh_mailbox_health() -> None:
         log.warning("scheduler: Postfach-Gesundheitsprüfung fehlgeschlagen: %s", exc)
     finally:
         _last_health_run = time.monotonic()
+
+
+def _regelzustand_faellig(seit_letztem_lauf: float) -> bool:
+    """Stündlich — und früher, wenn ein Einrichtungsweg den gemerkten Zustand
+    verworfen hat (waechter_regel.regel_umgeschaltet, etwa bei jedem Speichern
+    der Postfachliste): Dann ist die Prüfung blind, bis sie wieder läuft."""
+    if seit_letztem_lauf > _REGELZUSTAND_INTERVAL:
+        return True
+    import waechter_state
+    leer = not (waechter_state.lesen().get("rule_checked") or "")
+    return leer and seit_letztem_lauf > _REGELZUSTAND_NACH_RESET
+
+
+def _regelzustand_pruefen() -> None:
+    """Unabhängige, NUR LESENDE Prüfung des Signatur-Regelzustands — nur mit
+    eingerichtetem Bypass-Wächter (sonst gibt es keinen Bypass zu erkennen, und
+    andere Gateways sparen sich den EXO-Login). Fängt einen hängenden Bypass
+    auch dann, wenn der Wächter selbst tot ist. Bis v1.12.192 lief sie nur im
+    Tageslauf, und jedes Speichern der Postfachliste löschte ihr Ergebnis — bis
+    zu 24 h ohne diese Absicherung."""
+    global _last_regelzustand_run
+    try:
+        if settings_store.get("WATCHDOG_ENABLED") is True:
+            import waechter_regel
+            waechter_regel.pruefe_und_merke()
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("scheduler: Regelzustand-Prüfung fehlgeschlagen: %s", exc)
+    finally:
+        _last_regelzustand_run = time.monotonic()
 
 
 def _vorbereitung_pruefen() -> None:
@@ -1029,6 +1053,8 @@ def _loop() -> None:
                 _retry_held_deliveries()
             if time.monotonic() - _last_vorbereitung_run > _VORBEREITUNG_INTERVAL:
                 _vorbereitung_pruefen()
+            if _regelzustand_faellig(time.monotonic() - _last_regelzustand_run):
+                _regelzustand_pruefen()
             if time.monotonic() - _last_mailuser_run > _MAILUSER_INTERVAL:
                 _refresh_onprem_mailusers()
             if time.monotonic() - _last_teams_katalog_run > _TEAMS_KATALOG_INTERVAL:
