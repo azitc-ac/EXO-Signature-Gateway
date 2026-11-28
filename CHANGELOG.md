@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.192 — 2026-11-28 — Bypass-Wächter: veraltete Herzschlagfelder entfernt
+
+Seit es das Register für mehrere Wächter gibt, steht der Herzschlag jedes
+Wächters (zuletzt gesehen, Zustand, aktiver Bypass, Fehler) im Register. Die
+gleichnamigen Felder in `watchdog_state.json` stammen aus der Zeit davor;
+niemand schreibt sie mehr. Gelesen wurden sie trotzdem weiter als Rückfall,
+nämlich vom Band „Bypass-Wächter ohne Exchange-Zugriff“ und von der
+Statusabfrage der Wächter-Seite. Ein Fehlertext oder ein „Bypass aktiv“ aus
+der Zeit vor der Übernahme hätte dort für immer gestanden.
+
+Jetzt lesen Band und Statusabfrage nur noch das Register. Die Altfelder werden
+beim Start entfernt, sobald das Register sie übernommen hat. Der von der
+Regelprüfung geschriebene Zustand der Transportregel bleibt in der Datei.
+
+**Zu tun:** nichts.
+
 ## v1.12.191 — 2026-11-28 — „Postfächer laden“ führt auch die Adressen der Einträge nach
 
 Der Knopf „Postfächer laden“ fragt Exchange frisch ab, frischte bisher aber

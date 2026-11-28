@@ -25,6 +25,29 @@ def lesen() -> dict:
             return {}
 
 
+# Herzschlag-Felder aus der Zeit vor dem Mehrwächter-Register. Seitdem stehen sie
+# je Wächter im Register (waechter_register._HB_FELDER); hier schreibt sie
+# niemand mehr. Gelesen wurden sie trotzdem weiter als Rückfall — ein alter
+# Fehlertext oder ein alter „Bypass aktiv“ wäre so für immer im Band gestanden.
+# Nach der Übernahme ins Register werden sie entfernt.
+HERZSCHLAG_ALT = ("last_seen", "healthy", "bypass_active", "fails", "oks", "exo_error")
+
+
+def altfelder_entfernen() -> bool:
+    """Die Herzschlag-Altfelder entfernen. True, wenn etwas entfernt wurde."""
+    with _LOCK:
+        d = lesen()
+        if not any(k in d for k in HERZSCHLAG_ALT):
+            return False
+        for k in HERZSCHLAG_ALT:
+            d.pop(k, None)
+        tmp = PFAD.with_suffix(".tmp")
+        tmp.write_text(json.dumps(d), encoding="utf-8")
+        tmp.chmod(0o600)
+        tmp.replace(PFAD)
+        return True
+
+
 def merge(**felder) -> dict:
     """Felder in den Zustand einmischen und atomar (600) zurückschreiben."""
     with _LOCK:

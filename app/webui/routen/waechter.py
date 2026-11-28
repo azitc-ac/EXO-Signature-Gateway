@@ -127,9 +127,9 @@ async def watchdog_status(user: str = Depends(_require_admin)):
     st = zustand()                                            # globaler Regelzustand
     watchers = waechter_register.liste()
     last_seen = max((w.get("last_seen") or "" for w in watchers), default="")
-    any_bypass = any(w.get("bypass_active") for w in watchers) or bool(st.get("bypass_active"))
-    exo_err = next((w.get("exo_error") for w in watchers if w.get("exo_error")), "") \
-        or (st.get("exo_error") or "")
+    # Nur das Register — keine Rückfälle auf die Altfelder (waechter_state.HERZSCHLAG_ALT).
+    any_bypass = any(w.get("bypass_active") for w in watchers)
+    exo_err = next((w.get("exo_error") for w in watchers if w.get("exo_error")), "")
     kind = watchers[0]["kind"] if watchers else (settings_store.get("WATCHDOG_KIND") or "")
     return JSONResponse({
         "enabled": settings_store.get("WATCHDOG_ENABLED") is True,

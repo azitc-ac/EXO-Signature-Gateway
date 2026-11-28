@@ -177,6 +177,7 @@ def migrieren_falls_noetig() -> bool:
     import settings_store
     with _LOCK:
         if _laden():
+            _altfelder_entfernen()
             return False                                       # schon Register da
         token_hash = settings_store.get("WATCHDOG_TOKEN_HASH") or ""
         if not token_hash:
@@ -197,4 +198,18 @@ def migrieren_falls_noetig() -> bool:
             "exo_error": st.get("exo_error", ""),
         }}
         _speichern(d)
+        _altfelder_entfernen()
         return True
+
+
+def _altfelder_entfernen() -> None:
+    """Herzschlag-Altfelder aus watchdog_state.json — erst, wenn das Register
+    sie übernommen hat (waechter_state.HERZSCHLAG_ALT)."""
+    import logging
+    try:
+        import waechter_state
+        if waechter_state.altfelder_entfernen():
+            logging.getLogger("waechter").info(
+                "Watchdog: Herzschlag-Altfelder aus watchdog_state.json entfernt (stehen im Register)")
+    except Exception as exc:                                   # noqa: BLE001
+        logging.getLogger("waechter").warning("Watchdog: Altfelder nicht entfernt: %s", exc)

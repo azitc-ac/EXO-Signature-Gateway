@@ -171,7 +171,7 @@ def _bypass_gemeldet() -> dict | None:
             seit = st.get("rule_checked") or ""
             juengster = max((w.get("last_seen") or "" for w in waechter_register.liste()),
                             default="")
-            return {"seit": _utc_anzeige(juengster or seit or st.get("last_seen") or ""),
+            return {"seit": _utc_anzeige(juengster or seit or ""),
                     "geprueft": _utc_anzeige(st.get("rule_checked") or "")}
     except Exception:                                       # noqa: BLE001
         pass
@@ -297,14 +297,12 @@ def _waechter_gemeldet() -> dict | None:
         if settings_store.get("WATCHDOG_ENABLED") is not True or _bypass_gemeldet():
             return None
         import waechter_register
-        import waechter_state
         from datetime import datetime, timezone
-        st = waechter_state.lesen()
         waechter = waechter_register.liste()
-        zuletzt = max((w.get("last_seen") or "" for w in waechter), default="") \
-            or (st.get("last_seen") or "")
-        fehler = next((w.get("exo_error") for w in waechter if w.get("exo_error")), "") \
-            or (st.get("exo_error") or "")
+        # Nur das Register: Die Herzschlag-Altfelder in watchdog_state.json
+        # schreibt niemand mehr (waechter_state.HERZSCHLAG_ALT).
+        zuletzt = max((w.get("last_seen") or "" for w in waechter), default="")
+        fehler = next((w.get("exo_error") for w in waechter if w.get("exo_error")), "")
         anzeige = _utc_anzeige(zuletzt) if zuletzt else "noch nie"
         if fehler:
             return {"art": "exo", "zuletzt": anzeige, "fehler": str(fehler)[:200]}
