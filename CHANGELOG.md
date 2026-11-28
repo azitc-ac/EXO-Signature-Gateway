@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.189 — 2026-11-28 — Postfächer: Erklärung der Haken und des Ausfallschutzes
+
+Der aufklappbare Hinweis über der Postfachliste („Was bewirken die Haken?“)
+beschrieb noch nur die eine Verteilerliste. Er erklärt jetzt die Stufe
+„Verarbeitung“ aus v1.12.188 und den Ausfallschutz. Mit eingerichtetem
+Bypass-Wächter geht bei einem Gateway-Ausfall die Post reiner
+Signatur-Postfächer unsigniert hinaus, und die Post von S/MIME-Postfächern
+wartet in Exchange; ohne Wächter wartet jede Post. Diese Rückhaltung greift für ein
+Postfach erst, wenn Exchange es in die S/MIME-Verteilerliste übernommen hat,
+also bis zu rund drei Stunden nach dem Einschalten von S/MIME. Dieselbe
+Erklärung steht in `docs/betrieb.md` unter „Postfächer einschalten“.
+
+**Zu tun:** nichts.
+
 ## v1.12.188 — 2026-11-28 — Postfächer: erst „Verarbeitung“, dann Signatur und S/MIME
 
 Exchange erfasst ein neues Mitglied der Verteilerliste in der Transportregel

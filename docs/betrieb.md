@@ -34,6 +34,33 @@ Exchange Online (EXO) → Zustellung an Empfänger
 3. Das Gateway schlägt den Absender per Microsoft Graph API nach und injiziert die Jinja2-Signatur (HTML + Plaintext) – auch bei Nur-Text- und TNEF-Mails (Outlook RTF).
 4. Die signierte Mail wird je nach `REINJECT_MODE` zurück an Exchange übergeben (Details unten).
 
+### Postfächer einschalten: erst Verarbeitung, dann Signatur und S/MIME
+
+Exchange übernimmt ein neues Mitglied der Verteilerliste in der Transportregel
+erst nach bis zu rund drei Stunden, und die Zugriffsfreigabe für die
+Gateway-App wirkt ebenfalls verzögert. Deshalb gibt es auf der Seite
+*Postfächer* zwei Schritte:
+
+1. **Verarbeitung** anhaken und speichern. Das Postfach kommt in die
+   Verteilerliste *… - Enabled Mailboxes* und in die Zugriffsfreigabe. Seine
+   Post läuft dann über das Gateway, aber unverändert.
+2. Das Gateway sendet alle 20 Minuten eine Prüfmail des Postfachs an sich
+   selbst. Kommt sie am Gateway an, hat Exchange beides übernommen. Erst dann
+   lassen sich **Signatur** und **S/MIME** anhaken; sie wirken sofort. Bis
+   dahin steht am Postfach „wartet auf Exchange“.
+
+**Ausfallschutz** (nur mit eingerichtetem Bypass-Wächter, *Erweitert →
+Bypass-Wächter*; ohne ihn bleiben beide Regeln an, und bei einem Ausfall wartet
+jede Post in Exchange): Fällt das Gateway aus, schaltet der Wächter die
+Signatur-Regel ab, und die Post reiner Signatur-Postfächer geht unsigniert
+direkt hinaus. Post von S/MIME-Postfächern hält eine zweite Regel in Exchange
+zurück, bis das Gateway wieder läuft, damit nichts unverschlüsselt hinausgeht,
+was verschlüsselt gehört. Dafür steht ein S/MIME-Postfach zusätzlich in
+*… - SMIME Mailboxes*. Auch diese Aufnahme übernimmt Exchange verzögert: Fällt
+das Gateway in den ersten Stunden nach dem Einschalten von S/MIME aus, ginge
+die Post dieses Postfachs noch unverschlüsselt hinaus. Die Liste zeigt dieses
+Fenster als „Ausfallschutz wirkt in bis zu 3 h“.
+
 ---
 
 ## Netzwerk-Anforderungen

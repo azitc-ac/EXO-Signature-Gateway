@@ -287,10 +287,11 @@ async function ankerAnwenden() {
        auf dem Telefon lag die erste Zeile unterhalb des Bildschirms.
        Die Ids der Felder und Knöpfe sind unverändert (Tests, Sprungziel #ruhend). -->
   <details class="feld-gruppe" style="margin-bottom:8px">
-    <summary>Was bewirkt die Markierung?</summary>
+    <summary>Was bewirken die Haken?</summary>
     <p class="hint" style="margin:4px 0 0">
-      Nur markierte Postfächer werden verarbeitet — alle anderen Mails fließen unverändert durch. Ohne Markierung verarbeitet das Gateway <strong>nichts</strong>.<br>
-      Beim Speichern wird <code>{{ gateway_name }} - Enabled Mailboxes</code> aktualisiert; die EXO-Transportregel leitet nur Mitglieder dieser Gruppe über das Gateway.
+      <strong>Verarbeitung</strong> nimmt das Postfach in <code>{{ gateway_name }} - Enabled Mailboxes</code> und in die Zugriffsfreigabe des Gateways auf. Die Transportregel leitet nur Mitglieder dieser Gruppe über das Gateway; bis Signatur oder S/MIME an ist, fließt ihre Post unverändert durch. Postfächer ohne Haken berührt das Gateway nicht.<br>
+      Exchange übernimmt neue Mitglieder verzögert (bis zu ~3 h). Das Gateway prüft das alle 20 Minuten mit einer Prüfmail; bis sie ankommt, steht am Postfach „wartet auf Exchange“, und <strong>Signatur</strong> und <strong>S/MIME</strong> lassen sich noch nicht anhaken. Danach wirken beide sofort.<br>
+      <strong>Ausfallschutz</strong> (nur mit eingerichtetem Bypass-Wächter, Erweitert → Bypass-Wächter; ohne ihn wartet bei einem Ausfall jede Post in Exchange): Fällt das Gateway aus, geht die Post reiner Signatur-Postfächer unsigniert direkt hinaus. Post von S/MIME-Postfächern wartet dagegen in Exchange, damit nichts unverschlüsselt hinausgeht. Dafür steht ein S/MIME-Postfach zusätzlich in <code>{{ gateway_name }} - SMIME Mailboxes</code>, und auch diese Aufnahme übernimmt Exchange verzögert. Fällt das Gateway in den ersten Stunden nach dem Einschalten von S/MIME aus, ginge die Post dieses Postfachs noch unverschlüsselt hinaus. Die Liste zeigt dieses Fenster als „Ausfallschutz wirkt in bis zu 3 h“.
     </p>
   </details>
   <div class="actions" style="margin-bottom:8px">
