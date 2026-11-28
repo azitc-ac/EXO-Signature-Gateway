@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.198 — 2026-11-28 — Testreihe: Browser-Test der Übersicht unabhängig von anderen Tests
+
+Der Browser-Test „Übersicht ohne einklappbare Zeilen“ las die echten
+Mailzähler. Bei parallelen Testläufen teilen sich alle Tests diese Zähler;
+hatte ein anderer Test etwas gezählt, erschien eine einklappbare Zeile, und der
+Test wurde rot. Jetzt setzt er die Zähler selbst auf null. Keine Änderung am
+Produkt.
+
+**Zu tun:** nichts.
+
 ## v1.12.197 — 2026-11-28 — Band bei stehenden Hintergrundaufgaben, Raum- und Gerätepostfächer, lesbarer 403
 
 **Stehende Hintergrundaufgaben werden gemeldet.** Nachstellen zurückgehaltener

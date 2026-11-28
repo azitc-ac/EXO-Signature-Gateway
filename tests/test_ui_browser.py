@@ -3664,10 +3664,19 @@ def _uebersicht(seite, monkeypatch, verteilung, smime_im_jahr=True):
     import heute_verteilung
     import settings_store
     import stats
+    echte_periode = stats.get_period
     if smime_im_jahr:                                   # sonst gibt es nichts einzuklappen
-        echte_periode = stats.get_period
         monkeypatch.setattr(stats, "get_period", lambda *a: (
             {**echte_periode(*a), "smime_signed": 1} if len(a) == 1 else echte_periode(*a)))
+    else:
+        # Ausdrücklich null: Die echten Zähler teilen sich alle Tests eines
+        # Laufs. Hatte ein paralleler Test etwas gezählt, erschien eine
+        # einklappbare Zeile, und der Test wurde rot (nur unter pytest -n).
+        def _alles_null(*a):
+            d = echte_periode(*a)
+            return {k: (0 if isinstance(v, (int, float)) else v) for k, v in d.items()} \
+                if isinstance(d, dict) else d
+        monkeypatch.setattr(stats, "get_period", _alles_null)
     echt = settings_store.get
     monkeypatch.setattr(settings_store, "get",
                         lambda k, *a, **kw: True if k == "SETUP_COMPLETE" else echt(k, *a, **kw))
