@@ -458,6 +458,24 @@ def _katalog_merken(katalog: dict) -> None:
             av.katalog_gelesen(a["art"], v.strip())
 
 
+ADDIN_GETEILT = ("Entfällt bei geteilten Postfächern: Add-ins werden dem Hauptpostfach der "
+                 "Person zugewiesen, die das geteilte Postfach öffnet, und laufen dort mit")
+
+
+def _addins_geteilt(addins: dict[str, dict]) -> dict[str, dict]:
+    """Geteilte Postfächer (und Raum/Gerät) bekommen keine Add-ins: Microsoft
+    empfiehlt ausdrücklich, Add-ins nicht an ein geteiltes Postfach zu verteilen,
+    sondern an das Hauptpostfach der Nutzer — dort laufen sie auch im geteilten
+    (learn.microsoft.com, Office Add-ins, „Implement shared folders and shared
+    mailbox scenarios“, Abschnitt „Add-ins in shared mailbox scenarios“). Bis
+    v1.12.195 zählte ein geteiltes Postfach ohne Add-in als Zuweisungsfehler und
+    löste die Aufgabe „im Admin Center aktualisieren“ aus. Ohne `soll` zählt
+    die Abnahme (abnahme._addin_fassung_art) das Postfach nicht mit."""
+    return {art: {**_make_result("skip", ADDIN_GETEILT),
+                  **({"name": e["name"]} if e.get("name") else {})}
+            for art, e in addins.items()}
+
+
 _NICHT_GEFUNDEN = re.compile(r"couldn'?t be found|could not be found|wurde nicht gefunden", re.I)
 
 
@@ -896,6 +914,8 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None,
         else:
             checks["imap_permission"] = _make_result("skip", "REINJECT_MODE != graph_plus")
     addins = _check_addins(None if err else data.get("addins"))
+    if exo_mailboxes.ist_geteilt(email):
+        addins = _addins_geteilt(addins)
     checks["addin_verfassen"] = addins["verfassen"]
     checks["addin_knopf"] = addins["knopf"]
 

@@ -44,3 +44,26 @@ def test_statusfenster_und_speichermeldung():
     assert '<tr class="gesundheit-zeile"' in html
     # Unter „Gespeichert“ keine PowerShell-Ausgabe mehr
     assert "'Gespeichert (lokal + Verteilerliste aktualisiert).' + _zurueckgestelltText(gespeichert);" in html
+
+
+def test_geteiltes_postfach_ohne_addin_ist_kein_befund(soll, monkeypatch):
+    """Microsoft: Add-ins nicht an geteilte Postfächer verteilen, sondern an das
+    Hauptpostfach der Nutzer. Ein geteiltes Postfach ohne Add-in ist also kein
+    Zuweisungsfehler und zählt in der Abnahme nicht mit."""
+    erg = health_check._addins_geteilt(health_check._check_addins({f"id-{a}": "" for a in soll}))
+    for a in soll:
+        assert erg[a]["status"] == "skip" and "geteilten" in erg[a]["detail"]
+        assert "soll" not in erg[a] and "lage" not in erg[a]
+        assert erg[a]["name"] == a
+    import abnahme
+    import settings_store
+    gesundheit = {"geteilt@firma.at": {"checks": {"addin_verfassen": erg["verfassen"]}}}
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: gesundheit if k == "MAILBOX_HEALTH" else d)
+    assert abnahme._addin_fassung()["zustand"] == abnahme.UNBEKANNT   # nicht als Zuweisung gezählt
+
+
+def test_pruefung_nimmt_geteilte_heraus():
+    import inspect
+    quelle = inspect.getsource(health_check.run_checks_for_mailbox)
+    assert "if exo_mailboxes.ist_geteilt(email):\n        addins = _addins_geteilt(addins)" in quelle

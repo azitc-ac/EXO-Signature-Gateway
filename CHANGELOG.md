@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.12.196 — 2026-11-28 — Outlook-Add-ins: geteilte Postfächer kein Zuweisungsfehler
+
+Die Aufgabe „Verfassen-Add-in im Admin Center aktualisieren“ meldete geteilte
+Postfächer, denen Exchange die neue Fassung nicht ausgeliefert hatte, und
+verlangte eine Zuweisung an alle. Geteilte Postfächer bekommen aber gar keine
+Add-ins: Microsoft empfiehlt, Add-ins nicht an ein geteiltes Postfach zu
+verteilen, sondern an das Hauptpostfach der Nutzer; dort laufen sie auch, wenn
+das geteilte Postfach geöffnet ist ([Microsoft Learn: Shared folders and
+shared mailbox scenarios](https://learn.microsoft.com/en-us/office/dev/add-ins/outlook/delegate-access)).
+
+In der Postfachprüfung steht bei geteilten Postfächern jetzt „Entfällt bei
+geteilten Postfächern“. Sie zählen weder für die Aufgabe noch für die Abnahme.
+Der Eintrag verschwindet nach der nächsten Statusprüfung (alle 30 Minuten oder
+mit „Status aktualisieren“).
+
+**Zu tun:** nichts.
+
 ## v1.12.195 — 2026-11-28 — Postfachliste: Spalte „Aktiviert“ statt „Verarbeitung“
 
 Die Spalte aus v1.12.188 heißt jetzt „Aktiviert“, ohne die Unterzeile. Der
